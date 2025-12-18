@@ -1,6 +1,5 @@
 from sqlmodel import Session, text
-from core.database import engine
-
+from app.core.database import engine
 def factory_reset():
     print("🧨 正在执行工厂重置...")
     with Session(engine) as session:

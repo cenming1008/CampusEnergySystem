@@ -7,6 +7,7 @@ from app.api.endpoints import devices, telemetry, analysis, alarms, reports, fdd
 from app.api.deps import get_current_user # 👈 2. 导入依赖
 from fastapi import Depends # 👈 3. 确保导入 Depends
 
+
 # 👇 1. 导入新模块 (reports, fdd)
 from app.api.endpoints import devices, telemetry, analysis, alarms, reports, fdd
 from app.models import tables
@@ -14,7 +15,7 @@ from app.models import tables
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 数据库连接成功，全功能系统启动！")
+    print("🚀 数据库连接成功，全功能系统启动")
     yield
     print("🛑 系统已关闭")
 
