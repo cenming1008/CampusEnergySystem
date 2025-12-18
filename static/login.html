@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>登录 - 煤矿能源管理系统</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/remixicon/3.5.0/remixicon.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #fff;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; margin: 0; font-family: sans-serif;
+        }
+        .login-box {
+            background: #1e293b; padding: 40px; border-radius: 12px;
+            width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h2 { text-align: center; color: #3b82f6; margin-bottom: 30px; }
+        .input-group { margin-bottom: 20px; position: relative; }
+        .input-group i {
+            position: absolute; left: 12px; top: 12px; color: #64748b;
+        }
+        input {
+            width: 100%; box-sizing: border-box;
+            background: #0f172a; border: 1px solid #334155;
+            padding: 12px 12px 12px 40px; color: #fff; border-radius: 6px;
+            outline: none; font-size: 14px;
+        }
+        input:focus { border-color: #3b82f6; }
+        button {
+            width: 100%; background: #3b82f6; color: #fff; border: none;
+            padding: 12px; border-radius: 6px; cursor: pointer; font-size: 16px;
+            font-weight: bold; transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        .error-msg { color: #ef4444; font-size: 13px; margin-top: 10px; text-align: center; min-height: 20px;}
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2><i class="ri-fire-fill"></i> MINE EMS</h2>
+        <form id="login-form">
+            <div class="input-group">
+                <i class="ri-user-line"></i>
+                <input type="text" id="username" placeholder="用户名" required>
+            </div>
+            <div class="input-group">
+                <i class="ri-lock-line"></i>
+                <input type="password" id="password" placeholder="密码" required>
+            </div>
+            <button type="submit" id="btn-login">登 录</button>
+            <div id="error-msg" class="error-msg"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-login');
+            const error = document.getElementById('error-msg');
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            btn.innerText = '登录中...';
+            btn.disabled = true;
+            error.innerText = '';
+
+            try {
+                // 发送表单数据 (OAuth2 标准格式)
+                const formData = new URLSearchParams();
+                formData.append('username', user);
+                formData.append('password', pass);
+
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    // ✅ 登录成功：保存 Token
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('username', user);
+                    window.location.href = '/index.html'; // 跳转主页
+                } else {
+                    const errData = await res.json();
+                    error.innerText = errData.detail || '登录失败';
+                    btn.innerText = '登 录';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                error.innerText = '网络连接错误';
+                btn.innerText = '登 录';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

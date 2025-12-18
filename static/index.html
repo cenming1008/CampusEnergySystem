@@ -16,6 +16,13 @@
             <span class="logo-text">MINE EMS</span>
         </div>
 
+        <div style="padding: 20px; margin-top: auto;">
+            <button onclick="localStorage.removeItem('access_token'); window.location.href='/login.html'" 
+                    style="width:100%; background:#334155; color:#cbd5e1; border:none; padding:10px; border-radius:6px; cursor:pointer;">
+                <i class="ri-logout-box-r-line"></i> 退出登录
+            </button>
+        </div>
+
         <ul class="menu-list">
             <li class="menu-header">概览</li>
             <li class="menu-item active" id="menu-dashboard">

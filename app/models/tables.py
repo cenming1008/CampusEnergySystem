@@ -31,3 +31,10 @@ class Alarm(SQLModel, table=True):
     message: str
     timestamp: datetime = Field(default_factory=datetime.now, index=True)
     is_resolved: bool = Field(default=False)
+
+# --- 用户表 ---
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    hashed_password: str # 注意：永远不要存明文密码！
+    is_active: bool = Field(default=True)

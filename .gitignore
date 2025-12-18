@@ -1,8 +1,0 @@
-venv/
-__pycache__/
-*.pyc
-.DS_Store
-.env
-myems_deploy/db_data/
-logs/
-pg_data/
