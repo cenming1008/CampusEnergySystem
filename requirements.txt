@@ -1,0 +1,20 @@
+# 为了解决py中需要的库 为什么要这样写 别人可以直接运行我的这个文件就可以直接拥有相同环境，减少
+# 缺少模块报错
+paho-mqtt # MQTT 客户端
+sqlmodel
+# web框架 fastapi 当前最流行的web开发框架 作为我整个后端的核心 负责接待浏览器 或者模拟器发来的
+# 请求 可以指挥具体的函数去干活，那个可视化的前端页面就算他生成的
+fastapi >= 0.104.1
+uvicorn >= 0.24.0
+# 高性能的ASGI服务器（异步网关接口） Uvicorn可以启动运行程序，负责监听8088端口，处理底层的TCP
+# 、IP 这些网络链接， 支持高并发
+# 数据库
+# sqlmodel 翻译我写的代码形成sql命令 不用写insert into。。。 给数据库，让数据库读懂
+sqlmodel==0.0.14
+psycopg2-binary==2.9.9 #链接数据库
+
+# qita
+python-multipart==0.0.6
+# 干活的  将sql翻译成的数据 发送给数据库，没有他无法链接数据库
+python-jose[cryptography]
+passlib[bcrypt]

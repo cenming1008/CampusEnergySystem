@@ -1,0 +1,17 @@
+version: '3.8' #Docker 的版本
+
+services:  #服务i清单，接下来需要做什么
+  # 专门用于 MineEnergySystem 的数据库
+  db:    #先构建数据库
+    image: timescale/timescaledb:latest-pg14 #直接下载镜像，timescaleDB 这个做好的系统包含了postgresql数据库
+    container_name: mine_energy_db #容器命名
+    restart: always #重启策略
+    environment: #环境变量 设定初始值 告诉数据库 一开始需要什么
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: mine_energy
+    ports: #端口映射 打开外部联系
+      # ⚠️ 注意：左边改为 5433，避免和服务器上现有的 MyEMS 数据库(通常是5432)冲突
+      - "5433:5432"
+    volumes: #挂载卷 保存数据，下载数据到硬盘
+      - ./pg_data:/var/lib/postgresql/data
