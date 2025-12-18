@@ -15,3 +15,17 @@ services:  #服务i清单，接下来需要做什么
       - "5433:5432"
     volumes: #挂载卷 保存数据，下载数据到硬盘
       - ./pg_data:/var/lib/postgresql/data
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: mine_mqtt
+    restart: always
+    ports:
+      - "1883:1883"  # MQTT 协议端口
+      - "9001:9001"  # WebSocket 端口 (给前端用)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    # 创建一个简单的默认配置，允许匿名访问 (生产环境需关闭)
+    command: sh -c "echo 'listener 1883' > /mosquitto/config/mosquitto.conf && echo 'allow_anonymous true' >> /mosquitto/config/mosquitto.conf && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
