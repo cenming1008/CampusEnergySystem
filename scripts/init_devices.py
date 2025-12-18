@@ -6,7 +6,7 @@ BASE_URL = "http://127.0.0.1:8088"
 LOGIN_URL = f"{BASE_URL}/auth/login"
 DEVICES_URL = f"{BASE_URL}/devices/"
 
-# 管理员账号 (必须与 create_admin.py 里创建的一致)
+# 管理员账号 
 ADMIN_USER = "admin"
 ADMIN_PASS = "123456"
 
