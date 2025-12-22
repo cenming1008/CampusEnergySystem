@@ -1,40 +1,158 @@
+import asyncio
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+
+# 1. 导入核心模块
 from app.core.database import init_db
-from app.api.endpoints import devices, telemetry, analysis, alarms, reports, fdd, auth # 👈 1. 导入 auth
-from app.api.deps import get_current_user # 👈 2. 导入依赖
-from fastapi import Depends # 👈 3. 确保导入 Depends
+from app.core.socket_manager import manager  # 👈 新增：WebSocket 连接管理器
+from app.services.mqtt_worker import start_mqtt_background  # 👈 新增：MQTT 启动函数
 
+# 2. 导入各个业务模块的路由
+from app.api.endpoints import (
+    auth,       # 认证
+    devices,    # 设备管理
+    telemetry,  # 遥测数据 (HTTP上传)
+    alarms,     # 报警管理
+    analysis,   # 数据分析
+    reports,    # 报表导出
+    fdd         # 故障诊断
+)
+from app.api.deps import get_current_user  # 权限验证依赖
 
-# 👇 1. 导入新模块 (reports, fdd)
-from app.api.endpoints import devices, telemetry, analysis, alarms, reports, fdd
-from app.models import tables
-
+# =================================================================
+# 🔄 生命周期管理器 (Lifespan)
+# 作用：在服务器启动时初始化数据库和 MQTT，在关闭时清理资源
+# =================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    print("🚀 数据库连接成功，全功能系统启动")
-    yield
-    print("🛑 系统已关闭")
+    # --- 🟢 启动阶段 ---
+    print("\n🚀 [系统启动] 正在初始化数据库...")
+    init_db()  # 1. 创建表结构
+    
+    print("📡 [MQTT] 正在启动后台监听线程...")
+    
+    # 定义一个“桥梁”函数：当 MQTT 收到数据时，执行这个函数
+    # 它的作用是把 MQTT 消息“转发”给 WebSocket
+    def mqtt_to_ws_callback(msg_dict):
+        # manager.broadcast 是一个异步函数 (async def)
+        # 但这里的回调是同步的，所以需要用 create_task 把它扔进事件循环里执行
+        asyncio.create_task(manager.broadcast(msg_dict))
 
-app = FastAPI(title="煤矿综合能源管理系统后端 ", lifespan=lifespan)
+    # 2. 启动 MQTT Worker (传入回调函数)
+    start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
+    
+    print("✅ 系统就绪，等待连接...\n")
+    
+    yield  # ⏸️ 这里是分界线，应用开始运行
+    
+    # --- 🔴 关闭阶段 ---
+    print("\n🛑 [系统关闭]正在清理资源...")
 
+# =================================================================
+# 🏗️ 初始化 FastAPI 应用
+# =================================================================
+app = FastAPI(
+    title="煤矿综合能源管理系统 (Mine EMS)",
+    description="基于 FastAPI + TimescaleDB + MQTT 的工业级能源管理后端",
+    version="2.0.0",
+    lifespan=lifespan  # 挂载生命周期钩子
+)
+
+# 📂 挂载静态文件 (前端页面)
+# 访问 http://localhost:8088/view/ 即可看到前端
 app.mount("/view", StaticFiles(directory="static", html=True), name="static")
 
-# 👇 4. 注册登录路由 (不需要保护)
-app.include_router(auth.router, prefix="/auth", tags=["认证中心"])
 
-# 👇 5. 给敏感路由加上 dependencies=[Depends(get_current_user)]
-# 这样，如果不登录，这些接口都访问不了！
-app.include_router(devices.router, prefix="/devices", tags=["设备管理"], dependencies=[Depends(get_current_user)])
-app.include_router(alarms.router, prefix="/alarms", tags=["报警中心"], dependencies=[Depends(get_current_user)])
-app.include_router(reports.router, prefix="/reports", tags=["报表中心"], dependencies=[Depends(get_current_user)])
-# telemetry 通常是设备发的，可能需要单独的 API Key 机制，或者暂时留空不保护以便模拟器运行
-app.include_router(telemetry.router, prefix="/telemetry", tags=["遥测数据"]) 
-app.include_router(analysis.router, prefix="/analysis", tags=["数据分析"], dependencies=[Depends(get_current_user)])
-app.include_router(fdd.router, prefix="/fdd", tags=["故障诊断"], dependencies=[Depends(get_current_user)])
+# =================================================================
+# 🔌 WebSocket 路由 (实时数据推送)
+# =================================================================
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    前端通过 ws://localhost:8088/ws 连接此接口
+    连接建立后，服务器会把 MQTT 收到的数据实时推给该客户端
+    """
+    # 1. 接受连接
+    await manager.connect(websocket)
+    try:
+        while True:
+            # 2. 保持连接活跃
+            # 虽然我们目前不需要前端发消息过来，但必须有一个 await 挂起
+            # 否则连接会立即断开。这里等待接收文本（心跳检测可以在这里做）
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        # 3. 断开连接时清理
+        manager.disconnect(websocket)
+        # print("🔌 客户端已断开 WebSocket 连接")
 
+
+# =================================================================
+# 🛣️ 注册 HTTP 路由 (RESTful API)
+# =================================================================
+
+# 1. 认证模块 (登录获取 Token) - 不需要权限锁
+app.include_router(auth.router, prefix="/auth", tags=["0. 认证中心"])
+
+# 2. 设备管理 (增删改查) - 🔐 需要登录
+app.include_router(
+    devices.router, 
+    prefix="/devices", 
+    tags=["1. 设备管理"], 
+    dependencies=[Depends(get_current_user)]
+)
+
+# 3. 遥测数据 (接收 HTTP 上传) - 通常由设备调用，视情况是否加锁
+app.include_router(
+    telemetry.router, 
+    prefix="/telemetry", 
+    tags=["2. 遥测数据"]
+)
+
+# 4. 报警中心 (查询/处理报警) - 🔐 需要登录
+app.include_router(
+    alarms.router, 
+    prefix="/alarms", 
+    tags=["3. 报警中心"], 
+    dependencies=[Depends(get_current_user)]
+)
+
+# 5. 数据分析 (图表数据源) - 🔐 需要登录
+app.include_router(
+    analysis.router, 
+    prefix="/analysis", 
+    tags=["4. 数据分析"], 
+    dependencies=[Depends(get_current_user)]
+)
+
+# 6. 故障诊断 (FDD算法结果) - 🔐 需要登录
+app.include_router(
+    fdd.router, 
+    prefix="/fdd", 
+    tags=["5. 故障诊断"], 
+    dependencies=[Depends(get_current_user)]
+)
+
+# 7. 报表中心 (导出 CSV) - 🔐 需要登录
+app.include_router(
+    reports.router, 
+    prefix="/reports", 
+    tags=["6. 报表中心"], 
+    dependencies=[Depends(get_current_user)]
+)
+
+
+# =================================================================
+# ▶️ 程序入口
+# =================================================================
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8088, reload=True)
+    # 生产环境通常使用命令行: uvicorn app.main:app --host 0.0.0.0 ...
+    # 开发环境直接运行此文件即可
+    uvicorn.run(
+        "app.main:app", 
+        host="0.0.0.0", 
+        port=8088, 
+        reload=True,  # 开启热重载：改代码后自动重启
+        workers=1     # 开发环境 1 个 worker 即可
+    )

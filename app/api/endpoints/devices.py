@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.core.database import get_session
 from app.models.tables import Device
+from app.services.mqtt_publisher import publish_control_command
 
 router = APIRouter()
 
@@ -53,19 +54,24 @@ def update_device(device_id: int, device_req: Device, session: Session = Depends
     session.refresh(db_device)
     return db_device
 
-#---设备切换启停---
+# ---设备切换启停---
 @router.post("/{device_id}/toggle")
 def toggle_device_status(device_id: int, active: bool, session: Session = Depends(get_session)):
     device = session.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
 
+    # 1. 更新数据库状态
     device.is_active = active
     session.add(device)
     session.commit()
     session.refresh(device)
 
     status_text = "启动" if active else "停止"
-    print(f"设备{device.name} (ID:{device_id} 已{status_text})")
+    action_code = "start" if active else "stop"
 
+    # 👇 2. 发送 MQTT 指令 (反向控制核心)
+    publish_control_command(device.id, action_code)
+
+    print(f"✅ 设备{device.name} (ID:{device_id}) 状态已更新为: {status_text}")
     return device
