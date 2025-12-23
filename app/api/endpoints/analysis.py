@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from datetime import datetime, time
 from app.core.database import get_session
-from app.core.config import load_thresholds
-from app.models.tables import DeviceData, Device 
+from app.core.config import load_thresholds #读取电价等参数
+from app.models.tables import DeviceData, Device # 读取设备信息表和设备数据表
 
 router = APIRouter()
 

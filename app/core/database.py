@@ -1,5 +1,5 @@
 import os
-from sqlmodel import SQLModel, create_engine, Session, text # 👈 记得导入 text
+from sqlmodel import SQLModel, create_engine, Session, text # 
 from dotenv import load_dotenv
 
 load_dotenv()

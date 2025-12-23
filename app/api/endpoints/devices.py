@@ -7,7 +7,6 @@ from app.services.mqtt_publisher import publish_control_command
 
 router = APIRouter()
 
-# ---原有代码保持不变---
 @router.post("/", response_model=Device)
 def create_device(device: Device, session: Session = Depends(get_session)):
     session.add(device)

@@ -23,7 +23,7 @@ def publish_control_command(device_id: int, action: str):
             "device_id": device_id
         })
         
-        client.publish(topic, payload)
+        client.publish(topic, payload, qso=1)
         client.disconnect()
         
         print(f"📡 [指令下发] To ID:{device_id} -> {action}")

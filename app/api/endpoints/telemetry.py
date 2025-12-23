@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from app.core.database import get_session
 from app.models.tables import DeviceData
-# 👇 导入新服务
 from app.services.data_processor import process_device_data
 
 router = APIRouter()

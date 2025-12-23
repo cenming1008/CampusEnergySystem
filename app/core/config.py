@@ -3,6 +3,7 @@ import os
 
 # 自动获取项目根目录 (即 main.py 所在的文件夹)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 获取三次父目录 以保证其可移植性
 CONFIG_PATH = os.path.join(BASE_DIR, "config", "settings.json")
 
 def load_thresholds():

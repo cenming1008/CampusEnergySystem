@@ -1,9 +1,9 @@
 # app/core/security.py
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import jwt
-from passlib.context import CryptContext
-
+from jose import jwt #JSON Web TOken
+from passlib.context import CryptContext #pyD的哈希库
+ 
 # ⚠️ 生产环境请务必修改这个密钥，并放入环境变量！
 SECRET_KEY = "mine-energy-system-secret-key-change-me"
 ALGORITHM = "HS256"

@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from app.core.database import init_db
 from app.core.socket_manager import manager  # 👈 新增：WebSocket 连接管理器
 from app.services.mqtt_worker import start_mqtt_background  # 👈 新增：MQTT 启动函数
-
+from app.core.redis import RedisClient
+from app.core.logger import logger
 # 2. 导入各个业务模块的路由
 from app.api.endpoints import (
     auth,       # 认证
@@ -28,9 +29,16 @@ from app.api.deps import get_current_user  # 权限验证依赖
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- 🟢 启动阶段 ---
-    print("\n🚀 [系统启动] 正在初始化数据库...")
     init_db()  # 1. 创建表结构
     
+        # 初始化 Redis 连接测试
+    try:
+        redis = RedisClient.get_client()
+        await redis.ping()
+        logger.info("✅ [Redis] 连接成功")
+    except Exception as e:
+        logger.info(f"❌ [Redis] 连接失败: {e}")
+
     print("📡 [MQTT] 正在启动后台监听线程...")
     
     # 定义一个“桥梁”函数：当 MQTT 收到数据时，执行这个函数

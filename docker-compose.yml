@@ -29,3 +29,36 @@ services:  #服务i清单，接下来需要做什么
       - ./mosquitto/log:/mosquitto/log
     # 创建一个简单的默认配置，允许匿名访问 (生产环境需关闭)
     command: sh -c "echo 'listener 1883' > /mosquitto/config/mosquitto.conf && echo 'allow_anonymous true' >> /mosquitto/config/mosquitto.conf && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
+      # 新增 Redis 服务
+  redis:
+    image: redis:7.0-alpine
+    container_name: ems_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+
+  backend:
+    # ... existing code ...
+    environment:
+      # ... existing code ...
+      # 添加 Redis 连接配置环境变量
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - mosquitto
+      - redis  # 确保 Redis 先启动
+
+  # ... existing code ...
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  redis_data:  # 新增 Redis 数据卷
+
+networks:
+  app_network:
+    driver: bridge
