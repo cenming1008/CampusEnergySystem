@@ -156,11 +156,13 @@
           </el-header>
     
           <el-main class="main-content">
-            <router-view v-slot="{ Component }">
-              <transition name="fade" mode="out-in">
-                <component :is="Component" />
-              </transition>
-            </router-view>
+            <div class="content-wrapper">
+              <router-view v-slot="{ Component }">
+                <transition name="fade" mode="out-in">
+                  <component :is="Component" />
+                </transition>
+              </router-view>
+            </div>
           </el-main>
         </el-container>
       </el-container>
@@ -170,6 +172,13 @@
     /* --- 布局容器 --- */
     .layout-container {
       height: 100vh;
+      width: 100%;
+      display: flex;
+    }
+    
+    :deep(.el-container) {
+      width: 100%;
+      height: 100%;
     }
     
     /* --- 侧边栏样式 --- */
@@ -263,6 +272,22 @@
     .alarm-content .time { font-size: 12px; color: #999; margin-top: 2px; }
     .alarm-footer { text-align: center; margin-top: 10px; }
     .empty-alarm { text-align: center; color: #999; padding: 20px; }
+    
+    /* --- 主内容区 --- */
+    .main-content {
+      padding: 20px !important;
+      background-color: var(--bg-body);
+      overflow-y: auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .content-wrapper {
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
     
     /* --- 动画 --- */
     .fade-enter-active, .fade-leave-active {

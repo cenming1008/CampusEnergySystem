@@ -253,10 +253,12 @@
     <style scoped>
     .dashboard-container {
       padding: 0;
+      width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
       gap: 20px;
+      box-sizing: border-box;
     }
     
     /* --- 顶部栏 --- */
@@ -268,6 +270,16 @@
       padding: 15px 20px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    @media (max-width: 768px) {
+      .dashboard-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+      }
     }
     .title { font-size: 16px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
     .selector { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-secondary); }
@@ -275,8 +287,21 @@
     /* --- 卡片网格 --- */
     .data-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 20px;
+      width: 100%;
+    }
+    
+    @media (max-width: 1400px) {
+      .data-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .data-grid {
+        grid-template-columns: 1fr;
+      }
     }
     .data-card {
       background: var(--bg-sidebar);
@@ -323,6 +348,8 @@
       display: flex;
       flex-direction: column;
       min-height: 300px;
+      width: 100%;
+      box-sizing: border-box;
     }
     .panel-header h3 { margin: 0 0 15px 0; font-size: 16px; border-left: 4px solid var(--brand-color); padding-left: 10px; }
     .chart-box { flex: 1; width: 100%; }

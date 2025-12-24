@@ -286,6 +286,8 @@
       border-radius: 12px;
       border: 1px solid var(--border-color);
       min-height: 85vh;
+      width: 100%;
+      box-sizing: border-box;
     }
     
     .toolbar {

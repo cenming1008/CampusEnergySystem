@@ -2,7 +2,6 @@ import asyncio
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 
@@ -78,9 +77,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 📂 挂载静态文件 (前端页面)
-# 访问 http://localhost:8088/view/ 即可看到前端
-app.mount("/view", StaticFiles(directory="static", html=True), name="static")
+# 📂 注意：前端已迁移到 frontend 目录，使用 Vite 开发服务器
+# 前端开发服务器运行在 http://localhost:5173
+# 生产环境可以将 frontend/dist 构建产物挂载到此处
 
 
 # =================================================================

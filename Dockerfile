@@ -4,12 +4,12 @@ FROM python:3.10-slim
 # 2. 设置工作目录
 WORKDIR /app
 
-# 3. 安装系统依赖 (去掉换源，直接安装)
-# 如果网络依然极慢，请联系网络管理员，通常 slim 镜像自带的基础包已足够
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     build-essential \
-#     libpq-dev \
-#     && rm -rf /var/lib/apt/lists/*
+# 3. 安装系统依赖 (bcrypt 需要编译，需要 build-essential)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
 # 4. 复制依赖文件并安装 (保留 pip 加速)
 COPY requirements.txt .

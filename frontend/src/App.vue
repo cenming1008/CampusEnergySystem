@@ -22,12 +22,18 @@
     
     html, body, #app {
       height: 100%;
+      width: 100%;
       margin: 0;
       padding: 0;
       font-family: 'Inter', sans-serif;
       background-color: var(--bg-body);
       color: var(--text-primary);
       overflow: hidden; /* 防止双重滚动条 */
+      box-sizing: border-box;
+    }
+    
+    *, *::before, *::after {
+      box-sizing: border-box;
     }
     
     /* 滚动条美化 */

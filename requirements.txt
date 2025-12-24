@@ -16,7 +16,7 @@ paho-mqtt>=1.6.1
 
 python-jose[cryptography]
 passlib[bcrypt]
-
+bcrypt==4.3.0
 
 requests>=2.31.0
 python-dotenv>=1.0.0
