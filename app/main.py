@@ -1,8 +1,10 @@
 import asyncio
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+
 
 # 1. 导入核心模块
 from app.core.database import init_db
@@ -66,6 +68,14 @@ app = FastAPI(
     description="基于 FastAPI + TimescaleDB + MQTT 的工业级能源管理后端",
     version="2.0.0",
     lifespan=lifespan  # 挂载生命周期钩子
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 生产环境建议改为具体的 ["http://localhost:5173"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 📂 挂载静态文件 (前端页面)

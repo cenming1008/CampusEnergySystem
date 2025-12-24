@@ -1,3 +1,4 @@
+import os
 import json
 import asyncio
 import paho.mqtt.client as mqtt
@@ -7,7 +8,7 @@ from app.core.database import engine
 from app.services.data_processor import process_device_data
 
 # 配置
-MQTT_BROKER = "127.0.0.1"
+MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_TOPIC = "mine/telemetry"
 
 # 全局客户端实例
