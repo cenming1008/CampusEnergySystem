@@ -1,35 +1,39 @@
-version: '3.8' #Docker 的版本
+version: '3.8'
 
-services:  #服务i清单，接下来需要做什么
-  # 专门用于 MineEnergySystem 的数据库
-  db:    #先构建数据库
-    image: timescale/timescaledb:latest-pg14 #直接下载镜像，timescaleDB 这个做好的系统包含了postgresql数据库
-    container_name: mine_energy_db #容器命名
-    restart: always #重启策略
-    environment: #环境变量 设定初始值 告诉数据库 一开始需要什么
+services:
+  # 1. 数据库 (TimescaleDB)
+  db:
+    image: timescale/timescaledb:latest-pg14
+    container_name: mine_energy_db
+    restart: always
+    environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: mine_energy
-    ports: #端口映射 打开外部联系
-      # ⚠️ 注意：左边改为 5433，避免和服务器上现有的 MyEMS 数据库(通常是5432)冲突
+    ports:
       - "5433:5432"
-    volumes: #挂载卷 保存数据，下载数据到硬盘
+    volumes:
       - ./pg_data:/var/lib/postgresql/data
+    networks:
+      - app_network
 
+  # 2. 消息队列 (MQTT)
   mqtt:
     image: eclipse-mosquitto:2.0
     container_name: mine_mqtt
     restart: always
     ports:
-      - "1883:1883"  # MQTT 协议端口
-      - "9001:9001"  # WebSocket 端口 (给前端用)
+      - "1883:1883"
+      - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-    # 创建一个简单的默认配置，允许匿名访问 (生产环境需关闭)
     command: sh -c "echo 'listener 1883' > /mosquitto/config/mosquitto.conf && echo 'allow_anonymous true' >> /mosquitto/config/mosquitto.conf && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
-      # 新增 Redis 服务
+    networks:
+      - app_network
+
+  # 3. 缓存 (Redis)
   redis:
     image: redis:7.0-alpine
     container_name: ems_redis
@@ -41,23 +45,26 @@ services:  #服务i清单，接下来需要做什么
     networks:
       - app_network
 
+  # 4. 后端应用 (FastAPI) - 关键修复处
   backend:
-    # ... existing code ...
+    build: .  # 👈 核心修复：告诉 Docker 使用当前目录的 Dockerfile 构建镜像
+    container_name: mine_backend
     environment:
-      # ... existing code ...
-      # 添加 Redis 连接配置环境变量
+      - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
       - REDIS_URL=redis://redis:6379/0
+      - MQTT_BROKER=mqtt
+    ports:
+      - "8088:8088"
     depends_on:
       - db
-      - mosquitto
-      - redis  # 确保 Redis 先启动
-
-  # ... existing code ...
+      - mqtt
+      - redis
+    networks:
+      - app_network
 
 volumes:
-  postgres_data:
-  mosquitto_data:
-  redis_data:  # 新增 Redis 数据卷
+  redis_data:
+  # 删除了不一致的 postgres_data，直接使用 ./pg_data 目录
 
 networks:
   app_network:

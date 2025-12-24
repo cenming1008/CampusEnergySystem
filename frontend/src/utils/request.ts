@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 
 // 创建 axios 实例
 const service = axios.create({
-  baseURL: '/api', // 配合 vite.config.ts 的 proxy
+  baseURL: '', // 配合 vite.config.ts 的 proxy
   timeout: 5000,
   headers: { 'Content-Type': 'application/json' }
 })
@@ -48,4 +48,4 @@ service.interceptors.response.use(
   }
 )
 
-export default servicess
+export default service
