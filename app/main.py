@@ -69,9 +69,12 @@ app = FastAPI(
     lifespan=lifespan  # 挂载生命周期钩子
 )
 
+# 导入统一配置
+from app.core.settings import settings
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境建议改为具体的 ["http://localhost:5173"]
+    allow_origins=settings.cors_origins,  # 从配置读取，支持多环境
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,12 +167,11 @@ app.include_router(
 # ▶️ 程序入口
 # =================================================================
 if __name__ == "__main__":
-    # 生产环境通常使用命令行: uvicorn app.main:app --host 0.0.0.0 ...
-    # 开发环境直接运行此文件即可
+    # 从统一配置读取服务器配置
     uvicorn.run(
         "app.main:app", 
-        host="0.0.0.0", 
-        port=8088, 
-        reload=True,  # 开启热重载：改代码后自动重启
-        workers=1     # 开发环境 1 个 worker 即可
+        host=settings.host, 
+        port=settings.port, 
+        reload=settings.reload,  # 从配置读取，生产环境自动关闭
+        workers=settings.workers  # 从配置读取工作进程数
     )

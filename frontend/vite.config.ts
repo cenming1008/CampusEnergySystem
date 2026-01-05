@@ -1,5 +1,7 @@
+/// <reference types="node" />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { fileURLToPath } from 'url'
 import path from 'path'
 
 // https://vitejs.dev/config/
@@ -9,7 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // 设置 @ 指向 src 目录，方便引入组件 (例如: import X from '@/components/X')
-      '@': path.resolve(__dirname, 'src')
+      '@': path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'src')
     }
   },
 

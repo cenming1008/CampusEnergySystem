@@ -2,11 +2,12 @@ from datetime import datetime, timedelta
 from typing import Optional, Union, Any
 from jose import jwt #JSON Web TOken
 from passlib.context import CryptContext #pyD的哈希库
+from app.core.settings import settings  # 使用统一配置管理
  
-# ⚠️ 生产环境请务必修改这个密钥，并放入环境变量！
-SECRET_KEY = "mine-energy-system-secret-key-change-me"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 300 # Token 有效期 5 小时
+# 从统一配置中获取JWT相关配置
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 
 pwd_context = CryptContext(
@@ -88,7 +89,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        # 使用配置中的默认过期时间
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

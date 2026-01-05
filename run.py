@@ -1,11 +1,13 @@
 import uvicorn
+from app.core.settings import settings  # 使用统一配置管理
 
 if __name__ == "__main__":
-    # 这里直接配置好所有的启动参数
-    # 这样你就不用每次都在命令行里敲 --host 0.0.0.0 --port 8088 了
+    # 从统一配置读取启动参数
+    # 这样可以通过环境变量或 .env 文件灵活配置
     uvicorn.run(
         "app.main:app", 
-        host="0.0.0.0", 
-        port=8088, 
-        reload=True  # 开发模式下开启热重载
+        host=settings.host, 
+        port=settings.port, 
+        reload=settings.reload,  # 从配置读取，生产环境自动关闭
+        workers=settings.workers  # 从配置读取工作进程数
     )

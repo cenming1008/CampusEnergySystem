@@ -1,13 +1,11 @@
-import os
-from sqlmodel import SQLModel, create_engine, Session, text # 
-from dotenv import load_dotenv
+from sqlmodel import SQLModel, create_engine, Session, text
+from app.core.settings import settings  # 使用统一配置管理
 
-load_dotenv()
+# 从统一配置中获取数据库URL
+DATABASE_URL = settings.database_url
 
-# 数据库连接串
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5433/mine_energy")
-
-engine = create_engine(DATABASE_URL, echo=True)
+# 根据debug模式决定是否打印SQL（生产环境关闭）
+engine = create_engine(DATABASE_URL, echo=settings.debug)
 
 def init_db():
     # 1. 创建普通表结构
