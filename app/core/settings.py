@@ -1,18 +1,21 @@
 """
-统一配置管理模块
-使用 Pydantic Settings 管理所有配置项，支持从环境变量和 .env 文件读取
+应用配置（Pydantic Settings）
+
+统一管理数据库、Redis、MQTT、JWT、CORS、日志、服务端口等配置。
 """
-try:
-    # Pydantic v2
-    from pydantic_settings import BaseSettings
-except ImportError:
-    # Pydantic v1
-    from pydantic import BaseSettings
-
-from pydantic import Field, validator
 from typing import List, Optional
-import os
 
+# Pydantic v2 推荐：BaseSettings 在 pydantic-settings；如果环境未安装，则回退到 pydantic.v1
+try:
+    from pydantic_settings import BaseSettings  # type: ignore
+    from pydantic import Field, validator  # type: ignore
+except Exception:
+    try:
+        # Pydantic v2 兼容层（无需安装 pydantic-settings）
+        from pydantic.v1 import BaseSettings, Field, validator  # type: ignore
+    except Exception:
+        # Pydantic v1
+        from pydantic import BaseSettings, Field, validator  # type: ignore
 
 class Settings(BaseSettings):
     """
@@ -46,11 +49,10 @@ class Settings(BaseSettings):
     
     @validator("database_url")
     def validate_database_url(cls, v):
-        """验证数据库URL格式"""
+        """验证数据库URL格式：只允许PostgreSQL连接地址"""
         if not v.startswith(("postgresql://", "postgresql+psycopg2://")):
             raise ValueError("DATABASE_URL 必须以 postgresql:// 或 postgresql+psycopg2:// 开头")
         return v
-    
     # ==================== Redis配置 ====================
     redis_url: str = Field(
         default="redis://localhost:6379/0",
@@ -103,7 +105,7 @@ class Settings(BaseSettings):
     
     # ==================== JWT认证配置 ====================
     secret_key: str = Field(
-        ...,
+        default="mine-energy-system-secret-key-change-me",
         env="SECRET_KEY",
         description="JWT密钥（生产环境必须修改！）"
     )

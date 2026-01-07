@@ -1,6 +1,8 @@
-venv/
-__pycache__/
-*.pyc
-.env
-.DS_Store
-pg_data/
+   # 添加到 .gitignore
+   .env
+   logs/
+   pg_data/
+   __pycache__/
+   *.pyc
+   node_modules/
+   dist/

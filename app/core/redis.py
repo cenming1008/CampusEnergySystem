@@ -1,36 +1,58 @@
-import redis.asyncio as redis
-from typing import Optional
-from app.core.settings import settings  # 使用统一配置管理
+"""
+Redis 客户端封装（异步）
 
-# 从统一配置中获取Redis URL
-REDIS_URL = settings.redis_url
+- 统一从 `settings` 读取配置
+- 懒加载单例，便于多处复用
+- 提供 `close()` 用于应用关闭阶段释放连接
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+import redis.asyncio as redis
+
+from app.core.settings import settings
+
 
 class RedisClient:
     _client: Optional[redis.Redis] = None
 
     @classmethod
     def get_client(cls) -> redis.Redis:
-        """获取 Redis 客户端实例（单例模式）"""
+        """获取 Redis 客户端实例（单例）。"""
         if cls._client is None:
-            # 创建连接池，支持密码配置
             connection_kwargs = {
                 "encoding": "utf-8",
-                "decode_responses": True  # 自动解码为字符串
+                "decode_responses": True,
             }
-            # 如果配置了密码，添加到连接参数
             if settings.redis_password:
                 connection_kwargs["password"] = settings.redis_password
-            
-            cls._client = redis.from_url(REDIS_URL, **connection_kwargs)
+
+            cls._client = redis.from_url(settings.redis_url, **connection_kwargs)
         return cls._client
 
     @classmethod
-    async def close(cls):
-        """关闭连接"""
-        if cls._client:
-            await cls._client.close()
-            cls._client = None
+    async def close(cls) -> None:
+        """关闭 Redis 连接（在应用关闭阶段调用）。"""
+        if cls._client is None:
+            return
 
-# 导出获取客户端的函数，方便调用
+        client = cls._client
+        cls._client = None
+        try:
+            await client.close()
+            # 保险起见断开连接池（不同版本 redis-py 可能实现细节不同）
+            pool = getattr(client, "connection_pool", None)
+            if pool and hasattr(pool, "disconnect"):
+                result = pool.disconnect(inuse_connections=True)  # type: ignore[call-arg]
+                if result is not None:
+                    await result
+        except Exception:
+            # 关闭阶段不再向外抛异常
+            pass
+
+
 async def get_redis() -> redis.Redis:
+    """FastAPI 依赖注入：获取 Redis 客户端。"""
     return RedisClient.get_client()

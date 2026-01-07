@@ -1,28 +1,39 @@
-from typing import List
+"""
+WebSocket 连接管理器
+
+- 维护当前活跃连接列表
+- 提供 broadcast 能力用于推送实时数据
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
 from fastapi import WebSocket
 
-class ConnectionManager:
-    def __init__(self):
-        # 存放所有活跃的 WebSocket 连接
-        self.active_connections: List[WebSocket] = []
+from app.core.logger import logger
 
-    async def connect(self, websocket: WebSocket):
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self.active_connections.append(websocket)
+        logger.debug(f"WebSocket connected, total={len(self.active_connections)}")
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> None:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+            logger.debug(f"WebSocket disconnected, total={len(self.active_connections)}")
 
-    async def broadcast(self, message: dict):
-        """向所有连接的客户端发送消息"""
-        # 遍历所有连接，发送 JSON 数据
-        for connection in self.active_connections:
+    async def broadcast(self, message: dict[str, Any]) -> None:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(message)
             except Exception:
-                # 如果发送失败（比如连接断开），移除该连接
                 self.disconnect(connection)
 
-# 实例化一个全局对象供其他模块使用
+
 manager = ConnectionManager()

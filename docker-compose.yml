@@ -53,6 +53,7 @@ services:
       - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
+      - SECRET_KEY=mine-energy-system-secret-key-change-me
     ports:
       - "8088:8088"
     depends_on:

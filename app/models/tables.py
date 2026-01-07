@@ -1,9 +1,18 @@
-from typing import Optional
-from sqlmodel import Field, SQLModel
-from datetime import datetime
+"""
+数据库模型定义（SQLModel）
+"""
 
-# --- 设备表 (保持不变) ---
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from sqlmodel import Field, SQLModel
+
+
 class Device(SQLModel, table=True):
+    """设备表。"""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     sn: str = Field(index=True, unique=True)
@@ -14,34 +23,35 @@ class Device(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-# --- 实时数据表 (⚠️ 核心修改) ---
+
 class DeviceData(SQLModel, table=True):
-    # 显式指定表名，确保全小写，方便 SQL 语句调用
+    """设备遥测数据（时序表）。"""
+
     __tablename__ = "devicedata"
 
-    # 1. 移除原来的自增 ID 主键 (在大数据量下，自增 ID 会成为写入瓶颈)
-    # id: Optional[int] = Field(default=None, primary_key=True)
-    
-    # 2. 设置联合主键 (Composite Primary Key)
-    # TimescaleDB 要求：分区列 (timestamp) 必须是主键的一部分
-    device_id: int = Field(primary_key=True, foreign_key="device.id") 
+    # 联合主键：TimescaleDB hypertable 要求时间列参与主键
+    device_id: int = Field(primary_key=True, foreign_key="device.id")
     timestamp: datetime = Field(primary_key=True, index=True, default_factory=datetime.now)
-    
-    voltage: float 
-    current: float 
-    power: float 
+
+    voltage: float
+    current: float
+    power: float
     energy: float
 
-# --- 报警表 (保持不变) ---
+
 class Alarm(SQLModel, table=True):
+    """报警记录表。"""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(index=True, foreign_key="device.id")
     message: str
     timestamp: datetime = Field(default_factory=datetime.now, index=True)
     is_resolved: bool = Field(default=False)
 
-# --- 用户表 (保持不变) ---
+
 class User(SQLModel, table=True):
+    """用户表。"""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str

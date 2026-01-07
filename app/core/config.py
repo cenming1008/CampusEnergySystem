@@ -1,21 +1,35 @@
+"""
+阈值/业务配置加载
+
+当前用于加载 `config/settings.json`（报警阈值、电价等）。
+"""
+
+from __future__ import annotations
+
 import json
 import os
+from typing import Any
 
-# 自动获取项目根目录 (即 main.py 所在的文件夹)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# 获取三次父目录 以保证其可移植性
-CONFIG_PATH = os.path.join(BASE_DIR, "config", "settings.json")
+from app.core.logger import logger
+from app.core.settings import settings
 
-def load_thresholds():
-    """从 config/settings.json 加载报警阈值配置"""
+
+def _resolve_settings_json_path() -> str:
+    # 优先使用显式指定路径，其次使用 config_dir + settings.json
+    if settings.settings_json_path:
+        return settings.settings_json_path
+    return os.path.join(settings.config_dir, "settings.json")
+
+
+def load_thresholds() -> dict[str, Any]:
+    """加载阈值配置（读取失败返回空 dict）。"""
+    path = _resolve_settings_json_path()
     try:
-        # 检查文件是否存在
-        if not os.path.exists(CONFIG_PATH):
-            print(f"⚠️ 配置文件未找到: {CONFIG_PATH}")
+        if not os.path.exists(path):
+            logger.warning(f"阈值配置文件不存在: {path}")
             return {}
-            
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"⚠️ 配置文件读取失败: {e}")
+        logger.warning(f"阈值配置文件读取失败: {e}")
         return {}
