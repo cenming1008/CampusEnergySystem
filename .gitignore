@@ -1,8 +1,194 @@
-   # 添加到 .gitignore
-   .env
-   logs/
-   pg_data/
-   __pycache__/
-   *.pyc
-   node_modules/
-   dist/
+# ============================================
+# Python 相关
+# ============================================
+# 字节码文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# 分发/打包
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ============================================
+# 环境配置和敏感信息
+# ============================================
+.env
+.env.local
+.env.*.local
+*.env
+env.local
+
+# 配置文件中的敏感信息（保留示例文件）
+# config/settings.json  # 如果需要保留配置结构，可以注释掉
+
+# ============================================
+# 日志文件
+# ============================================
+logs/
+*.log
+*.log.*
+
+# ============================================
+# 数据库数据
+# ============================================
+# PostgreSQL/TimescaleDB 数据目录（包含实际数据）
+pg_data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# 备份文件
+# ============================================
+backups/
+*.backup
+*.bak
+*.tar.gz
+*.zip
+*.tar
+
+# ============================================
+# 前端相关
+# ============================================
+# Node.js 依赖
+node_modules/
+frontend/node_modules/
+
+# 构建产物
+dist/
+build/
+frontend/dist/
+frontend/build/
+
+# Source maps
+*.map
+
+# 前端缓存
+.npm/
+.yarn/
+.pnpm-store/
+.cache/
+
+# ============================================
+# 测试和覆盖率
+# ============================================
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# 测试报告
+test-results/
+coverage/
+
+# ============================================
+# 操作系统文件
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# IDE 和编辑器
+# ============================================
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# MQTT 数据
+# ============================================
+mosquitto/data/
+mosquitto/log/
+
+# ============================================
+# Redis 数据
+# ============================================
+redis_data/
+dump.rdb
+
+# ============================================
+# 临时文件
+# ============================================
+*.tmp
+*.temp
+*.swp
+*.swo
+.cache/
+
+# 临时脚本和测试文件
+temp/
+tmp/
+test_*.py.bak
+
+# ============================================
+# 其他
+# ============================================
+# 敏感信息文件（如密码文件）
+*password*
+*secret*
+*key*
+123456  # 示例：忽略可能的密码文件
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# 项目特定
+tools/__pycache__/
+scripts/__pycache__/
