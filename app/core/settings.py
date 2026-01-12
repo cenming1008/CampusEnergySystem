@@ -155,6 +155,52 @@ class Settings(BaseSettings):
                 return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
     
+    # ==================== 电价配置 ====================
+    peak_price: float = Field(
+        default=1.25,
+        env="PEAK_PRICE",
+        description="高峰电价"
+    )
+    
+    flat_price: float = Field(
+        default=0.80,
+        env="FLAT_PRICE",
+        description="平电电价"
+    )
+    
+    valley_price: float = Field(
+        default=0.40,
+        env="VALLEY_PRICE",
+        description="低谷电价"
+    )
+
+    # ==================== 故障诊断配置 ====================
+    fdd_voltage_fluctuation_limit: float = Field(
+        default=0.10,
+        env="FDD_VOLTAGE_FLUCTUATION_LIMIT",
+        description="电压波动阈值（%）"
+    )
+    fdd_overload_ratio: float = Field(
+        default=0.90,
+        env="FDD_OVERLOAD_RATIO",
+        description="负载率阈值"
+    )
+    fdd_rated_power: float = Field(
+        default=1000.0,
+        env="FDD_RATED_POWER",
+        description="设备额定功率（kW），用于计算负载率"
+    )
+    fdd_alarm_threshold: int = Field(
+        default=10,
+        env="FDD_ALARM_THRESHOLD",
+        description="报警次数阈值，超过此值将扣分"
+    )
+    fdd_frequent_start_count: int = Field(
+        default=5,
+        env="FDD_FREQUENT_START_COUNT",
+        description="频繁启动次数阈值"
+    )
+
     # ==================== 日志配置 ====================
     log_level: str = Field(
         default="INFO",
@@ -232,5 +278,8 @@ MQTT_BROKER = settings.mqtt_broker
 MQTT_PORT = settings.mqtt_port
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
+PEAK_PRICE = settings.peak_price
+FLAT_PRICE = settings.flat_price
+VALLEY_PRICE = settings.valley_price
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 

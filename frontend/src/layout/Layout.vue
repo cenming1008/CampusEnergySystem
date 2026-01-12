@@ -36,11 +36,48 @@
     // --- 动作：一键清除报警 ---
     const handleClearAlarms = async () => {
       try {
-        await resolveAllAlarms()
-        ElMessage.success('所有报警已标记为已处理')
+        const res = await resolveAllAlarms()
+        // 使用后端返回的消息，或显示默认消息
+        const message = res?.message || `已解决 ${res?.data?.count || 0} 条报警`
+        ElMessage.success(message)
         fetchAlarms() // 刷新状态
       } catch (e) {
         ElMessage.error('操作失败')
+      }
+    }
+    
+    // --- 工具函数：格式化时间戳 ---
+    const formatTime = (timestamp: string) => {
+      if (!timestamp) return ''
+      try {
+        const date = new Date(timestamp)
+        const now = new Date()
+        const diff = now.getTime() - date.getTime()
+        const minutes = Math.floor(diff / 60000)
+        const hours = Math.floor(diff / 3600000)
+        const days = Math.floor(diff / 86400000)
+        
+        // 如果是今天，显示时:分
+        if (date.toDateString() === now.toDateString()) {
+          return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        }
+        // 如果是昨天
+        if (days === 1) {
+          return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        }
+        // 如果是一周内
+        if (days < 7) {
+          return `${days}天前`
+        }
+        // 更早的显示完整日期
+        return date.toLocaleString('zh-CN', { 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
+      } catch (e) {
+        return timestamp
       }
     }
     
@@ -140,7 +177,7 @@
                     <el-icon color="#ef4444"><Warning /></el-icon>
                     <div class="alarm-content">
                       <div class="msg">{{ alarm.message }}</div>
-                      <div class="time">{{ alarm.timestamp }}</div>
+                      <div class="time">{{ formatTime(alarm.timestamp) }}</div>
                     </div>
                   </div>
                   <div v-if="alarmList.length > 0" class="alarm-footer">

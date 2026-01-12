@@ -8,6 +8,14 @@ export interface Alarm {
   is_resolved: boolean
 }
 
+// 后端响应格式
+export interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+  code: string
+}
+
 // 获取未处理报警
 export function getAlarms(limit: number = 20) {
   return request.get<any, Alarm[]>(`/alarms/?limit=${limit}`)
@@ -15,5 +23,5 @@ export function getAlarms(limit: number = 20) {
 
 // 一键解决所有报警
 export function resolveAllAlarms() {
-  return request.post<any, { ok: boolean; count: number }>('/alarms/resolve-all')
+  return request.post<any, ApiResponse<{ count: number }>>('/alarms/resolve-all')
 }
