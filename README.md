@@ -6,135 +6,92 @@
 [![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-3C5280.svg)](https://mosquitto.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> 基于 FastAPI + Vue3 + TimescaleDB + MQTT 的工业级能源监控和管理平台
+
 ---
 
 ## 📖 目录
 
-- [项目简介](#项目简介)
-- [系统架构](#系统架构)
-- [技术栈](#技术栈)
-- [功能特性](#功能特性)
-- [快速开始](#快速开始)
-- [详细部署](#详细部署)
-- [开发指南](#开发指南)
-- [API 文档](#api-文档)
-- [运维管理](#运维管理)
-- [常见问题](#常见问题)
-- [性能优化](#性能优化)
-- [贡献指南](#贡献指南)
+- [项目简介](#-项目简介)
+- [技术栈](#-技术栈)
+- [功能特性](#-功能特性)
+- [快速开始](#-快速开始)
+- [系统架构](#-系统架构)
+- [API 文档](#-api-文档)
+- [开发指南](#-开发指南)
+- [运维管理](#-运维管理)
+- [故障排查](#-故障排查)
+- [项目路线图](#-项目路线图)
 
 ---
 
-## 项目简介
+## 🎯 项目简介
 
-**煤矿综合能源管理系统**是一套基于 **FastAPI + Vue3 + TimescaleDB + MQTT** 的工业级能源监控和管理平台，适用于煤矿、工厂、园区等场景的：
-- ⚡ **实时能耗监控**：设备电压、电流、功率、能耗数据采集
-- 📊 **数据分析统计**：能耗趋势、峰谷分析、设备效率
-- 🚨 **智能报警系统**：过载、欠压、异常自动检测
-- 🔧 **远程设备控制**：通过 MQTT 反向下发控制指令
-- 📈 **可视化大屏**：ECharts 实时图表展示
-- 🔐 **权限管理**：JWT 认证 + 用户角色控制
+**煤矿综合能源管理系统**是一套面向工业场景的现代化能源监控和管理解决方案，适用于煤矿、工厂、园区等场景：
 
----
+### 核心功能
 
-## 系统架构
+- ⚡ **实时能耗监控** - 设备电压、电流、功率、能耗数据实时采集
+- 📊 **数据分析统计** - 能耗趋势、峰谷分析、设备效率评估
+- 🚨 **智能报警系统** - 过载、欠压、异常自动检测与通知
+- 🔧 **远程设备控制** - 通过 MQTT 协议远程控制设备启停
+- 📈 **可视化大屏** - ECharts 实时图表展示，WebSocket 实时推送
+- 🔐 **权限管理** - JWT 认证 + 基于角色的访问控制
+- 📥 **数据导出** - CSV 格式报表导出
+- 🏥 **健康监控** - 系统健康检查，支持 Docker/K8s 部署
 
-### 整体架构图
+### 项目特点
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        前端层 (Vue3 + Vite)                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │ 设备监控 │  │ 数据分析 │  │ 报警管理 │  │ 系统设置 │       │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ HTTP/WebSocket
-┌────────────────────────▼────────────────────────────────────────┐
-│                    API 网关 (FastAPI)                            │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  /auth    /devices    /telemetry    /alarms    /reports  │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────┬──────────────────┬──────────────────┬────────────────────┘
-      │                  │                  │
-┌─────▼─────┐      ┌─────▼─────┐     ┌─────▼─────┐
-│ TimescaleDB│      │   Redis   │     │   MQTT    │
-│ (时序数据) │      │  (缓存)   │     │ (消息队列)│
-└───────────┘      └───────────┘     └─────▲─────┘
-                                            │
-                        ┌───────────────────┴───────────────────┐
-                        │         IoT 设备 / 模拟器             │
-                        │  (电压/电流/功率传感器)               │
-                        └───────────────────────────────────────┘
-```
-
-### 数据流向
-
-#### 1. 设备数据上报流程
-```
-设备传感器 → MQTT (mine/telemetry) → mqtt_worker.py → 
-data_processor.py (报警检测) → TimescaleDB (存储) → 
-WebSocket (实时推送) → 前端大屏
-```
-
-#### 2. 远程控制流程
-```
-前端操作 → HTTP API (/devices/{id}/control) → 
-mqtt_publisher.py → MQTT (mine/control/{id}) → 
-设备接收指令 → 执行动作 (启动/停止)
-```
-
-#### 3. 数据查询流程
-```
-前端请求 → API 端点 → Service 层 (业务逻辑) → 
-TimescaleDB (查询优化) → Redis (缓存结果) → 
-返回前端
-```
+- ✅ **生产就绪** - 完整的错误处理、日志记录、健康检查
+- ✅ **高性能** - TimescaleDB 时序数据库，Redis 缓存加速
+- ✅ **可扩展** - 分层架构设计，易于维护和扩展
+- ✅ **Docker 化** - 一键启动所有服务，跨平台支持
+- ✅ **文档完善** - 详细的 API 文档和开发指南
 
 ---
 
-## 技术栈
+## 🛠️ 技术栈
 
-### 后端
+### 后端技术
+
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | **Python** | 3.10+ | 编程语言 |
-| **FastAPI** | 0.115+ | Web 框架 |
-| **SQLModel** | 0.0.22+ | ORM（基于 Pydantic + SQLAlchemy）|
+| **FastAPI** | 0.104+ | 高性能 Web 框架 |
+| **SQLModel** | 0.0.14 | ORM（基于 Pydantic + SQLAlchemy）|
 | **TimescaleDB** | 2.x | 时序数据库（基于 PostgreSQL）|
 | **Redis** | 7.0 | 缓存 + 会话管理 |
-| **MQTT (Mosquitto)** | 2.0 | 消息队列 |
+| **MQTT** | 2.0 | 消息队列（Mosquitto）|
 | **Uvicorn** | 最新 | ASGI 服务器 |
-| **Paho-MQTT** | 2.1+ | MQTT 客户端 |
 | **Loguru** | 0.7+ | 日志管理 |
 | **Python-Jose** | 3.3+ | JWT 认证 |
-| **Bcrypt** | 4.2+ | 密码哈希 |
+| **Bcrypt** | 4.2+ | 密码加密 |
 
-### 前端
+### 前端技术
+
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | **Vue** | 3.x | 前端框架 |
 | **Vite** | 5.x | 构建工具 |
 | **TypeScript** | 5.x | 类型安全 |
 | **Pinia** | 2.x | 状态管理 |
-| **Vue Router** | 4.x | 路由管理 |
 | **Element Plus** | 2.x | UI 组件库 |
 | **ECharts** | 5.x | 数据可视化 |
-| **Axios** | 1.x | HTTP 客户端 |
 
-### 容器化
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| **Docker** | 24.0+ | 容器运行时 |
-| **Docker Compose** | 2.x | 容器编排 |
+### 基础设施
+
+- **Docker** - 容器化部署
+- **Docker Compose** - 服务编排
+- **Nginx** - 反向代理（生产环境）
 
 ---
 
-## 功能特性
+## ✨ 功能特性
 
-### ✅ 已实现功能
+### 已实现功能
 
 #### 1. 设备管理
-- [x] 设备增删改查（CRUD）
+- [x] 设备 CRUD 操作
 - [x] 设备状态监控（在线/离线）
 - [x] 设备分组管理
 - [x] 设备远程控制（启动/停止）
@@ -163,33 +120,34 @@ TimescaleDB (查询优化) → Redis (缓存结果) →
 - [x] 设备拓扑图
 - [x] 报警实时弹窗
 
-#### 6. 用户权限
+#### 6. 系统管理
 - [x] JWT Token 认证
 - [x] 密码 Bcrypt 加密
-- [x] 接口权限控制
-
-#### 7. 系统管理
-- [x] 配置文件管理（settings.json）
-- [x] 日志分级记录（Loguru）
+- [x] 配置文件管理
+- [x] 日志分级记录
 - [x] 数据导出（CSV）
-- [x] API 文档自动生成（Swagger）
+- [x] 系统健康检查
 
-### 🚧 规划中功能
-- [ ] 故障诊断专家系统（FDD）
-- [ ] 多租户支持
+### 规划中功能
+
+- [ ] 单元测试和集成测试（进行中）
+- [ ] API 限流保护
+- [ ] 数据库迁移工具（Alembic）
+- [ ] 性能监控（Prometheus）
+- [ ] CI/CD 流程
+- [ ] 故障诊断专家系统增强
 - [ ] 移动端 App
-- [ ] AI 能耗预测
-- [ ] 报表定时推送（邮件/短信）
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
 ### 前置要求
-- **操作系统**：Linux / macOS / Windows (WSL2)
-- **Docker**：24.0+
-- **Docker Compose**：2.x
-- **端口**：8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
+
+- **操作系统**: macOS / Linux / Windows (WSL2)
+- **Docker**: 24.0+
+- **Docker Compose**: 2.x
+- **端口**: 8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
 
 ### 一键启动（Docker Compose）
 
@@ -198,318 +156,92 @@ TimescaleDB (查询优化) → Redis (缓存结果) →
 git clone https://github.com/your-repo/MineEnergySystem.git
 cd MineEnergySystem
 
-# 2. 可选：配置环境变量
-cp env.example .env
-# 编辑 .env，修改 SECRET_KEY、数据库密码等
+# 2. 启动所有服务（推荐使用快速启动脚本）
+./quick_start.sh
 
-# 3. 启动所有服务（后端 + 数据库 + Redis + MQTT）
+# 或手动启动
 docker compose up -d --build
 
-# 4. 查看启动状态
+# 3. 查看服务状态
 docker compose ps
-docker compose logs -f backend
+# 或使用状态脚本
+./scripts/shell/status.sh
 
-# 5. 访问 API 文档
-# 浏览器打开：http://localhost:8088/docs
+# 4. 访问 API 文档
+open http://localhost:8088/docs
 ```
 
-### 初始化数据（可选）
+### 初始化数据
 
 系统首次启动会自动创建数据库表和默认管理员账号：
-- **用户名**：`admin`
-- **密码**：`123456`
+- **用户名**: `admin`
+- **密码**: `123456`
 
-**⚠️ 生产环境务必修改默认密码！**
+⚠️ **生产环境务必修改默认密码！**
 
----
-
-## 详细部署
-
-### 方式一：Docker Compose（推荐）
-
-#### 1. 准备环境
-
-**检查 Docker 可用：**
-```bash
-docker version
-docker compose version
-```
-
-**（可选）配置 Docker 镜像加速**（国内服务器建议配置）：
-```bash
-# 编辑 Docker 配置
-sudo nano /etc/docker/daemon.json
-
-# 添加内容：
-{
-  "registry-mirrors": [
-    "https://docker.rainbond.cc",
-    "https://docker.m.daocloud.io"
-  ]
-}
-
-# 重启 Docker
-sudo systemctl restart docker
-```
-
-#### 2. 配置项目
-
-**复制环境变量模板：**
-```bash
-cp env.example .env
-```
-
-**编辑 `.env` 文件（重要配置项）：**
-```bash
-# 数据库配置
-DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
-
-# Redis 配置
-REDIS_URL=redis://redis:6379/0
-
-# JWT 密钥（必须修改！）
-SECRET_KEY=请使用python生成强密钥
-
-# MQTT 配置
-MQTT_BROKER=mqtt
-MQTT_PORT=1883
-
-# 日志配置
-LOG_LEVEL=INFO
-LOG_RETENTION_DAYS=7
-```
-
-**生成强密钥：**
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-#### 3. 启动服务
+### 验证服务
 
 ```bash
-# 构建并启动（首次启动约 1-2 分钟）
-docker compose up -d --build
+# 1. 测试后端 API
+curl http://localhost:8088/health
 
-# 查看容器状态（应全部为 Up）
-docker compose ps
-
-# 查看后端日志
-docker compose logs -f backend
-```
-
-**成功的日志标志：**
-```
-✅ 数据库初始化完成
-✅ Redis连接成功
-✅ MQTT服务启动完成
-✨ 系统就绪
-```
-
-#### 4. 验证服务
-
-```bash
-# 测试后端 API
-curl http://localhost:8088/docs
-
-# 测试数据库连接
+# 2. 测试数据库
 docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
 
-# 测试 Redis
+# 3. 测试 Redis
 docker exec -it ems_redis redis-cli ping
 
-# 测试 MQTT
+# 4. 测试 MQTT
 docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
 ```
 
-#### 5. 访问系统
-
-- **后端 API 文档**：http://localhost:8088/docs
-- **后端 ReDoc**：http://localhost:8088/redoc
-- **前端（需单独启动）**：http://localhost:5173
-
 ---
 
-### 方式二：本地开发模式
+## 🏗️ 系统架构
 
-适用于开发调试，不使用 Docker。
+### 整体架构图
 
-#### 1. 安装依赖服务
-
-**安装 PostgreSQL (TimescaleDB)：**
-```bash
-# Ubuntu/Debian
-sudo apt install postgresql postgresql-contrib
-sudo -u postgres psql -c "CREATE DATABASE mine_energy;"
-sudo -u postgres psql -c "CREATE USER admin WITH PASSWORD 'password123';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE mine_energy TO admin;"
-
-# 安装 TimescaleDB 扩展
-sudo apt install postgresql-14-timescaledb
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        前端层 (Vue3 + Vite)                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ 设备监控 │  │ 数据分析 │  │ 报警管理 │  │ 系统设置 │       │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ HTTP/WebSocket
+┌────────────────────────▼────────────────────────────────────────┐
+│                    API 网关 (FastAPI)                            │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  /auth  /devices  /telemetry  /alarms  /analysis  /health│  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────┬──────────────────┬──────────────────┬────────────────────┘
+      │                  │                  │
+┌─────▼─────┐      ┌─────▼─────┐     ┌─────▼─────┐
+│ TimescaleDB│      │   Redis   │     │   MQTT    │
+│ (时序数据) │      │  (缓存)   │     │ (消息队列)│
+└───────────┘      └───────────┘     └─────▲─────┘
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                        │         IoT 设备 / 模拟器             │
+                        │  (电压/电流/功率传感器)               │
+                        └───────────────────────────────────────┘
 ```
 
-**安装 Redis：**
-```bash
-sudo apt install redis-server
-sudo systemctl start redis
+### 数据流向
+
+#### 设备数据上报
+```
+设备传感器 → MQTT (mine/telemetry) → mqtt_worker.py → 
+data_processor.py (报警检测) → TimescaleDB (存储) → 
+WebSocket (实时推送) → 前端大屏
 ```
 
-**安装 MQTT：**
-```bash
-sudo apt install mosquitto mosquitto-clients
-sudo systemctl start mosquitto
+#### 远程控制
 ```
-
-#### 2. 安装 Python 依赖
-
-```bash
-# 创建虚拟环境
-python3 -m venv venv
-source venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
+前端操作 → HTTP API (/devices/{id}/control) → 
+mqtt_publisher.py → MQTT (mine/control/{id}) → 
+设备接收指令 → 执行动作
 ```
-
-#### 3. 配置环境变量
-
-```bash
-export DATABASE_URL='postgresql://admin:password123@localhost:5432/mine_energy'
-export REDIS_URL='redis://localhost:6379/0'
-export MQTT_BROKER='127.0.0.1'
-export SECRET_KEY='your-secret-key-here'
-```
-
-#### 4. 初始化数据库
-
-```bash
-python -c "from app.core.database import init_db; init_db()"
-```
-
-#### 5. 启动后端
-
-```bash
-python run.py
-# 或
-uvicorn app.main:app --host 0.0.0.0 --port 8088 --reload
-```
-
-#### 6. 启动前端
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-### 方式三：生产环境部署（Nginx + Systemd）
-
-#### 1. 后端服务化（Systemd）
-
-创建服务文件：
-```bash
-sudo nano /etc/systemd/system/mine-energy.service
-```
-
-内容：
-```ini
-[Unit]
-Description=Mine Energy System Backend
-After=network.target postgresql.service redis.service mosquitto.service
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/www/wwwroot/MineEnergySystem
-Environment="DATABASE_URL=postgresql://admin:password123@localhost:5432/mine_energy"
-Environment="REDIS_URL=redis://localhost:6379/0"
-Environment="SECRET_KEY=your-production-secret-key"
-ExecStart=/www/wwwroot/MineEnergySystem/venv/bin/python run.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动服务：
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable mine-energy
-sudo systemctl start mine-energy
-sudo systemctl status mine-energy
-```
-
-#### 2. Nginx 反向代理
-
-创建配置：
-```bash
-sudo nano /etc/nginx/sites-available/mine-energy
-```
-
-内容：
-```nginx
-# API 后端
-server {
-    listen 80;
-    server_name api.yourdomain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8088;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket 支持
-    location /ws {
-        proxy_pass http://127.0.0.1:8088/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-}
-
-# 前端静态文件
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    root /www/wwwroot/MineEnergySystem/frontend/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-启用配置：
-```bash
-sudo ln -s /etc/nginx/sites-available/mine-energy /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-#### 3. HTTPS（Let's Encrypt）
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com -d api.yourdomain.com
-```
-
----
-
-## 开发指南
 
 ### 项目结构
 
@@ -517,77 +249,151 @@ sudo certbot --nginx -d yourdomain.com -d api.yourdomain.com
 MineEnergySystem/
 ├── app/                      # 后端应用
 │   ├── api/                  # API 层
-│   │   ├── deps.py          # 依赖注入
-│   │   └── endpoints/       # API 端点
-│   │       ├── auth.py      # 认证接口
-│   │       ├── devices.py   # 设备管理
-│   │       ├── telemetry.py # 遥测数据
-│   │       ├── alarms.py    # 报警管理
-│   │       ├── analysis.py  # 数据分析
-│   │       ├── fdd.py       # 故障诊断
-│   │       └── reports.py   # 报表导出
+│   │   └── endpoints/       # API 端点（auth, devices, telemetry, etc.）
 │   ├── core/                # 核心基础设施
-│   │   ├── config.py        # 配置加载
-│   │   ├── database.py      # 数据库连接
-│   │   ├── error_handlers.py # 异常处理
-│   │   ├── exceptions.py    # 自定义异常
-│   │   ├── logger.py        # 日志配置
-│   │   ├── redis.py         # Redis 客户端
-│   │   ├── response.py      # 统一响应
-│   │   ├── security.py      # JWT 认证
-│   │   ├── settings.py      # 配置管理
-│   │   └── socket_manager.py # WebSocket 管理
+│   │   └── ...             # database, redis, security, logger, etc.
 │   ├── services/            # 业务逻辑层
-│   │   ├── alarm_service.py
-│   │   ├── analysis_service.py
-│   │   ├── data_processor.py
-│   │   ├── device_service.py
-│   │   ├── fdd_service.py
-│   │   ├── mqtt_publisher.py
-│   │   └── mqtt_worker.py
 │   ├── models/              # 数据模型
-│   │   └── tables.py
 │   └── main.py              # 应用入口
 ├── frontend/                # 前端应用
-│   ├── src/
-│   │   ├── api/            # API 请求
-│   │   ├── components/     # 组件
-│   │   ├── views/          # 页面
-│   │   ├── stores/         # 状态管理
-│   │   ├── router/         # 路由
-│   │   └── main.ts
+│   ├── src/                # 源代码（api, components, views, stores）
 │   └── package.json
-├── tools/                   # 工具脚本
-│   ├── simulator.py        # 设备模拟器
-│   └── stress_test.py      # 压力测试
+├── scripts/                 # 脚本工具集 ⭐ 已整理
+│   ├── shell/              # Shell 脚本（启动、停止、测试等）
+│   ├── python/             # Python 脚本（模拟器、工具等）
+│   └── README.md           # 脚本使用指南
+├── docs/                    # 文档中心
+│   ├── archive/            # 归档文档
+│   └── README.md           # 文档导航
 ├── config/                  # 配置文件
-│   └── settings.json       # 报警阈值配置
-├── logs/                    # 日志目录
+├── logs/                    # 运行日志
+├── backups/                 # 备份文件
 ├── docker-compose.yml       # Docker 编排
-├── Dockerfile              # Docker 镜像构建
+├── Dockerfile              # Docker 镜像
 ├── requirements.txt        # Python 依赖
-├── run.py                  # 后端启动脚本
-├── env.example             # 环境变量模板
-├── CODE_STYLE_GUIDE.md     # 代码规范
-├── NEXT_STEPS.md           # 后续优化指南
+├── quick_start.sh          # 快速启动脚本 ⭐ 新增
+├── PROJECT_STRUCTURE.md    # 详细结构说明 ⭐ 新增
 └── README.md               # 本文档
 ```
 
-### 代码规范
+**📖 详细说明**：查看 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
-请参考 [CODE_STYLE_GUIDE.md](CODE_STYLE_GUIDE.md)，包含：
-- 命名规范
-- 代码组织
-- 类型提示
-- 文档字符串
-- 异常处理
-- 日志使用
+---
+
+## 📚 API 文档
+
+### 访问方式
+
+- **Swagger UI**: http://localhost:8088/docs
+- **ReDoc**: http://localhost:8088/redoc
+
+### 核心端点
+
+#### 认证 (`/auth`)
+
+```bash
+# 登录获取 Token
+POST /auth/login
+{
+  "username": "admin",
+  "password": "123456"
+}
+```
+
+#### 设备管理 (`/devices`)
+
+```bash
+# 获取设备列表
+GET /devices
+
+# 获取设备详情
+GET /devices/{device_id}
+
+# 创建设备
+POST /devices
+
+# 控制设备
+POST /devices/{device_id}/control
+{
+  "action": "start"  # 或 "stop"
+}
+```
+
+#### 遥测数据 (`/telemetry`)
+
+```bash
+# 上传遥测数据
+POST /telemetry
+
+# 获取历史数据
+GET /telemetry/{device_id}?limit=50
+```
+
+#### 报警管理 (`/alarms`)
+
+```bash
+# 获取报警列表
+GET /alarms?skip=0&limit=20&is_resolved=false
+
+# 确认报警
+POST /alarms/{alarm_id}/resolve
+```
+
+#### 健康检查 (`/health`)
+
+```bash
+# 完整健康检查
+GET /health
+
+# 存活检查（Kubernetes Liveness Probe）
+GET /health/live
+
+# 就绪检查（Kubernetes Readiness Probe）
+GET /health/ready
+```
+
+---
+
+## 💻 开发指南
+
+### 本地开发环境
+
+#### 1. 安装依赖
+
+```bash
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# 安装前端依赖
+cd frontend
+npm install
+```
+
+#### 2. 启动服务
+
+```bash
+# 启动后端（需要先启动 Docker 服务）
+docker compose up -d db redis mqtt
+python run.py
+
+# 启动前端
+cd frontend
+npm run dev
+```
+
+#### 3. 访问应用
+
+- 前端: http://localhost:5173
+- 后端 API: http://localhost:8088/docs
 
 ### 添加新功能
 
-#### 1. 添加新的 API 端点
+#### 1. 创建 Service 层
 
-**Step 1：创建 Service 层**
 ```python
 # app/services/your_service.py
 from sqlmodel import Session
@@ -601,7 +407,8 @@ class YourService:
         pass
 ```
 
-**Step 2：创建 API 端点**
+#### 2. 创建 API 端点
+
 ```python
 # app/api/endpoints/your_endpoint.py
 from fastapi import APIRouter, Depends
@@ -617,7 +424,8 @@ def get_something(id: int, session: Session = Depends(get_session)):
     return YourService.get_something(session, id)
 ```
 
-**Step 3：注册路由**
+#### 3. 注册路由
+
 ```python
 # app/main.py
 from app.api.endpoints import your_endpoint
@@ -630,207 +438,23 @@ app.include_router(
 )
 ```
 
-#### 2. 添加新的数据模型
-
-```python
-# app/models/tables.py
-from sqlmodel import SQLModel, Field
-from datetime import datetime
-from typing import Optional
-
-class YourModel(SQLModel, table=True):
-    """你的数据模型"""
-    __tablename__ = "your_table"
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    created_at: datetime = Field(default_factory=datetime.now)
-```
-
-### 测试
-
-#### 单元测试（示例）
-
-```python
-# tests/test_services/test_device_service.py
-import pytest
-from sqlmodel import Session, create_engine, SQLModel
-from app.models import Device
-from app.services import DeviceService
-
-@pytest.fixture
-def session():
-    engine = create_engine("sqlite:///:memory:")
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
-
-def test_get_device_by_id(session):
-    device = Device(name="测试设备", sn="TEST001", location="A区")
-    session.add(device)
-    session.commit()
-    
-    result = DeviceService.get_device_by_id(session, device.id)
-    assert result.name == "测试设备"
-```
-
-运行测试：
-```bash
-pytest tests/ -v --cov=app --cov-report=html
-```
-
 ---
 
-## API 文档
-
-### 认证
-
-所有需要认证的接口都需要在请求头中携带 JWT Token：
-```
-Authorization: Bearer <your_token>
-```
-
-#### 登录获取 Token
-
-**POST** `/auth/login`
-
-**请求体：**
-```json
-{
-  "username": "admin",
-  "password": "123456"
-}
-```
-
-**响应：**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-### 设备管理
-
-#### 获取设备列表
-
-**GET** `/devices`
-
-**响应：**
-```json
-[
-  {
-    "id": 1,
-    "name": "变压器-01",
-    "sn": "TR-001",
-    "device_type": "TRANSFORMER",
-    "location": "A区-1号楼",
-    "is_active": true,
-    "created_at": "2026-01-07T10:00:00"
-  }
-]
-```
-
-#### 获取设备详情
-
-**GET** `/devices/{device_id}`
-
-#### 创建设备
-
-**POST** `/devices`
-
-**请求体：**
-```json
-{
-  "name": "新设备",
-  "sn": "DEV-001",
-  "device_type": "VENTILATOR",
-  "location": "B区",
-  "is_active": true
-}
-```
-
-#### 更新设备
-
-**PUT** `/devices/{device_id}`
-
-#### 删除设备
-
-**DELETE** `/devices/{device_id}`
-
-#### 控制设备
-
-**POST** `/devices/{device_id}/control`
-
-**请求体：**
-```json
-{
-  "action": "start"  // 或 "stop"
-}
-```
-
-### 遥测数据
-
-#### 上传遥测数据
-
-**POST** `/telemetry`
-
-**请求体：**
-```json
-{
-  "device_id": 1,
-  "voltage": 220.5,
-  "current": 35.2,
-  "power": 7.76,
-  "energy": 1234.56,
-  "timestamp": 1704614400
-}
-```
-
-#### 获取设备历史数据
-
-**GET** `/telemetry/{device_id}?limit=50`
-
-### 报警管理
-
-#### 获取报警列表
-
-**GET** `/alarms?skip=0&limit=20&is_resolved=false`
-
-#### 确认报警
-
-**POST** `/alarms/{alarm_id}/resolve`
-
-### 数据分析
-
-#### 能耗统计
-
-**GET** `/analysis/energy?device_id=1&start_time=2026-01-01&end_time=2026-01-07`
-
-#### 趋势分析
-
-**GET** `/analysis/trend?device_id=1&interval=hour`
-
-### 完整 API 文档
-
-访问 **http://localhost:8088/docs** 查看交互式 API 文档（Swagger UI）。
-
----
-
-## 运维管理
+## 🔧 运维管理
 
 ### 日常维护
 
 #### 查看服务状态
 
 ```bash
-# Docker Compose 模式
+# 查看所有容器
 docker compose ps
+
+# 查看后端日志
 docker compose logs -f backend
 
-# Systemd 模式
-sudo systemctl status mine-energy
-sudo journalctl -u mine-energy -f
+# 查看应用日志
+tail -f logs/ems_app_$(date +%Y-%m-%d).log
 ```
 
 #### 重启服务
@@ -842,21 +466,8 @@ docker compose restart backend
 # 重启所有服务
 docker compose restart
 
-# 重新构建（代码更新后）
-docker compose up -d --build backend
-```
-
-#### 查看日志
-
-```bash
-# 后端日志（文件）
-tail -f logs/ems_app_$(date +%Y-%m-%d).log
-
-# 错误日志
-tail -f logs/ems_error_$(date +%Y-%m-%d).log
-
-# Docker 日志
-docker compose logs --tail=200 backend
+# 重新构建并启动
+docker compose up -d --build
 ```
 
 ### 数据库管理
@@ -864,21 +475,21 @@ docker compose logs --tail=200 backend
 #### 备份数据库
 
 ```bash
-# Docker 容器内备份
+# 备份
 docker exec mine_energy_db pg_dump -U admin mine_energy > backup_$(date +%Y%m%d).sql
 
 # 压缩备份
-docker exec mine_energy_db pg_dump -U admin mine_energy | gzip > backup_$(date +%Y%m%d).sql.gz
+docker exec mine_energy_db pg_dump -U admin mine_energy | gzip > backup.sql.gz
 ```
 
 #### 恢复数据库
 
 ```bash
-# 从备份恢复
-docker exec -i mine_energy_db psql -U admin mine_energy < backup_20260107.sql
+# 恢复
+docker exec -i mine_energy_db psql -U admin mine_energy < backup.sql
 
 # 从压缩文件恢复
-gunzip -c backup_20260107.sql.gz | docker exec -i mine_energy_db psql -U admin mine_energy
+gunzip -c backup.sql.gz | docker exec -i mine_energy_db psql -U admin mine_energy
 ```
 
 #### 清理历史数据
@@ -889,9 +500,6 @@ docker exec -it mine_energy_db psql -U admin -d mine_energy
 
 # 删除 30 天前的数据
 DELETE FROM devicedata WHERE timestamp < NOW() - INTERVAL '30 days';
-
-# 清理已解决的报警（90 天前）
-DELETE FROM alarm WHERE is_resolved = true AND timestamp < NOW() - INTERVAL '90 days';
 ```
 
 ### 性能监控
@@ -902,271 +510,249 @@ DELETE FROM alarm WHERE is_resolved = true AND timestamp < NOW() - INTERVAL '90 
 # 容器资源占用
 docker stats
 
-# 单个容器
-docker stats mine_backend
+# 数据库性能
+docker exec -it mine_energy_db psql -U admin -d mine_energy -c "
+SELECT * FROM pg_stat_statements 
+ORDER BY mean_exec_time DESC LIMIT 10;
+"
 ```
 
-#### 数据库性能
+### 生产环境部署
 
-```sql
--- 查看慢查询
-SELECT * FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;
+#### Nginx 反向代理
 
--- 查看表大小
-SELECT 
-    schemaname || '.' || tablename AS table_name,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-FROM pg_tables
-WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
+```nginx
+# /etc/nginx/sites-available/mine-energy
+server {
+    listen 80;
+    server_name api.yourdomain.com;
 
-### 安全加固
+    location / {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 
-#### 1. 修改默认密码
-
-```bash
-# 修改管理员密码（进入数据库）
-docker exec -it mine_energy_db psql -U admin -d mine_energy
-
-# 执行 SQL
-UPDATE "user" SET hashed_password = '$2b$12$...' WHERE username = 'admin';
-```
-
-使用 Python 生成新密码哈希：
-```python
-from passlib.context import CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-print(pwd_context.hash("新密码"))
-```
-
-#### 2. 配置防火墙
-
-```bash
-# 只开放必要端口
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow 8088/tcp
-sudo ufw enable
-```
-
-#### 3. 定期更新依赖
-
-```bash
-# 检查过期依赖
-pip list --outdated
-
-# 更新依赖
-pip install -U package_name
-```
-
----
-
-## 常见问题
-
-### Q1: 启动失败，提示端口被占用
-
-**原因**：8088、5433、6379、1883 端口已被占用。
-
-**解决方案**：
-```bash
-# 查看端口占用
-sudo netstat -tlnp | grep 8088
-
-# 修改 docker-compose.yml 的端口映射
-ports:
-  - "8089:8088"  # 改成其他端口
-```
-
-### Q2: 数据库连接失败
-
-**检查步骤**：
-```bash
-# 1. 确认数据库容器运行
-docker compose ps db
-
-# 2. 查看数据库日志
-docker compose logs db
-
-# 3. 测试连接
-docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
-```
-
-### Q3: MQTT 消息未收到
-
-**排查方法**：
-```bash
-# 1. 测试 MQTT 服务
-docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
-
-# 2. 手动发送测试消息
-docker exec -it mine_mqtt mosquitto_pub -h localhost -t 'mine/test' -m 'hello'
-
-# 3. 查看后端 MQTT 日志
-docker compose logs backend | grep MQTT
-```
-
-### Q4: WebSocket 连接失败
-
-**检查点**：
-1. 确认后端正常运行
-2. 检查 CORS 配置（`settings.py` 的 `cors_origins`）
-3. 如果用 Nginx，确认 WebSocket 代理配置正确
-
-### Q5: 前端无法连接后端
-
-**解决方案**：
-```bash
-# 检查前端 API 地址配置
-# frontend/src/api/config.ts
-export const API_BASE_URL = 'http://你的服务器IP:8088'
-export const WS_BASE_URL = 'ws://你的服务器IP:8088'
-```
-
-### Q6: Docker 构建很慢
-
-**优化方案**：
-```bash
-# 配置 Docker 镜像加速（见"详细部署"章节）
-sudo nano /etc/docker/daemon.json
-
-# 添加国内镜像源
-{
-  "registry-mirrors": [
-    "https://docker.rainbond.cc",
-    "https://docker.m.daocloud.io"
-  ]
+    # WebSocket 支持
+    location /ws {
+        proxy_pass http://127.0.0.1:8088/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
 }
+```
 
-sudo systemctl restart docker
+#### HTTPS 配置
+
+```bash
+# 安装 certbot
+sudo apt install certbot python3-certbot-nginx
+
+# 获取证书
+sudo certbot --nginx -d api.yourdomain.com
 ```
 
 ---
 
-## 性能优化
+## 🔍 故障排查
 
-### 数据库优化
+### 常见问题
 
-#### 1. 添加索引
+#### 1. 容器启动失败
 
-```sql
--- 设备数据查询优化
-CREATE INDEX idx_devicedata_device_timestamp 
-ON devicedata(device_id, timestamp DESC);
+**检查步骤**:
+```bash
+# 查看容器状态
+docker compose ps
 
--- 报警查询优化
-CREATE INDEX idx_alarm_resolved_timestamp 
-ON alarm(is_resolved, timestamp DESC);
+# 查看日志
+docker compose logs db
+docker compose logs backend
+
+# 检查端口占用
+lsof -i :8088
+lsof -i :5433
 ```
 
-#### 2. TimescaleDB 压缩
+**解决方案**:
+- 端口被占用 → 修改 `docker-compose.yml` 端口映射
+- 权限问题 → `sudo chown -R $(id -u):$(id -g) pg_data/`
+- Docker 未运行 → 启动 Docker Desktop
 
-```sql
--- 启用自动压缩（7天后压缩数据）
-SELECT add_compression_policy('devicedata', INTERVAL '7 days');
+#### 2. 数据库连接失败
 
--- 手动压缩
-SELECT compress_chunk(c) 
-FROM show_chunks('devicedata', older_than => INTERVAL '7 days') AS c;
+**检查步骤**:
+```bash
+# 测试数据库连接
+docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
+
+# 查看数据库日志
+docker compose logs db
 ```
 
-#### 3. 分区表（如果数据量很大）
+**解决方案**:
+- 等待健康检查通过（约10-20秒）
+- 检查环境变量配置
+- 重启数据库容器
 
-```sql
--- TimescaleDB 已自动分区（Hypertable）
--- 查看分区状态
-SELECT * FROM timescaledb_information.chunks;
+#### 3. WebSocket 连接失败
+
+**检查步骤**:
+```bash
+# 检查后端日志
+docker compose logs -f backend | grep WebSocket
+
+# 测试 WebSocket
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  http://localhost:8088/ws
 ```
 
-### 缓存优化
+**解决方案**:
+- 检查 CORS 配置
+- 确认后端服务运行正常
+- 查看浏览器控制台错误信息
 
-#### 使用 Redis 缓存设备列表
+#### 4. 启动速度慢
 
-```python
-from app.core.redis import RedisClient
-import json
+**原因**:
+- 首次启动需要下载镜像（约750MB）
+- 首次构建镜像需要时间（3-5分钟）
 
-async def get_devices_cached():
-    redis = RedisClient.get_client()
-    
-    # 尝试从缓存获取
-    cached = await redis.get("devices:list")
-    if cached:
-        return json.loads(cached)
-    
-    # 缓存未命中，查询数据库
-    devices = session.exec(select(Device)).all()
-    
-    # 写入缓存（5分钟过期）
-    await redis.setex("devices:list", 300, json.dumps(devices))
-    
-    return devices
-```
+**优化方案**:
+- 后续启动会使用缓存，速度快很多（30-70秒）
+- 预下载镜像: `docker compose pull`
+- 保持容器运行，避免频繁重启
 
-### 后端优化
+### 完全重置（最后手段）
 
-#### 1. 异步处理（提高并发）
+```bash
+# 停止所有容器并删除数据
+docker compose down -v
 
-```python
-# 使用异步函数
-@router.get("/devices")
-async def get_devices(session: Session = Depends(get_session)):
-    return await DeviceService.get_all_devices_async(session)
-```
+# 删除数据目录（会丢失所有数据）
+rm -rf pg_data/* mosquitto/data/* logs/*
 
-#### 2. 批量操作
-
-```python
-# 批量插入数据
-devices = [Device(...) for _ in range(100)]
-session.add_all(devices)
-session.commit()
-```
-
-#### 3. 使用连接池
-
-```python
-# app/core/database.py
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,  # 连接池大小
-    max_overflow=40,  # 最大溢出连接
-    pool_pre_ping=True  # 连接健康检查
-)
-```
-
-### 前端优化
-
-#### 1. 数据分页加载
-
-```javascript
-// 分页请求
-const { data } = await api.get('/devices', {
-  params: { skip: 0, limit: 20 }
-})
-```
-
-#### 2. 虚拟滚动（大数据列表）
-
-```vue
-<virtual-list
-  :data-sources="devices"
-  :data-key="'id'"
-  :data-component="DeviceItem"
-/>
-```
-
-#### 3. ECharts 按需引入
-
-```javascript
-// 只引入需要的图表类型
-import { LineChart } from 'echarts/charts'
-import { GridComponent } from 'echarts/components'
+# 重新启动
+docker compose up -d --build
 ```
 
 ---
 
-## 贡献指南
+## 🗺️ 项目路线图
+
+### ✅ 已完成
+
+- [x] 后端架构：FastAPI + 分层架构
+- [x] 前端架构：Vue3 + Vite + Pinia
+- [x] 数据存储：TimescaleDB + Redis
+- [x] 实时通信：MQTT + WebSocket
+- [x] 核心业务：设备管理、数据采集、报警、分析
+- [x] 安全认证：JWT + Bcrypt
+- [x] Docker 部署：完整的 Docker Compose 配置
+- [x] 健康检查：系统监控端点（2026-01-12）
+- [x] 文档完善：README、API 文档、开发指南
+
+### 🔄 进行中
+
+- [ ] **单元测试**：建立 pytest 测试框架
+- [ ] **API 限流**：防止 API 滥用
+- [ ] **安全加固**：更换默认密码、HTTPS
+
+### 📋 计划中
+
+#### 短期（1-2个月）
+- [ ] 数据库迁移工具（Alembic）
+- [ ] 性能监控（Prometheus + Grafana）
+- [ ] CI/CD 流程（GitHub Actions）
+- [ ] 数据库查询优化
+- [ ] 缓存层优化
+
+#### 中期（3-6个月）
+- [ ] 完善故障诊断（FDD）功能
+- [ ] 前端单元测试
+- [ ] 移动端适配
+- [ ] 多租户支持
+- [ ] 国际化（i18n）
+
+#### 长期（6-12个月）
+- [ ] AI 能耗预测
+- [ ] 微服务拆分（按需）
+- [ ] 大数据分析平台集成
+- [ ] 移动端 App
+
+---
+
+## 📝 配置说明
+
+### 环境变量
+
+创建 `.env` 文件（可选）：
+
+```bash
+# 数据库配置
+DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+
+# Redis 配置
+REDIS_URL=redis://redis:6379/0
+
+# JWT 密钥（必须修改！）
+SECRET_KEY=your-secret-key-min-32-chars
+
+# MQTT 配置
+MQTT_BROKER=mqtt
+MQTT_PORT=1883
+
+# 日志配置
+LOG_LEVEL=INFO
+LOG_RETENTION_DAYS=7
+
+# CORS 配置
+CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+```
+
+**生成强密钥**:
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+### 端口映射
+
+| 服务 | 容器端口 | 主机端口 | 说明 |
+|------|----------|----------|------|
+| 后端 | 8088 | 8088 | HTTP API |
+| 数据库 | 5432 | 5433 | PostgreSQL |
+| Redis | 6379 | 6379 | Redis |
+| MQTT | 1883 | 1883 | MQTT |
+| MQTT WS | 9001 | 9001 | MQTT WebSocket |
+
+---
+
+## 🧪 测试
+
+### 运行测试脚本
+
+```bash
+# 测试健康检查
+./test_health.sh
+
+# 测试 WebSocket
+./check_websocket.sh
+```
+
+### 使用设备模拟器
+
+```bash
+# 模拟设备数据上报
+python tools/simulator.py
+
+# 压力测试
+python tools/stress_test.py
+```
+
+---
+
+## 🤝 贡献指南
 
 ### 提交代码
 
@@ -1176,38 +762,30 @@ import { GridComponent } from 'echarts/components'
 4. 推送分支：`git push origin feature/your-feature`
 5. 提交 Pull Request
 
-### 代码审查
+### 代码规范
 
-- 遵循 [CODE_STYLE_GUIDE.md](CODE_STYLE_GUIDE.md)
+- 遵循 PEP 8（Python）
+- 遵循 ESLint 规则（TypeScript）
 - 添加必要的单元测试
 - 更新相关文档
 
-### 报告问题
-
-提交 Issue 时请包含：
-- 问题描述
-- 复现步骤
-- 期望行为
-- 实际行为
-- 环境信息（操作系统、Docker 版本等）
-
 ---
 
-## 许可证
+## 📄 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
-## 联系方式
+## 📞 联系方式
 
-- **项目地址**：https://github.com/your-repo/MineEnergySystem
-- **文档地址**：http://docs.your-domain.com
-- **问题反馈**：https://github.com/your-repo/MineEnergySystem/issues
+- **项目地址**: https://github.com/your-repo/MineEnergySystem
+- **问题反馈**: https://github.com/your-repo/MineEnergySystem/issues
+- **文档地址**: http://localhost:8088/docs
 
 ---
 
-## 致谢
+## 🙏 致谢
 
 感谢以下开源项目：
 - [FastAPI](https://fastapi.tiangolo.com)
@@ -1218,5 +796,16 @@ import { GridComponent } from 'echarts/components'
 
 ---
 
+## 📊 项目统计
+
+- **开发时间**: 2025-2026
+- **当前版本**: v2.0.0
+- **代码行数**: ~10,000+ 行
+- **API 端点**: 30+ 个
+- **数据库表**: 7 个
+
+---
+
 **⭐ 如果这个项目对你有帮助，请给个 Star！**
 
+**🚀 现在就开始使用吧：`docker compose up -d --build`**

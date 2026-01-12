@@ -5,7 +5,7 @@ services:
   db:
     image: timescale/timescaledb:latest-pg14
     container_name: mine_energy_db
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
@@ -16,12 +16,18 @@ services:
       - ./pg_data:/var/lib/postgresql/data
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d mine_energy"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   # 2. 消息队列 (MQTT)
   mqtt:
     image: eclipse-mosquitto:2.0
     container_name: mine_mqtt
-    restart: always
+    restart: unless-stopped
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -29,43 +35,76 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-    command: sh -c "echo 'listener 1883' > /mosquitto/config/mosquitto.conf && echo 'allow_anonymous true' >> /mosquitto/config/mosquitto.conf && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 | head -1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   # 3. 缓存 (Redis)
   redis:
     image: redis:7.0-alpine
     container_name: ems_redis
-    restart: always
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
-  # 4. 后端应用 (FastAPI) - 关键修复处
+  # 4. 后端应用 (FastAPI)
   backend:
-    build: .  # 👈 核心修复：告诉 Docker 使用当前目录的 Dockerfile 构建镜像
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: mine_backend
+    restart: unless-stopped
     environment:
+      # 使用 Docker 容器服务名连接（容器内网络）
       - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
-      - SECRET_KEY=mine-energy-system-secret-key-change-me
+      - MQTT_PORT=1883
+      - SECRET_KEY=mine-energy-system-secret-key-change-me-min-32-chars
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+      - HOST=0.0.0.0
+      - PORT=8088
+      - CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000"]
     ports:
       - "8088:8088"
+    volumes:
+      # 挂载日志目录（可选，方便查看日志）
+      - ./logs:/app/logs
     depends_on:
-      - db
-      - mqtt
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   redis_data:
-  # 删除了不一致的 postgres_data，直接使用 ./pg_data 目录
+    driver: local
 
 networks:
   app_network:

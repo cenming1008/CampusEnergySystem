@@ -14,15 +14,24 @@ from app.core.logger import logger
 from app.core.settings import settings
 from app.core.error_handlers import register_exception_handlers
 from app.services.mqtt_worker import start_mqtt_background
-from app.api.endpoints import auth, devices, telemetry, alarms, analysis, reports, fdd
+from app.api.endpoints import auth, devices, telemetry, alarms, analysis, reports, fdd, health
 from app.api.deps import get_current_user
+
+
+# 全局变量：保存事件循环引用，用于在MQTT回调线程中安全调用异步函数
+_event_loop: asyncio.AbstractEventLoop | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    global _event_loop
+    
     # 启动阶段
     logger.info("🚀 应用启动中...")
+    
+    # 保存事件循环引用，供MQTT回调使用
+    _event_loop = asyncio.get_running_loop()
     
     # 初始化数据库
     init_db()
@@ -38,7 +47,20 @@ async def lifespan(app: FastAPI):
     
     # 启动MQTT监听
     def mqtt_to_ws_callback(msg_dict):
-        asyncio.create_task(manager.broadcast(msg_dict))
+        """MQTT消息回调：将消息通过WebSocket广播给前端"""
+        global _event_loop
+        if _event_loop and _event_loop.is_running():
+            # 在MQTT回调线程中安全地调度异步函数到事件循环
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    manager.broadcast(msg_dict),
+                    _event_loop
+                )
+                logger.debug(f"✅ MQTT消息已调度到WebSocket: {msg_dict.get('type', 'unknown')}")
+            except Exception as e:
+                logger.error(f"❌ 调度WebSocket广播失败: {e}")
+        else:
+            logger.warning("⚠️ 事件循环不可用，无法广播WebSocket消息")
     
     start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
     logger.info("✅ MQTT服务启动完成")
@@ -54,6 +76,9 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Redis连接已关闭")
     except Exception as e:
         logger.warning(f"⚠️ Redis关闭失败: {e}")
+    
+    # 清理事件循环引用
+    _event_loop = None
 
 
 # 创建FastAPI应用
@@ -80,15 +105,26 @@ app.add_middleware(
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket实时数据推送端点"""
+    logger.info("🔌 收到 WebSocket 连接请求")
     await manager.connect(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket 错误: {e}")
+        manager.disconnect(websocket)
 
 
 # 注册路由
+
+# 健康检查端点（无需认证，供监控系统使用）
+app.include_router(
+    health.router,
+    tags=["系统健康"]
+)
+
 app.include_router(
     auth.router,
     prefix="/auth",

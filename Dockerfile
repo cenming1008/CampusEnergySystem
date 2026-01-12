@@ -9,10 +9,12 @@ RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.li
     sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
 
 # 4. 安装系统依赖 (bcrypt 需要编译，需要 build-essential)
+# curl 用于健康检查
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. 复制依赖文件并安装（使用清华大学 PyPI 镜像加速）

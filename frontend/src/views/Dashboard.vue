@@ -83,9 +83,16 @@
     const renderChart = (data: any[]) => {
       if (!myChart) return
     
-      const times = data.map(item => item.timestamp.substring(11, 19)) // 只取时分秒
-      const powers = data.map(item => item.power)
-      const currents = data.map(item => item.current)
+      // 如果数据为空，初始化空图表
+      const times = data.length > 0 
+        ? data.map(item => item.timestamp.substring(11, 19)) 
+        : []
+      const powers = data.length > 0 
+        ? data.map(item => item.power) 
+        : []
+      const currents = data.length > 0 
+        ? data.map(item => item.current) 
+        : []
     
       const option = {
         backgroundColor: 'transparent',
@@ -141,26 +148,26 @@
         // 4.2 动态更新图表 (追加数据)
         if (myChart) {
           const option = myChart.getOption() as any
-          // 获取当前数据队列
-          const times = option.xAxis[0].data
-          const powers = option.series[0].data
-          const currents = option.series[1].data
-    
+          // 获取当前数据队列（如果不存在则初始化）
+          let times = option.xAxis?.[0]?.data || []
+          let powers = option.series?.[0]?.data || []
+          let currents = option.series?.[1]?.data || []
+          
           // 追加新点
           times.push(realTimeData.timestamp.substring(11, 19))
           powers.push(realTimeData.power)
           currents.push(realTimeData.current)
-    
+          
           // 保持队列长度 (例如只保留最近50个点)
           if (times.length > 50) {
             times.shift()
             powers.shift()
             currents.shift()
           }
-    
+          
           // 增量设置 (ECharts 会自动做平滑动画)
           myChart.setOption({
-            xAxis: { data: times },
+            xAxis: [{ data: times }],
             series: [
               { data: powers },
               { data: currents }
