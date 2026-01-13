@@ -14,7 +14,8 @@ from app.core.logger import logger
 from app.core.settings import settings
 from app.core.error_handlers import register_exception_handlers
 from app.services.mqtt_worker import start_mqtt_background
-from app.api.endpoints import auth, devices, telemetry, alarms, analysis, reports, fdd, health
+from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.api.endpoints import auth, devices, telemetry, alarms, analysis, reports, fdd, health, forecast, data_generator
 from app.api.deps import get_current_user
 
 
@@ -65,12 +66,27 @@ async def lifespan(app: FastAPI):
     start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
     logger.info("✅ MQTT服务启动完成")
     
+    # 启动定时任务调度器
+    try:
+        start_scheduler()
+        logger.info("✅ 定时任务调度器启动完成")
+    except Exception as e:
+        logger.warning(f"⚠️ 定时任务调度器启动失败: {e}")
+    
     logger.info("✨ 系统就绪")
     
     yield
     
     # 关闭阶段
     logger.info("🛑 应用关闭中...")
+    
+    # 停止定时任务调度器
+    try:
+        stop_scheduler()
+        logger.info("✅ 定时任务调度器已停止")
+    except Exception as e:
+        logger.warning(f"⚠️ 定时任务调度器停止失败: {e}")
+    
     try:
         await RedisClient.close()
         logger.info("✅ Redis连接已关闭")
@@ -169,6 +185,20 @@ app.include_router(
     reports.router,
     prefix="/reports",
     tags=["报表导出"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    forecast.router,
+    prefix="/forecast",
+    tags=["预测功能"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    data_generator.router,
+    prefix="/data-generator",
+    tags=["数据生成"],
     dependencies=[Depends(get_current_user)]
 )
 

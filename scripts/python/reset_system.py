@@ -1,5 +1,12 @@
+import sys
+import os
+
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from sqlmodel import Session, text
 from app.core.database import engine
+
 def factory_reset():
     print("🧨 正在执行工厂重置...")
     with Session(engine) as session:

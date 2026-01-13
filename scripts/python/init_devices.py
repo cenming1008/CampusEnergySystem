@@ -1,8 +1,9 @@
 import requests
 import sys
+import os
 
-# 配置基础地址
-BASE_URL = "http://127.0.0.1:8088"
+# 配置基础地址（支持环境变量）
+BASE_URL = os.getenv("API_BASE", "http://127.0.0.1:8088")
 LOGIN_URL = f"{BASE_URL}/auth/login"
 DEVICES_URL = f"{BASE_URL}/devices/"
 

@@ -56,3 +56,20 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     hashed_password: str
     is_active: bool = Field(default=True)
+
+
+class Prediction(SQLModel, table=True):
+    """预测结果表（负荷预测、风光预测等）。"""
+    
+    __tablename__ = "prediction"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    prediction_type: str = Field(index=True, description="预测类型：load(负荷)、solar(光伏)、wind(风电)")
+    device_id: Optional[int] = Field(default=None, index=True, foreign_key="device.id", description="设备ID，None表示系统级预测")
+    forecast_time: datetime = Field(index=True, description="预测时间点")
+    predicted_value: float = Field(description="预测值（功率，单位：kW）")
+    confidence: Optional[float] = Field(default=None, description="置信度（0-1）")
+    actual_value: Optional[float] = Field(default=None, description="实际值（用于评估预测准确性）")
+    algorithm: str = Field(default="moving_average", description="使用的预测算法")
+    created_at: datetime = Field(default_factory=datetime.now, index=True)
+    meta_info: Optional[str] = Field(default=None, description="额外元数据（JSON字符串）")

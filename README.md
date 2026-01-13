@@ -10,17 +10,42 @@
 
 ---
 
+## ⚡ 快速开始（3分钟上手）
+
+> 💡 **新手提示**: 首次使用？建议阅读 [START_HERE.md](./START_HERE.md) 或 [快速启动指南](./docs/快速启动指南.md)
+
+```bash
+# 1️⃣ 克隆项目
+git clone https://github.com/your-repo/MineEnergySystem.git
+cd MineEnergySystem
+
+# 2️⃣ 一键启动（需要 Docker Desktop）
+./bin/quick_start.sh  # 首次使用（完整构建）
+./bin/fast_start.sh   # 日常使用（快速启动）⭐
+
+# 3️⃣ 访问系统
+# 打开浏览器访问: http://localhost:8088/docs
+# 默认账号: admin / 123456
+```
+
+**前置条件**: 已安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) ✅
+
+**启动遇到问题？** → 查看 [故障排查](#-故障排查) 或 [快速启动指南](./docs/快速启动指南.md)
+
+---
+
 ## 📖 目录
 
+- [快速开始](#-快速开始3分钟上手) ⭐
 - [项目简介](#-项目简介)
 - [技术栈](#-技术栈)
 - [功能特性](#-功能特性)
-- [快速开始](#-快速开始)
+- [详细启动指南](#-快速开始) 📘 [独立文档](./docs/快速启动指南.md)
 - [系统架构](#-系统架构)
 - [API 文档](#-api-文档)
 - [开发指南](#-开发指南)
 - [运维管理](#-运维管理)
-- [故障排查](#-故障排查)
+- [故障排查](#-故障排查) 🔧
 - [项目路线图](#-项目路线图)
 
 ---
@@ -128,6 +153,19 @@
 - [x] 数据导出（CSV）
 - [x] 系统健康检查
 
+#### 7. 预测功能
+- [x] 负荷预测（移动平均、线性回归、LSTM）
+- [x] 风光预测（光伏、风电）
+- [x] LSTM深度学习模型训练和预测
+- [x] 多变量预测（电压、电流、功率）
+- [x] 模型版本管理和对比
+- [x] 超参数自动搜索
+- [x] 定时自动训练任务
+- [x] 模型性能评估（MAE、MAPE、RMSE）
+- [x] 数据生成工具（用于训练和测试）
+
+📖 **详细文档**: 查看 [docs/LSTM完整使用指南.md](./docs/LSTM完整使用指南.md)
+
 ### 规划中功能
 
 - [ ] 单元测试和集成测试（进行中）
@@ -142,57 +180,167 @@
 
 ## 🚀 快速开始
 
-### 前置要求
+### 方式一：一键启动（推荐 ⭐）
 
+#### 前置要求
+
+- **Docker Desktop**: 24.0+ ([下载地址](https://www.docker.com/products/docker-desktop/))
 - **操作系统**: macOS / Linux / Windows (WSL2)
-- **Docker**: 24.0+
-- **Docker Compose**: 2.x
-- **端口**: 8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
+- **可用端口**: 8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
 
-### 一键启动（Docker Compose）
+#### 启动步骤
 
 ```bash
 # 1. 克隆项目
 git clone https://github.com/your-repo/MineEnergySystem.git
 cd MineEnergySystem
 
-# 2. 启动所有服务（推荐使用快速启动脚本）
+# 2. 一键启动所有服务（自动构建镜像并启动容器）
 ./quick_start.sh
 
-# 或手动启动
-docker compose up -d --build
-
-# 3. 查看服务状态
-docker compose ps
-# 或使用状态脚本
-./scripts/shell/status.sh
-
-# 4. 访问 API 文档
-open http://localhost:8088/docs
+# 首次启动约需 3-5 分钟（下载镜像 + 构建），后续启动只需 30-60 秒
 ```
 
-### 初始化数据
+#### 启动成功标志
 
-系统首次启动会自动创建数据库表和默认管理员账号：
+当看到以下输出，说明启动成功：
+
+```
+✅ 服务启动完成！
+📚 访问地址：
+   后端 API 文档: http://localhost:8088/docs
+   后端 ReDoc:    http://localhost:8088/redoc
+```
+
+#### 默认账号
+
+系统首次启动会自动创建默认管理员账号：
 - **用户名**: `admin`
 - **密码**: `123456`
 
 ⚠️ **生产环境务必修改默认密码！**
 
-### 验证服务
+---
+
+### 方式二：手动启动（了解更多细节）
 
 ```bash
-# 1. 测试后端 API
+# 1. 确保 Docker Desktop 已启动
+
+# 2. 创建必要的目录
+mkdir -p mosquitto/data mosquitto/log logs pg_data
+
+# 3. 启动所有服务
+docker compose up -d --build
+
+# 4. 查看服务状态
+docker compose ps
+
+# 5. 查看后端启动日志
+docker compose logs -f backend
+```
+
+---
+
+### 方式三：本地开发模式（不使用 Docker）
+
+如果需要在本地开发环境中运行（用于开发调试）：
+
+#### 1. 安装依赖
+
+```bash
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# 安装前端依赖
+cd frontend
+npm install
+cd ..
+```
+
+#### 2. 启动基础服务
+
+```bash
+# 只启动数据库、Redis、MQTT（不启动后端）
+docker compose up -d db redis mqtt
+
+# 等待服务就绪（约 10-20 秒）
+docker compose ps
+```
+
+#### 3. 启动后端
+
+```bash
+# 激活虚拟环境
+source venv/bin/activate
+
+# 启动后端开发服务器（支持热重载）
+python run.py
+```
+
+#### 4. 启动前端（可选）
+
+```bash
+# 新开一个终端
+cd frontend
+npm run dev
+
+# 前端访问地址：http://localhost:5173
+```
+
+---
+
+### 验证服务是否正常
+
+```bash
+# 1. 测试后端健康检查
 curl http://localhost:8088/health
 
-# 2. 测试数据库
-docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
+# 预期输出：{"status":"healthy", ...}
 
-# 3. 测试 Redis
+# 2. 访问 API 文档（浏览器）
+open http://localhost:8088/docs
+
+# 3. 测试数据库连接
+docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT version();"
+
+# 4. 测试 Redis
 docker exec -it ems_redis redis-cli ping
+# 预期输出：PONG
 
-# 4. 测试 MQTT
+# 5. 测试 MQTT（新开终端监听消息）
 docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
+```
+
+---
+
+### 常用管理命令
+
+```bash
+# 查看所有服务状态
+docker compose ps
+
+# 查看后端日志（实时）
+docker compose logs -f backend
+
+# 查看所有服务日志
+docker compose logs -f
+
+# 重启服务
+docker compose restart
+
+# 停止服务
+docker compose down
+
+# 停止并删除所有数据（⚠️ 谨慎使用）
+docker compose down -v
+
+# 查看服务状态（使用状态脚本）
+./scripts/shell/status.sh
 ```
 
 ---
@@ -390,6 +538,31 @@ npm run dev
 - 前端: http://localhost:5173
 - 后端 API: http://localhost:8088/docs
 
+### LSTM预测功能开发
+
+系统已实现完整的LSTM深度学习预测功能，包括：
+- 模型训练和预测
+- 多变量预测支持
+- 模型版本管理
+- 超参数自动搜索
+- 定时训练任务
+
+📖 **完整使用指南**: 查看 [docs/LSTM完整使用指南.md](./docs/LSTM完整使用指南.md)
+
+**快速开始**:
+```bash
+# 1. 生成训练数据
+POST /data-generator/generate/device/1
+{"days": 60, "interval_minutes": 60, "data_type": "load"}
+
+# 2. 训练LSTM模型
+POST /forecast/lstm/train
+{"prediction_type": "load", "device_id": 1, "days": 60}
+
+# 3. 使用LSTM预测
+POST /forecast/load?device_id=1&hours=24&algorithm=lstm
+```
+
 ### 添加新功能
 
 #### 1. 创建 Service 层
@@ -557,30 +730,130 @@ sudo certbot --nginx -d api.yourdomain.com
 
 ## 🔍 故障排查
 
-### 常见问题
+### 启动问题排查（最常见）
 
-#### 1. 容器启动失败
+#### 问题 1: Docker Desktop 未安装或未启动
 
-**检查步骤**:
+**症状**:
 ```bash
-# 查看容器状态
-docker compose ps
-
-# 查看日志
-docker compose logs db
-docker compose logs backend
-
-# 检查端口占用
-lsof -i :8088
-lsof -i :5433
+./quick_start.sh
+# 输出: ❌ Docker 未安装 或 ❌ Docker 未运行
 ```
 
 **解决方案**:
-- 端口被占用 → 修改 `docker-compose.yml` 端口映射
-- 权限问题 → `sudo chown -R $(id -u):$(id -g) pg_data/`
-- Docker 未运行 → 启动 Docker Desktop
+```bash
+# macOS - 检查 Docker 是否已安装
+ls /Applications/Docker.app
 
-#### 2. 数据库连接失败
+# 如果未安装，使用 Homebrew 安装
+brew install --cask docker
+
+# 启动 Docker Desktop
+open /Applications/Docker.app
+
+# 等待 Docker 完全启动（菜单栏图标不再闪烁）
+# 然后重新运行启动脚本
+./quick_start.sh
+```
+
+#### 问题 2: 端口被占用
+
+**症状**:
+```bash
+Error response from daemon: Ports are not available: listen tcp 0.0.0.0:8088: bind: address already in use
+```
+
+**检查占用端口**:
+```bash
+# macOS/Linux
+lsof -i :8088  # 后端
+lsof -i :5433  # 数据库
+lsof -i :6379  # Redis
+lsof -i :1883  # MQTT
+
+# 查看占用进程的 PID
+lsof -ti:8088
+
+# 杀掉占用进程（谨慎使用）
+kill -9 $(lsof -ti:8088)
+```
+
+**解决方案**:
+
+**方案1**（推荐）：修改端口映射
+```bash
+# 编辑 docker-compose.yml
+# 将 "8088:8088" 改为 "8089:8088"
+# 然后重新启动
+docker compose up -d --build
+```
+
+**方案2**：停止占用进程
+```bash
+# 如果是之前的项目实例在运行
+docker compose down
+./quick_start.sh
+```
+
+#### 问题 3: 首次启动速度慢
+
+**症状**:
+- 首次启动需要 3-5 分钟
+- 下载镜像缓慢
+
+**这是正常现象**，因为需要：
+1. 下载 Docker 镜像（约 750MB）
+2. 构建后端镜像
+3. 初始化数据库
+
+**优化建议**:
+```bash
+# 提前下载镜像
+docker compose pull
+
+# 后续启动会快很多（30-60秒）
+```
+
+#### 问题 4: 服务启动后无法访问
+
+**症状**:
+- 容器启动成功，但访问 http://localhost:8088/docs 失败
+- 浏览器显示 "无法访问此网站"
+
+**检查步骤**:
+```bash
+# 1. 查看容器状态（所有容器应该是 Up 状态）
+docker compose ps
+
+# 2. 查看后端日志
+docker compose logs backend
+
+# 3. 测试健康检查
+curl http://localhost:8088/health
+
+# 4. 检查后端是否在监听
+docker exec mine_backend netstat -tln | grep 8088
+```
+
+**解决方案**:
+```bash
+# 方案1: 等待服务完全启动（首次启动需要 20-30 秒）
+sleep 30
+curl http://localhost:8088/health
+
+# 方案2: 查看是否有启动错误
+docker compose logs backend | grep -i error
+
+# 方案3: 重启后端容器
+docker compose restart backend
+docker compose logs -f backend
+```
+
+---
+
+### 常见运行时问题
+
+#### 1. 数据库连接失败
 
 **检查步骤**:
 ```bash
@@ -589,12 +862,24 @@ docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
 
 # 查看数据库日志
 docker compose logs db
+
+# 检查数据库健康状态
+docker compose ps db
 ```
 
 **解决方案**:
-- 等待健康检查通过（约10-20秒）
-- 检查环境变量配置
-- 重启数据库容器
+```bash
+# 方案1: 等待健康检查通过（约 10-20 秒）
+docker compose ps
+
+# 方案2: 重启数据库
+docker compose restart db
+
+# 方案3: 完全重置数据库（⚠️ 会删除所有数据）
+docker compose down -v
+rm -rf pg_data/*
+docker compose up -d
+```
 
 #### 3. WebSocket 连接失败
 
@@ -676,7 +961,7 @@ docker compose up -d --build
 - [ ] 国际化（i18n）
 
 #### 长期（6-12个月）
-- [ ] AI 能耗预测
+- [x] AI 能耗预测（LSTM深度学习模型）✅ 已完成
 - [ ] 微服务拆分（按需）
 - [ ] 大数据分析平台集成
 - [ ] 移动端 App
@@ -742,12 +1027,26 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 
 ### 使用设备模拟器
 
+**使用 Docker 运行（推荐）⭐**
 ```bash
 # 模拟设备数据上报
-python tools/simulator.py
+docker exec -it mine_backend python scripts/python/simulator.py
 
 # 压力测试
-python tools/stress_test.py
+docker exec -it mine_backend python scripts/python/stress_test.py
+
+# 初始化设备
+docker exec -it mine_backend python scripts/python/init_devices.py
+```
+
+**本地运行（需要先安装依赖）**
+```bash
+# 激活虚拟环境
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 运行脚本
+python scripts/python/simulator.py
 ```
 
 ---

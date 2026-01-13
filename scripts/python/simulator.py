@@ -3,16 +3,19 @@ import time
 import json
 import requests
 import paho.mqtt.client as mqtt
+import os
 
 # ================= 配置区域 =================
 # 1. MQTT 配置 (负责收发数据)
-MQTT_BROKER = "127.0.0.1"
-MQTT_PORT = 1883
+# 从环境变量读取，Docker 容器内使用服务名 'mqtt'，本地使用 '127.0.0.1'
+MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
+MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_TELEMETRY = "mine/telemetry"    # 发送：遥测数据
 MQTT_TOPIC_CONTROL_PREFIX = "mine/control/" # 接收：控制指令前缀 (mine/control/1)
 
 # 2. HTTP 配置 (负责登录和同步初始状态)
-API_BASE = "http://127.0.0.1:8088"
+# Docker 容器内使用 'localhost' (因为脚本在 backend 容器内运行)
+API_BASE = os.getenv("API_BASE", "http://127.0.0.1:8088")
 LOGIN_URL = f"{API_BASE}/auth/login"  # 登录接口
 DEVICES_URL = f"{API_BASE}/devices/"  # 设备列表接口
 
