@@ -192,3 +192,47 @@ dmypy.json
 # 项目特定
 tools/__pycache__/
 scripts/__pycache__/
+
+# ============================================
+# 大文件和静态资源（应使用 CDN 或 Git LFS）
+# ============================================
+# 大图片文件（>1MB）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+*.ico
+
+# 视频文件
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+
+# 音频文件
+*.mp3
+*.wav
+*.ogg
+
+# 字体文件（大）
+*.ttf
+*.woff
+*.woff2
+*.eot
+
+# 压缩包
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# 例外：保留小的必要图标
+!frontend/public/logo.svg
+!frontend/public/favicon.ico
