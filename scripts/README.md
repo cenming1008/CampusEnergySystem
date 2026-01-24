@@ -8,33 +8,66 @@
 
 ```
 scripts/
-├── shell/          # Shell 脚本（运维和管理）
-│   ├── start.sh           # 🚀 启动所有服务
-│   ├── stop.sh            # 🛑 停止所有服务
-│   ├── status.sh          # 📊 查看服务状态
-│   ├── restart_backend.sh # 🔄 重启后端服务
-│   ├── rebuild_backend.sh # 🔨 重新构建后端
-│   ├── fix_db.sh          # 🔧 修复数据库问题
-│   ├── test_health.sh     # 🏥 测试健康检查
-│   ├── check_websocket.sh # 🌐 测试 WebSocket
-│   ├── check_mac_env.sh   # 🍎 检查 Mac 环境
-│   └── start_frontend.sh  # 💻 启动前端开发服务器
+├── README.md                   # 📖 本文件 - 脚本总览
+├── QUICK_REFERENCE.md          # ⚡ 快速参考卡片
 │
-└── python/         # Python 脚本（数据和工具）
-    ├── create_admin.py    # 👤 创建管理员账号
-    ├── init_devices.py    # 📱 初始化测试设备
-    ├── reset_system.py    # 🔄 重置系统数据
-    ├── check_config.py    # ⚙️  检查配置文件
-    ├── clear_db.py        # 🗑️  清空数据库
-    ├── simulator.py       # 🎮 设备数据模拟器
-    └── stress_test.py     # 💪 压力测试工具
+├── shell/                      # Shell 脚本（运维和管理）
+│   ├── README.md              # 📖 Shell 脚本详细文档
+│   │
+│   ├── 🚀 服务启停
+│   ├── start.sh               # 启动所有服务（生产）
+│   ├── start_dev_env.sh       # 启动开发环境（仅中间件）
+│   ├── stop.sh                # 停止所有服务
+│   ├── stop_dev_env.sh        # 停止开发环境
+│   ├── restart_backend.sh     # 重启后端服务
+│   ├── rebuild_backend.sh     # 重新构建后端
+│   ├── start_frontend.sh      # 启动前端开发服务器
+│   │
+│   ├── 📊 状态检查
+│   ├── status.sh              # 查看服务状态
+│   ├── test_health.sh         # 测试健康检查
+│   ├── check_websocket.sh     # 测试 WebSocket
+│   ├── check_mac_env.sh       # 检查 Mac 环境
+│   │
+│   ├── 🔧 维护工具
+│   ├── backup.sh              # 数据库备份
+│   ├── restore.sh             # 数据库恢复
+│   ├── cleanup_logs.sh        # 清理日志文件
+│   ├── cleanup_docker.sh      # 清理 Docker 资源
+│   ├── fix_venv.sh            # 修复虚拟环境
+│   ├── install_dependencies.sh # 安装系统依赖
+│   │
+│   └── 🚀 部署工具
+       ├── deploy_prod.sh      # 生产环境部署
+       └── uninstall_local_services.sh  # 卸载本地服务
+│
+└── python/                     # Python 脚本（数据和工具）
+    ├── README.md              # 📖 Python 脚本详细文档
+    │
+    ├── 🚀 系统初始化
+    ├── init_complete_system.py    # 完整系统初始化 ⭐
+    ├── create_admin.py            # 创建管理员账号
+    ├── rebuild_database.py        # 重建数据库 ⚠️
+    ├── check_config.py            # 检查配置
+    │
+    ├── 🎯 功能演示
+    ├── demo_unified_system.py     # 统一系统演示
+    ├── demo_device_group.py       # 设备分组功能演示
+    ├── demo_location.py           # 位置管理功能演示
+    ├── demo_maintenance.py        # 维护管理功能演示
+    │
+    └── 🔧 开发工具
+        ├── simulator_unified.py   # 统一设备模拟器 ⭐
+        ├── simulator.py           # 设备数据模拟器
+        ├── generate_training_data.py  # 生成训练数据
+        └── stress_test.py         # 压力测试工具
 ```
 
 ---
 
 ## 🚀 Shell 脚本使用指南
 
-### 1. 启动和停止
+### 1. 服务管理
 
 #### `start.sh` - 启动所有服务
 ```bash
@@ -64,6 +97,18 @@ scripts/
 
 ---
 
+#### `status.sh` - 查看服务状态
+```bash
+./scripts/shell/status.sh
+```
+
+**功能**：
+- 显示所有容器状态
+- 显示健康检查结果
+- 显示端口映射
+
+---
+
 #### `restart_backend.sh` - 重启后端服务
 ```bash
 ./scripts/shell/restart_backend.sh
@@ -90,19 +135,20 @@ scripts/
 
 ---
 
-### 2. 检查和测试
-
-#### `status.sh` - 查看服务状态
+#### `start_frontend.sh` - 启动前端
 ```bash
-./scripts/shell/status.sh
+./scripts/shell/start_frontend.sh
 ```
 
 **功能**：
-- 显示所有容器状态
-- 显示健康检查结果
-- 显示端口映射
+- 启动前端开发服务器
+- 自动安装依赖（如需要）
+
+**访问**：http://localhost:5173
 
 ---
+
+### 2. 检查和测试
 
 #### `test_health.sh` - 测试健康检查
 ```bash
@@ -152,35 +198,50 @@ scripts/
 
 ### 3. 维护工具
 
-#### `fix_db.sh` - 修复数据库问题
+#### `fix_venv.sh` - 修复虚拟环境
 ```bash
-./scripts/shell/fix_db.sh
+./scripts/shell/fix_venv.sh
 ```
 
 **功能**：
-- 修复数据库权限问题
-- 重置数据库连接
+- 修复 Python 虚拟环境问题
+- 重新安装依赖
 
-**⚠️ 注意**：可能需要重启数据库
+**适用场景**：虚拟环境损坏或依赖冲突
 
 ---
 
-#### `start_frontend.sh` - 启动前端
+#### `install_dependencies.sh` - 安装依赖
 ```bash
-./scripts/shell/start_frontend.sh
+./scripts/shell/install_dependencies.sh
 ```
 
 **功能**：
-- 启动前端开发服务器
-- 自动安装依赖（如需要）
+- 安装系统级依赖
+- 检查 Python 版本
+- 配置开发环境
 
-**访问**：http://localhost:5173
+**适用场景**：首次部署或环境初始化
+
+---
+
+#### `cleanup_logs.sh` - 清理日志
+```bash
+./scripts/shell/cleanup_logs.sh
+```
+
+**功能**：
+- 清理过期日志文件
+- 释放磁盘空间
+- 保留最近日志
+
+**适用场景**：日志文件占用过多空间时
 
 ---
 
 ## 🐍 Python 脚本使用指南
 
-### 1. 系统初始化
+### 1. 系统初始化与管理
 
 #### `create_admin.py` - 创建管理员
 ```bash
@@ -195,45 +256,6 @@ python scripts/python/create_admin.py
 
 ---
 
-#### `init_devices.py` - 初始化设备
-```bash
-python scripts/python/init_devices.py
-```
-
-**功能**：
-- 创建测试设备
-- 初始化设备配置
-
-**使用场景**：开发测试环境初始化
-
----
-
-### 2. 系统维护
-
-#### `reset_system.py` - 重置系统
-```bash
-python scripts/python/reset_system.py
-```
-
-**功能**：
-- 清空所有数据
-- 重新初始化数据库
-
-**⚠️ 警告**：会删除所有数据，谨慎使用！
-
----
-
-#### `clear_db.py` - 清空数据库
-```bash
-python scripts/python/clear_db.py
-```
-
-**功能**：
-- 清空所有表数据
-- 保留表结构
-
----
-
 #### `check_config.py` - 检查配置
 ```bash
 python scripts/python/check_config.py
@@ -243,6 +265,71 @@ python scripts/python/check_config.py
 - 验证配置文件
 - 检查环境变量
 - 输出配置报告
+
+---
+
+#### `rebuild_database.py` - 重建数据库
+```bash
+python scripts/python/rebuild_database.py
+```
+
+**功能**：
+- 删除并重建所有数据库表
+- 重新初始化数据结构
+
+**⚠️ 警告**：会删除所有数据，谨慎使用！
+
+---
+
+### 2. 功能演示脚本
+
+#### `demo_unified_system.py` - 统一系统演示
+```bash
+python scripts/python/demo_unified_system.py
+```
+
+**功能**：
+- 演示完整系统功能
+- 创建测试数据
+- 展示各模块协同工作
+
+**使用场景**：系统功能演示、培训、测试
+
+---
+
+#### `demo_device_group.py` - 设备分组演示
+```bash
+python scripts/python/demo_device_group.py
+```
+
+**功能**：
+- 演示设备分组功能
+- 创建分组和关联设备
+- 展示分组查询
+
+---
+
+#### `demo_location.py` - 位置管理演示
+```bash
+python scripts/python/demo_location.py
+```
+
+**功能**：
+- 演示位置层级管理
+- 创建区域、车间、设备位置
+- 展示位置关联
+
+---
+
+#### `demo_maintenance.py` - 维护管理演示
+```bash
+python scripts/python/demo_maintenance.py
+```
+
+**功能**：
+- 演示设备维护流程
+- 创建维护计划和记录
+- 展示维护状态管理
 
 ---
 
@@ -287,6 +374,20 @@ python scripts/python/stress_test.py
 
 ---
 
+#### `generate_training_data.py` - 生成训练数据
+```bash
+python scripts/python/generate_training_data.py
+```
+
+**功能**：
+- 生成 LSTM 模型训练数据
+- 创建模拟的历史能耗数据
+- 支持自定义时间范围和设备
+
+**使用场景**：LSTM 预测模型训练前的数据准备
+
+---
+
 ## 📝 常用操作速查
 
 ### 日常开发
@@ -320,6 +421,24 @@ python scripts/python/simulator.py
 
 # 测试 WebSocket
 ./scripts/shell/check_websocket.sh
+
+# 配置检查
+python scripts/python/check_config.py
+```
+
+### 功能演示
+```bash
+# 完整系统演示
+python scripts/python/demo_unified_system.py
+
+# 设备分组演示
+python scripts/python/demo_device_group.py
+
+# 位置管理演示
+python scripts/python/demo_location.py
+
+# 维护管理演示
+python scripts/python/demo_maintenance.py
 ```
 
 ### 系统维护
@@ -327,11 +446,11 @@ python scripts/python/simulator.py
 # 停止系统
 ./scripts/shell/stop.sh
 
-# 清空数据
-python scripts/python/clear_db.py
+# 清理日志
+./scripts/shell/cleanup_logs.sh
 
-# 重新初始化
-python scripts/python/init_devices.py
+# 重建数据库（危险操作！）
+python scripts/python/rebuild_database.py
 ```
 
 ---
@@ -339,18 +458,18 @@ python scripts/python/init_devices.py
 ## 🔧 脚本开发规范
 
 ### Shell 脚本
-- 文件名：小写字母 + 下划线，`.sh` 后缀
-- 首行：`#!/bin/bash`
-- 注释：每个函数和关键步骤都要注释
-- 错误处理：使用 `set -e` 或适当的错误检查
-- 颜色输出：使用 ANSI 颜色代码提升可读性
+- **文件名**：小写字母 + 下划线，`.sh` 后缀
+- **首行**：`#!/bin/bash`
+- **注释**：每个函数和关键步骤都要注释
+- **错误处理**：使用 `set -e` 或适当的错误检查
+- **颜色输出**：使用 ANSI 颜色代码提升可读性
 
 ### Python 脚本
-- 文件名：小写字母 + 下划线，`.py` 后缀
-- 编码：UTF-8
-- 文档：使用 docstring 说明功能
-- 日志：使用 `loguru` 记录日志
-- 配置：从环境变量或配置文件读取
+- **文件名**：小写字母 + 下划线，`.py` 后缀
+- **编码**：UTF-8
+- **文档**：使用 docstring 说明功能
+- **日志**：使用 `loguru` 记录日志
+- **配置**：从环境变量或配置文件读取
 
 ---
 
@@ -373,18 +492,65 @@ cd scripts/shell && ./start.sh
 ```
 
 ### 环境依赖
-- Shell 脚本依赖：`bash`, `docker`, `docker compose`, `curl`
-- Python 脚本依赖：见 `requirements.txt`
+- **Shell 脚本依赖**：`bash`, `docker`, `docker compose`, `curl`
+- **Python 脚本依赖**：见 `requirements.txt`
+
+### 危险操作
+以下脚本会删除数据，使用前务必备份：
+- `rebuild_database.py` - 重建数据库
 
 ---
 
-## 📚 相关文档
+## 📚 文档导航
+
+### 脚本文档
+
+- **[⚡ 快速参考卡片](./QUICK_REFERENCE.md)** - 常用脚本速查，复制即用 ⭐
+- **[📖 Python 脚本详解](./python/README.md)** - Python 脚本完整文档
+- **[📖 Shell 脚本详解](./shell/README.md)** - Shell 脚本完整文档
+
+### 项目文档
 
 - [README.md](../README.md) - 项目主文档
 - [app/README.md](../app/README.md) - 代码结构说明
-- [docs/README.md](../docs/README.md) - 文档导航
+- [docs/README.md](../docs/README.md) - 文档总导航
+
+### 新手指南
+
+- [快速启动指南](../docs/01-新手入门/快速启动指南.md)
+- [全新系统初始化指南](../docs/01-新手入门/全新系统初始化指南.md)
+- [本地开发环境配置](../docs/01-新手入门/本地开发环境配置.md)
+
+### 部署文档
+
+- [企业部署完整指南](../docs/03-开发与部署/企业部署完整指南.md)
+- [Docker 脚本说明](../docs/03-开发与部署/DOCKER_SCRIPTS.md)
 
 ---
 
-**最后更新**：2026-01-12  
+## 🗂️ 脚本分类速查
+
+### 按功能分类
+
+**系统启停**：
+- `start.sh`, `stop.sh`, `restart_backend.sh`, `rebuild_backend.sh`, `start_frontend.sh`
+
+**检查测试**：
+- `status.sh`, `test_health.sh`, `check_websocket.sh`, `check_mac_env.sh`, `check_config.py`, `stress_test.py`
+
+**数据生成**：
+- `simulator.py`, `generate_training_data.py`
+
+**功能演示**：
+- `demo_unified_system.py`, `demo_device_group.py`, `demo_location.py`, `demo_maintenance.py`
+
+**系统管理**：
+- `create_admin.py`, `rebuild_database.py`
+
+**维护清理**：
+- `cleanup_logs.sh`, `fix_venv.sh`
+
+---
+
+**最后更新**：2026-01-24  
 **维护状态**：活跃维护

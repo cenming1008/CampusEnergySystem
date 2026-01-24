@@ -5,7 +5,7 @@
 from typing import List, Dict, Any, Tuple
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
-from app.models.tables import Alarm, Device, DeviceData
+from app.models.tables import Alarm, Device, EnergyData
 from app.core.logger import logger
 from app.core.settings import settings
 
@@ -162,10 +162,10 @@ class FDDService:
         """
         # 获取指定时间范围内的设备运行数据
         statement = (
-            select(DeviceData.voltage, DeviceData.current, DeviceData.power)
-            .where(DeviceData.device_id == device_id)
-            .where(DeviceData.timestamp >= start_time)
-            .order_by(DeviceData.timestamp.asc())
+            select(EnergyData.voltage, EnergyData.current, EnergyData.flow_rate)
+            .where(EnergyData.device_id == device_id)
+            .where(EnergyData.timestamp >= start_time)
+            .order_by(EnergyData.timestamp.asc())
         )
         data = session.exec(statement).all()
 
@@ -181,7 +181,9 @@ class FDDService:
             }
 
         # 分析电压数据
-        voltages = [d.voltage for d in data]
+        voltages = [d.voltage or 0 for d in data if d.voltage is not None]
+        if not voltages:
+            voltages = [0]
         max_v = max(voltages)
         min_v = min(voltages)
 
@@ -197,12 +199,14 @@ class FDDService:
             voltage_stability = "Poor"
 
         # 分析电流数据
-        currents = [d.current for d in data]
+        currents = [d.current or 0 for d in data if d.current is not None]
+        if not currents:
+            currents = [0]
         max_c = max(currents)
         avg_c = sum(currents) / len(currents)
 
         # 分析功率和负载率
-        avg_power = sum(d.power for d in data) / len(data)
+        avg_power = sum((d.flow_rate or 0) for d in data) / len(data)
         # 使用配置的额定功率计算负载率
         load_factor = avg_power / settings.fdd_rated_power
 

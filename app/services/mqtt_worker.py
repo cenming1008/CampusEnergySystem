@@ -24,13 +24,14 @@ from app.core.database import engine
 from app.core.logger import logger
 from app.core.settings import settings
 from app.models.tables import Device
-from app.services.data_processor import process_device_data
+from app.services.device_service import DeviceService
+from app.services.alarm_service import AlarmService
 
 
 client = mqtt.Client()
 
 
-def get_device_id_by_code(device_code: str, session: Session) -> int | None:
+def get_device_id_by_code(device_code: str, session: Session) -> Optional[int]:
     """根据设备编码（sn）查找设备主键 ID。"""
     device = session.exec(select(Device).where(Device.sn == device_code)).first()
     return device.id if device else None
@@ -89,7 +90,7 @@ def _normalize_metrics(data: dict[str, Any]) -> tuple[float, float, float, float
     return voltage, current, power, energy
 
 
-def process_data(payload_str: str, topic: str | None = None, broadcast_callback: Callable[[dict[str, Any]], Any] | None = None):
+def process_data(payload_str: str, topic: Optional[str] = None, broadcast_callback: Optional[Callable[[dict[str, Any]], Any]] = None):
     """处理一条 MQTT 消息：入库 +（可选）回调广播。"""
     try:
         data = json.loads(payload_str)
@@ -109,31 +110,67 @@ def process_data(payload_str: str, topic: str | None = None, broadcast_callback:
     voltage, current, power, energy = _normalize_metrics(data)
 
     with Session(engine) as session:
-        record = process_device_data(
+        # 构造数据字典，包含所有可能的字段
+        data_dict = {
+            # 通用字段
+            "consumption": energy if energy > 0 else data.get("consumption", 0.0),
+            "power": power,  # 保留 power 值（包括 0），电力设备的必需字段
+            
+            # 电力专用字段
+            "voltage": voltage,
+            "current": current,
+            "power_factor": data.get("power_factor"),
+            
+            # 水/气专用字段
+            "pressure": data.get("pressure"),
+            "temperature": data.get("temperature"),
+            "flow_rate": data.get("flow_rate"),  # 直接获取 flow_rate，字段映射在 device_service 中处理
+            
+            # 热/冷专用字段
+            "supply_temp": data.get("supply_temp", data.get("supply_temperature")),
+            "return_temp": data.get("return_temp", data.get("return_temperature")),
+            "heat_flow": data.get("heat_flow"),  # 直接获取 heat_flow
+            "heat_power": data.get("heat_power"),  # 保留原始 heat_power，映射在 device_service 中处理
+            "cooling_power": data.get("cooling_power"),
+        }
+        
+        # 过滤掉 None 值（但保留 0 值，因为 0 是有效的测量值）
+        data_dict = {k: v for k, v in data_dict.items() if v is not None}
+        
+        record = DeviceService.report_device_data(
             session=session,
             device_id=device_id,
-            voltage=voltage,
-            current=current,
-            power=power,
-            energy=energy,
-            timestamp=ts,
+            data=data_dict,
+            timestamp=ts
         )
+        
+        # 检查并创建报警
+        AlarmService.check_and_create_alarm(
+            session=session,
+            device_id=device_id,
+            data=data_dict,
+            timestamp=ts
+        )
+        
+        # 在 session 内提取需要的数据
+        ws_data = {
+            "device_id": device_id,
+            "voltage": record.voltage,
+            "current": record.current,
+            "power": record.flow_rate,  # 瞬时功率/流量
+            "energy": record.consumption,  # 累计消耗量
+            "timestamp": record.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
+    # 在 session 外发送 WebSocket 消息
     if broadcast_callback:
         ws_msg = {
             "type": "telemetry_update",
-            "data": {
-                "device_id": device_id,
-                "voltage": record.voltage,
-                "current": record.current,
-                "power": record.power,
-                "energy": record.energy,
-                "timestamp": record.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            },
+            "data": ws_data,
         }
         broadcast_callback(ws_msg)
 
-    return record
+    return None  # record 已经不在 session 中，返回 None
 
 
 def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) -> None:

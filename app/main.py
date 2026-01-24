@@ -3,6 +3,7 @@ FastAPI应用主入口
 """
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,12 +16,15 @@ from app.core.settings import settings
 from app.core.error_handlers import register_exception_handlers
 from app.services.mqtt_worker import start_mqtt_background
 from app.services.scheduler_service import start_scheduler, stop_scheduler
-from app.api.endpoints import auth, devices, telemetry, alarms, analysis, reports, fdd, health, forecast, data_generator
+from app.api.endpoints import (
+    auth, devices, alarms, analysis, reports, fdd, health, 
+    forecast, data_generator, energy, maintenance, locations, device_groups, data_cleanup
+)
 from app.api.deps import get_current_user
 
 
 # 全局变量：保存事件循环引用，用于在MQTT回调线程中安全调用异步函数
-_event_loop: asyncio.AbstractEventLoop | None = None
+_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 @asynccontextmanager
@@ -73,7 +77,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ 定时任务调度器启动失败: {e}")
     
-    logger.info("✨ 系统就绪")
+    logger.info(f"✨ 系统就绪 - {settings.app_name} v{settings.app_version}")
     
     yield
     
@@ -99,9 +103,9 @@ async def lifespan(app: FastAPI):
 
 # 创建FastAPI应用
 app = FastAPI(
-    title="煤矿综合能源管理系统",
+    title=settings.app_name,
     description="基于FastAPI + TimescaleDB + MQTT的工业级能源管理系统",
-    version="2.0.0",
+    version=settings.app_version,
     lifespan=lifespan
 )
 
@@ -155,12 +159,6 @@ app.include_router(
 )
 
 app.include_router(
-    telemetry.router,
-    prefix="/telemetry",
-    tags=["遥测数据"]
-)
-
-app.include_router(
     alarms.router,
     prefix="/alarms",
     tags=["报警管理"],
@@ -199,6 +197,41 @@ app.include_router(
     data_generator.router,
     prefix="/data-generator",
     tags=["数据生成"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    energy.router,
+    prefix="/energy",
+    tags=["多能源管理"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    maintenance.router,
+    prefix="/maintenance",
+    tags=["设备维护"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    locations.router,
+    prefix="/locations",
+    tags=["位置管理"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    device_groups.router,
+    prefix="/device-groups",
+    tags=["设备分组"],
+    dependencies=[Depends(get_current_user)]
+)
+
+app.include_router(
+    data_cleanup.router,
+    prefix="/data-cleanup",
+    tags=["数据清理"],
     dependencies=[Depends(get_current_user)]
 )
 

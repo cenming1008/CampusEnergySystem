@@ -1,0 +1,161 @@
+version: '3.8'
+
+# ============================================
+# 生产环境 Docker Compose 配置
+# ============================================
+# 使用方法：
+# 1. 复制 .env.example 为 .env.prod
+# 2. 修改 .env.prod 中的配置（密码、密钥等）
+# 3. 运行: docker-compose -f docker-compose.prod.yml up -d
+# ============================================
+
+services:
+  # 1. 数据库 (TimescaleDB)
+  db:
+    image: timescale/timescaledb:latest-pg14
+    container_name: mine_energy_db_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: mine_energy
+      # 性能优化参数
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d mine_energy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # 生产环境不暴露端口到主机（仅容器内访问）
+    # 如需外部访问，取消注释并配置防火墙
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # 2. 缓存 (Redis)
+  redis:
+    image: redis:7.0-alpine
+    container_name: ems_redis_prod
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # 生产环境不暴露端口到主机
+    # ports:
+    #   - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # 3. 消息队列 (MQTT)
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: mine_mqtt_prod
+    restart: always
+    ports:
+      - "1883:1883"      # MQTT端口（如需要外网访问，配置防火墙）
+      - "9001:9001"       # MQTT WebSocket端口
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 | head -1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # 4. 后端应用 (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mine_backend_prod
+    restart: always
+    environment:
+      # 数据库配置
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/mine_energy
+      # Redis配置
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      # MQTT配置
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      # JWT密钥（必须修改！）
+      - SECRET_KEY=${SECRET_KEY}
+      # 应用配置
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+      - HOST=0.0.0.0
+      - PORT=8088
+      # CORS配置（生产环境域名）
+      - CORS_ORIGINS=${CORS_ORIGINS}
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+volumes:
+  redis_data_prod:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge

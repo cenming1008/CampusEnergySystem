@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
 
-from app.models.tables import DeviceData, Device, Prediction
+from app.models.tables import EnergyData, Device, Prediction, EnergyType
 from app.core.settings import settings
 from app.core.logger import logger
 
@@ -124,10 +124,10 @@ class ForecastAdapter:
         )
         
         # 保存到数据库
-        from app.models.tables import DeviceData
+        from app.models.tables import EnergyData, EnergyType
         count = 0
         for timestamp, voltage, current, power, energy in data_points:
-            device_data = DeviceData(
+            device_data = EnergyData(
                 device_id=device_id,
                 timestamp=timestamp,
                 voltage=voltage,
@@ -178,14 +178,14 @@ class ForecastAdapter:
         days: Optional[int] = None
     ):
         """清除设备数据"""
-        statement = select(DeviceData)
+        statement = select(EnergyData)
         
         if device_id:
-            statement = statement.where(DeviceData.device_id == device_id)
+            statement = statement.where(EnergyData.device_id == device_id)
         
         if days:
             cutoff_time = datetime.now() - timedelta(days=days)
-            statement = statement.where(DeviceData.timestamp >= cutoff_time)
+            statement = statement.where(EnergyData.timestamp >= cutoff_time)
         
         data_to_delete = session.exec(statement).all()
         for data in data_to_delete:
@@ -216,10 +216,10 @@ class ForecastAdapter:
         if algorithm == "lstm" and LSTM_AVAILABLE and self.lstm_service:
             try:
                 start_time = datetime.now() - timedelta(hours=self.lstm_service.default_params["sequence_length"] + 1)
-                statement = select(DeviceData).where(DeviceData.timestamp >= start_time)
+                statement = select(EnergyData).where(EnergyData.timestamp >= start_time)
                 if device_id:
-                    statement = statement.where(DeviceData.device_id == device_id)
-                statement = statement.order_by(DeviceData.timestamp.asc())
+                    statement = statement.where(EnergyData.device_id == device_id)
+                statement = statement.order_by(EnergyData.timestamp.asc())
                 recent_data = list(session.exec(statement).all())
                 
                 results = self.lstm_service.predict(
@@ -268,15 +268,15 @@ class ForecastAdapter:
         session: Session,
         device_id: Optional[int],
         days: int
-    ) -> List[DeviceData]:
+    ) -> List[EnergyData]:
         """获取历史数据"""
         start_time = datetime.now() - timedelta(days=days)
-        statement = select(DeviceData).where(DeviceData.timestamp >= start_time)
+        statement = select(EnergyData).where(EnergyData.timestamp >= start_time)
         
         if device_id:
-            statement = statement.where(DeviceData.device_id == device_id)
+            statement = statement.where(EnergyData.device_id == device_id)
         
-        statement = statement.order_by(DeviceData.timestamp.asc())
+        statement = statement.order_by(EnergyData.timestamp.asc())
         return list(session.exec(statement).all())
     
     def _save_predictions(
@@ -320,12 +320,12 @@ class ForecastAdapter:
         
         # 获取历史数据
         start_time = datetime.now() - timedelta(days=days)
-        statement = select(DeviceData).where(DeviceData.timestamp >= start_time)
+        statement = select(EnergyData).where(EnergyData.timestamp >= start_time)
         
         if device_id:
-            statement = statement.where(DeviceData.device_id == device_id)
+            statement = statement.where(EnergyData.device_id == device_id)
         
-        statement = statement.order_by(DeviceData.timestamp.asc())
+        statement = statement.order_by(EnergyData.timestamp.asc())
         data = list(session.exec(statement).all())
         
         if len(data) < 100:
@@ -384,15 +384,15 @@ class ForecastAdapter:
         end_time = datetime.now() - timedelta(days=test_days)
         start_time = end_time - timedelta(days=test_days * 2)
         
-        statement = select(DeviceData).where(
-            DeviceData.timestamp >= start_time,
-            DeviceData.timestamp < end_time
+        statement = select(EnergyData).where(
+            EnergyData.timestamp >= start_time,
+            EnergyData.timestamp < end_time
         )
         
         if device_id:
-            statement = statement.where(DeviceData.device_id == device_id)
+            statement = statement.where(EnergyData.device_id == device_id)
         
-        statement = statement.order_by(DeviceData.timestamp.asc())
+        statement = statement.order_by(EnergyData.timestamp.asc())
         test_data = list(session.exec(statement).all())
         
         if len(test_data) < 100:

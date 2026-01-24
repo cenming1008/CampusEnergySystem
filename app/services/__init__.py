@@ -5,7 +5,10 @@ from app.services.device_service import DeviceService
 from app.services.alarm_service import AlarmService
 from app.services.analysis_service import AnalysisService
 from app.services.fdd_service import FDDService
-from app.services.data_processor import process_device_data
+from app.services.energy_service import EnergyService
+from app.services.device_group_service import DeviceGroupService
+from app.services.location_service import LocationService
+from app.services.maintenance_service import MaintenanceService
 
 # 可选服务（预测和深度学习相关）
 try:
@@ -16,11 +19,14 @@ try:
         "AlarmService",
         "AnalysisService",
         "FDDService",
+        "EnergyService",
+        "DeviceGroupService",
+        "LocationService",
+        "MaintenanceService",
         "ForecastAdapter",
         "start_scheduler",
         "stop_scheduler",
         "get_jobs",
-        "process_device_data",
     ]
 except ImportError:
     __all__ = [
@@ -28,6 +34,9 @@ except ImportError:
         "AlarmService",
         "AnalysisService",
         "FDDService",
-        "process_device_data",
+        "EnergyService",
+        "DeviceGroupService",
+        "LocationService",
+        "MaintenanceService",
     ]
 

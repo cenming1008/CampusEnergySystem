@@ -2,7 +2,9 @@
 报警管理服务层
 封装报警相关的业务逻辑
 """
-from typing import List
+import os
+import json
+from typing import List, Dict, Any, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 
@@ -155,3 +157,85 @@ class AlarmService:
         
         logger.info(f"创建报警: 设备 {device_id} - {message}")
         return alarm
+    
+    @staticmethod
+    def load_thresholds() -> Dict:
+        """
+        加载报警阈值配置
+        从 config/settings.json 读取
+        """
+        from app.core.settings import settings
+        
+        path = settings.settings_json_path or os.path.join(
+            settings.config_dir, "settings.json"
+        )
+        
+        try:
+            if not os.path.exists(path):
+                logger.warning(f"阈值配置文件不存在: {path}")
+                return {}
+            
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"阈值配置文件读取失败: {e}")
+            return {}
+    
+    @staticmethod
+    def check_and_create_alarm(
+        session: Session,
+        device_id: int,
+        data: dict,
+        timestamp: datetime
+    ) -> list:
+        """
+        检查数据并创建报警
+        
+        Args:
+            session: 数据库会话
+            device_id: 设备ID
+            data: 数据字典
+            timestamp: 时间戳
+            
+        Returns:
+            创建的报警列表
+        """
+        alarms = []
+        cfg = AlarmService.load_thresholds()
+        defaults = cfg.get("default", {})
+        dev_cfg = cfg.get("device_thresholds", {}).get(str(device_id), {})
+        
+        # 电流过载检测
+        if "current" in data and data["current"] is not None:
+            current = float(data["current"])
+            limit = dev_cfg.get("current_max", defaults.get("current_max", 45.0))
+            
+            if current > limit:
+                alarm = AlarmService.create_alarm(
+                    session=session,
+                    device_id=device_id,
+                    message=f"⚠️ 过载报警! 当前: {current}A (上限: {limit}A)",
+                    timestamp=timestamp
+                )
+                alarms.append(alarm)
+                logger.warning(f"设备 {device_id} 电流过载: {current}A > {limit}A")
+        
+        # 电压异常检测
+        if "voltage" in data and data["voltage"] is not None:
+            voltage = float(data["voltage"])
+            # 支持设备个性化电压配置，优先使用设备配置，否则使用默认值
+            v_max = dev_cfg.get("voltage_max", defaults.get("voltage_max", 250.0))
+            v_min = dev_cfg.get("voltage_min", defaults.get("voltage_min", 190.0))
+            
+            if voltage > v_max or voltage < v_min:
+                alarm = AlarmService.create_alarm(
+                    session=session,
+                    device_id=device_id,
+                    message=f"⚡ 电压异常! 读数: {voltage}V (范围: {v_min}-{v_max}V)",
+                    timestamp=timestamp
+                )
+                alarms.append(alarm)
+                logger.warning(f"设备 {device_id} 电压异常: {voltage}V")
+        
+        return alarms
+

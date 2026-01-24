@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from app.core.database import get_session
-from app.models.tables import DeviceData, Device
+from app.models.tables import EnergyData, Device
 
 router = APIRouter()
 
@@ -28,9 +28,9 @@ def export_csv(session: Session = Depends(get_session)):
     
     # 查询数据（限制1000条）
     statement = (
-        select(DeviceData, Device.name)
-        .join(Device, Device.id == DeviceData.device_id)
-        .order_by(DeviceData.timestamp.desc())
+        select(EnergyData, Device.name)
+        .join(Device, Device.id == EnergyData.device_id)
+        .order_by(EnergyData.timestamp.desc())
         .limit(1000)
     )
     results = session.exec(statement).all()

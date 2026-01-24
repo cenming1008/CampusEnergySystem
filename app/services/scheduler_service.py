@@ -5,7 +5,6 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
 from typing import Optional
 import threading
 
@@ -13,6 +12,7 @@ from sqlmodel import Session
 from app.core.database import engine
 from app.core.logger import logger
 from app.core.settings import settings
+from app.services.data_cleanup_service import cleanup_old_data
 
 # 尝试导入预测适配器
 try:
@@ -67,6 +67,17 @@ def start_scheduler():
             )
             logger.info("已添加自动更新预测任务：每小时执行")
         
+        # 每天凌晨3点自动清理过期数据（如果启用）
+        if settings.enable_auto_cleanup:
+            _scheduler.add_job(
+                auto_cleanup_data,
+                trigger=CronTrigger(hour=3, minute=0),
+                id='auto_cleanup_data',
+                name='自动清理过期数据',
+                replace_existing=True
+            )
+            logger.info("已添加自动数据清理任务：每天凌晨3点执行")
+        
         _scheduler.start()
         logger.info("定时任务调度器已启动")
 
@@ -92,11 +103,11 @@ def auto_train_lstm_models():
     
     try:
         with Session(engine) as session:
-            lstm_adapter = LSTMAdapter()
+            adapter = ForecastAdapter()
             
             # 训练负荷预测模型（系统级）
             try:
-                result = lstm_adapter.train_model(
+                result = adapter.train_model(
                     session=session,
                     prediction_type="load",
                     device_id=None,
@@ -114,7 +125,7 @@ def auto_train_lstm_models():
             devices = session.exec(select(Device).where(Device.is_active == True)).all()
             for device in devices:
                 try:
-                    result = lstm_adapter.train_model(
+                    result = adapter.train_model(
                         session=session,
                         prediction_type="load",
                         device_id=device.id,
@@ -128,7 +139,7 @@ def auto_train_lstm_models():
             # 训练风光预测模型（如果有相关设备）
             for pred_type in ["solar", "wind"]:
                 try:
-                    result = lstm_adapter.train_model(
+                    result = adapter.train_model(
                         session=session,
                         prediction_type=pred_type,
                         device_id=None,
@@ -186,6 +197,28 @@ def auto_update_forecasts():
         logger.debug("自动更新预测完成")
     except Exception as e:
         logger.error(f"自动更新预测时发生错误: {e}")
+
+
+def auto_cleanup_data():
+    """自动清理过期数据（定时任务）"""
+    logger.info("开始自动清理过期数据...")
+    
+    try:
+        result = cleanup_old_data()
+        
+        if result.get("status") == "success":
+            total = result.get("total_deleted", 0)
+            if total > 0:
+                logger.info(f"✅ 自动清理完成：共清理 {total} 条记录")
+            else:
+                logger.debug("自动清理完成：没有需要清理的数据")
+        elif result.get("status") == "disabled":
+            logger.debug("自动数据清理已禁用")
+        else:
+            logger.warning(f"自动清理过程中出现错误: {result.get('errors', [])}")
+    
+    except Exception as e:
+        logger.error(f"自动清理数据时发生错误: {e}")
 
 
 def add_custom_job(func, trigger, job_id: str, **kwargs):

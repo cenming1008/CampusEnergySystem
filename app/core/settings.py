@@ -267,6 +267,31 @@ class Settings(BaseSettings):
         description="日志保留天数"
     )
     
+    # ==================== 数据清理配置 ====================
+    data_retention_days: int = Field(
+        default=90,
+        env="DATA_RETENTION_DAYS",
+        description="时序数据保留天数（DeviceData、EnergyData等）"
+    )
+    
+    alarm_retention_days: int = Field(
+        default=180,
+        env="ALARM_RETENTION_DAYS",
+        description="报警记录保留天数"
+    )
+    
+    statistics_retention_days: int = Field(
+        default=365,
+        env="STATISTICS_RETENTION_DAYS",
+        description="统计数据保留天数（EnergyStatistics等）"
+    )
+    
+    enable_auto_cleanup: bool = Field(
+        default=True,
+        env="ENABLE_AUTO_CLEANUP",
+        description="是否启用自动数据清理"
+    )
+    
     # ==================== 服务器配置 ====================
     host: str = Field(
         default="0.0.0.0",

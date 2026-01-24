@@ -37,10 +37,12 @@ cd MineEnergySystem
 ## 📖 目录
 
 - [快速开始](#-快速开始3分钟上手) ⭐
+- [启动方式选择](#-启动方式选择) 🔥
+  - [开发环境启动](#1️⃣-开发环境启动推荐)
+  - [生产部署启动](#2️⃣-生产部署启动)
 - [项目简介](#-项目简介)
 - [技术栈](#-技术栈)
 - [功能特性](#-功能特性)
-- [详细启动指南](#-快速开始) 📘 [独立文档](./docs/快速启动指南.md)
 - [系统架构](#-系统架构)
 - [API 文档](#-api-文档)
 - [开发指南](#-开发指南)
@@ -178,111 +180,80 @@ cd MineEnergySystem
 
 ---
 
-## 🚀 快速开始
+## 🚀 启动方式选择
 
-### 方式一：一键启动（推荐 ⭐）
+根据你的使用场景，选择合适的启动方式：
+
+| 场景 | 启动方式 | 特点 | 适用人群 |
+|------|---------|------|---------|
+| 🔧 **日常开发** | [开发环境](#1️⃣-开发环境启动推荐) | 快速重启、热重载、方便调试 | 开发人员 |
+| 🚀 **测试部署** | [Docker 完整部署](#2️⃣-生产部署启动) | 环境一致、一键启动 | 测试/运维 |
+| 🏢 **生产环境** | [生产部署](#2️⃣-生产部署启动) | 稳定可靠、易于扩展 | 运维人员 |
+
+---
+
+### 1️⃣ 开发环境启动（推荐）
+
+> 💡 **适用场景**：日常开发、代码调试、功能测试  
+> ⚡ **优势**：启动快速（秒级）、支持热重载、方便打断点调试
 
 #### 前置要求
 
-- **Docker Desktop**: 24.0+ ([下载地址](https://www.docker.com/products/docker-desktop/))
-- **操作系统**: macOS / Linux / Windows (WSL2)
-- **可用端口**: 8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
+- **Python**: 3.10+ ([下载](https://www.python.org/downloads/))
+- **Node.js**: 16+ ([下载](https://nodejs.org/))
+- **Docker Desktop**: 24.0+ ([下载](https://www.docker.com/products/docker-desktop/))
 
-#### 启动步骤
+#### 步骤 1: 克隆项目并安装依赖
 
 ```bash
 # 1. 克隆项目
 git clone https://github.com/your-repo/MineEnergySystem.git
 cd MineEnergySystem
 
-# 2. 一键启动所有服务（自动构建镜像并启动容器）
-./quick_start.sh
-
-# 首次启动约需 3-5 分钟（下载镜像 + 构建），后续启动只需 30-60 秒
-```
-
-#### 启动成功标志
-
-当看到以下输出，说明启动成功：
-
-```
-✅ 服务启动完成！
-📚 访问地址：
-   后端 API 文档: http://localhost:8088/docs
-   后端 ReDoc:    http://localhost:8088/redoc
-```
-
-#### 默认账号
-
-系统首次启动会自动创建默认管理员账号：
-- **用户名**: `admin`
-- **密码**: `123456`
-
-⚠️ **生产环境务必修改默认密码！**
-
----
-
-### 方式二：手动启动（了解更多细节）
-
-```bash
-# 1. 确保 Docker Desktop 已启动
-
-# 2. 创建必要的目录
-mkdir -p mosquitto/data mosquitto/log logs pg_data
-
-# 3. 启动所有服务
-docker compose up -d --build
-
-# 4. 查看服务状态
-docker compose ps
-
-# 5. 查看后端启动日志
-docker compose logs -f backend
-```
-
----
-
-### 方式三：本地开发模式（不使用 Docker）
-
-如果需要在本地开发环境中运行（用于开发调试）：
-
-#### 1. 安装依赖
-
-```bash
-# 创建虚拟环境
+# 2. 创建并激活 Python 虚拟环境
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 安装 Python 依赖
+# 3. 安装 Python 依赖
 pip install -r requirements.txt
 
-# 安装前端依赖
+# 4. 安装前端依赖（可选，如果需要前端开发）
 cd frontend
 npm install
 cd ..
 ```
 
-#### 2. 启动基础服务
+#### 步骤 2: 启动基础服务（Docker）
 
 ```bash
-# 只启动数据库、Redis、MQTT（不启动后端）
-docker compose up -d db redis mqtt
+# 启动数据库、Redis、MQTT（不启动后端）
+docker-compose up -d db redis mqtt
 
 # 等待服务就绪（约 10-20 秒）
-docker compose ps
+docker-compose ps
+
+# 预期输出：db、redis、mqtt 都是 healthy 状态
 ```
 
-#### 3. 启动后端
+#### 步骤 3: 启动后端（本地）
 
 ```bash
-# 激活虚拟环境
+# 激活虚拟环境（如果还未激活）
 source venv/bin/activate
 
-# 启动后端开发服务器（支持热重载）
+# 启动后端开发服务器
 python run.py
+
+# 看到以下输出表示启动成功：
+# INFO:     Uvicorn running on http://0.0.0.0:8088 (Press CTRL+C to quit)
+# INFO:     Started reloader process
 ```
 
-#### 4. 启动前端（可选）
+**访问后端**：
+- API 文档：http://localhost:8088/docs
+- 健康检查：http://localhost:8088/health
+
+#### 步骤 4: 启动前端（可选）
 
 ```bash
 # 新开一个终端
@@ -292,15 +263,254 @@ npm run dev
 # 前端访问地址：http://localhost:5173
 ```
 
+#### 开发环境配置说明
+
+**环境变量**（自动使用本地配置）：
+```bash
+# 本地开发时，连接 Docker 中的基础服务
+DATABASE_URL=postgresql://admin:password123@localhost:5433/mine_energy
+REDIS_URL=redis://localhost:6379/0
+MQTT_BROKER=localhost
+MQTT_PORT=1883
+```
+
+#### 日常开发工作流
+
+```bash
+# 每天开始工作
+cd MineEnergySystem
+
+# 1. 启动基础服务（如果还未运行）
+docker-compose up -d db redis mqtt
+
+# 2. 激活虚拟环境并启动后端
+source venv/bin/activate
+python run.py
+
+# 3. 修改代码后自动重载，无需重启
+
+# 4. 结束工作时可以停止基础服务（可选）
+docker-compose stop
+```
+
+#### 优势
+
+✅ **快速重启**：后端启动只需 2-3 秒  
+✅ **热重载**：修改代码自动生效  
+✅ **方便调试**：可以直接打断点、查看变量  
+✅ **低资源占用**：只运行必要的基础服务  
+✅ **灵活配置**：可以随时修改代码和配置
+
 ---
+
+### 2️⃣ 生产部署启动
+
+> 🚀 **适用场景**：完整测试、预发布环境、生产部署  
+> 🏢 **优势**：环境一致、自动化部署、易于维护
+
+#### ⚠️ 企业部署
+
+**如果您要部署到企业生产环境，请参考：**
+- 📖 [企业部署完整指南](./docs/03-开发与部署/企业部署完整指南.md) - 详细的企业级部署步骤
+- ⚡ [企业部署快速参考](./docs/03-开发与部署/企业部署快速参考.md) - 5分钟快速上手
+
+**企业部署包含：**
+- ✅ 生产环境配置（docker-compose.prod.yml）
+- ✅ 安全加固（密码、密钥、防火墙）
+- ✅ Nginx反向代理和HTTPS配置
+- ✅ 数据备份和恢复脚本
+- ✅ 监控和日志管理
+- ✅ 高可用部署方案
+
+#### 前置要求
+
+- **Docker Desktop**: 24.0+ ([下载](https://www.docker.com/products/docker-desktop/))
+- **可用端口**: 8088(后端) / 5433(数据库) / 6379(Redis) / 1883(MQTT)
+
+#### 方式 A: 一键启动（推荐 ⭐）
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/your-repo/MineEnergySystem.git
+cd MineEnergySystem
+
+# 2. 使用快速启动脚本
+./bin/fast_start.sh
+
+# 首次启动约需 3-5 分钟（下载镜像 + 构建）
+# 后续启动只需 30-60 秒
+```
+
+#### 方式 B: 手动启动（了解细节）
+
+```bash
+# 1. 创建必要的目录
+mkdir -p mosquitto/data mosquitto/log logs pg_data
+
+# 2. 启动所有服务（包括后端）
+docker-compose up -d --build
+
+# 3. 查看服务状态
+docker-compose ps
+
+# 4. 查看后端日志
+docker-compose logs -f backend
+```
+
+#### 启动成功验证
+
+```bash
+# 1. 检查所有服务状态
+docker-compose ps
+# 预期：所有服务都是 Up (healthy) 状态
+
+# 2. 测试健康检查
+curl http://localhost:8088/health
+# 预期输出：{"status":"healthy", ...}
+
+# 3. 访问 API 文档
+open http://localhost:8088/docs
+```
+
+#### 生产环境配置
+
+**环境变量**（在 `docker-compose.yml` 中配置）：
+```yaml
+environment:
+  - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+  - REDIS_URL=redis://redis:6379/0
+  - MQTT_BROKER=mqtt
+  - SECRET_KEY=your-secret-key-change-me  # ⚠️ 必须修改
+  - DEBUG=False
+  - LOG_LEVEL=INFO
+```
+
+**⚠️ 生产环境安全配置**：
+```bash
+# 1. 生成强密钥
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# 2. 修改 docker-compose.yml 中的 SECRET_KEY
+
+# 3. 修改默认数据库密码
+# 编辑 docker-compose.yml 中的 POSTGRES_PASSWORD
+
+# 4. 创建管理员账号（首次部署）
+docker exec -it mine_backend python scripts/python/create_admin.py
+```
+
+#### 常用管理命令
+
+```bash
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f backend    # 后端日志
+docker-compose logs -f db         # 数据库日志
+docker-compose logs -f            # 所有服务日志
+
+# 重启服务
+docker-compose restart backend    # 重启后端
+docker-compose restart            # 重启所有服务
+
+# 停止服务
+docker-compose stop               # 停止（保留数据）
+docker-compose down               # 停止并删除容器
+docker-compose down -v            # 停止并删除数据卷（⚠️ 删除所有数据）
+
+# 更新代码后重新部署
+git pull
+docker-compose up -d --build
+```
+
+#### 数据备份
+
+```bash
+# 备份数据库
+docker exec mine_energy_db pg_dump -U admin mine_energy > backup_$(date +%Y%m%d).sql
+
+# 备份并压缩
+docker exec mine_energy_db pg_dump -U admin mine_energy | gzip > backup.sql.gz
+
+# 恢复数据库
+docker exec -i mine_energy_db psql -U admin mine_energy < backup.sql
+```
+
+#### 生产环境 Nginx 配置（可选）
+
+```nginx
+# /etc/nginx/sites-available/mine-energy
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    # API 转发
+    location / {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # WebSocket 支持
+    location /ws {
+        proxy_pass http://127.0.0.1:8088/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+---
+
+### 📊 两种方式对比
+
+| 对比项 | 开发环境 | 生产部署 |
+|--------|---------|---------|
+| **启动速度** | ⚡ 快（2-3秒） | 🐢 慢（30-60秒） |
+| **代码修改** | ✅ 热重载 | ❌ 需重新构建 |
+| **调试便利** | ✅ 可断点调试 | ⚠️ 需查看日志 |
+| **环境隔离** | ⚠️ 部分隔离 | ✅ 完全隔离 |
+| **资源占用** | 💚 小 | 💛 中等 |
+| **部署一致性** | ❌ 依赖本地环境 | ✅ 完全一致 |
+| **适用场景** | 🔧 开发调试 | 🚀 测试部署 |
+
+---
+
+### 💡 推荐使用方式
+
+**个人开发者**：
+```bash
+# 使用开发环境，快速迭代
+docker-compose up -d db redis mqtt
+source venv/bin/activate
+python run.py
+```
+
+**团队协作**：
+```bash
+# 基础服务用 Docker，后端本地运行
+docker-compose up -d db redis mqtt
+python run.py
+```
+
+**生产部署**：
+```bash
+# 完全使用 Docker，环境一致
+docker-compose up -d --build
+```
+
+---
+
+## 🔧 其他有用的命令
 
 ### 验证服务是否正常
 
 ```bash
 # 1. 测试后端健康检查
 curl http://localhost:8088/health
-
-# 预期输出：{"status":"healthy", ...}
 
 # 2. 访问 API 文档（浏览器）
 open http://localhost:8088/docs
@@ -310,37 +520,34 @@ docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT version()
 
 # 4. 测试 Redis
 docker exec -it ems_redis redis-cli ping
-# 预期输出：PONG
 
-# 5. 测试 MQTT（新开终端监听消息）
+# 5. 测试 MQTT
 docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
 ```
 
----
+### 默认账号
 
-### 常用管理命令
+系统首次启动会自动创建默认管理员账号：
+- **用户名**: `admin`
+- **密码**: `123456`
+
+⚠️ **生产环境务必修改默认密码！**
+
+### 使用脚本工具
 
 ```bash
-# 查看所有服务状态
-docker compose ps
+# 查看所有可用脚本
+ls scripts/shell/
+ls scripts/python/
 
-# 查看后端日志（实时）
-docker compose logs -f backend
+# 设备模拟器
+python scripts/python/simulator.py
 
-# 查看所有服务日志
-docker compose logs -f
+# 创建管理员
+python scripts/python/create_admin.py
 
-# 重启服务
-docker compose restart
-
-# 停止服务
-docker compose down
-
-# 停止并删除所有数据（⚠️ 谨慎使用）
-docker compose down -v
-
-# 查看服务状态（使用状态脚本）
-./scripts/shell/status.sh
+# 更多脚本使用说明
+cat scripts/README.md
 ```
 
 ---

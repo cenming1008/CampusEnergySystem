@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Dict, Any
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.core.database import get_session
@@ -72,13 +72,6 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
         if health_status["status"] == "healthy":
             health_status["status"] = "degraded"
         logger.warning(f"⚠️ 健康检查: Redis连接失败 - {e}")
-    
-    # 根据整体状态返回不同的HTTP状态码
-    response_status = status.HTTP_200_OK
-    if health_status["status"] == "unhealthy":
-        response_status = status.HTTP_503_SERVICE_UNAVAILABLE
-    elif health_status["status"] == "degraded":
-        response_status = status.HTTP_200_OK  # 降级但仍可用
     
     return health_status
 

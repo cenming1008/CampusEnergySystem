@@ -77,8 +77,8 @@ logs/
 # 数据库数据
 # ============================================
 # PostgreSQL/TimescaleDB 数据目录（包含实际数据）
-pg_data/          # 生产环境数据库数据
-pg_data_dev/      # 开发环境数据库数据
+/pg_data/
+/pg_data_dev/
 *.db
 *.sqlite
 *.sqlite3
@@ -195,6 +195,7 @@ models/versions/*.json
 !models/lstm/.gitkeep
 !models/scalers/.gitkeep
 !models/versions/.gitkeep
+!models/README.md
 
 # ============================================
 # Jupyter Notebook

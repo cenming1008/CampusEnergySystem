@@ -137,26 +137,26 @@ def get_device_data_stats(
     获取设备数据统计信息
     """
     from sqlmodel import select, func
-    from app.models.tables import DeviceData
+    from app.models.tables import EnergyData, EnergyType
     
     # 统计总数据量
     total_count = session.exec(
-        select(func.count(DeviceData.device_id))
-        .where(DeviceData.device_id == device_id)
+        select(func.count(EnergyData.device_id))
+        .where(EnergyData.device_id == device_id)
     ).one()
     
     # 获取最早和最晚数据时间
     earliest = session.exec(
-        select(DeviceData.timestamp)
-        .where(DeviceData.device_id == device_id)
-        .order_by(DeviceData.timestamp.asc())
+        select(EnergyData.timestamp)
+        .where(EnergyData.device_id == device_id)
+        .order_by(EnergyData.timestamp.asc())
         .limit(1)
     ).first()
     
     latest = session.exec(
-        select(DeviceData.timestamp)
-        .where(DeviceData.device_id == device_id)
-        .order_by(DeviceData.timestamp.desc())
+        select(EnergyData.timestamp)
+        .where(EnergyData.device_id == device_id)
+        .order_by(EnergyData.timestamp.desc())
         .limit(1)
     ).first()
     

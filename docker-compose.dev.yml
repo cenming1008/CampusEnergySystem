@@ -1,0 +1,74 @@
+version: '3.8'
+
+# 开发环境：只运行中间件服务（数据库、Redis、MQTT）
+# Backend 和 Frontend 在本地运行
+
+services:
+  # 1. 数据库 (TimescaleDB)
+  db:
+    image: timescale/timescaledb:latest-pg14
+    container_name: mine_energy_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: mine_energy
+    ports:
+      - "5432:5432"  # 使用标准端口 5432
+    volumes:
+      - ./pg_data_dev:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d mine_energy"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # 2. 消息队列 (MQTT)
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: mine_mqtt_dev
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 | head -1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # 3. 缓存 (Redis)
+  redis:
+    image: redis:7.0-alpine
+    container_name: ems_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  redis_data_dev:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
