@@ -39,8 +39,11 @@ service.interceptors.response.use(
       ElMessage.error('登录已过期，请重新登录')
       const authStore = useAuthStore()
       authStore.logout()
-      // 可以在这里强制跳转登录页，或由路由守卫处理
-      window.location.reload() 
+      // 清除token后，通过修改URL触发路由守卫重新检查
+      // 避免使用reload，改用更优雅的路由跳转
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     } else {
       ElMessage.error(msg)
     }

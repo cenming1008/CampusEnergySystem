@@ -35,11 +35,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
-      '/telemetry': {
-        target: 'http://localhost:8088',
-        changeOrigin: true,
-        secure: false
-      },
       '/alarms': {
         target: 'http://localhost:8088',
         changeOrigin: true,
@@ -56,6 +51,46 @@ export default defineConfig({
         secure: false
       },
       '/reports': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/energy/': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/forecast': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/data-generator': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/maintenance': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/locations': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/device-groups': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/data-cleanup': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        secure: false
+      },
+      '/health': {
         target: 'http://localhost:8088',
         changeOrigin: true,
         secure: false

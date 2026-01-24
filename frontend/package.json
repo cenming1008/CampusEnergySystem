@@ -9,13 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.3.4",
+    "@element-plus/icons-vue": "^2.3.1",
+    "@types/three": "^0.182.0",
     "axios": "^1.6.2",
-    "pinia": "^2.1.7",
-    "vue-router": "^4.2.5",
     "echarts": "^5.4.3",
     "element-plus": "^2.4.2",
-    "@element-plus/icons-vue": "^2.3.1"
+    "gsap": "^3.14.2",
+    "pinia": "^2.1.7",
+    "three": "^0.182.0",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

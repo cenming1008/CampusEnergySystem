@@ -115,21 +115,53 @@
               <el-icon><DataLine /></el-icon>
               <span>驾驶舱首页</span>
             </el-menu-item>
+            <el-menu-item index="/mine-scene">
+              <el-icon><OfficeBuilding /></el-icon>
+              <span>矿区总览</span>
+            </el-menu-item>
             
             <div class="menu-header">设备管理</div>
             <el-menu-item index="/devices">
               <el-icon><Cpu /></el-icon>
               <span>设备台账</span>
             </el-menu-item>
+            <el-menu-item index="/locations">
+              <el-icon><Location /></el-icon>
+              <span>位置管理</span>
+            </el-menu-item>
+            <el-menu-item index="/groups">
+              <el-icon><Folder /></el-icon>
+              <span>设备分组</span>
+            </el-menu-item>
+            
+            <div class="menu-header">能源管理</div>
+            <el-menu-item index="/energy">
+              <el-icon><Lightning /></el-icon>
+              <span>多能源管理</span>
+            </el-menu-item>
+            <el-menu-item index="/forecast">
+              <el-icon><TrendCharts /></el-icon>
+              <span>负荷预测</span>
+            </el-menu-item>
     
             <div class="menu-header">运维中心</div>
             <el-menu-item index="/fdd">
               <el-icon><FirstAidKit /></el-icon>
-              <span>故障诊断 (FDD)</span>
+              <span>故障诊断</span>
+            </el-menu-item>
+            <el-menu-item index="/maintenance">
+              <el-icon><Tools /></el-icon>
+              <span>设备维护</span>
             </el-menu-item>
             <el-menu-item index="/report">
               <el-icon><Files /></el-icon>
               <span>报表导出</span>
+            </el-menu-item>
+            
+            <div class="menu-header">系统</div>
+            <el-menu-item index="/settings">
+              <el-icon><Setting /></el-icon>
+              <span>系统设置</span>
             </el-menu-item>
           </el-menu>
     
