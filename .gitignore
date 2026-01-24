@@ -41,11 +41,27 @@ wheels/
 # ============================================
 # 环境配置和敏感信息
 # ============================================
+# 环境变量文件
 .env
 .env.local
 .env.*.local
-*.env
+.env.*
 env.local
+
+# 敏感信息文件（更精确的匹配）
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+credentials*.json
+secrets*.json
+.secrets
+*_secret.txt
+*_password.txt
+*_token.txt
+auth_config.json
 
 # 配置文件中的敏感信息（保留示例文件）
 # config/settings.json  # 如果需要保留配置结构，可以注释掉
@@ -61,7 +77,8 @@ logs/
 # 数据库数据
 # ============================================
 # PostgreSQL/TimescaleDB 数据目录（包含实际数据）
-pg_data/
+pg_data/          # 生产环境数据库数据
+pg_data_dev/      # 开发环境数据库数据
 *.db
 *.sqlite
 *.sqlite3
@@ -72,9 +89,6 @@ pg_data/
 backups/
 *.backup
 *.bak
-*.tar.gz
-*.zip
-*.tar
 
 # ============================================
 # 前端相关
@@ -138,11 +152,9 @@ $RECYCLE.BIN/
 # Vim
 *.swp
 *.swo
-*~
 .vim/
 
 # Emacs
-*~
 \#*\#
 .\#*
 
@@ -163,8 +175,6 @@ dump.rdb
 # ============================================
 *.tmp
 *.temp
-*.swp
-*.swo
 .cache/
 
 # 临时脚本和测试文件
@@ -173,66 +183,94 @@ tmp/
 test_*.py.bak
 
 # ============================================
-# 其他
+# 机器学习模型和训练产物
 # ============================================
-# 敏感信息文件（如密码文件）
-*password*
-*secret*
-*key*
-123456  # 示例：忽略可能的密码文件
+# LSTM 模型文件（训练产物，不应提交）
+models/lstm/*.h5
+models/lstm/*.keras
+models/scalers/*.pkl
+models/versions/*.json
 
+# 保留目录结构
+!models/lstm/.gitkeep
+!models/scalers/.gitkeep
+!models/versions/.gitkeep
+
+# ============================================
 # Jupyter Notebook
+# ============================================
 .ipynb_checkpoints
 
+# ============================================
+# 类型检查
+# ============================================
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
+# ============================================
 # 项目特定
+# ============================================
 tools/__pycache__/
 scripts/__pycache__/
 
 # ============================================
-# 大文件和静态资源（应使用 CDN 或 Git LFS）
+# 大文件和用户上传内容
 # ============================================
-# 大图片文件（>1MB）
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.svg
-*.ico
+# 用户上传的文件（如果有上传目录）
+uploads/
+static/uploads/
+media/
 
-# 视频文件
-*.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-
-# 音频文件
-*.mp3
-*.wav
-*.ogg
-
-# 字体文件（大）
-*.ttf
-*.woff
-*.woff2
-*.eot
-
-# 压缩包
+# 大型压缩包（备份除外的其他压缩包）
+*.tar.gz
+*.zip
+*.tar
 *.7z
-*.dmg
+*.rar
 *.gz
 *.iso
-*.jar
-*.rar
-*.tar
-*.zip
 
-# 例外：保留小的必要图标
-!frontend/public/logo.svg
-!frontend/public/favicon.ico
+# 大型二进制文件
+*.dmg
+*.jar
+
+# 视频文件（如果项目不需要）
+# *.mp4
+# *.avi
+# *.mov
+# *.wmv
+# *.flv
+
+# 音频文件（如果项目不需要）
+# *.mp3
+# *.wav
+# *.ogg
+
+# ============================================
+# 静态资源管理建议
+# ============================================
+# 注意：图片、字体等静态资源是否需要忽略取决于项目需求
+# 
+# 选项1：如果前端资源都需要提交，不要添加图片忽略规则
+# 
+# 选项2：如果有大量资源文件，考虑使用 Git LFS
+#   git lfs track "*.png"
+#   git lfs track "*.jpg"
+# 
+# 选项3：只忽略特定目录的大文件
+#   uploads/*.png
+#   media/*.jpg
+# 
+# 当前配置：不忽略任何图片文件，让前端资源可以正常提交
+
+# 如果确实需要忽略某些大图片，在下面添加特定路径：
+# docs/images/screenshots/*.png
+# test/fixtures/large_images/
+
+# ============================================
+# Git LFS 追踪的文件（如果使用）
+# ============================================
+# 如果项目使用 Git LFS，在 .gitattributes 中配置
+# 这里不需要忽略 LFS 追踪的文件
