@@ -3,7 +3,7 @@
 """
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -95,73 +95,38 @@ def get_maintenance_list(
     )
 
 
+# 维护类型/状态展示文案（与 models.tables 枚举一一对应）
+_MAINTENANCE_TYPE_META = {
+    MaintenanceType.ROUTINE: ("日常维护", "定期的日常保养和检查"),
+    MaintenanceType.REPAIR: ("故障维修", "设备故障后的修理"),
+    MaintenanceType.INSPECTION: ("定期巡检", "按计划进行的设备巡检"),
+    MaintenanceType.UPGRADE: ("设备升级", "设备软硬件升级改造"),
+    MaintenanceType.CALIBRATION: ("校准调试", "设备精度校准和参数调试"),
+}
+_MAINTENANCE_STATUS_META = {
+    MaintenanceStatus.SCHEDULED: ("已计划", "维护已安排，等待执行"),
+    MaintenanceStatus.IN_PROGRESS: ("进行中", "维护正在进行"),
+    MaintenanceStatus.COMPLETED: ("已完成", "维护已完成"),
+    MaintenanceStatus.CANCELLED: ("已取消", "维护已取消"),
+}
+
+
 @router.get("/types")
 def get_maintenance_types():
-    """
-    获取所有支持的维护类型
-    
-    Returns:
-        维护类型列表及说明
-    """
+    """获取所有支持的维护类型（由 MaintenanceType 枚举生成）"""
     types = [
-        {
-            "value": MaintenanceType.ROUTINE,
-            "label": "日常维护",
-            "description": "定期的日常保养和检查"
-        },
-        {
-            "value": MaintenanceType.REPAIR,
-            "label": "故障维修",
-            "description": "设备故障后的修理"
-        },
-        {
-            "value": MaintenanceType.INSPECTION,
-            "label": "定期巡检",
-            "description": "按计划进行的设备巡检"
-        },
-        {
-            "value": MaintenanceType.UPGRADE,
-            "label": "设备升级",
-            "description": "设备软硬件升级改造"
-        },
-        {
-            "value": MaintenanceType.CALIBRATION,
-            "label": "校准调试",
-            "description": "设备精度校准和参数调试"
-        }
+        {"value": t.value, "label": _MAINTENANCE_TYPE_META[t][0], "description": _MAINTENANCE_TYPE_META[t][1]}
+        for t in MaintenanceType
     ]
     return success_response(data=types)
 
 
 @router.get("/statuses")
 def get_maintenance_statuses():
-    """
-    获取所有维护状态
-    
-    Returns:
-        维护状态列表及说明
-    """
+    """获取所有维护状态（由 MaintenanceStatus 枚举生成）"""
     statuses = [
-        {
-            "value": MaintenanceStatus.SCHEDULED,
-            "label": "已计划",
-            "description": "维护已安排，等待执行"
-        },
-        {
-            "value": MaintenanceStatus.IN_PROGRESS,
-            "label": "进行中",
-            "description": "维护正在进行"
-        },
-        {
-            "value": MaintenanceStatus.COMPLETED,
-            "label": "已完成",
-            "description": "维护已完成"
-        },
-        {
-            "value": MaintenanceStatus.CANCELLED,
-            "label": "已取消",
-            "description": "维护已取消"
-        }
+        {"value": s.value, "label": _MAINTENANCE_STATUS_META[s][0], "description": _MAINTENANCE_STATUS_META[s][1]}
+        for s in MaintenanceStatus
     ]
     return success_response(data=statuses)
 
@@ -171,19 +136,8 @@ def get_maintenance_detail(
     maintenance_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    获取维护记录详情
-    
-    Args:
-        maintenance_id: 维护记录ID
-        
-    Returns:
-        维护记录详情
-    """
-    try:
-        return MaintenanceService.get_maintenance_by_id(session, maintenance_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取维护记录详情（资源不存在时由全局异常处理器返回 404）"""
+    return MaintenanceService.get_maintenance_by_id(session, maintenance_id)
 
 
 @router.post("/", response_model=DeviceMaintenance)
@@ -191,28 +145,17 @@ def create_maintenance(
     request: MaintenanceCreateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    创建维护记录
-    
-    Args:
-        request: 维护记录创建请求
-        
-    Returns:
-        创建的维护记录
-    """
-    try:
-        return MaintenanceService.create_maintenance(
-            session=session,
-            device_id=request.device_id,
-            maintenance_type=request.maintenance_type,
-            scheduled_time=request.scheduled_time,
-            title=request.title,
-            description=request.description,
-            operator=request.operator,
-            created_by=request.created_by
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """创建维护记录（设备不存在等由全局异常处理器返回 404）"""
+    return MaintenanceService.create_maintenance(
+        session=session,
+        device_id=request.device_id,
+        maintenance_type=request.maintenance_type,
+        scheduled_time=request.scheduled_time,
+        title=request.title,
+        description=request.description,
+        operator=request.operator,
+        created_by=request.created_by
+    )
 
 
 @router.put("/{maintenance_id}", response_model=DeviceMaintenance)
@@ -221,23 +164,11 @@ def update_maintenance(
     request: MaintenanceUpdateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    更新维护记录
-    
-    Args:
-        maintenance_id: 维护记录ID
-        request: 更新请求
-        
-    Returns:
-        更新后的维护记录
-    """
-    try:
-        update_data = request.dict(exclude_unset=True)
-        return MaintenanceService.update_maintenance(
-            session, maintenance_id, **update_data
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """更新维护记录（资源不存在等由全局异常处理器处理）"""
+    update_data = request.model_dump(exclude_unset=True)
+    return MaintenanceService.update_maintenance(
+        session, maintenance_id, **update_data
+    )
 
 
 @router.post("/{maintenance_id}/start", response_model=DeviceMaintenance)
@@ -246,22 +177,10 @@ def start_maintenance(
     request: MaintenanceStartRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    开始维护（将状态改为进行中）
-    
-    Args:
-        maintenance_id: 维护记录ID
-        request: 开始维护请求
-        
-    Returns:
-        更新后的维护记录
-    """
-    try:
-        return MaintenanceService.start_maintenance(
-            session, maintenance_id, request.operator
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """开始维护（将状态改为进行中，资源不存在等由全局异常处理器处理）"""
+    return MaintenanceService.start_maintenance(
+        session, maintenance_id, request.operator
+    )
 
 
 @router.post("/{maintenance_id}/complete", response_model=DeviceMaintenance)
@@ -270,27 +189,15 @@ def complete_maintenance(
     request: MaintenanceCompleteRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    完成维护（将状态改为已完成）
-    
-    Args:
-        maintenance_id: 维护记录ID
-        request: 完成维护请求
-        
-    Returns:
-        更新后的维护记录
-    """
-    try:
-        return MaintenanceService.complete_maintenance(
-            session=session,
-            maintenance_id=maintenance_id,
-            result=request.result,
-            cost=request.cost,
-            parts_replaced=request.parts_replaced,
-            next_maintenance_date=request.next_maintenance_date
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """完成维护（资源不存在等由全局异常处理器处理）"""
+    return MaintenanceService.complete_maintenance(
+        session=session,
+        maintenance_id=maintenance_id,
+        result=request.result,
+        cost=request.cost,
+        parts_replaced=request.parts_replaced,
+        next_maintenance_date=request.next_maintenance_date
+    )
 
 
 @router.post("/{maintenance_id}/cancel", response_model=DeviceMaintenance)
@@ -299,22 +206,10 @@ def cancel_maintenance(
     request: MaintenanceCancelRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    取消维护
-    
-    Args:
-        maintenance_id: 维护记录ID
-        request: 取消维护请求
-        
-    Returns:
-        更新后的维护记录
-    """
-    try:
-        return MaintenanceService.cancel_maintenance(
-            session, maintenance_id, request.reason
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """取消维护（资源不存在等由全局异常处理器处理）"""
+    return MaintenanceService.cancel_maintenance(
+        session, maintenance_id, request.reason
+    )
 
 
 @router.delete("/{maintenance_id}")
@@ -322,19 +217,8 @@ def delete_maintenance(
     maintenance_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    删除维护记录
-    
-    Args:
-        maintenance_id: 维护记录ID
-        
-    Returns:
-        成功响应
-    """
-    success = MaintenanceService.delete_maintenance(session, maintenance_id)
-    if not success:
-        raise HTTPException(status_code=400, detail="删除失败")
-    
+    """删除维护记录（记录不存在时由全局异常处理器返回 404）"""
+    MaintenanceService.delete_maintenance(session, maintenance_id)
     return success_response(message=f"维护记录 {maintenance_id} 已删除")
 
 

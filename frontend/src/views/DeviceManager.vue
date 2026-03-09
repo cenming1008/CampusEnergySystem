@@ -1,8 +1,9 @@
 <script setup lang="ts">
-    import { ref, reactive, onMounted } from 'vue'
+    import { ref, reactive, onMounted, computed } from 'vue'
     import { 
-      getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus, 
-      type Device 
+      getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
+      getDeviceTypes,
+      type Device, type DeviceTypeConfig 
     } from '@/api/device'
     import { ElMessage, ElMessageBox } from 'element-plus'
     import { Plus, Search, Refresh, Delete, Edit } from '@element-plus/icons-vue'
@@ -15,23 +16,23 @@
     const formLoading = ref(false)
     const formRef = ref()
     
-    // 设备类型映射 (用于表格展示)
-    const deviceTypeMap: Record<string, string> = {
-      meter: '智能电表',
-      fan: '通风机',
-      pump: '排水泵',
-      transformer: '变压器',
-      heavy_machine: '重型采煤机',
-      conveyor: '皮带输送机',
-      hoist: '提升机',
-      compressor: '空压机'
-    }
+    // 设备类型列表（从后端动态获取）
+    const deviceTypes = ref<DeviceTypeConfig[]>([])
+    
+    // 设备类型映射 (用于表格展示，动态计算)
+    const deviceTypeMap = computed(() => {
+      const map: Record<string, string> = {}
+      deviceTypes.value.forEach(t => {
+        map[t.device_type] = `${t.icon} ${t.name_zh}`
+      })
+      return map
+    })
     
     // 表单数据模型
     const formData = reactive<Device>({
       name: '',
       sn: '',
-      device_type: 'meter', // 默认值
+      device_type: 'load', // 默认值：用电设备
       location: '',
       is_active: true,
       description: ''
@@ -71,7 +72,7 @@
         formData.id = undefined
         formData.name = ''
         formData.sn = ''
-        formData.device_type = 'meter'
+        formData.device_type = deviceTypes.value.length > 0 ? deviceTypes.value[0].device_type : 'load'
         formData.location = ''
         formData.is_active = true
         formData.description = ''
@@ -169,8 +170,28 @@
       })
     }
     
+    // --- 获取设备类型列表 ---
+    const fetchDeviceTypes = async () => {
+      try {
+        const res = await getDeviceTypes()
+        if (res.data) {
+          deviceTypes.value = res.data
+        }
+      } catch (e) {
+        console.error('获取设备类型失败:', e)
+        // 降级：使用默认类型
+        deviceTypes.value = [
+          { device_type: 'load', name_zh: '用电设备', icon: '⚡', category: 'load', energy_type: 'electricity', name_en: 'Load', unit: 'kW', default_capacity: 100, required_fields: [], optional_fields: [], color: '#FF9800' },
+          { device_type: 'solar', name_zh: '光伏发电', icon: '☀️', category: 'solar', energy_type: 'electricity', name_en: 'Solar', unit: 'kW', default_capacity: 50, required_fields: [], optional_fields: [], color: '#FFC107' },
+          { device_type: 'water_meter', name_zh: '水表', icon: '💧', category: 'water_meter', energy_type: 'water', name_en: 'Water Meter', unit: 'm³/h', default_capacity: 50, required_fields: [], optional_fields: [], color: '#2196F3' },
+          { device_type: 'gas_meter', name_zh: '燃气表', icon: '🔥', category: 'gas_meter', energy_type: 'gas', name_en: 'Gas Meter', unit: 'm³/h', default_capacity: 30, required_fields: [], optional_fields: [], color: '#FF5722' },
+        ]
+      }
+    }
+    
     // --- 生命周期 ---
-    onMounted(() => {
+    onMounted(async () => {
+      await fetchDeviceTypes()
       fetchData()
     })
     </script>
@@ -253,8 +274,16 @@
             </el-form-item>
     
             <el-form-item label="设备类型" prop="device_type">
-              <el-select v-model="formData.device_type" placeholder="请选择" style="width:100%">
-                <el-option v-for="(label, key) in deviceTypeMap" :key="key" :label="label" :value="key" />
+              <el-select v-model="formData.device_type" placeholder="请选择设备类型" style="width:100%">
+                <el-option 
+                  v-for="t in deviceTypes" 
+                  :key="t.device_type" 
+                  :label="`${t.icon} ${t.name_zh} (${t.unit})`" 
+                  :value="t.device_type"
+                >
+                  <span style="float: left">{{ t.icon }} {{ t.name_zh }}</span>
+                  <span style="float: right; color: #8492a6; font-size: 12px">{{ t.energy_type }} | {{ t.unit }}</span>
+                </el-option>
               </el-select>
             </el-form-item>
     

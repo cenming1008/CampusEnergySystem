@@ -57,8 +57,8 @@ def forecast_load(
             },
             message=f"成功生成 {len(predictions)} 个预测点"
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"负荷预测失败: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="负荷预测失败")
 
 
 @router.post("/renewable/{prediction_type}")
@@ -103,8 +103,8 @@ def forecast_renewable(
             },
             message=f"成功生成 {type_name} {len(predictions)} 个预测点"
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{prediction_type}预测失败: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="预测失败")
 
 
 @router.get("/latest/{prediction_type}")
@@ -285,11 +285,8 @@ def train_lstm_model(
             data=result,
             message="LSTM模型训练完成"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"LSTM模型训练失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="LSTM模型训练失败")
 
 
 @router.get("/lstm/evaluate/{prediction_type}")
@@ -327,11 +324,8 @@ def evaluate_lstm_model(
             data=evaluation,
             message="LSTM模型评估完成"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"LSTM模型评估失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="LSTM模型评估失败")
 
 
 @router.get("/lstm/versions/{prediction_type}")
@@ -359,11 +353,8 @@ def list_model_versions(
                 "count": len(versions)
             }
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取版本列表失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="获取版本列表失败")
 
 
 @router.post("/lstm/versions/{prediction_type}/activate")
@@ -396,11 +387,8 @@ def activate_model_version(
             data={"version": version, "is_active": True},
             message=f"已激活版本 {version}"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"激活版本失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="激活版本失败")
 
 
 @router.get("/lstm/versions/{prediction_type}/compare")
@@ -430,11 +418,8 @@ def compare_model_versions(
             data=comparison,
             message="版本对比完成"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"版本对比失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="版本对比失败")
 
 
 @router.get("/scheduler/jobs")
@@ -450,11 +435,8 @@ def get_scheduler_jobs(session: Session = Depends(get_session)):
             data={"jobs": jobs, "count": len(jobs)},
             message="获取定时任务列表成功"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取定时任务失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="获取定时任务失败")
 
 
 @router.post("/lstm/hyperparameter-search")
@@ -556,8 +538,5 @@ def hyperparameter_search(
             message="超参数搜索完成"
         )
         
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"超参数搜索失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="超参数搜索失败")

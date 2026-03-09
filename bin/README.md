@@ -8,12 +8,20 @@
 
 | 脚本 | 用途 | 适用场景 |
 |------|------|----------|
-| **fast_start.sh** | 快速启动（缓存优化） | 日常开发使用 ⭐ |
+| **fast_start.sh** | 快速启动（全 Docker） | 测试/部署，前后端都在容器中 |
+| **fast_start_dev.sh** | 开发模式（前后端本地） | 二次开发、热重载、断点调试 ⭐ |
 
-**特点**：
-- ✅ 智能检测镜像缓存
-- ✅ 首次自动完整构建
-- ✅ 后续使用缓存快速启动（10-30秒）
+**fast_start_dev.sh 特点**：
+- ✅ 中间件（db/redis/mqtt）在 Docker 中运行
+- ✅ 前后端在本地运行，支持热重载
+- ✅ 一键启动，无需分步操作
+
+### 🔧 开发者模式（使用 scripts）
+
+| 场景 | 脚本 | 说明 |
+|------|------|------|
+| 一键开发环境 | **bin/fast_start_dev.sh** | 中间件 Docker + 前后端本地，推荐 |
+| 只启动中间件 | **scripts/shell/start_dev_env.sh** | 前后端需手动启动 |
 
 ### 🔧 工具脚本
 
@@ -65,12 +73,12 @@ cd bin
 
 ### run_simulator.sh
 
-**功能**：在 Docker 容器中运行设备模拟器
+**功能**：在 Docker 容器内运行 **scripts/python/simulator_unified.py**（同一套逻辑，非重复实现）
 
 **特点**：
 - 自动设置 MQTT 和 API 环境变量
 - 在容器内运行，环境隔离
-- 生成真实的测试数据
+- 本地跑模拟器可直接用：`python scripts/python/simulator_unified.py`
 
 **使用方法**：
 ```bash
@@ -276,10 +284,10 @@ docker compose up -d --build
 
 ```
 MineEnergySystem/
-├── bin/                    # 🚀 常用快捷脚本（本目录）
-│   ├── fast_start.sh      # 日常快速启动
-│   └── run_simulator.sh   # 运行模拟器
-├── scripts/               # 🔧 完整工具集
+├── bin/                    # 🚀 常用快捷脚本（本目录，仅 2 个）
+│   ├── fast_start.sh      # 日常快速启动（与 scripts/shell/start.sh 用途重叠，本脚本更快捷）
+│   └── run_simulator.sh   # 在容器内运行 scripts/python/simulator_unified.py
+├── scripts/               # 🔧 完整工具集（31 个脚本，见 scripts/SCRIPT_LIST.md）
 │   ├── shell/            # Shell 脚本（启动、停止、测试等）
 │   └── python/           # Python 脚本（模拟器、工具等）
 └── docs/                  # 📚 文档中心

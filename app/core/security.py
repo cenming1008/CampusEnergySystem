@@ -15,11 +15,6 @@ from passlib.context import CryptContext
 
 from app.core.settings import settings
 
-# 兼容旧代码：保留这些常量导出（推荐直接使用 settings）
-SECRET_KEY = settings.secret_key
-ALGORITHM = settings.algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
-
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
@@ -63,6 +58,8 @@ def get_password_hash(password: Union[str, bytes]) -> str:
 def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """生成 JWT access token。"""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+    )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)

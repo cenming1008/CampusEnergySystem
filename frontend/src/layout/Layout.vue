@@ -153,6 +153,10 @@
               <el-icon><Tools /></el-icon>
               <span>设备维护</span>
             </el-menu-item>
+            <el-menu-item index="/inspection">
+              <el-icon><Compass /></el-icon>
+              <span>巡检运维</span>
+            </el-menu-item>
             <el-menu-item index="/report">
               <el-icon><Files /></el-icon>
               <span>报表导出</span>

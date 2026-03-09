@@ -99,8 +99,8 @@
 - `demo_maintenance.py` - 维护管理演示
 
 **开发工具** (4个):
-- ⭐ `simulator_unified.py` - 统一设备模拟器
-- `simulator.py` - 基础设备模拟器
+- ⭐ `simulator_unified.py` - 统一设备模拟器（支持远程控制）
+- `device_gateway.py` - 设备网关采集器（真实设备 → MQTT）
 - `generate_training_data.py` - 生成训练数据
 - `stress_test.py` - 压力测试工具
 
@@ -331,7 +331,7 @@ scripts/
 | 7 | `demo_location.py` | 功能演示 | ⭐⭐ |
 | 8 | `demo_maintenance.py` | 功能演示 | ⭐⭐ |
 | 9 | `simulator_unified.py` | 开发工具 | ⭐⭐⭐⭐⭐ |
-| 10 | `simulator.py` | 开发工具 | ⭐⭐⭐ |
+| 10 | `device_gateway.py` | 开发工具 | ⭐⭐⭐ |
 | 11 | `generate_training_data.py` | 开发工具 | ⭐⭐ |
 | 12 | `stress_test.py` | 开发工具 | ⭐⭐ |
 
@@ -415,4 +415,4 @@ scripts/
 **整理人员**: AI Assistant  
 **整理日期**: 2026-01-24  
 **脚本数量**: 31 (12个Python + 19个Shell)  
-**文档数量**: 5 (主文档 + 快速参考 + Python + Shell + 本文档)
+**文档数量**: 6 (主文档 + 脚本清单 + 快速参考 + Python + Shell + 本文档)

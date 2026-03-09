@@ -72,10 +72,7 @@ def resolve_alarm(
     """
     success = AlarmService.resolve_alarm(session, alarm_id)
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail=f"报警 {alarm_id} 不存在或已解决"
-        )
+        raise HTTPException(status_code=404, detail="报警不存在或已解决")
     
     return success_response(
         data={"alarm_id": alarm_id},

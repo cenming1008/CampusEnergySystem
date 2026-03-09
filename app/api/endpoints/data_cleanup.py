@@ -165,7 +165,7 @@ def cleanup_data(
         
     except Exception as e:
         logger.error(f"数据清理失败: {e}")
-        raise HTTPException(status_code=500, detail=f"数据清理失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="数据清理失败")
 
 
 @router.post("/cleanup-all")
@@ -270,7 +270,7 @@ def cleanup_all_data(
         
     except Exception as e:
         logger.error(f"清除所有数据失败: {e}")
-        raise HTTPException(status_code=500, detail=f"清除所有数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="清除所有数据失败")
 
 
 @router.get("/stats")
@@ -288,4 +288,4 @@ def get_cleanup_stats(
         return success_response(data=stats)
     except Exception as e:
         logger.error(f"获取数据统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取统计失败")

@@ -2,7 +2,7 @@
 位置管理API端点
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -70,50 +70,26 @@ def get_locations(
     )
 
 
+# 位置类型展示文案（与 models.tables.LocationType 一一对应）
+_LOCATION_TYPE_META = {
+    LocationType.BUILDING: ("楼栋", "建筑物整体"),
+    LocationType.UNIT: ("单元", "楼栋内的单元"),
+    LocationType.FLOOR: ("楼层", "单元内的楼层"),
+    LocationType.ROOM: ("房间", "具体房间"),
+    LocationType.WORKSHOP: ("车间", "生产车间"),
+    LocationType.AREA: ("区域", "功能区域"),
+    LocationType.ZONE: ("分区", "管理分区"),
+}
+
+
 @router.get("/types")
 def get_location_types():
     """
-    获取所有支持的位置类型
-    
-    Returns:
-        位置类型列表及说明
+    获取所有支持的位置类型（由 LocationType 枚举生成）
     """
     types = [
-        {
-            "value": LocationType.BUILDING,
-            "label": "楼栋",
-            "description": "建筑物整体"
-        },
-        {
-            "value": LocationType.UNIT,
-            "label": "单元",
-            "description": "楼栋内的单元"
-        },
-        {
-            "value": LocationType.FLOOR,
-            "label": "楼层",
-            "description": "单元内的楼层"
-        },
-        {
-            "value": LocationType.ROOM,
-            "label": "房间",
-            "description": "具体房间"
-        },
-        {
-            "value": LocationType.WORKSHOP,
-            "label": "车间",
-            "description": "生产车间"
-        },
-        {
-            "value": LocationType.AREA,
-            "label": "区域",
-            "description": "功能区域"
-        },
-        {
-            "value": LocationType.ZONE,
-            "label": "分区",
-            "description": "管理分区"
-        }
+        {"value": t.value, "label": _LOCATION_TYPE_META[t][0], "description": _LOCATION_TYPE_META[t][1]}
+        for t in LocationType
     ]
     return success_response(data=types)
 
@@ -176,18 +152,9 @@ def get_location_detail(
     session: Session = Depends(get_session)
 ):
     """
-    获取位置详情
-    
-    Args:
-        location_id: 位置ID
-        
-    Returns:
-        位置详情
+    获取位置详情（资源不存在时由全局异常处理器返回 404）
     """
-    try:
-        return LocationService.get_location_by_id(session, location_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    return LocationService.get_location_by_id(session, location_id)
 
 
 @router.post("/", response_model=Location)
@@ -195,29 +162,18 @@ def create_location(
     request: LocationCreateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    创建位置
-    
-    Args:
-        request: 位置创建请求
-        
-    Returns:
-        创建的位置
-    """
-    try:
-        return LocationService.create_location(
-            session=session,
-            name=request.name,
-            location_type=request.location_type,
-            parent_id=request.parent_id,
-            code=request.code,
-            description=request.description,
-            area_sqm=request.area_sqm,
-            manager=request.manager,
-            contact=request.contact
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """创建位置（业务校验失败由全局异常处理器返回 400/404）"""
+    return LocationService.create_location(
+        session=session,
+        name=request.name,
+        location_type=request.location_type,
+        parent_id=request.parent_id,
+        code=request.code,
+        description=request.description,
+        area_sqm=request.area_sqm,
+        manager=request.manager,
+        contact=request.contact
+    )
 
 
 @router.put("/{location_id}", response_model=Location)
@@ -226,23 +182,9 @@ def update_location(
     request: LocationUpdateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    更新位置信息
-    
-    Args:
-        location_id: 位置ID
-        request: 更新请求
-        
-    Returns:
-        更新后的位置
-    """
-    try:
-        update_data = request.dict(exclude_unset=True)
-        return LocationService.update_location(
-            session, location_id, **update_data
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """更新位置信息（资源不存在等由全局异常处理器处理）"""
+    update_data = request.model_dump(exclude_unset=True)
+    return LocationService.update_location(session, location_id, **update_data)
 
 
 @router.delete("/{location_id}")
@@ -251,21 +193,9 @@ def delete_location(
     force: bool = Query(False, description="是否强制删除（包括子位置和设备）"),
     session: Session = Depends(get_session)
 ):
-    """
-    删除位置
-    
-    Args:
-        location_id: 位置ID
-        force: 是否强制删除
-        
-    Returns:
-        成功响应
-    """
-    try:
-        LocationService.delete_location(session, location_id, force=force)
-        return success_response(message=f"位置 {location_id} 已删除")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """删除位置（依赖冲突等由全局异常处理器处理）"""
+    LocationService.delete_location(session, location_id, force=force)
+    return success_response(message=f"位置 {location_id} 已删除")
 
 
 # ==================== 子位置管理 ====================
@@ -276,22 +206,10 @@ def get_child_locations(
     recursive: bool = Query(False, description="是否递归获取所有子孙位置"),
     session: Session = Depends(get_session)
 ):
-    """
-    获取子位置
-    
-    Args:
-        location_id: 父级位置ID
-        recursive: 是否递归获取所有子孙位置
-        
-    Returns:
-        子位置列表
-    """
-    try:
-        return LocationService.get_child_locations(
-            session, location_id, recursive=recursive
-        )
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取子位置（位置不存在时由全局异常处理器返回 404）"""
+    return LocationService.get_child_locations(
+        session, location_id, recursive=recursive
+    )
 
 
 # ==================== 设备管理 ====================
@@ -304,28 +222,14 @@ def get_location_devices(
     is_active: Optional[bool] = Query(None, description="按状态筛选"),
     session: Session = Depends(get_session)
 ):
-    """
-    获取位置下的设备
-    
-    Args:
-        location_id: 位置ID
-        recursive: 是否包含子位置的设备
-        energy_type: 能源类型筛选
-        is_active: 状态筛选
-        
-    Returns:
-        设备列表
-    """
-    try:
-        return LocationService.get_devices_by_location(
-            session=session,
-            location_id=location_id,
-            recursive=recursive,
-            energy_type=energy_type,
-            is_active=is_active
-        )
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取位置下的设备（位置不存在时由全局异常处理器返回 404）"""
+    return LocationService.get_devices_by_location(
+        session=session,
+        location_id=location_id,
+        recursive=recursive,
+        energy_type=energy_type,
+        is_active=is_active
+    )
 
 
 @router.post("/{location_id}/devices", response_model=Device)
@@ -334,24 +238,12 @@ def assign_device_to_location(
     request: DeviceAssignRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    将设备分配到位置
-    
-    Args:
-        location_id: 位置ID
-        request: 设备分配请求
-        
-    Returns:
-        更新后的设备
-    """
-    try:
-        return LocationService.assign_device_to_location(
-            session=session,
-            device_id=request.device_id,
-            location_id=location_id
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """将设备分配到位置（设备/位置不存在等由全局异常处理器处理）"""
+    return LocationService.assign_device_to_location(
+        session=session,
+        device_id=request.device_id,
+        location_id=location_id
+    )
 
 
 # ==================== 统计分析 ====================
@@ -362,22 +254,10 @@ def get_location_statistics(
     recursive: bool = Query(True, description="是否包含子位置"),
     session: Session = Depends(get_session)
 ):
-    """
-    获取位置统计信息
-    
-    Args:
-        location_id: 位置ID
-        recursive: 是否包含子位置
-        
-    Returns:
-        统计信息（设备数量、按能源类型/类别统计等）
-    """
-    try:
-        stats = LocationService.get_location_statistics(
-            session=session,
-            location_id=location_id,
-            recursive=recursive
-        )
-        return success_response(data=stats)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取位置统计信息（位置不存在时由全局异常处理器返回 404）"""
+    stats = LocationService.get_location_statistics(
+        session=session,
+        location_id=location_id,
+        recursive=recursive
+    )
+    return success_response(data=stats)

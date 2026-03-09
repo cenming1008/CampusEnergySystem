@@ -5,7 +5,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlmodel import Session, select, func, or_, and_
-from loguru import logger
+from app.core.logger import logger
 
 from app.models.tables import (
     DeviceMaintenance, 
@@ -498,29 +498,14 @@ class MaintenanceService:
         }
     
     @staticmethod
-    def delete_maintenance(
-        session: Session,
-        maintenance_id: int
-    ) -> bool:
+    def delete_maintenance(session: Session, maintenance_id: int) -> None:
         """
-        删除维护记录
-        
-        Args:
-            session: 数据库会话
-            maintenance_id: 维护记录ID
-            
-        Returns:
-            是否删除成功
+        删除维护记录。记录不存在时抛出 ResourceNotFoundException，
+        数据库错误由调用方/全局异常处理器处理。
         """
-        try:
-            maintenance = MaintenanceService.get_maintenance_by_id(
-                session, maintenance_id
-            )
-            session.delete(maintenance)
-            session.commit()
-            logger.info(f"删除维护记录: id={maintenance_id}")
-            return True
-        except Exception as e:
-            logger.error(f"删除维护记录失败: {e}")
-            session.rollback()
-            return False
+        maintenance = MaintenanceService.get_maintenance_by_id(
+            session, maintenance_id
+        )
+        session.delete(maintenance)
+        session.commit()
+        logger.info(f"删除维护记录: id={maintenance_id}")

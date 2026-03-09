@@ -162,7 +162,7 @@ const emit = defineEmits<{
   update: [device: Device]
 }>()
 
-// 3. Store
+// 3. Store（示例：当前项目无 useDeviceStore，可直接用 getDevices 等 API）
 const deviceStore = useDeviceStore()
 
 // 4. 响应式数据
@@ -232,10 +232,12 @@ export const updateDevice = (id: string, data: Partial<Device>) => {
 }
 ```
 
-#### Pinia Store
+#### Pinia Store（示例）
+
+> 说明：以下 `useDeviceStore` 为**示例写法**，当前项目中并未实现该 Store，设备数据由各页面直接调用 `@/api/device` 获取。若需全局设备状态可参考此结构新增。
 
 ```typescript
-// src/stores/useDeviceStore.ts
+// src/stores/useDeviceStore.ts（示例，项目中暂无此文件）
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getDeviceList } from '@/api/device'

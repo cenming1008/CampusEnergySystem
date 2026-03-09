@@ -179,14 +179,14 @@ python scripts/python/rebuild_database.py
 python scripts/python/init_complete_system.py
 ```
 
-### 模拟数据
+### 模拟与真实数据
 
 ```bash
-# 启动设备模拟器（增强版）
+# 设备模拟器（推荐开发/演示）
 python scripts/python/simulator_unified.py
 
-# 启动设备模拟器（基础版）
-python scripts/python/simulator.py
+# 真实设备网关（Modbus/HTTP → MQTT，需配置 DEVICE_CONFIG）
+python scripts/python/device_gateway.py
 ```
 
 ---

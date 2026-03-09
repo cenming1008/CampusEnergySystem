@@ -23,6 +23,7 @@ from sqlmodel import Session, select
 from app.core.database import engine
 from app.core.logger import logger
 from app.core.settings import settings
+from app.core.device_registry import device_registry
 from app.models.tables import Device
 from app.services.device_service import DeviceService
 from app.services.alarm_service import AlarmService
@@ -50,10 +51,53 @@ def _extract_device_code(data: dict[str, Any], topic: Optional[str]) -> Optional
     return None
 
 
+def _infer_device_type(data: dict[str, Any]) -> str:
+    """根据遥测数据推断设备类型，用于自动创建设备。"""
+    if data.get("flow_rate") is not None or (data.get("consumption") is not None and data.get("voltage") is None and data.get("current") is None):
+        if data.get("heat_flow") is not None or data.get("heat_power") is not None or data.get("supply_temp") is not None:
+            return "heat_meter"
+        if data.get("cooling_power") is not None:
+            return "cooling_meter"
+        return "water_meter"
+    return "load"
+
+
+def _ensure_device_for_code(device_code: str, data: dict[str, Any]) -> Optional[int]:
+    """
+    若设备不存在且开启自动创建，则创建设备并返回 device_id；
+    否则返回 None。
+    """
+    if not getattr(settings, "mqtt_auto_create_device", True):
+        return None
+    with Session(engine) as session:
+        device_id = get_device_id_by_code(device_code, session)
+        if device_id is not None:
+            return device_id
+        device_type = data.get("device_type") or _infer_device_type(data)
+        if not device_registry.get(device_type):
+            device_type = "load"
+        name = data.get("device_name") or data.get("name") or f"设备-{device_code}"
+        try:
+            device = DeviceService.create_device_smart(
+                session=session,
+                name=name,
+                sn=device_code,
+                device_type=device_type,
+            )
+            logger.info(f"MQTT 自动创建设备: sn={device_code}, name={name}, type={device_type}, id={device.id}")
+            return device.id
+        except Exception as e:
+            logger.warning(f"MQTT 自动创建设备失败: device_code={device_code}, err={e}")
+            return None
+
+
 def _resolve_device_id(data: dict[str, Any], topic: Optional[str]) -> Optional[int]:
     if "device_id" in data:
         try:
-            return int(data["device_id"])
+            did = int(data["device_id"])
+            with Session(engine) as session:
+                dev = session.get(Device, did)
+            return did if dev else None
         except Exception:
             return None
 
@@ -63,7 +107,9 @@ def _resolve_device_id(data: dict[str, Any], topic: Optional[str]) -> Optional[i
 
     with Session(engine) as session:
         device_id = get_device_id_by_code(device_code, session)
-    return device_id
+    if device_id is not None:
+        return device_id
+    return _ensure_device_for_code(device_code, data)
 
 
 def _parse_timestamp(data: dict[str, Any]) -> datetime:
@@ -178,8 +224,9 @@ def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) 
 
     def on_connect_internal(_client, _userdata, _flags, rc):
         logger.info(f"MQTT connected rc={rc}")
-        _client.subscribe(settings.mqtt_topic)
-        _client.subscribe(settings.mqtt_topic_wildcard)
+        # 订阅两个主题（默认: mine/telemetry, mine/device/+/telemetry），设备发到任一个都会被 process_data 处理
+        _client.subscribe(settings.mqtt_topic)           # 主题一，如 mine/telemetry
+        _client.subscribe(settings.mqtt_topic_wildcard) # 主题二，如 mine/device/+/telemetry
         logger.info(f"MQTT subscribed: {settings.mqtt_topic}, {settings.mqtt_topic_wildcard}")
 
     def on_message_internal(_client, _userdata, msg):

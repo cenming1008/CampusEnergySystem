@@ -33,8 +33,9 @@ class ConnectionManager:
         if not self.active_connections:
             logger.debug("📡 无活跃WebSocket连接，跳过广播")
             return
-        
-        logger.debug(f"📡 开始广播消息给 {len(self.active_connections)} 个连接: {message.get('type', 'unknown')}")
+
+        n = len(self.active_connections)
+        logger.debug(f"📡 广播给 {n} 个连接: {message.get('type', 'unknown')}")
         disconnected = []
         for connection in list(self.active_connections):
             try:
@@ -43,14 +44,14 @@ class ConnectionManager:
                 logger.warning(f"⚠️ WebSocket发送失败，断开连接: {e}")
                 disconnected.append(connection)
         
-        # 清理断开的连接
         for conn in disconnected:
             self.disconnect(conn)
-        
         if disconnected:
-            logger.info(f"📡 广播完成，成功: {len(self.active_connections)}，失败: {len(disconnected)}")
+            logger.info(
+                f"📡 广播完成，成功: {len(self.active_connections)}，失败: {len(disconnected)}"
+            )
         else:
-            logger.debug(f"📡 广播完成，所有 {len(self.active_connections)} 个连接成功")
+            logger.debug(f"📡 广播完成，{n} 个连接均成功")
 
 
 manager = ConnectionManager()

@@ -33,34 +33,25 @@
 
 ---
 
+### 🖥️ 本地开发与初始化
+
+**[本地开发环境配置.md](./本地开发环境配置.md)**  
+- 本地开发环境搭建  
+- Python、Node、Docker 配置要点  
+
+**[全新系统初始化指南.md](./全新系统初始化指南.md)**  
+- 全新部署后的初始化步骤  
+- 管理员账户、基础数据  
+
+---
+
 ## 🚀 快速开始（3步）
 
-### Step 1: 启动系统
+1. **启动**：`./bin/fast_start.sh` 或 `./scripts/shell/start.sh`
+2. **验证**：打开 http://localhost:8088/docs 或 `curl http://localhost:8088/health`
+3. **登录**：admin / 123456
 
-```bash
-# 启动所有服务（推荐）
-./scripts/shell/start.sh
-
-# 需要更快启动（使用缓存）
-./bin/fast_start.sh
-```
-
-### Step 2: 验证启动
-
-```bash
-# 访问 API 文档
-open http://localhost:8088/docs
-
-# 或使用命令行测试
-curl http://localhost:8088/health
-```
-
-### Step 3: 登录测试
-
-```
-默认账号：admin
-默认密码：123456
-```
+详见 [快速启动指南.md](./快速启动指南.md)。
 
 ---
 
@@ -118,7 +109,7 @@ docker compose down
 
 1. **学习 LSTM 功能**：查看 [../02-功能使用/LSTM预测完整指南.md](../02-功能使用/LSTM预测完整指南.md)
 2. **查看 API 文档**：http://localhost:8088/docs
-3. **运行设备模拟器**：`python scripts/python/simulator.py`
+3. **运行设备模拟器**：`python scripts/python/simulator_unified.py`
 4. **学习 Docker 管理**：查看 [../03-开发与部署/DOCKER_SCRIPTS.md](../03-开发与部署/DOCKER_SCRIPTS.md)
 
 ---

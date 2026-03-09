@@ -10,7 +10,8 @@ from app.core.exceptions import (
     ResourceNotFoundException,
     AuthenticationException,
     ValidationException,
-    DatabaseException
+    DatabaseException,
+    ConflictException,
 )
 from app.core.response import (
     ApiResponse,
@@ -33,6 +34,7 @@ __all__ = [
     "AuthenticationException",
     "ValidationException",
     "DatabaseException",
+    "ConflictException",
     "ApiResponse",
     "ErrorResponse",
     "PaginatedResponse",

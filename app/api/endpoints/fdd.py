@@ -40,8 +40,7 @@ def diagnose_device(device_id: int, session: Session = Depends(get_session)):
     """
     result = FDDService.diagnose_device(session, device_id)
     
-    # 如果设备不存在，返回404错误
     if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
+        raise HTTPException(status_code=404, detail="设备不存在")
     
     return result

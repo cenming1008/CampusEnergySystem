@@ -9,6 +9,7 @@ from app.services.energy_service import EnergyService
 from app.services.device_group_service import DeviceGroupService
 from app.services.location_service import LocationService
 from app.services.maintenance_service import MaintenanceService
+from app.services.inspection_service import InspectionService
 
 # 可选服务（预测和深度学习相关）
 try:
@@ -23,6 +24,7 @@ try:
         "DeviceGroupService",
         "LocationService",
         "MaintenanceService",
+        "InspectionService",
         "ForecastAdapter",
         "start_scheduler",
         "stop_scheduler",
@@ -38,5 +40,6 @@ except ImportError:
         "DeviceGroupService",
         "LocationService",
         "MaintenanceService",
+        "InspectionService",
     ]
 

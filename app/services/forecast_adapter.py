@@ -243,7 +243,7 @@ class ForecastAdapter:
             logger.warning(f"历史数据不足，无法进行预测: device_id={device_id}")
             return []
         
-        historical_powers = [d.power for d in history_data]
+        historical_powers = [d.flow_rate for d in history_data]
         
         # 调用简单算法
         if algorithm == "moving_average":

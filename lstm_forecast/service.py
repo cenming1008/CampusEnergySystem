@@ -127,7 +127,7 @@ class LSTMForecastService:
             features = np.column_stack([
                 [d.voltage for d in data],
                 [d.current for d in data],
-                [d.power for d in data]
+                [d.flow_rate for d in data]
             ])
             
             # 多变量标准化
@@ -157,7 +157,7 @@ class LSTMForecastService:
         else:
             # 单变量：只使用目标列
             if target_column == "power":
-                values = np.array([d.power for d in data])
+                values = np.array([d.flow_rate for d in data])
             elif target_column == "voltage":
                 values = np.array([d.voltage for d in data])
             elif target_column == "current":
@@ -447,13 +447,13 @@ class LSTMForecastService:
             features = np.column_stack([
                 [d.voltage for d in recent_data[-sequence_length:]],
                 [d.current for d in recent_data[-sequence_length:]],
-                [d.power for d in recent_data[-sequence_length:]]
+                [d.flow_rate for d in recent_data[-sequence_length:]]
             ])
             scaled_features = feature_scaler.transform(features)
             current_sequence = scaled_features.copy()
         else:
             # 单变量：只使用功率
-            powers = np.array([d.power for d in recent_data[-sequence_length:]])
+            powers = np.array([d.flow_rate for d in recent_data[-sequence_length:]])
             scaled_powers = feature_scaler.transform(powers.reshape(-1, 1)).flatten()
             current_sequence = scaled_powers.copy()
         
@@ -552,13 +552,13 @@ class LSTMForecastService:
             features = np.column_stack([
                 [d.voltage for d in test_data],
                 [d.current for d in test_data],
-                [d.power for d in test_data]
+                [d.flow_rate for d in test_data]
             ])
             scaled_features = feature_scaler.transform(features)
             powers = features[:, 2]  # 功率列（实际值）
         else:
             # 单变量
-            powers = np.array([d.power for d in test_data])
+            powers = np.array([d.flow_rate for d in test_data])
             scaled_features = feature_scaler.transform(powers.reshape(-1, 1))
         
         X_test, y_test = [], []

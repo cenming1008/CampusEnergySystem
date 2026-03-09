@@ -77,29 +77,26 @@ class FDDService:
             - health_score: 健康分数（0-100）
             - status: 健康状态（healthy/warning/critical）
         """
-        # 获取所有设备
+        # 一次查询：按设备聚合未解决报警数量，避免 N+1
+        alarm_counts_stmt = (
+            select(Alarm.device_id, func.count(Alarm.id).label("cnt"))
+            .where(Alarm.is_resolved == False)
+            .group_by(Alarm.device_id)
+        )
+        alarm_counts_rows = session.exec(alarm_counts_stmt).all()
+        alarm_by_device = {row[0]: row[1] for row in alarm_counts_rows}
+
         devices = session.exec(select(Device)).all()
         results = []
-        
-        # 统计每个设备的未解决报警数量
         for device in devices:
-            alarm_count = session.exec(
-                select(func.count(Alarm.id))
-                .where(Alarm.device_id == device.id)
-                .where(Alarm.is_resolved == False)
-            ).one()
-
-            # 简单评分：每个未解决报警扣10分
+            alarm_count = alarm_by_device.get(device.id, 0)
             simple_score = max(0, 100 - alarm_count * 10)
-            
-            # 根据分数确定状态
             if simple_score >= 80:
                 status = "healthy"
             elif simple_score >= 60:
                 status = "warning"
             else:
                 status = "critical"
-                
             results.append({
                 "device_id": device.id,
                 "device_name": device.name,

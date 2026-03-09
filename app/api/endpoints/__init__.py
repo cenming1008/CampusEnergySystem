@@ -16,6 +16,7 @@ from app.api.endpoints import (
     locations,
     device_groups,
     data_cleanup,
+    inspection,
 )
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     "locations",
     "device_groups",
     "data_cleanup",
+    "inspection",
 ]
 

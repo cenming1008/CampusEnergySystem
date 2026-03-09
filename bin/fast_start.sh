@@ -1,8 +1,13 @@
 #!/bin/bash
 # 快速启动脚本 - 使用缓存的镜像，不重新构建
 # 适合日常开发使用
+# 启动：Docker 服务（db/redis/mqtt/backend）+ 前端开发服务器
 
 set -e
+
+# 切换到项目根目录（脚本在 bin/ 下）
+PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+cd "$PROJECT_DIR"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -41,7 +46,7 @@ fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✅ 启动完成！${NC}"
+echo -e "${GREEN}✅ Docker 服务已启动（数据库 + Redis + MQTT + 后端）${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -58,5 +63,26 @@ echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}📚 访问地址：${NC}"
 echo -e "   ${GREEN}后端 API 文档:${NC} http://localhost:8088/docs"
+echo -e "   ${GREEN}前端界面:${NC}     http://localhost:3000"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+# 仅在有交互式终端时询问是否启动前端
+if [ -t 0 ]; then
+    echo -e "${YELLOW}是否同时启动前端开发服务器？(y/N):${NC} "
+    read -r -n 1 REPLY
+    echo ""
+else
+    REPLY="n"
+fi
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${GREEN}正在启动前端...${NC}"
+    echo -e "${YELLOW}（前端将在后台运行，日志见下方）${NC}"
+    echo ""
+    ./scripts/shell/start_frontend.sh &
+    sleep 2
+    echo ""
+    echo -e "${GREEN}✅ 前端已启动，访问 http://localhost:3000${NC}"
+else
+    echo -e "${YELLOW}如需启动前端，请在新终端执行: ./scripts/shell/start_frontend.sh${NC}"
+fi
 echo ""

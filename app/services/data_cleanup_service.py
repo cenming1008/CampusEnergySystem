@@ -49,6 +49,7 @@ def cleanup_old_data() -> Dict[str, Any]:
                                 );
                             """)
                         )
+                        session.commit()
                         logger.info(f"使用 TimescaleDB drop_chunks 清理 energydata")
                     except Exception:
                         # 回退到普通 DELETE
@@ -117,6 +118,7 @@ def cleanup_old_data() -> Dict[str, Any]:
                                 );
                             """)
                         )
+                        session.commit()
                         logger.info(f"使用 TimescaleDB drop_chunks 清理 carbon_emission")
                     except Exception:
                         # 回退到普通 DELETE

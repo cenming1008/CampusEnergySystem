@@ -5,7 +5,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlmodel import Session, select
-from loguru import logger
+from app.core.logger import logger
 
 from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException

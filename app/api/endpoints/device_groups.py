@@ -2,7 +2,7 @@
 设备分组管理API端点
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -143,19 +143,8 @@ def get_group_detail(
     group_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    获取分组详情
-    
-    Args:
-        group_id: 分组ID
-        
-    Returns:
-        分组详情
-    """
-    try:
-        return DeviceGroupService.get_group_by_id(session, group_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取分组详情（资源不存在时由全局异常处理器返回 404）"""
+    return DeviceGroupService.get_group_by_id(session, group_id)
 
 
 @router.post("/", response_model=DeviceGroup)
@@ -163,28 +152,17 @@ def create_group(
     request: DeviceGroupCreateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    创建设备分组
-    
-    Args:
-        request: 分组创建请求
-        
-    Returns:
-        创建的分组
-    """
-    try:
-        return DeviceGroupService.create_group(
-            session=session,
-            name=request.name,
-            code=request.code,
-            description=request.description,
-            group_type=request.group_type,
-            parent_id=request.parent_id,
-            manager=request.manager,
-            contact=request.contact
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """创建设备分组（父分组不存在等由全局异常处理器处理）"""
+    return DeviceGroupService.create_group(
+        session=session,
+        name=request.name,
+        code=request.code,
+        description=request.description,
+        group_type=request.group_type,
+        parent_id=request.parent_id,
+        manager=request.manager,
+        contact=request.contact
+    )
 
 
 @router.put("/{group_id}", response_model=DeviceGroup)
@@ -193,23 +171,9 @@ def update_group(
     request: DeviceGroupUpdateRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    更新分组信息
-    
-    Args:
-        group_id: 分组ID
-        request: 更新请求
-        
-    Returns:
-        更新后的分组
-    """
-    try:
-        update_data = request.dict(exclude_unset=True)
-        return DeviceGroupService.update_group(
-            session, group_id, **update_data
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """更新分组信息（资源不存在等由全局异常处理器处理）"""
+    update_data = request.model_dump(exclude_unset=True)
+    return DeviceGroupService.update_group(session, group_id, **update_data)
 
 
 @router.delete("/{group_id}")
@@ -218,21 +182,9 @@ def delete_group(
     force: bool = Query(False, description="是否强制删除（包括设备关联）"),
     session: Session = Depends(get_session)
 ):
-    """
-    删除分组
-    
-    Args:
-        group_id: 分组ID
-        force: 是否强制删除
-        
-    Returns:
-        成功响应
-    """
-    try:
-        DeviceGroupService.delete_group(session, group_id, force=force)
-        return success_response(message=f"分组 {group_id} 已删除")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """删除分组（有关联依赖时由全局异常处理器处理）"""
+    DeviceGroupService.delete_group(session, group_id, force=force)
+    return success_response(message=f"分组 {group_id} 已删除")
 
 
 # ==================== 设备管理 ====================
@@ -244,26 +196,13 @@ def get_group_devices(
     is_active: Optional[bool] = Query(None, description="按状态筛选"),
     session: Session = Depends(get_session)
 ):
-    """
-    获取分组中的所有设备
-    
-    Args:
-        group_id: 分组ID
-        energy_type: 能源类型筛选
-        is_active: 状态筛选
-        
-    Returns:
-        设备列表
-    """
-    try:
-        return DeviceGroupService.get_devices_in_group(
-            session=session,
-            group_id=group_id,
-            energy_type=energy_type,
-            is_active=is_active
-        )
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取分组中的所有设备（分组不存在时由全局异常处理器返回 404）"""
+    return DeviceGroupService.get_devices_in_group(
+        session=session,
+        group_id=group_id,
+        energy_type=energy_type,
+        is_active=is_active
+    )
 
 
 @router.post("/{group_id}/devices")
@@ -272,33 +211,21 @@ def add_device_to_group(
     request: AddDeviceRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    将设备添加到分组
-    
-    Args:
-        group_id: 分组ID
-        request: 添加设备请求
-        
-    Returns:
-        成功响应
-    """
-    try:
-        membership = DeviceGroupService.add_device_to_group(
-            session=session,
-            device_id=request.device_id,
-            group_id=group_id,
-            note=request.note
-        )
-        return success_response(
-            data={
-                "device_id": membership.device_id,
-                "group_id": membership.group_id,
-                "joined_at": membership.joined_at
-            },
-            message="设备已添加到分组"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """将设备添加到分组（设备/分组不存在或已在分组中由全局异常处理器处理）"""
+    membership = DeviceGroupService.add_device_to_group(
+        session=session,
+        device_id=request.device_id,
+        group_id=group_id,
+        note=request.note
+    )
+    return success_response(
+        data={
+            "device_id": membership.device_id,
+            "group_id": membership.group_id,
+            "joined_at": membership.joined_at
+        },
+        message="设备已添加到分组"
+    )
 
 
 @router.post("/{group_id}/devices/batch")
@@ -307,28 +234,16 @@ def batch_add_devices_to_group(
     request: BatchAddDevicesRequest,
     session: Session = Depends(get_session)
 ):
-    """
-    批量添加设备到分组
-    
-    Args:
-        group_id: 分组ID
-        request: 批量添加请求
-        
-    Returns:
-        成功响应（包含成功数量）
-    """
-    try:
-        count = DeviceGroupService.batch_add_devices_to_group(
-            session=session,
-            device_ids=request.device_ids,
-            group_id=group_id
-        )
-        return success_response(
-            data={"success_count": count, "total": len(request.device_ids)},
-            message=f"成功添加 {count}/{len(request.device_ids)} 个设备"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """批量添加设备到分组（分组不存在等由全局异常处理器处理）"""
+    count = DeviceGroupService.batch_add_devices_to_group(
+        session=session,
+        device_ids=request.device_ids,
+        group_id=group_id
+    )
+    return success_response(
+        data={"success_count": count, "total": len(request.device_ids)},
+        message=f"成功添加 {count}/{len(request.device_ids)} 个设备"
+    )
 
 
 @router.delete("/{group_id}/devices/{device_id}")
@@ -337,25 +252,13 @@ def remove_device_from_group(
     device_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    将设备从分组中移除
-    
-    Args:
-        group_id: 分组ID
-        device_id: 设备ID
-        
-    Returns:
-        成功响应
-    """
-    try:
-        DeviceGroupService.remove_device_from_group(
-            session=session,
-            device_id=device_id,
-            group_id=group_id
-        )
-        return success_response(message="设备已从分组中移除")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """将设备从分组中移除（关联不存在等由全局异常处理器处理）"""
+    DeviceGroupService.remove_device_from_group(
+        session=session,
+        device_id=device_id,
+        group_id=group_id
+    )
+    return success_response(message="设备已从分组中移除")
 
 
 # ==================== 统计分析 ====================
@@ -365,20 +268,9 @@ def get_group_statistics(
     group_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    获取分组统计信息
-    
-    Args:
-        group_id: 分组ID
-        
-    Returns:
-        统计信息（设备数量、按能源类型/类别统计等）
-    """
-    try:
-        stats = DeviceGroupService.get_group_statistics(session, group_id)
-        return success_response(data=stats)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取分组统计信息（分组不存在时由全局异常处理器返回 404）"""
+    stats = DeviceGroupService.get_group_statistics(session, group_id)
+    return success_response(data=stats)
 
 
 @router.get("/{group_id}/devices/count")
@@ -386,17 +278,6 @@ def get_device_count(
     group_id: int,
     session: Session = Depends(get_session)
 ):
-    """
-    获取分组中的设备数量
-    
-    Args:
-        group_id: 分组ID
-        
-    Returns:
-        设备数量
-    """
-    try:
-        count = DeviceGroupService.get_device_count(session, group_id)
-        return success_response(data={"count": count})
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    """获取分组中的设备数量（分组不存在时由全局异常处理器返回 404）"""
+    count = DeviceGroupService.get_device_count(session, group_id)
+    return success_response(data={"count": count})

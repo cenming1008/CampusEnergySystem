@@ -39,7 +39,7 @@ docker exec -d mine_backend bash -c \
   "MQTT_BROKER=mqtt API_BASE=http://localhost:8088 python -u scripts/python/simulator.py"
 
 # 方式3：简化命令（如果在容器内已设置环境变量）
-docker exec -it mine_backend python scripts/python/simulator.py
+docker exec -it mine_backend python scripts/python/simulator_unified.py
 ```
 
 **重要提示**：在 Docker 容器内运行时，必须使用：
@@ -102,7 +102,7 @@ docker exec -it mine_backend bash
 
 # 现在可以像在本地一样运行命令
 python scripts/python/init_devices.py
-python scripts/python/simulator.py
+python scripts/python/simulator_unified.py
 ls -la
 cat config/settings.json
 
@@ -172,7 +172,7 @@ docker logs --tail=100 mine_backend
 
 ```bash
 # 使用 -d 标志后台运行
-docker exec -d mine_backend python scripts/python/simulator.py
+docker exec -d mine_backend python scripts/python/simulator_unified.py
 
 # 查看是否在运行
 docker exec mine_backend ps aux | grep simulator
@@ -182,7 +182,7 @@ docker exec mine_backend ps aux | grep simulator
 
 ```bash
 # 如果脚本支持参数
-docker exec -it mine_backend python scripts/python/simulator.py --duration 60 --interval 5
+docker exec -it mine_backend python scripts/python/simulator_unified.py --duration 60 --interval 5
 ```
 
 ---
@@ -243,7 +243,7 @@ docker exec -it -u root mine_backend python scripts/python/some_script.py
 - **用途**：首次使用时创建示例设备
 - **执行时间**：< 1 秒
 
-### simulator.py
+### simulator_unified.py
 - **功能**：模拟设备数据上报
 - **用途**：生成测试数据，测试系统功能
 - **执行时间**：持续运行（Ctrl+C 停止）
@@ -282,7 +282,7 @@ docker exec -it -u root mine_backend python scripts/python/some_script.py
 docker exec -it mine_backend python scripts/python/init_devices.py
 
 # 3. 启动模拟器生成数据
-docker exec -d mine_backend python scripts/python/simulator.py
+docker exec -d mine_backend python scripts/python/simulator_unified.py
 
 # 4. 访问系统
 open http://localhost:8088/docs
@@ -298,14 +298,14 @@ docker exec -it mine_backend python scripts/python/clear_db.py
 docker exec -it mine_backend python scripts/python/init_devices.py
 
 # 3. 生成测试数据
-docker exec -it mine_backend python scripts/python/simulator.py
+docker exec -it mine_backend python scripts/python/simulator_unified.py
 ```
 
 ### 场景 3：性能测试
 
 ```bash
 # 1. 确保有足够数据
-docker exec -d mine_backend python scripts/python/simulator.py
+docker exec -d mine_backend python scripts/python/simulator_unified.py
 
 # 2. 运行压力测试
 docker exec -it mine_backend python scripts/python/stress_test.py
@@ -318,10 +318,10 @@ docker stats
 
 ## 📚 相关文档
 
-- [START_HERE.md](./START_HERE.md) - 快速开始指南
-- [README.md](./README.md) - 完整项目文档
-- [scripts/README.md](./scripts/README.md) - 脚本详细说明
-- [docs/快速启动指南.md](./docs/快速启动指南.md) - 详细启动教程
+- [README.md](../../README.md) - 完整项目文档
+- [快速启动指南](../01-新手入门/快速启动指南.md) - 详细启动教程
+- [scripts/README.md](../../scripts/README.md) - 脚本详细说明
+- [根目录结构说明](../07-快速参考/根目录结构说明.md) - 根目录与各目录说明
 
 ---
 

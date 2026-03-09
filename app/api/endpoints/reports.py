@@ -43,8 +43,8 @@ def export_csv(session: Session = Depends(get_session)):
             device_name,
             data.voltage,
             data.current,
-            data.power,
-            data.energy
+            data.flow_rate,
+            data.consumption
         ])
     
     # 返回CSV文件

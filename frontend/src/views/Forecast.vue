@@ -359,7 +359,7 @@ onUnmounted(() => {
             </span>
           </div>
           <div class="chart-container" ref="chartRef"></div>
-          <el-empty v-if="predictions.length === 0" description="点击"开始预测"生成预测数据" :image-size="100" />
+          <el-empty v-if="predictions.length === 0" description="点击【开始预测】生成预测数据" :image-size="100" />
         </div>
 
         <!-- 预测数据表格 -->

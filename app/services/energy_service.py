@@ -2,15 +2,43 @@
 能源数据服务 - 处理多种能源类型的数据采集和分析
 """
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from sqlmodel import Session, select, func
-from loguru import logger
+from app.core.logger import logger
 
 from app.models.tables import (
     Device, EnergyData, CarbonEmission, EnergyStatistics,
     EnergyType
 )
 from app.core.settings import settings
+
+
+def _parse_hour_ranges(ranges_str: str) -> List[Tuple[int, int]]:
+    """
+    解析时段配置字符串为 (start, end) 列表，左闭右开。
+    例如 "8-12,18-23" -> [(8, 12), (18, 23)]
+    """
+    result = []
+    for part in ranges_str.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            a, b = part.split("-", 1)
+            start, end = int(a.strip()), int(b.strip())
+            if 0 <= start <= 24 and 0 <= end <= 24 and start < end:
+                result.append((start, end))
+        except (ValueError, AttributeError):
+            continue
+    return result
+
+
+def _is_hour_in_ranges(hour: int, ranges: List[Tuple[int, int]]) -> bool:
+    """判断 hour (0-23) 是否落在任意区间 [start, end) 内。"""
+    for start, end in ranges:
+        if start <= hour < end:
+            return True
+    return False
 
 
 class EnergyService:
@@ -49,11 +77,10 @@ class EnergyService:
     @staticmethod
     def get_electricity_price(hour: int) -> float:
         """
-        根据时段获取电价（峰谷平电价）
+        根据时段获取电价（峰谷平电价），时段由配置决定。
         
-        峰时段：8:00-11:30, 18:00-23:00 - 高电价
-        平时段：7:00-8:00, 11:30-18:00 - 平电价  
-        谷时段：23:00-7:00 - 低电价
+        默认：峰 8-12,18-23；平 7-8,12-18；其余为谷。
+        可通过 settings.electricity_peak_hours / electricity_flat_hours 配置。
         
         Args:
             hour: 小时数 (0-23)
@@ -61,12 +88,14 @@ class EnergyService:
         Returns:
             电价（元/kWh）
         """
-        if 8 <= hour < 12 or 18 <= hour < 23:
+        hour = max(0, min(23, int(hour)))
+        peak_ranges = _parse_hour_ranges(settings.electricity_peak_hours)
+        flat_ranges = _parse_hour_ranges(settings.electricity_flat_hours)
+        if _is_hour_in_ranges(hour, peak_ranges):
             return settings.peak_price
-        elif 7 <= hour < 8 or 12 <= hour < 18:
+        if _is_hour_in_ranges(hour, flat_ranges):
             return settings.flat_price
-        else:
-            return settings.valley_price
+        return settings.valley_price
     
     @staticmethod
     def calculate_energy_cost(

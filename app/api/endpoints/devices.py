@@ -102,7 +102,7 @@ def get_device_type_info(device_type: str):
     """获取指定设备类型的详细信息"""
     info = DeviceService.get_device_type_info(device_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"设备类型不存在: {device_type}")
+        raise HTTPException(status_code=404, detail="设备类型不存在")
     return success_response(data=info)
 
 
@@ -143,10 +143,8 @@ def create_device_smart(
             rated_capacity=req.rated_capacity
         )
         return device
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"创建设备失败: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数错误")
 
 
 @router.post("/legacy", response_model=Device)
@@ -178,18 +176,15 @@ def update_device(
     req: DeviceUpdateRequest,
     session: Session = Depends(get_session)
 ):
-    """更新设备信息"""
-    try:
-        return DeviceService.update_device(
-            session,
-            device_id,
-            name=req.name,
-            location=req.location,
-            description=req.description,
-            rated_capacity=req.rated_capacity
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新设备失败: {str(e)}")
+    """更新设备信息（设备不存在等由全局异常处理器返回 404）"""
+    return DeviceService.update_device(
+        session,
+        device_id,
+        name=req.name,
+        location=req.location,
+        description=req.description,
+        rated_capacity=req.rated_capacity
+    )
 
 
 @router.delete("/{device_id}")
@@ -254,22 +249,16 @@ def report_device_data(
     ```
     """
     try:
-        # 构建数据字典
         data = req.model_dump(exclude_none=True)
-        
         energy_data = DeviceService.report_device_data(
             session=session,
             device_id=device_id,
             data=data,
             timestamp=req.timestamp
         )
-        
         return energy_data
-    
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"数据上报失败: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数错误")
 
 
 @router.get("/{device_id}/data", response_model=List[EnergyData])
@@ -281,20 +270,15 @@ def get_device_data(
     session: Session = Depends(get_session)
 ):
     """
-    查询设备数据
-    
-    获取指定设备的历史数据，支持时间范围筛选。
+    查询设备数据（设备不存在等由全局异常处理器处理）
     """
-    try:
-        return DeviceService.get_device_data(
-            session=session,
-            device_id=device_id,
-            start_time=start_time,
-            end_time=end_time,
-            limit=limit
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查询数据失败: {str(e)}")
+    return DeviceService.get_device_data(
+        session=session,
+        device_id=device_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit
+    )
 
 
 @router.get("/{device_id}/statistics")
@@ -306,18 +290,13 @@ def get_device_statistics(
     session: Session = Depends(get_session)
 ):
     """
-    获取设备统计数据
-    
-    统计指定时间段内的总消耗、平均值、峰值等。
+    获取设备统计数据（设备不存在等由全局异常处理器处理）
     """
-    try:
-        stats = DeviceService.get_device_statistics(
-            session=session,
-            device_id=device_id,
-            start_time=start_time,
-            end_time=end_time,
-            period_type=period_type
-        )
-        return success_response(data=stats)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"统计数据失败: {str(e)}")
+    stats = DeviceService.get_device_statistics(
+        session=session,
+        device_id=device_id,
+        start_time=start_time,
+        end_time=end_time,
+        period_type=period_type
+    )
+    return success_response(data=stats)

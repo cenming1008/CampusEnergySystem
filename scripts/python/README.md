@@ -176,29 +176,9 @@ python scripts/python/demo_maintenance.py
 
 ### 🔧 开发工具
 
-#### `simulator.py` - 设备数据模拟器（基础版）
+#### `simulator_unified.py` - 统一设备模拟器 ⭐
 
-**用途**：模拟设备数据上报
-
-**使用**：
-```bash
-python scripts/python/simulator.py
-```
-
-**功能**：
-- 生成随机设备遥测数据
-- 通过 MQTT 发送数据
-- 模拟实时数据流
-
-**配置**：
-- 上报频率：5秒（代码中修改）
-- MQTT 主题：`mine/telemetry`
-
----
-
-#### `simulator_unified.py` - 统一设备模拟器（增强版）⭐
-
-**用途**：增强版设备数据模拟器，支持多种能源类型
+**用途**：多能源设备数据模拟器，支持远程控制
 
 **使用**：
 ```bash
@@ -213,6 +193,26 @@ python scripts/python/simulator_unified.py
 - ✅ 可配置设备数量和频率
 
 **推荐使用**：开发和演示环境
+
+---
+
+#### `device_gateway.py` - 设备网关采集器
+
+**用途**：从真实设备读取数据并转发到 MQTT，用于接入 Modbus/HTTP 等硬件
+
+**使用**：
+```bash
+python scripts/python/device_gateway.py
+```
+
+**功能**：
+- ✅ 支持 Modbus TCP/RTU、HTTP API、串口
+- ✅ 可配置多设备与寄存器/字段映射
+- ✅ 定时采集并发布到 `mine/telemetry`，与模拟器主题一致
+
+**依赖**：`pip install pymodbus paho-mqtt`（HTTP 需 `requests`）。设备列表与寄存器映射在脚本内 `DEVICE_CONFIG` 中配置。
+
+**适用场景**：生产或测试环境接入真实电表、水表等设备。
 
 ---
 
@@ -298,6 +298,9 @@ python scripts/python/demo_maintenance.py
 ```bash
 # 模拟设备数据
 python scripts/python/simulator_unified.py
+
+# 真实设备采集（需配置 DEVICE_CONFIG）
+python scripts/python/device_gateway.py
 
 # 压力测试
 python scripts/python/stress_test.py
@@ -507,6 +510,7 @@ docker ps | grep mqtt
 **中频使用**：
 - `demo_*.py` - 功能演示
 - `create_admin.py` - 创建管理员
+- `device_gateway.py` - 真实设备采集
 
 **低频使用**：
 - `rebuild_database.py` - 重建数据库（危险）
@@ -521,6 +525,7 @@ docker ps | grep mqtt
 
 **开发人员**：
 - `simulator_unified.py` - 开发调试
+- `device_gateway.py` - 真实设备接入
 - `check_config.py` - 环境检查
 - `stress_test.py` - 性能测试
 

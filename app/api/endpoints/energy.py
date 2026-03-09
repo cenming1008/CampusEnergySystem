@@ -102,10 +102,10 @@ def save_energy_data(
         
         return energy_data
     
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存能源数据失败: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数错误")
+    except Exception:
+        raise HTTPException(status_code=500, detail="保存能源数据失败")
 
 
 @router.get("/data/{device_id}", response_model=List[EnergyData])

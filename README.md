@@ -12,7 +12,7 @@
 
 ## ⚡ 快速开始（3分钟上手）
 
-> 💡 **新手提示**: 首次使用？建议阅读 [START_HERE.md](./START_HERE.md) 或 [快速启动指南](./docs/快速启动指南.md)
+> 💡 **新手提示**：首次使用建议阅读 [快速启动指南](./docs/01-新手入门/快速启动指南.md)
 
 ```bash
 # 1️⃣ 克隆项目
@@ -20,8 +20,8 @@ git clone https://github.com/your-repo/MineEnergySystem.git
 cd MineEnergySystem
 
 # 2️⃣ 一键启动（需要 Docker Desktop）
-./bin/quick_start.sh  # 首次使用（完整构建）
-./bin/fast_start.sh   # 日常使用（快速启动）⭐
+./bin/fast_start.sh   # 日常使用（有缓存时最快）⭐
+./scripts/shell/start.sh   # 或完整启动/首次构建
 
 # 3️⃣ 访问系统
 # 打开浏览器访问: http://localhost:8088/docs
@@ -30,7 +30,7 @@ cd MineEnergySystem
 
 **前置条件**: 已安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) ✅
 
-**启动遇到问题？** → 查看 [故障排查](#-故障排查) 或 [快速启动指南](./docs/快速启动指南.md)
+**启动遇到问题？** → 查看 [故障排查](#-故障排查) 或 [快速启动指南](./docs/01-新手入门/快速启动指南.md)
 
 ---
 
@@ -128,6 +128,7 @@ cd MineEnergySystem
 - [x] 数据清洗和验证
 - [x] 时序数据存储（TimescaleDB Hypertable）
 - [x] 数据压缩策略（7天后自动压缩）
+- [x] 支持模拟器（`simulator_unified.py`）与真实设备接入（MQTT 同主题；详见 [真实设备接入指南](./docs/02-功能使用/真实设备接入指南.md)）
 
 #### 3. 报警系统
 - [x] 阈值自动检测（电压、电流、功率）
@@ -177,6 +178,8 @@ cd MineEnergySystem
 - [ ] CI/CD 流程
 - [ ] 故障诊断专家系统增强
 - [ ] 移动端 App
+
+📌 **距离实际应用还缺什么？** 见 [与实际应用的差距](./docs/05-架构与设计/与实际应用的差距.md)：安全（HTTPS、限流、RBAC）、测试与迁移、监控与告警、备份策略等清单与优先级。
 
 ---
 
@@ -541,7 +544,7 @@ ls scripts/shell/
 ls scripts/python/
 
 # 设备模拟器
-python scripts/python/simulator.py
+python scripts/python/simulator_unified.py
 
 # 创建管理员
 python scripts/python/create_admin.py
@@ -626,12 +629,12 @@ MineEnergySystem/
 ├── docker-compose.yml       # Docker 编排
 ├── Dockerfile              # Docker 镜像
 ├── requirements.txt        # Python 依赖
-├── quick_start.sh          # 快速启动脚本 ⭐ 新增
-├── PROJECT_STRUCTURE.md    # 详细结构说明 ⭐ 新增
+├── bin/                    # 快速启动脚本（fast_start.sh 等）
+├── docs/                   # 完整文档
 └── README.md               # 本文档
 ```
 
-**📖 详细说明**：查看 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+**📖 详细说明**：查看 [docs/07-快速参考/根目录结构说明](docs/07-快速参考/根目录结构说明.md)
 
 ---
 
@@ -727,6 +730,9 @@ pip install -r requirements.txt
 cd frontend
 npm install
 ```
+# 4. 启动模拟器产生数据（新终端）⭐ 如果没有真实设备
+python scripts/python/simulator_unified.py
+
 
 #### 2. 启动服务
 
@@ -739,6 +745,7 @@ python run.py
 cd frontend
 npm run dev
 ```
+
 
 #### 3. 访问应用
 
@@ -943,7 +950,7 @@ sudo certbot --nginx -d api.yourdomain.com
 
 **症状**:
 ```bash
-./quick_start.sh
+./bin/fast_start.sh
 # 输出: ❌ Docker 未安装 或 ❌ Docker 未运行
 ```
 
@@ -960,7 +967,7 @@ open /Applications/Docker.app
 
 # 等待 Docker 完全启动（菜单栏图标不再闪烁）
 # 然后重新运行启动脚本
-./quick_start.sh
+./bin/fast_start.sh
 ```
 
 #### 问题 2: 端口被占用
@@ -999,7 +1006,7 @@ docker compose up -d --build
 ```bash
 # 如果是之前的项目实例在运行
 docker compose down
-./quick_start.sh
+./bin/fast_start.sh
 ```
 
 #### 问题 3: 首次启动速度慢
@@ -1232,12 +1239,16 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ./check_websocket.sh
 ```
 
+### 数据来源：模拟器与真实设备
+
+当前数据可通过**模拟器**或**真实设备**接入，后端均通过 MQTT 接收，无需改代码。**真实设备接入**（协议、MQTT 格式、本仓库设备网关脚本用法）见 [真实设备接入指南](./docs/02-功能使用/真实设备接入指南.md)。
+
 ### 使用设备模拟器
 
 **使用 Docker 运行（推荐）⭐**
 ```bash
 # 模拟设备数据上报
-docker exec -it mine_backend python scripts/python/simulator.py
+docker exec -it mine_backend python scripts/python/simulator_unified.py
 
 # 压力测试
 docker exec -it mine_backend python scripts/python/stress_test.py
@@ -1253,7 +1264,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 运行脚本
-python scripts/python/simulator.py
+python scripts/python/simulator_unified.py
 ```
 
 ---

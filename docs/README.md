@@ -2,8 +2,8 @@
 
 > 完整、清晰、易查找的项目文档
 
-**最后更新**：2026-01-13  
-**文档结构**：v2.0（已重新整理）
+**最后更新**：2026-03  
+**文档结构**：v2.1（目录与索引已整理）
 
 ---
 
@@ -30,40 +30,84 @@
 
 ```
 docs/
-├── 01-新手入门/          ← 新用户从这里开始
-│   ├── 快速启动指南.md       (3分钟启动系统)
-│   ├── 安装配置完整指南.md   (详细安装步骤)
-│   └── README.md            (导航)
+├── 01-新手入门/               ← 新用户从这里开始
+│   ├── README.md
+│   ├── 快速启动指南.md
+│   ├── 安装配置完整指南.md
+│   ├── 本地开发环境配置.md
+│   └── 全新系统初始化指南.md
 │
-├── 02-功能使用/          ← 学习系统功能
-│   ├── 统一设备管理指南.md   (推荐阅读！智能设备管理)
-│   ├── 多能源管理指南.md     (多能源和碳排放)
-│   ├── LSTM预测完整指南.md   (AI预测功能)
-│   ├── 设备分组快速开始.md   (设备分组管理)
-│   ├── 设备维护管理指南.md   (维护管理)
-│   └── README.md            (导航)
+├── 02-功能使用/               ← 学习系统功能
+│   ├── README.md
+│   ├── 统一设备管理指南.md
+│   ├── 多能源管理指南.md
+│   ├── 多能源管理功能实现说明.md
+│   ├── LSTM预测完整指南.md
+│   ├── 设备分组快速开始.md
+│   ├── 设备维护管理指南.md
+│   ├── 数据清理功能说明.md
+│   └── 数据自动清理功能说明.md
 │
-├── 03-开发与部署/        ← 开发和运维
-│   ├── Git完整指南.md       (Git + GitHub SSH)
-│   ├── DOCKER_SCRIPTS.md   (Docker管理)
-│   ├── OPTIMIZATION_RECOMMENDATIONS.md (性能优化)
-│   ├── 企业部署完整指南.md   (企业部署)
-│   ├── 企业部署快速参考.md   (部署速查)
-│   └── README.md            (导航)
+├── 03-开发与部署/             ← 开发和运维
+│   ├── README.md
+│   ├── Git完整指南.md
+│   ├── DOCKER_SCRIPTS.md
+│   ├── DATABASE_STORAGE.md
+│   ├── OPTIMIZATION_RECOMMENDATIONS.md
+│   ├── 系统启动完整指南.md
+│   ├── 企业部署完整指南.md
+│   ├── 企业部署快速参考.md
+│   ├── 日志管理指南.md
+│   └── Docker清理与本地运行指南.md
 │
-├── 04-故障排查/          ← 遇到问题
-│   ├── fix_venv_issue.md   (虚拟环境问题)
-│   └── README.md            (常见问题)
+├── 04-故障排查/               ← 遇到问题
+│   ├── README.md
+│   ├── fix_venv_issue.md
+│   ├── 控制台警告问题排查.md
+│   ├── 数据清理功能故障排查.md
+│   ├── 多能源管理问题修复说明.md
+│   ├── 紧急修复-重启服务.md
+│   ├── 立即修复-操作步骤.md
+│   ├── 前端登录问题说明.md
+│   ├── 网络连接问题排查报告.md
+│   ├── CORS配置修复说明.md
+│   ├── 前端BUG修复报告.md
+│   └── 项目问题分析报告.md
 │
-├── 05-架构与设计/        ← 技术文档
-│   ├── 统一架构重构说明.md   (v2.2.0架构)
-│   ├── DeviceData与EnergyData表说明.md (表设计)
-│   ├── 多对多关系详解.md     (数据库关系)
-│   ├── 枚举设计说明.md       (枚举规范)
-│   ├── 设备层级管理需求分析.md (需求分析)
-│   └── README.md            (导航)
+├── 05-架构与设计/             ← 技术文档
+│   ├── README.md
+│   ├── 统一架构重构说明.md
+│   ├── 后端功能实现详解.md
+│   ├── 后端调用流程图.md
+│   ├── DeviceData与EnergyData表说明.md
+│   ├── DeviceService与EnergyService对比说明.md
+│   ├── 多对多关系详解.md
+│   ├── 枚举设计说明.md
+│   ├── 设备层级管理需求分析.md
+│   ├── 前后端功能对比分析.md
+│   ├── 配置阈值优化报告.md
+│   └── 后端代码分析报告.md
 │
-└── README.md             ← 您在这里
+├── 06-历史记录/               ← 历史与变更记录
+│   ├── README.md
+│   ├── 根目录整理总结.md
+│   ├── 项目文件整理总结.md
+│   ├── 全新系统部署总结.md
+│   ├── README_全新系统.md
+│   ├── CHANGELOG_设备分组功能.md
+│   ├── CHANGELOG_维护功能.md
+│   ├── 3D矿区场景升级说明.md
+│   ├── 矿区场景仿真升级说明.md
+│   └── MyEMS资源调研与3D模型建议.md
+│
+├── 07-快速参考/               ← 速查
+│   ├── README.md
+│   ├── 本地开发快速参考.md
+│   ├── 开始使用-执行清单.md
+│   ├── 快速参考-统一设备管理.md
+│   └── 清除多能源管理页面数据指南.md
+│
+└── README.md                  ← 您在这里
 ```
 
 ---
@@ -148,34 +192,11 @@ docker compose logs -f           # 实时日志
 
 ## 🚀 快速开始（3步）
 
-### Step 1: 启动系统
+1. **启动**：`./bin/fast_start.sh` 或 `./scripts/shell/start.sh`
+2. **验证**：打开 http://localhost:8088/docs 或 `curl http://localhost:8088/health`
+3. **登录**：admin / 123456（生产环境请修改）
 
-```bash
-# 启动所有服务（推荐）
-./scripts/shell/start.sh
-
-# 需要更快启动（使用缓存）
-./bin/fast_start.sh
-```
-
-### Step 2: 验证服务
-
-```bash
-# 访问 API 文档
-open http://localhost:8088/docs
-
-# 或命令行测试
-curl http://localhost:8088/health
-```
-
-### Step 3: 登录测试
-
-```
-默认账号：admin
-默认密码：123456
-```
-
-**详细教程**：[快速启动指南](./01-新手入门/快速启动指南.md)
+**详细说明与问题排查**：[快速启动指南](./01-新手入门/快速启动指南.md)
 
 ---
 
@@ -184,21 +205,13 @@ curl http://localhost:8088/health
 ### Docker 管理
 
 ```bash
-# 启动所有服务
-docker compose up -d
-
-# 查看服务状态
-docker compose ps
-
-# 查看日志
-docker compose logs -f backend
-
-# 重启服务
-docker compose restart backend
-
-# 停止服务
-docker compose down
+docker compose up -d    # 启动
+docker compose ps       # 状态
+docker compose logs -f backend   # 日志
+docker compose down     # 停止
 ```
+
+更多命令与说明见 [开发与部署 → README](./03-开发与部署/README.md)、[DOCKER_SCRIPTS](./03-开发与部署/DOCKER_SCRIPTS.md)。
 
 ### Python 环境
 
@@ -227,14 +240,8 @@ SSH 配置与推送优化请参考：[开发部署 → Git 完整指南](./03-�
 ### 系统检查
 
 ```bash
-# 完整检查
-./scripts/shell/test_health.sh
-
-# 健康检查
-curl http://localhost:8088/health
-
-# 查看容器状态
-./scripts/shell/status.sh
+./scripts/shell/test_health.sh   # 完整检查
+./scripts/shell/status.sh        # 容器状态
 ```
 
 ---
@@ -365,10 +372,9 @@ docker compose ps
 
 ### 更新记录
 
+- **2026-03**：整理目录索引，补全各分类下的文档列表（v2.1）
 - **2026-01-13**：完成文档结构重组（v2.0）
-- **2026-01-13**：新增 LSTM 完整使用指南
-- **2026-01-13**：新增 Git 完整指南
-- **2026-01-13**：合并重复文档
+- **2026-01-13**：新增 LSTM 完整使用指南、Git 完整指南，合并重复文档
 
 ### 维护原则
 

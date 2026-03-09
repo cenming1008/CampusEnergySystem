@@ -4,84 +4,62 @@
 
 ## 📁 项目结构
 
+以下为精简结构；**每个文件与目录的详细说明**见 **[FRONTEND_STRUCTURE.md](./FRONTEND_STRUCTURE.md)**（按实际文件整理，无重复）。
+
 ```
 frontend/
-├── public/                  # 静态资源
-│   ├── draco/              # Draco 3D 压缩库（用于 glTF 模型压缩）
-│   ├── model/              # 3D 模型文件
-│   │   ├── mine_env.glb   # 矿区环境模型
-│   │   ├── Fighter*.glb   # 设备模型
-│   │   ├── floor*.glb     # 地面模型
-│   │   └── wall.glb       # 墙体模型
-│   └── textures/           # HDR 环境贴图
+├── public/                  # 静态资源（原样输出）
+│   ├── draco/              # Draco 压缩库（glTF 解压）
+│   ├── model/              # 3D 模型（.glb 等，见 model/README.md）
+│   └── textures/           # HDR 等贴图
 │
 ├── src/
-│   ├── api/                # API 接口层
-│   │   ├── alarm.ts       # 告警接口
-│   │   ├── auth.ts        # 认证接口
-│   │   ├── dataCleanup.ts # 数据清理接口
-│   │   ├── device.ts      # 设备接口
-│   │   ├── deviceGroup.ts # 设备分组接口
-│   │   ├── energy.ts      # 能源管理接口
-│   │   ├── fdd.ts         # 故障诊断接口
-│   │   ├── forecast.ts    # 预测接口
-│   │   ├── location.ts    # 位置管理接口
-│   │   ├── maintenance.ts # 维护管理接口
-│   │   ├── report.ts      # 报表接口
-│   │   └── telemetry.ts   # 遥测数据接口
+│   ├── api/                # API 接口层（14 个模块）
+│   │   ├── alarm.ts        # 告警
+│   │   ├── auth.ts         # 认证
+│   │   ├── dataCleanup.ts  # 数据清理（系统设置页用）
+│   │   ├── device.ts       # 设备
+│   │   ├── deviceGroup.ts  # 设备分组
+│   │   ├── energy.ts       # 能源管理
+│   │   ├── fdd.ts          # 故障诊断
+│   │   ├── forecast.ts     # 预测
+│   │   ├── inspection.ts   # 巡检运维
+│   │   ├── location.ts     # 位置管理
+│   │   ├── maintenance.ts  # 维护管理
+│   │   ├── report.ts       # 报表
+│   │   └── telemetry.ts    # 遥测
 │   │
-│   ├── assets/             # 样式资源
-│   │   └── main.css       # 全局样式
-│   │
-│   ├── layout/             # 布局组件
-│   │   └── Layout.vue     # 主布局
-│   │
-│   ├── router/             # 路由配置
-│   │   └── index.ts       # 路由定义
-│   │
-│   ├── shaders/            # WebGL 着色器
-│   │   ├── lightRadar/    # 光雷达特效着色器
-│   │   └── lightWall/     # 光墙特效着色器
-│   │
-│   ├── stores/             # Pinia 状态管理
+│   ├── assets/main.css     # 全局样式
+│   ├── layout/Layout.vue   # 主布局（侧栏、顶栏、告警、用户）
+│   ├── router/index.ts    # 路由与登录守卫
+│   ├── shaders/            # 光雷达、光墙着色器（GLSL）
+│   ├── stores/             # Pinia（仅 2 个）
 │   │   ├── useAuthStore.ts   # 认证状态
-│   │   ├── useDeviceStore.ts # 设备状态
 │   │   └── useSocketStore.ts # WebSocket 状态
 │   │
-│   ├── three/              # Three.js 相关
-│   │   ├── effects/       # 3D 特效
-│   │   │   ├── AlarmSprite.ts  # 告警精灵
-│   │   │   ├── FlyLine.ts      # 飞线特效
-│   │   │   ├── LightRadar.ts   # 光雷达
-│   │   │   └── LightWall.ts    # 光墙
-│   │   └── mine/          # 矿区场景
-│   │       └── MineSceneGenerator.ts # 场景生成器
+│   ├── three/              # Three.js
+│   │   ├── effects/        # 光墙、光雷达、飞线、告警精灵
+│   │   └── mine/           # 矿区场景生成器
 │   │
-│   ├── utils/              # 工具函数
-│   │   └── request.ts     # HTTP 请求封装
+│   ├── utils/request.ts    # Axios 封装与 Token 注入
+│   ├── views/              # 页面（13 个，与路由一一对应）
+│   │   ├── Login.vue, Dashboard.vue, MineScene.vue
+│   │   ├── DeviceManager.vue, LocationManager.vue, DeviceGroups.vue
+│   │   ├── EnergyManagement.vue, Forecast.vue, FDD.vue
+│   │   ├── Maintenance.vue, Inspection.vue, Report.vue
+│   │   └── SystemSettings.vue
 │   │
-│   ├── views/              # 页面组件
-│   │   ├── Dashboard.vue        # 仪表盘
-│   │   ├── DeviceGroups.vue     # 设备分组管理
-│   │   ├── DeviceManager.vue    # 设备管理
-│   │   ├── EnergyManagement.vue # 能源管理
-│   │   ├── FDD.vue              # 故障检测诊断
-│   │   ├── Forecast.vue         # 能源预测
-│   │   ├── LocationManager.vue  # 位置管理
-│   │   ├── Login.vue            # 登录页
-│   │   ├── Maintenance.vue      # 维护管理
-│   │   ├── MineScene.vue        # 3D 矿区场景
-│   │   ├── Report.vue           # 报表分析
-│   │   └── SystemSettings.vue   # 系统设置
-│   │
-│   ├── App.vue             # 根组件
-│   └── main.ts             # 应用入口
+│   ├── App.vue
+│   └── main.ts
 │
-├── index.html              # HTML 入口
-├── package.json            # 项目依赖
-├── tsconfig.json           # TypeScript 配置
-├── vite.config.ts          # Vite 配置
-└── README.md               # 项目说明（本文件）
+├── index.html
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── README.md
+├── FRONTEND_STRUCTURE.md   # 前端文件与作用详细说明
+├── DEVELOPMENT.md
+└── CHANGELOG.md
 ```
 
 ## 🚀 快速开始
@@ -165,27 +143,31 @@ npm run preview
 - 维护记录查询
 - 维护计划安排
 
-### 7. 报表分析
+### 7. 巡检运维
+- 巡检任务管理
+- 巡检记录与结果
+- 巡检统计（对应页面：巡检运维；API：inspection.ts）
+
+### 8. 报表分析
 - 能源消耗报表
 - 设备运行报表
 - 自定义报表导出
 
-### 8. 数据清理
+### 9. 数据清理
 - 历史数据清理
 - 清理策略配置
 - 清理记录查询
 
 ## 🎨 3D 场景说明
 
-项目使用 Three.js 实现了丰富的 3D 可视化效果：
+项目使用 Three.js 实现矿区总览 3D 可视化：
 
-- **模型加载**: 支持 glTF/GLB 格式，使用 Draco 压缩优化加载速度
-- **环境光照**: HDR 环境贴图实现真实光照效果
-- **特效系统**: 
-  - 光墙特效（区域边界显示）
-  - 光雷达特效（扫描效果）
-  - 飞线特效（数据流动画）
-  - 告警精灵（设备状态提示）
+- **当前场景**：由 `src/three/mine/MineSceneGenerator.ts` 用几何体程序化生成（建筑、矿坑、道路等），**未使用外部 .glb 模型**；`public/model/` 下暂无模型文件。
+- **模型加载**：支持 glTF/GLB，使用 Draco 压缩；若放入 `public/model/` 模型，需在场景中增加加载逻辑。
+- **环境光照**：HDR 环境贴图（优先 2k.hdr，回退 023.hdr）；地面贴图缺失时使用纯色。
+- **特效**：光墙、光雷达、飞线、告警精灵。
+
+📌 **想要更真实的矿区 3D 建模图？** 见 [矿区总览 3D 资源说明](../docs/02-功能使用/矿区总览3D资源说明.md)：模型获取渠道、格式要求、接入方式。
 
 ## 🔌 API 接口
 

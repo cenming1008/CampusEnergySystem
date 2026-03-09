@@ -4,43 +4,58 @@
 
 ```
 app/
-├── __init__.py           # Python包初始化
-├── main.py               # FastAPI应用入口，生命周期管理
+├── __init__.py           # Python 包初始化
+├── main.py               # FastAPI 应用入口，生命周期与路由注册
 │
-├── api/                  # API层：处理HTTP请求
-│   ├── deps.py          # 依赖注入（认证、数据库会话）
-│   └── endpoints/       # API端点模块
-│       ├── auth.py      # 认证接口
-│       ├── devices.py   # 设备管理接口
-│       ├── telemetry.py # 遥测数据接口
+├── api/                  # API 层：处理 HTTP 请求
+│   ├── deps.py           # 依赖注入（认证、数据库会话）
+│   └── endpoints/        # API 端点模块
+│       ├── auth.py       # 认证接口
+│       ├── devices.py    # 设备管理接口
 │       ├── alarms.py    # 报警管理接口
-│       ├── analysis.py  # 数据分析接口
-│       ├── fdd.py       # 故障诊断接口
-│       └── reports.py   # 报表导出接口
+│       ├── analysis.py   # 数据分析接口
+│       ├── fdd.py        # 故障诊断接口
+│       ├── reports.py    # 报表导出接口
+│       ├── health.py     # 健康检查（无需认证）
+│       ├── forecast.py   # 预测功能
+│       ├── data_generator.py  # 数据生成
+│       ├── energy.py     # 多能源管理
+│       ├── maintenance.py    # 设备维护
+│       ├── locations.py  # 位置管理
+│       ├── device_groups.py   # 设备分组
+│       ├── data_cleanup.py    # 数据清理
+│       └── inspection.py # 巡检运维
 │
 ├── core/                 # 核心基础设施层
-│   ├── config.py        # 配置文件加载（settings.json）
-│   ├── database.py      # 数据库连接和初始化
+│   ├── database.py      # 数据库连接与初始化（get_session）
 │   ├── error_handlers.py # 全局异常处理器
-│   ├── exceptions.py    # 自定义异常类
-│   ├── logger.py        # 日志配置
-│   ├── redis.py         # Redis客户端（单例）
-│   ├── response.py      # 统一响应格式
-│   ├── security.py      # JWT认证和密码哈希
-│   ├── settings.py      # 统一配置管理（Pydantic）
-│   └── socket_manager.py # WebSocket连接管理器
+│   ├── exceptions.py     # 自定义异常类
+│   ├── logger.py         # 日志配置（Loguru）
+│   ├── redis.py          # Redis 客户端（单例）
+│   ├── response.py       # 统一响应格式
+│   ├── security.py       # JWT 认证与密码哈希
+│   ├── settings.py       # 统一配置（Pydantic，含环境变量）
+│   ├── socket_manager.py # WebSocket 连接管理
+│   └── device_registry.py # 设备类型注册表（类别、能源类型、必填字段等）
 │
-├── services/            # 服务层：业务逻辑封装
-│   ├── alarm_service.py      # 报警业务逻辑
-│   ├── analysis_service.py   # 数据分析业务逻辑
-│   ├── data_processor.py     # 设备数据处理
-│   ├── device_service.py     # 设备业务逻辑
-│   ├── fdd_service.py        # 故障诊断业务逻辑
-│   ├── mqtt_publisher.py     # MQTT消息发布
-│   └── mqtt_worker.py        # MQTT消息接收和处理
+├── services/             # 服务层：业务逻辑封装
+│   ├── device_service.py      # 设备与设备数据上报
+│   ├── energy_service.py      # 能源数据、碳排放、电价与统计
+│   ├── alarm_service.py       # 报警业务与阈值检测
+│   ├── analysis_service.py    # 单设备分析、今日能耗/费用
+│   ├── fdd_service.py         # 故障诊断与健康分
+│   ├── device_group_service.py # 设备分组
+│   ├── location_service.py    # 位置层级与统计
+│   ├── maintenance_service.py # 维护计划与记录
+│   ├── inspection_service.py  # 巡检路线/计划/任务/记录
+│   ├── forecast_adapter.py    # 预测适配（LSTM/简单算法、数据生成）
+│   ├── scheduler_service.py   # 定时任务（LSTM 训练、预测更新、数据清理）
+│   ├── data_cleanup_service.py # 过期数据清理
+│   ├── mqtt_worker.py         # MQTT 消息接收、落库、报警、WebSocket 回调
+│   └── mqtt_publisher.py      # MQTT 控制指令下发
 │
-└── models/              # 数据模型层
-    └── tables.py        # SQLModel数据表定义
+└── models/               # 数据模型层
+    └── tables.py         # SQLModel 表定义
 ```
 
 ---
@@ -137,15 +152,16 @@ class DeviceService:
 ```
 MQTT Broker
     ↓
-mqtt_worker.py (接收消息)
+mqtt_worker.py（订阅主题、接收消息）
     ↓
-process_data() (解析数据)
+process_data()（解析 payload，解析 device_id）
     ↓
-data_processor.py (处理数据 + 报警检测)
+DeviceService.report_device_data() → EnergyService.save_energy_data()（落库）
+AlarmService.check_and_create_alarm()（阈值报警）
     ↓
-Database (保存数据)
+main.py 中注册的 MQTT 回调（run_coroutine_threadsafe）
     ↓
-WebSocket (实时推送给前端)
+socket_manager.broadcast() → WebSocket（实时推送给前端）
 ```
 
 ### 2. API请求流程
@@ -375,16 +391,15 @@ def your_endpoint(session: Session = Depends(get_session)):
 ```
 
 #### Step 3: 注册路由
+在 `app/main.py` 的 `_ROUTERS` 列表中追加一项（需认证路由），或单独 `include_router`（无需认证）：
 ```python
 # app/main.py
-from app.api.endpoints import your_endpoint
-
-app.include_router(
-    your_endpoint.router,
-    prefix="/your_endpoint",
-    tags=["模块名称"],
-    dependencies=[Depends(get_current_user)]  # 如需认证
-)
+# 需认证：在 _ROUTERS 中添加
+_ROUTERS = [
+    ...
+    (your_endpoint, "/your-prefix", "模块名称"),
+]
+# 无需认证：在“路由注册（无需认证）”区块单独 include_router
 ```
 
 ### 2. 添加新的数据模型
@@ -463,10 +478,10 @@ value = await redis.get("key")
 
 ## 📚 相关文档
 
-- [代码规范指南](../CODE_STYLE_GUIDE.md)
-- [重构总结](../REFACTORING_SUMMARY.md)
-- [快速上手指南](../QUICK_START_REFACTORED.md)
-- [项目架构](../ARCHITECTURE.md)
+- [文档中心](../docs/README.md)（新手入门、开发部署、架构与设计等）
+- [快速启动指南](../docs/01-新手入门/快速启动指南.md)
+- [后端功能实现详解](../docs/05-架构与设计/后端功能实现详解.md)
+- [本地开发快速参考](../docs/07-快速参考/本地开发快速参考.md)
 
 ---
 
@@ -483,6 +498,6 @@ value = await redis.get("key")
 
 ---
 
-**维护者**：MineEnergySystem团队  
-**最后更新**：2026-01-07
+**维护者**：MineEnergySystem 团队  
+**最后更新**：2026-03
 

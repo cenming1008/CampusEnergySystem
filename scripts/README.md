@@ -10,6 +10,8 @@
 scripts/
 ├── README.md                   # 📖 本文件 - 脚本总览
 ├── QUICK_REFERENCE.md          # ⚡ 快速参考卡片
+├── CHANGELOG.md                # 📋 脚本整理与更新日志
+├── SCRIPT_LIST.md              # 📋 脚本清单（每个脚本作用说明，无重复）
 │
 ├── shell/                      # Shell 脚本（运维和管理）
 │   ├── README.md              # 📖 Shell 脚本详细文档
@@ -38,8 +40,8 @@ scripts/
 │   ├── install_dependencies.sh # 安装系统依赖
 │   │
 │   └── 🚀 部署工具
-       ├── deploy_prod.sh      # 生产环境部署
-       └── uninstall_local_services.sh  # 卸载本地服务
+│       ├── deploy_prod.sh      # 生产环境部署
+│       └── uninstall_local_services.sh  # 卸载本地服务
 │
 └── python/                     # Python 脚本（数据和工具）
     ├── README.md              # 📖 Python 脚本详细文档
@@ -57,8 +59,8 @@ scripts/
     ├── demo_maintenance.py        # 维护管理功能演示
     │
     └── 🔧 开发工具
-        ├── simulator_unified.py   # 统一设备模拟器 ⭐
-        ├── simulator.py           # 设备数据模拟器
+        ├── simulator_unified.py   # 统一设备模拟器 ⭐（支持远程控制）
+        ├── device_gateway.py      # 设备网关采集器（真实设备 → MQTT）
         ├── generate_training_data.py  # 生成训练数据
         └── stress_test.py         # 压力测试工具
 ```
@@ -335,14 +337,16 @@ python scripts/python/demo_maintenance.py
 
 ### 3. 开发工具
 
-#### `simulator.py` - 设备模拟器
+#### `simulator_unified.py` - 统一设备模拟器
 ```bash
-python scripts/python/simulator.py
+python scripts/python/simulator_unified.py
 ```
 
 **功能**：
-- 模拟设备数据上报
-- 生成随机遥测数据
+- 自动从数据库获取设备列表
+- 支持多种能源类型（电、水、气、热、冷）
+- 根据设备类型生成相应的遥测数据
+- 支持远程控制（启动/停止设备）
 - 通过 MQTT 发送数据
 
 **使用场景**：
@@ -351,9 +355,28 @@ python scripts/python/simulator.py
 - 压力测试准备
 
 **配置**：
-- 设备数量：代码中配置
-- 上报频率：默认 5 秒
+- 设备数量：自动从数据库获取
+- 上报频率：默认 3 秒
 - MQTT 主题：`mine/telemetry`
+- 控制主题：`mine/control/+`
+
+---
+
+#### `device_gateway.py` - 设备网关采集器
+
+从真实设备读取数据并转发到 MQTT，用于生产或测试环境接入真实硬件。
+
+**使用**：
+```bash
+python scripts/python/device_gateway.py
+```
+
+**功能**：
+- 支持 Modbus TCP/RTU、HTTP API、串口等协议
+- 可配置多设备与寄存器/字段映射
+- 定时采集并发布到 `mine/telemetry`
+
+**依赖**：`pip install pymodbus paho-mqtt`（HTTP 需 `requests`）。配置见脚本内 `DEVICE_CONFIG`。
 
 ---
 
@@ -402,7 +425,7 @@ python scripts/python/generate_training_data.py
 ./scripts/shell/start_frontend.sh
 
 # 模拟设备数据
-python scripts/python/simulator.py
+python scripts/python/simulator_unified.py
 ```
 
 ### 代码更新后
@@ -505,9 +528,15 @@ cd scripts/shell && ./start.sh
 
 ### 脚本文档
 
-- **[⚡ 快速参考卡片](./QUICK_REFERENCE.md)** - 常用脚本速查，复制即用 ⭐
+- **[📋 脚本清单（详细作用，无重复）](./SCRIPT_LIST.md)** - 每个脚本仅列一次并说明作用；含 **bin/ 与 scripts/ 对应关系** ⭐
+- **[⚡ 快速参考卡片](./QUICK_REFERENCE.md)** - 常用脚本速查，复制即用
 - **[📖 Python 脚本详解](./python/README.md)** - Python 脚本完整文档
 - **[📖 Shell 脚本详解](./shell/README.md)** - Shell 脚本完整文档
+- **[📋 整理与更新日志](./CHANGELOG.md)** - 脚本变更记录
+
+### 与 bin/ 的关系
+
+- [bin/README.md](../bin/README.md) - 快捷脚本目录；`bin/fast_start.sh` 与 `scripts/shell/start.sh` 用途重叠（bin 更快捷），详见 [SCRIPT_LIST.md](./SCRIPT_LIST.md) 中「bin/ 与 scripts/ 的对应关系」。
 
 ### 项目文档
 
@@ -528,29 +557,31 @@ cd scripts/shell && ./start.sh
 
 ---
 
-## 🗂️ 脚本分类速查
+## 📋 完整脚本清单（无重复）
 
-### 按功能分类
+**每个脚本的详细作用说明见 → [SCRIPT_LIST.md](./SCRIPT_LIST.md)**（共 31 个脚本：19 个 Shell + 12 个 Python，仅列一次。）
 
-**系统启停**：
-- `start.sh`, `stop.sh`, `restart_backend.sh`, `rebuild_backend.sh`, `start_frontend.sh`
+| Shell（19） | 作用简述 |
+|-------------|----------|
+| start.sh | 启动全部服务 |
+| start_dev_env.sh | 仅启动开发用中间件 |
+| stop.sh / stop_dev_env.sh | 停止全部 / 仅开发环境 |
+| restart_backend.sh / rebuild_backend.sh | 重启 / 重建后端 |
+| start_frontend.sh | 启动前端 |
+| status.sh / test_health.sh / check_websocket.sh / check_mac_env.sh | 状态与健康检查 |
+| backup.sh / restore.sh | 数据库备份与恢复 |
+| cleanup_logs.sh / cleanup_docker.sh / fix_venv.sh / install_dependencies.sh | 日志与环境维护 |
+| deploy_prod.sh / uninstall_local_services.sh | 生产部署与卸载本地服务 |
 
-**检查测试**：
-- `status.sh`, `test_health.sh`, `check_websocket.sh`, `check_mac_env.sh`, `check_config.py`, `stress_test.py`
-
-**数据生成**：
-- `simulator.py`, `generate_training_data.py`
-
-**功能演示**：
-- `demo_unified_system.py`, `demo_device_group.py`, `demo_location.py`, `demo_maintenance.py`
-
-**系统管理**：
-- `create_admin.py`, `rebuild_database.py`
-
-**维护清理**：
-- `cleanup_logs.sh`, `fix_venv.sh`
+| Python（12） | 作用简述 |
+|--------------|----------|
+| init_complete_system.py | 完整系统初始化 |
+| create_admin.py / rebuild_database.py / check_config.py | 管理员、重建库、配置检查 |
+| demo_unified_system.py / demo_device_group.py / demo_location.py / demo_maintenance.py | 各模块功能演示 |
+| simulator_unified.py / device_gateway.py | 模拟数据 / 真实设备采集 |
+| generate_training_data.py / stress_test.py | 训练数据生成 / 压力测试 |
 
 ---
 
-**最后更新**：2026-01-24  
+**最后更新**：2026-03-05  
 **维护状态**：活跃维护

@@ -103,6 +103,12 @@ class Settings(BaseSettings):
         description="MQTT通配符主题"
     )
     
+    mqtt_auto_create_device: bool = Field(
+        default=True,
+        env="MQTT_AUTO_CREATE_DEVICE",
+        description="收到未知 device_code 时是否自动创建设备（即插即用）"
+    )
+    
     # ==================== JWT认证配置 ====================
     secret_key: str = Field(
         default="mine-energy-system-secret-key-change-me",
@@ -159,19 +165,28 @@ class Settings(BaseSettings):
     peak_price: float = Field(
         default=1.25,
         env="PEAK_PRICE",
-        description="高峰电价"
+        description="高峰电价（元/kWh）"
     )
-    
     flat_price: float = Field(
         default=0.80,
         env="FLAT_PRICE",
-        description="平电电价"
+        description="平电电价（元/kWh）"
     )
-    
     valley_price: float = Field(
         default=0.40,
         env="VALLEY_PRICE",
-        description="低谷电价"
+        description="低谷电价（元/kWh）"
+    )
+    # 峰谷平时段（小时，左闭右开）。多个区间用逗号分隔，每个区间为 开始-结束，如 "8-12,18-23"
+    electricity_peak_hours: str = Field(
+        default="8-12,18-23",
+        env="ELECTRICITY_PEAK_HOURS",
+        description="峰时段（小时），如 8-12,18-23 表示 8:00-12:00 与 18:00-23:00"
+    )
+    electricity_flat_hours: str = Field(
+        default="7-8,12-18",
+        env="ELECTRICITY_FLAT_HOURS",
+        description="平时段（小时），如 7-8,12-18 表示 7:00-8:00 与 12:00-18:00；其余为谷时段"
     )
 
     # ==================== 故障诊断配置 ====================

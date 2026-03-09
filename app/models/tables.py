@@ -62,6 +62,26 @@ class LocationType(str, Enum):
     ZONE = "zone"           # 分区
 
 
+class InspectionStatus(str, Enum):
+    """巡检任务状态枚举"""
+    PENDING = "pending"           # 待执行
+    IN_PROGRESS = "in_progress"   # 进行中
+    COMPLETED = "completed"       # 已完成
+    OVERDUE = "overdue"           # 已逾期
+    CANCELLED = "cancelled"       # 已取消
+
+
+class InspectionResult(str, Enum):
+    """巡检结果枚举"""
+    NORMAL = "normal"             # 正常
+    ABNORMAL = "abnormal"         # 异常
+    DEFECT = "defect"             # 缺陷
+    SERIOUS = "serious"           # 严重
+
+
+# ==================== 表模型 ====================
+
+
 class Location(SQLModel, table=True):
     """位置表（支持层级结构）"""
     
@@ -106,8 +126,9 @@ class Location(SQLModel, table=True):
 
 
 class Device(SQLModel, table=True):
-    """设备表。"""
+    """设备表"""
 
+    __tablename__ = "device"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, description="设备名称")
     sn: str = Field(index=True, unique=True, description="设备序列号")
@@ -135,16 +156,12 @@ class Device(SQLModel, table=True):
 class EnergyData(SQLModel, table=True):
     """
     通用能源数据表（时序表）- 支持多种能源类型。
-    
+
     字段说明：
     - consumption: 累计消耗量/电表读数（类似里程表，只增不减）
                    单位根据能源类型不同：电力(kWh)、水(m³)、气(m³)、热(GJ)
     - flow_rate: 瞬时流量/功率（瞬时值，会上下波动）
                  单位根据能源类型不同：电力(kW)、水(m³/h)、气(m³/h)、热(GJ/h)
-    
-    向后兼容说明（废弃字段映射）：
-    - 旧字段 power → 新字段 flow_rate
-    - 旧字段 energy → 新字段 consumption
     """
     
     __tablename__ = "energydata"
@@ -175,22 +192,12 @@ class EnergyData(SQLModel, table=True):
     
     # 质量指标
     quality_index: Optional[float] = Field(default=None, description="质量指标（如水质、气质等）")
-    
-    # 向后兼容属性（旧代码仍可使用旧字段名）
-    @property
-    def power(self) -> Optional[float]:
-        """向后兼容：power字段映射到flow_rate"""
-        return self.flow_rate
-    
-    @property
-    def energy(self) -> float:
-        """向后兼容：energy字段映射到consumption"""
-        return self.consumption
 
 
 class Alarm(SQLModel, table=True):
-    """报警记录表。"""
+    """报警记录表"""
 
+    __tablename__ = "alarm"
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(index=True, foreign_key="device.id")
     message: str
@@ -199,8 +206,9 @@ class Alarm(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    """用户表。"""
+    """用户表"""
 
+    __tablename__ = "user"
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
@@ -340,6 +348,152 @@ class DeviceGroup(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class InspectionRoute(SQLModel, table=True):
+    """巡检路线表 - 定义巡检路径"""
+    
+    __tablename__ = "inspection_route"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, description="路线名称")
+    code: Optional[str] = Field(default=None, unique=True, description="路线编码")
+    description: Optional[str] = Field(default=None, description="路线描述")
+    
+    # 路线配置
+    estimated_duration: Optional[int] = Field(default=30, description="预计耗时（分钟）")
+    device_count: int = Field(default=0, description="包含设备数量")
+    
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class InspectionPoint(SQLModel, table=True):
+    """巡检点表 - 路线中的检查点"""
+    
+    __tablename__ = "inspection_point"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    route_id: int = Field(index=True, foreign_key="inspection_route.id", description="所属路线")
+    device_id: Optional[int] = Field(default=None, foreign_key="device.id", description="关联设备")
+    
+    # 巡检点信息
+    name: str = Field(description="巡检点名称")
+    location: Optional[str] = Field(default=None, description="位置描述")
+    sequence: int = Field(default=0, description="巡检顺序")
+    
+    # 检查项目（JSON数组）
+    check_items: Optional[str] = Field(
+        default='["外观检查", "运行状态", "仪表读数"]',
+        description="检查项目列表（JSON）"
+    )
+    
+    # QR码/NFC标签
+    qr_code: Optional[str] = Field(default=None, unique=True, description="二维码编号")
+    
+    is_required: bool = Field(default=True, description="是否必检")
+    is_active: bool = Field(default=True)
+
+
+class InspectionPlan(SQLModel, table=True):
+    """巡检计划表 - 定期巡检任务"""
+    
+    __tablename__ = "inspection_plan"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    route_id: int = Field(index=True, foreign_key="inspection_route.id", description="巡检路线")
+    
+    # 计划信息
+    name: str = Field(description="计划名称")
+    plan_type: str = Field(default="daily", description="计划类型: daily/weekly/monthly")
+    
+    # 执行时间
+    start_date: datetime = Field(description="开始日期")
+    end_date: Optional[datetime] = Field(default=None, description="结束日期")
+    execution_time: Optional[str] = Field(default="08:00", description="执行时间 HH:MM")
+    
+    # 周期配置（JSON）
+    schedule_config: Optional[str] = Field(
+        default=None,
+        description="周期配置（如周几执行、每月几号等）"
+    )
+    
+    # 责任人
+    assigned_to: Optional[str] = Field(default=None, description="负责人")
+    department: Optional[str] = Field(default=None, description="负责部门")
+    
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class InspectionTask(SQLModel, table=True):
+    """巡检任务表 - 具体的巡检执行记录"""
+    
+    __tablename__ = "inspection_task"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    plan_id: Optional[int] = Field(default=None, foreign_key="inspection_plan.id", description="关联计划")
+    route_id: int = Field(index=True, foreign_key="inspection_route.id", description="巡检路线")
+    
+    # 任务信息
+    task_no: str = Field(unique=True, index=True, description="任务编号")
+    task_date: datetime = Field(index=True, description="任务日期")
+    status: str = Field(default=InspectionStatus.PENDING, index=True, description="任务状态")
+    
+    # 执行信息
+    inspector: Optional[str] = Field(default=None, description="巡检员")
+    start_time: Optional[datetime] = Field(default=None, description="开始时间")
+    end_time: Optional[datetime] = Field(default=None, description="结束时间")
+    duration_minutes: Optional[int] = Field(default=None, description="耗时（分钟）")
+    
+    # 完成情况
+    total_points: int = Field(default=0, description="总巡检点数")
+    completed_points: int = Field(default=0, description="已完成点数")
+    abnormal_count: int = Field(default=0, description="异常数量")
+    
+    # 备注
+    remark: Optional[str] = Field(default=None, description="备注")
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class InspectionRecord(SQLModel, table=True):
+    """巡检记录表 - 每个巡检点的检查结果"""
+    
+    __tablename__ = "inspection_record"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(index=True, foreign_key="inspection_task.id", description="关联任务")
+    point_id: int = Field(index=True, foreign_key="inspection_point.id", description="巡检点")
+    device_id: Optional[int] = Field(default=None, foreign_key="device.id", description="关联设备")
+    
+    # 检查结果
+    result: str = Field(default=InspectionResult.NORMAL, description="检查结果")
+    check_time: datetime = Field(default_factory=datetime.now, description="检查时间")
+    
+    # 详细记录（JSON）
+    check_details: Optional[str] = Field(
+        default=None,
+        description="检查项目详情（JSON: {item: result}）"
+    )
+    
+    # 读数记录
+    meter_reading: Optional[float] = Field(default=None, description="仪表读数")
+    
+    # 异常信息
+    abnormal_description: Optional[str] = Field(default=None, description="异常描述")
+    abnormal_level: Optional[str] = Field(default=None, description="异常等级")
+    
+    # 图片附件（JSON数组）
+    images: Optional[str] = Field(default=None, description="图片URL列表（JSON）")
+    
+    # 处理情况
+    is_handled: bool = Field(default=False, description="是否已处理")
+    handle_result: Optional[str] = Field(default=None, description="处理结果")
+    
+    inspector: Optional[str] = Field(default=None, description="巡检员")
 
 
 class DeviceGroupMembership(SQLModel, table=True):

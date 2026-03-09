@@ -66,3 +66,15 @@ class DatabaseException(AppException):
             status_code=500
         )
 
+
+class ConflictException(AppException):
+    """业务冲突异常（如状态不允许、依赖存在等）"""
+    
+    def __init__(self, message: str, details: Optional[Any] = None):
+        super().__init__(
+            message=message,
+            code="CONFLICT",
+            status_code=409,
+            details=details
+        )
+

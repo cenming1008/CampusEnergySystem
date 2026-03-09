@@ -12,7 +12,7 @@ from app.core.response import error_response
 from app.core.logger import logger
 
 
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(_request: Request, exc: AppException) -> JSONResponse:
     """处理自定义应用异常"""
     logger.warning(f"业务异常: {exc.code} - {exc.message}")
     return JSONResponse(
@@ -26,8 +26,8 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 
 async def validation_exception_handler(
-    request: Request,
-    exc: RequestValidationError
+    _request: Request,
+    exc: RequestValidationError,
 ) -> JSONResponse:
     """处理请求参数验证异常"""
     logger.warning(f"参数验证失败: {exc.errors()}")
@@ -42,8 +42,8 @@ async def validation_exception_handler(
 
 
 async def sqlalchemy_exception_handler(
-    request: Request,
-    exc: SQLAlchemyError
+    _request: Request,
+    exc: SQLAlchemyError,
 ) -> JSONResponse:
     """处理数据库异常"""
     logger.error(f"数据库异常: {str(exc)}")
@@ -57,8 +57,8 @@ async def sqlalchemy_exception_handler(
 
 
 async def general_exception_handler(
-    request: Request,
-    exc: Exception
+    _request: Request,
+    exc: Exception,
 ) -> JSONResponse:
     """处理未捕获的通用异常"""
     logger.exception(f"未处理异常: {str(exc)}")

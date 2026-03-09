@@ -56,11 +56,8 @@ def generate_device_data(
             },
             message=f"成功生成 {count} 条数据"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"生成数据失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="生成数据失败")
 
 
 @router.post("/generate/all")
@@ -97,11 +94,8 @@ def generate_all_devices_data(
             },
             message=f"成功为所有设备生成 {total_count} 条数据"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"生成数据失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="生成数据失败")
 
 
 @router.delete("/clear/{device_id}")
@@ -121,11 +115,8 @@ def clear_device_data(
             data={"device_id": device_id, "days": days},
             message="数据清除完成"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"清除数据失败: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="清除数据失败")
 
 
 @router.get("/stats/{device_id}")

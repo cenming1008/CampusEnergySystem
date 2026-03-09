@@ -261,13 +261,18 @@ const setupPostProcessing = () => {
 }
 
 const loadEnvironment = async () => {
-  try {
-    const texture = await rgbeLoader.loadAsync(`${assetBase}textures/2k.hdr`)
-    texture.mapping = THREE.EquirectangularReflectionMapping
-    scene.environment = texture
-  } catch (e) {
-    console.warn('HDR环境加载失败，使用默认环境')
+  const candidates = [`${assetBase}textures/2k.hdr`, `${assetBase}textures/023.hdr`]
+  for (const url of candidates) {
+    try {
+      const texture = await rgbeLoader.loadAsync(url)
+      texture.mapping = THREE.EquirectangularReflectionMapping
+      scene.environment = texture
+      return
+    } catch (_e) {
+      continue
+    }
   }
+  console.warn('HDR 环境加载失败，使用默认环境')
 }
 
 const createLights = () => {
@@ -296,19 +301,27 @@ const createLights = () => {
 }
 
 const createGround = async () => {
-  const groundTex = await textureLoader.loadAsync(`${assetBase}textures/mine/ground_diff.jpg`)
-  groundTex.wrapS = THREE.RepeatWrapping
-  groundTex.wrapT = THREE.RepeatWrapping
-  groundTex.repeat.set(8, 8)
-  groundTex.anisotropy = 8
-
   const groundGeo = new THREE.CircleGeometry(260, 96)
-  const groundMat = new THREE.MeshStandardMaterial({
-    map: groundTex,
-    color: 0xb3a387,
-    roughness: 0.9,
-    metalness: 0.05
-  })
+  let groundMat: THREE.MeshStandardMaterial
+  try {
+    const groundTex = await textureLoader.loadAsync(`${assetBase}textures/mine/ground_diff.jpg`)
+    groundTex.wrapS = THREE.RepeatWrapping
+    groundTex.wrapT = THREE.RepeatWrapping
+    groundTex.repeat.set(8, 8)
+    groundTex.anisotropy = 8
+    groundMat = new THREE.MeshStandardMaterial({
+      map: groundTex,
+      color: 0xb3a387,
+      roughness: 0.9,
+      metalness: 0.05
+    })
+  } catch (_e) {
+    groundMat = new THREE.MeshStandardMaterial({
+      color: 0x4a5d4a,
+      roughness: 0.9,
+      metalness: 0.05
+    })
+  }
   groundMesh = new THREE.Mesh(groundGeo, groundMat)
   groundMesh.rotation.x = -Math.PI / 2
   groundMesh.receiveShadow = true

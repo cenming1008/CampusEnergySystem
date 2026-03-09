@@ -1,6 +1,7 @@
 """
 统一响应格式模块
-规范API返回数据结构
+规范API返回数据结构。当前 API 主要使用 success_response/error_response 返回 dict；
+以下 Pydantic 模型保留供 OpenAPI 文档或后续统一响应体使用。
 """
 from typing import Any, Generic, Optional, TypeVar
 from pydantic import BaseModel
@@ -9,20 +10,18 @@ DataT = TypeVar("DataT")
 
 
 class ApiResponse(BaseModel, Generic[DataT]):
-    """标准API响应格式"""
-    
+    """标准API响应格式（OpenAPI/文档用）"""
     success: bool = True
     message: str = "操作成功"
     data: Optional[DataT] = None
     code: str = "SUCCESS"
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class ErrorResponse(BaseModel):
-    """错误响应格式"""
-    
+    """错误响应格式（OpenAPI/文档用）"""
     success: bool = False
     message: str
     code: str
@@ -30,14 +29,13 @@ class ErrorResponse(BaseModel):
 
 
 class PaginatedResponse(BaseModel, Generic[DataT]):
-    """分页响应格式"""
-    
+    """分页响应格式（OpenAPI/文档用）"""
     success: bool = True
     data: list[DataT]
     total: int
     page: int
     page_size: int
-    
+
     class Config:
         arbitrary_types_allowed = True
 

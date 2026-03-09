@@ -7,37 +7,12 @@ from typing import Dict, Any, Optional
 from sqlmodel import Session, select
 
 from app.models.tables import Device, EnergyData
-from app.core.settings import settings
+from app.services.energy_service import EnergyService
 
 
 class AnalysisService:
     """数据分析服务类"""
-    
-    @staticmethod
-    def get_electricity_price(hour: int) -> float:
-        """
-        根据时段获取电价（峰谷平电价）
-        
-        峰时段：8:00-11:30, 18:00-23:00 - 高电价
-        平时段：7:00-8:00, 11:30-18:00 - 平电价  
-        谷时段：23:00-7:00 - 低电价
-        
-        Args:
-            hour: 小时数 (0-23)
-        
-        Returns:
-            电价（元/kWh）
-        """
-        if 8 <= hour < 12 or 18 <= hour < 23:
-            # 峰时段
-            return settings.peak_price
-        elif 7 <= hour < 8 or 12 <= hour < 18:
-            # 平时段
-            return settings.flat_price
-        else:
-            # 谷时段 (23:00-7:00)
-            return settings.valley_price
-    
+
     @staticmethod
     def analyze_device(session: Session, device_id: int) -> Dict[str, Any]:
         """分析设备数据"""
@@ -102,7 +77,7 @@ class AnalysisService:
         
         # 使用当前时段的电价（简化计算）
         # 更精确的方法：可以按小时查询能耗，分时段计算费用
-        current_price = AnalysisService.get_electricity_price(now.hour)
+        current_price = EnergyService.get_electricity_price(now.hour)
         today_cost = today_kwh * current_price
         
         return today_kwh, today_cost

@@ -56,7 +56,7 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
             health_status["status"] = "degraded"
             logger.warning("⚠️ 健康检查: 数据库查询结果异常")
     except Exception as e:
-        health_status["services"]["database"] = f"unhealthy: {str(e)}"
+        health_status["services"]["database"] = "unhealthy"
         health_status["status"] = "unhealthy"
         logger.error(f"❌ 健康检查: 数据库连接失败 - {e}")
     
@@ -67,8 +67,7 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
         health_status["services"]["redis"] = "healthy"
         logger.debug("✅ 健康检查: Redis正常")
     except Exception as e:
-        health_status["services"]["redis"] = f"unhealthy: {str(e)}"
-        # Redis 失败不算完全不健康（可降级运行）
+        health_status["services"]["redis"] = "unhealthy"
         if health_status["status"] == "healthy":
             health_status["status"] = "degraded"
         logger.warning(f"⚠️ 健康检查: Redis连接失败 - {e}")
@@ -121,7 +120,7 @@ async def readiness_check(session: Session = Depends(get_session)) -> Dict[str, 
         session.exec(select(1)).first()
         ready_status["checks"]["database"] = "ready"
     except Exception as e:
-        ready_status["checks"]["database"] = f"not_ready: {str(e)}"
+        ready_status["checks"]["database"] = "not_ready"
         ready_status["status"] = "not_ready"
         logger.error(f"❌ 就绪检查: 数据库未就绪 - {e}")
         return ready_status

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-统一多能源模拟器 v2.2
+统一多能源模拟器 v2.3
 - 自动从数据库获取设备列表
 - 支持多种能源类型（电、水、气、热、冷）
 - 根据设备类型生成相应的遥测数据
+- 支持远程控制（启动/停止设备）
 """
 
 import random
@@ -18,6 +19,7 @@ from datetime import datetime
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_TELEMETRY = "mine/telemetry"
+MQTT_TOPIC_CONTROL_PREFIX = "mine/control/"  # 控制指令主题前缀
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8088")
 LOGIN_URL = f"{API_BASE}/auth/login"
@@ -247,17 +249,59 @@ def generate_device_data(device, is_active):
 # ================= MQTT 回调 =================
 
 def on_connect(client, userdata, flags, rc):
-    """MQTT 连接成功"""
+    """MQTT 连接成功后，订阅控制频道"""
     if rc == 0:
-        print("✅ MQTT 连接成功！")
+        print("✅ MQTT 连接成功！", flush=True)
+        # 订阅所有设备的控制指令：mine/control/+
+        subscription_topic = f"{MQTT_TOPIC_CONTROL_PREFIX}+"
+        client.subscribe(subscription_topic)
+        print(f"👂 已启动指令监听: {subscription_topic}", flush=True)
     else:
-        print(f"❌ MQTT 连接失败: {rc}")
+        print(f"❌ MQTT 连接失败: {rc}", flush=True)
+
+def on_message(client, userdata, msg):
+    """
+    处理远程控制指令
+    Topic 示例: mine/control/2
+    Payload 示例: {"command": "stop", "device_id": 2}
+    """
+    try:
+        topic = msg.topic
+        payload_str = msg.payload.decode()
+        data = json.loads(payload_str)
+        
+        # 从 topic 解析设备 ID: mine/control/2 -> 2
+        target_id_str = topic.split("/")[-1]
+        
+        if not target_id_str.isdigit():
+            return
+            
+        target_id = int(target_id_str)
+        command = data.get("command")
+
+        # 执行指令
+        if command == "stop":
+            device_states[target_id] = False
+            # 找到设备名称
+            device_name = next((d['name'] for d in devices_cache if d['id'] == target_id), f"设备{target_id}")
+            print(f"\n🛑 [收到指令] 停止设备 {target_id} ({device_name})", flush=True)
+            print(f"   -> 传感器读数将归零\n", flush=True)
+            
+        elif command == "start":
+            device_states[target_id] = True
+            device_name = next((d['name'] for d in devices_cache if d['id'] == target_id), f"设备{target_id}")
+            print(f"\n▶️  [收到指令] 启动设备 {target_id} ({device_name})", flush=True)
+            print(f"   -> 恢复正常数据上报\n", flush=True)
+            
+    except Exception as e:
+        print(f"⚠️ 指令解析错误: {e}", flush=True)
 
 # ================= 主程序 =================
 
 def start_simulation():
     print("=" * 60, flush=True)
-    print("   🏭 煤矿综合能源管理系统 - 统一模拟器 v2.2", flush=True)
+    print("   🏭 煤矿综合能源管理系统 - 统一模拟器 v2.3", flush=True)
+    print("   支持远程控制：通过 MQTT 发送 start/stop 指令", flush=True)
     print("=" * 60, flush=True)
     print(flush=True)
     
@@ -279,13 +323,13 @@ def start_simulation():
     # 3. 连接 MQTT
     client = mqtt.Client()
     client.on_connect = on_connect
+    client.on_message = on_message  # 绑定消息回调（远程控制）
     
     try:
         print(f"🔌 正在连接 MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}...", flush=True)
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start()
         time.sleep(2)  # 等待连接建立
-        print(f"✅ MQTT 连接成功！", flush=True)
         print(flush=True)
     except Exception as e:
         print(f"❌ MQTT 连接失败: {e}", flush=True)
@@ -302,8 +346,9 @@ def start_simulation():
         while True:
             current_time = time.time()
             
-            # 每 30 秒重新获取一次设备列表（检测新增设备）
-            if loop_count % 30 == 0 and loop_count > 0:
+            # 每 10 秒重新获取一次设备列表（检测新增设备）
+            if loop_count % 10 == 0 and loop_count > 0:
+                print(f"\n🔄 [{datetime.now().strftime('%H:%M:%S')}] 刷新设备列表...", flush=True)
                 fetch_devices()
             
             # 遍历所有设备生成数据

@@ -72,6 +72,12 @@ const router = createRouter({
           meta: { title: '设备维护' }
         },
         {
+          path: 'inspection',
+          name: 'Inspection',
+          component: () => import('@/views/Inspection.vue'),
+          meta: { title: '巡检运维' }
+        },
+        {
           path: 'report',
           name: 'Report',
           component: () => import('@/views/Report.vue'),
@@ -89,7 +95,7 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      redirect: (to) => {
+      redirect: () => {
         // 由路由守卫判断是否需要登录
         return { path: '/' }
       }
@@ -98,7 +104,7 @@ const router = createRouter({
 })
 
 // 🛡️ 全局路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   
   // 1. 如果去的是登录页，直接放行
