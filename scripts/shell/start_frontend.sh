@@ -3,9 +3,10 @@
 
 set -e
 
-# 获取脚本所在目录
+# 获取脚本所在目录，并得到项目根目录（scripts/shell 的上级的上级）
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
+cd "$PROJECT_ROOT"
 
 # 颜色定义
 GREEN='\033[0;32m'

@@ -4,6 +4,8 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
+const backendTarget = 'http://127.0.0.1:8088'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
@@ -26,78 +28,83 @@ export default defineConfig({
     // 解决跨域问题 (CORS)
     proxy: {
       '/auth': {
-        target: 'http://localhost:8088',  // 使用 localhost 代替 127.0.0.1，避免 VPN 干扰
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/devices': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/alarms': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/analysis': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/fdd': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/reports': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/energy/': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/forecast': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/data-generator': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/maintenance': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
+      '/inspection': {
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/locations': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/device-groups': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/data-cleanup': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       '/health': {
-        target: 'http://localhost:8088',
+        target: backendTarget,
         changeOrigin: true,
         secure: false
       },
       // WebSocket 代理
       '/ws': {
-        target: 'http://localhost:8088',  // Vite 会自动处理 WebSocket 升级，使用 http:// 即可
+        target: backendTarget,
         ws: true,
         changeOrigin: true,
         secure: false,

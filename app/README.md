@@ -4,179 +4,283 @@
 
 ```
 app/
-├── __init__.py           # Python 包初始化
-├── main.py               # FastAPI 应用入口，生命周期与路由注册
+├── __init__.py
+├── main.py                    # FastAPI 入口：中间件、异常处理、WebSocket 与 API 路由注册
 │
-├── api/                  # API 层：处理 HTTP 请求
-│   ├── deps.py           # 依赖注入（认证、数据库会话）
-│   └── endpoints/        # API 端点模块
-│       ├── auth.py       # 认证接口
-│       ├── devices.py    # 设备管理接口
-│       ├── alarms.py    # 报警管理接口
-│       ├── analysis.py   # 数据分析接口
-│       ├── fdd.py        # 故障诊断接口
-│       ├── reports.py    # 报表导出接口
-│       ├── health.py     # 健康检查（无需认证）
-│       ├── forecast.py   # 预测功能
-│       ├── data_generator.py  # 数据生成
-│       ├── energy.py     # 多能源管理
-│       ├── maintenance.py    # 设备维护
-│       ├── locations.py  # 位置管理
-│       ├── device_groups.py   # 设备分组
-│       ├── data_cleanup.py    # 数据清理
-│       └── inspection.py # 巡检运维
+├── api/                       # HTTP / WebSocket 接入层
+│   ├── deps.py                # 依赖注入（认证、数据库会话）
+│   ├── router_registry.py     # 公开路由与受保护路由集中注册
+│   ├── websocket.py           # WebSocket 端点（默认路径 /ws）
+│   ├── endpoint_utils.py      # 端点共用工具
+│   └── endpoints/             # 按业务拆分的路由模块（部分为子包聚合）
+│       ├── auth.py
+│       ├── alarms.py
+│       ├── analysis.py
+│       ├── fdd.py
+│       ├── reports.py
+│       ├── health.py          # 健康检查（公开）
+│       ├── data_generator.py
+│       ├── maintenance.py
+│       ├── locations.py
+│       ├── device_groups.py
+│       ├── inspection.py
+│       ├── devices/           # 设备：管理、数据上报、接入健康
+│       ├── energy/            # 能源数据与碳相关
+│       ├── forecast/          # 预测与 LSTM
+│       └── data_cleanup/      # 数据清理
 │
-├── core/                 # 核心基础设施层
-│   ├── database.py      # 数据库连接与初始化（get_session）
-│   ├── error_handlers.py # 全局异常处理器
-│   ├── exceptions.py     # 自定义异常类
-│   ├── logger.py         # 日志配置（Loguru）
-│   ├── redis.py          # Redis 客户端（单例）
-│   ├── response.py       # 统一响应格式
-│   ├── security.py       # JWT 认证与密码哈希
-│   ├── settings.py       # 统一配置（Pydantic，含环境变量）
-│   ├── socket_manager.py # WebSocket 连接管理
-│   └── device_registry.py # 设备类型注册表（类别、能源类型、必填字段等）
+├── core/                      # 基础设施
+│   ├── database.py            # 数据库引擎、会话、init_db
+│   ├── lifecycle.py           # 应用 lifespan：DB/Redis/MQTT/调度器启停与 MQTT→WS 回调
+│   ├── error_handlers.py
+│   ├── exceptions.py
+│   ├── logger.py
+│   ├── redis.py
+│   ├── response.py
+│   ├── security.py
+│   ├── settings.py
+│   ├── socket_manager.py      # WebSocket 连接与广播
+│   └── device_registry.py
 │
-├── services/             # 服务层：业务逻辑封装
-│   ├── device_service.py      # 设备与设备数据上报
-│   ├── energy_service.py      # 能源数据、碳排放、电价与统计
-│   ├── alarm_service.py       # 报警业务与阈值检测
-│   ├── analysis_service.py    # 单设备分析、今日能耗/费用
-│   ├── fdd_service.py         # 故障诊断与健康分
-│   ├── device_group_service.py # 设备分组
-│   ├── location_service.py    # 位置层级与统计
-│   ├── maintenance_service.py # 维护计划与记录
-│   ├── inspection_service.py  # 巡检路线/计划/任务/记录
-│   ├── forecast_adapter.py    # 预测适配（LSTM/简单算法、数据生成）
-│   ├── scheduler_service.py   # 定时任务（LSTM 训练、预测更新、数据清理）
-│   ├── data_cleanup_service.py # 过期数据清理
-│   ├── mqtt_worker.py         # MQTT 消息接收、落库、报警、WebSocket 回调
-│   └── mqtt_publisher.py      # MQTT 控制指令下发
+├── application/               # 用例编排（薄层，组合领域与服务）
+│   ├── device_reporting.py
+│   ├── telemetry_ingestion.py # 单条遥测：落库、告警、健康状态、广播数据
+│   ├── energy_management.py
+│   └── forecasting.py
 │
-└── models/               # 数据模型层
-    └── tables.py         # SQLModel 表定义
+├── domain/                    # 领域模型与规则（与框架无关的纯逻辑）
+│   ├── device_payloads.py
+│   └── energy_rules.py
+│
+├── repositories/              # 数据访问封装（按聚合根或表划分）
+│   ├── device_repository.py
+│   └── energy_repository.py
+│
+├── integrations/              # 外部系统适配
+│   ├── mqtt/
+│   │   └── processor.py     # MQTT 解析、校验、别名、落库与广播消息构造（主实现）
+│   └── forecasting/
+│       └── adapter.py        # 预测相关适配（与 forecast 服务配合）
+│
+├── services/                  # 业务服务（可被 application / 集成层调用）
+│   ├── device_service.py
+│   ├── energy_service.py
+│   ├── alarm_service.py
+│   ├── analysis_service.py
+│   ├── fdd_service.py
+│   ├── device_group_service.py
+│   ├── location_service.py
+│   ├── maintenance_service.py
+│   ├── inspection_service.py
+│   ├── forecast_adapter.py
+│   ├── data_cleanup_service.py
+│   ├── ingestion_health_service.py
+│   ├── mqtt_worker.py        # paho 订阅线程，收到消息后调用 integrations.mqtt.process_payload
+│   ├── mqtt_publisher.py
+│   ├── mqtt_models.py        # 遥测广播等 MQTT 相关数据结构
+│   ├── mqtt_device_resolver.py  # 从 payload / topic 解析 device_id
+│   ├── mqtt_processor.py     # 兼容旧导入路径，内部转发到 integrations.mqtt.processor
+│   ├── scheduler_service.py  # APScheduler 启停
+│   ├── scheduler_registry.py # 默认任务定义与注册（读 settings）
+│   └── scheduler_jobs.py     # 定时任务实际函数（清理、预测、LSTM 等）
+│
+└── models/
+    └── tables.py              # SQLModel 表定义
 ```
+
+---
+
+## 📇 Endpoints 文件索引
+
+HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`）；下列为**源码文件**与**一句话职责**。WebSocket 见 `api/websocket.py`（路径 `/ws`）。
+
+### `api/`（非 `endpoints/`）
+
+| 文件 | 说明 |
+|------|------|
+| `deps.py` | 依赖注入：数据库会话、当前登录用户等。 |
+| `router_registry.py` | 将公开路由与需认证路由批量挂到 `FastAPI` 应用。 |
+| `websocket.py` | WebSocket 连接接入与断开，配合 `socket_manager` 广播。 |
+| `endpoint_utils.py` | 端点复用：`ValueError`→400、统一记录异常日志。 |
+
+### `api/endpoints/`（顶层模块）
+
+| 文件 | 说明 |
+|------|------|
+| `__init__.py` | 聚合 import 各业务子模块，供注册表等处统一引用。 |
+| `auth.py` | OAuth2 密码流登录，签发 JWT。 |
+| `health.py` | 系统健康检查（数据库、Redis 等，可返回 degraded）。 |
+| `alarms.py` | 报警列表、确认与统计等。 |
+| `analysis.py` | 单设备数据分析（今日能耗/费用等）。 |
+| `fdd.py` | 全系统故障诊断统计与单设备诊断。 |
+| `reports.py` | 设备能源历史数据 CSV 导出。 |
+| `data_generator.py` | 模拟负荷/光伏/风电数据生成（经预测适配器）。 |
+| `maintenance.py` | 设备维护计划与维护记录 CRUD。 |
+| `locations.py` | 位置层级、设备挂载与位置统计。 |
+| `device_groups.py` | 设备分组及组成员管理。 |
+| `inspection.py` | 巡检路线、点、计划、任务与记录。 |
+
+### `api/endpoints/devices/`
+
+| 文件 | 说明 |
+|------|------|
+| `__init__.py` | 聚合 `management`、`data`、`health` 三个子路由。 |
+| `management.py` | 设备列表/详情/增删改、类型元数据、MQTT 控制指令下发。 |
+| `data.py` | HTTP 上报单设备测点数据、查询历史与统计（走上报用例）。 |
+| `health.py` | 单设备与概览维度的 MQTT 接入健康状态。 |
+| `shared.py` | 设备创建/更新/上报等 Pydantic 模型。 |
+
+### `api/endpoints/energy/`
+
+| 文件 | 说明 |
+|------|------|
+| `__init__.py` | 聚合能源数据与碳排放子路由。 |
+| `data.py` | 通用能源数据写入、查询、统计（走能源管理用例）。 |
+| `carbon.py` | 碳排放查询、汇总及手动试算（领域规则）。 |
+| `shared.py` | 能源与碳相关请求/响应模型及字段提取工具。 |
+
+### `api/endpoints/forecast/`
+
+| 文件 | 说明 |
+|------|------|
+| `__init__.py` | 聚合 `basic`、`lstm`、`admin` 路由；导出预测/LSTM 可用性等。 |
+| `basic.py` | 负荷与可再生预测、预测历史、最新结果与准确度评估。 |
+| `lstm.py` | LSTM 训练、评估、版本列表/切换、超参搜索等。 |
+| `admin.py` | 查询当前进程内 APScheduler 已注册任务列表。 |
+| `shared.py` | 预测类型校验、结果序列化、适配器获取与可选依赖探测。 |
+
+### `api/endpoints/data_cleanup/`
+
+| 文件 | 说明 |
+|------|------|
+| `__init__.py` | 聚合基础清理与管理级清理路由。 |
+| `basic.py` | 清理接口自检、按时间窗触发清理等（需登录）。 |
+| `admin.py` | 更广范围/全量清理与清理统计等管理操作。 |
 
 ---
 
 ## 🎯 架构分层说明
 
-### 1. API层 (`api/`)
+### 1. API 层 (`api/`)
+
 **职责**：
-- 处理HTTP请求和响应
-- 参数验证（通过Pydantic模型）
-- 调用Service层执行业务逻辑
-- 返回标准化响应
+
+- 处理 HTTP / WebSocket 请求与响应
+- 参数校验（Pydantic）
+- 调用 Service 或组合好的用例
+- 返回统一响应格式
 
 **规范**：
-- 每个端点函数都应有简洁的docstring
-- 使用类型提示标注参数和返回值
-- 通过依赖注入获取数据库会话和当前用户
-- 不要在API层写业务逻辑
 
-**示例**：
-```python
-@router.get("/", response_model=List[Device])
-def get_devices(session: Session = Depends(get_session)):
-    """获取所有设备列表"""
-    return DeviceService.get_all_devices(session)
-```
+- 端点函数保留简洁 docstring
+- 使用类型注解
+- 通过 `Depends` 注入会话与用户
+- 不在路由里堆业务规则
+
+**路由注册**：
+
+- 在 `router_registry.py` 的 `PUBLIC_ROUTERS` / `PROTECTED_ROUTERS` 中登记模块路由；`main.py` 只调用 `register_routers(app)` 与 `include_router(websocket_router)`。
 
 ---
 
-### 2. Service层 (`services/`)
+### 2. Application 层 (`application/`)
+
 **职责**：
-- 封装业务逻辑
-- 数据处理和转换
-- 调用数据库进行CRUD操作
-- 抛出业务异常
+
+- 编排「一次用户意图或一条消息」的完整流程（例如单条遥测：健康标记 → 上报落库 → 告警 → 返回广播用数据）
+- 依赖 `Session` 与各类 Service，保持路由与集成层轻薄
 
 **规范**：
-- 使用静态方法组织业务逻辑
-- 类名统一为 `XXXService`
-- 所有方法都应有完整的类型提示和docstring
-- 使用自定义异常（不使用HTTPException）
-- 使用 `logger` 记录关键操作
 
-**示例**：
-```python
-class DeviceService:
-    """设备服务类"""
-    
-    @staticmethod
-    def get_device_by_id(session: Session, device_id: int) -> Device:
-        """根据ID获取设备"""
-        device = session.get(Device, device_id)
-        if not device:
-            raise ResourceNotFoundException("设备", device_id)
-        return device
-```
+- 用例函数命名清晰（如 `ingest_telemetry_use_case`）
+- 避免在 application 中直接写 SQL，优先通过 Service 或 Repository
 
 ---
 
-### 3. Core层 (`core/`)
+### 3. Service 层 (`services/`)
+
 **职责**：
-- 提供基础设施服务
-- 数据库连接管理
-- 认证和安全
-- 配置管理
-- 日志管理
-- WebSocket管理
+
+- 封装可复用的业务逻辑与持久化协作
+- 抛出业务异常（由全局处理器转换）
 
 **规范**：
-- 这一层的代码应该是高度可复用的
-- 不要包含具体的业务逻辑
-- 使用单例模式管理全局资源（如Redis、MQTT客户端）
-- 所有配置从 `settings.py` 统一读取
+
+- 复杂查询可下沉到 `repositories/`
+- 使用 `logger` 记录关键路径
+- MQTT 后台线程入口在 `mqtt_worker.py`；消息解析与持久化的主逻辑在 `integrations/mqtt/processor.py`
 
 ---
 
-### 4. Model层 (`models/`)
+### 4. Core 层 (`core/`)
+
 **职责**：
-- 定义数据库表结构
-- ORM映射
-- 数据验证
+
+- 数据库、Redis、配置、日志、安全、WebSocket 管理器、应用生命周期
 
 **规范**：
-- 使用SQLModel定义表
-- 每个模型类都应有docstring
-- 字段使用合适的类型和约束
-- 时间字段使用 `default_factory=datetime.now`
+
+- 不写具体业务规则
+- 配置统一来自 `settings.py`
+- `lifecycle.py` 负责启动时 `init_db`、探测 Redis、启动 MQTT 后台与调度器，关闭时停止调度器并关闭 Redis
+
+---
+
+### 5. Model 层 (`models/`)
+
+**职责**：
+
+- 表结构与 ORM 映射
+
+**规范**：
+
+- 使用 SQLModel；字段约束与索引合理；时间字段注意默认值策略
+
+---
+
+### 6. Domain / Repository / Integrations
+
+- **domain/**：与存储、HTTP 无关的规则与数据结构
+- **repositories/**：按表或聚合封装查询与写入，供 Service 或 application 使用
+- **integrations/**：MQTT、预测等外部边界，便于单测与替换实现
 
 ---
 
 ## 🔄 数据流转
 
-### 1. 设备数据上报流程
+### 1. 设备遥测（MQTT）
+
 ```
 MQTT Broker
     ↓
-mqtt_worker.py（订阅主题、接收消息）
+mqtt_worker.py（订阅 settings.mqtt_topic / mqtt_topic_wildcard）
     ↓
-process_data()（解析 payload，解析 device_id）
+process_data() → integrations.mqtt.processor.process_payload（或经 mqtt_processor 兼容层）
     ↓
-DeviceService.report_device_data() → EnergyService.save_energy_data()（落库）
-AlarmService.check_and_create_alarm()（阈值报警）
+字段别名、resolve_device_id、校验时间戳与测点
     ↓
-main.py 中注册的 MQTT 回调（run_coroutine_threadsafe）
+application.telemetry_ingestion.ingest_telemetry_use_case
+    → report_device_data_use_case、AlarmService、IngestionHealthService
     ↓
-socket_manager.broadcast() → WebSocket（实时推送给前端）
+lifecycle.mqtt_to_ws_callback（run_coroutine_threadsafe）
+    ↓
+socket_manager.manager.broadcast() → 前端 WebSocket（/ws）
 ```
 
-### 2. API请求流程
+### 2. API 请求流程
+
 ```
 前端请求
     ↓
-API端点 (参数验证)
+API 端点（校验参数）
     ↓
-deps.py (依赖注入：认证 + 数据库会话)
+deps.py（可选认证 + get_session）
     ↓
-Service层 (业务逻辑)
+Service / application 用例
     ↓
-Database (数据操作)
+Database（经 Session 与可选 Repository）
     ↓
-API端点 (返回响应)
+统一响应
 ```
 
 ---
@@ -184,6 +288,7 @@ API端点 (返回响应)
 ## 🛠️ 开发规范
 
 ### 导入顺序
+
 ```python
 # 1. 标准库
 from datetime import datetime
@@ -200,37 +305,30 @@ from app.services.device_service import DeviceService
 ```
 
 ### 命名规范
-- **文件名**：小写+下划线 (`device_service.py`)
+
+- **文件名**：小写 + 下划线 (`device_service.py`)
 - **类名**：大驼峰 (`DeviceService`)
-- **函数/变量名**：小写+下划线 (`get_device_by_id`)
-- **常量名**：全大写+下划线 (`MAX_RETRY_COUNT`)
+- **函数/变量**：小写 + 下划线 (`get_device_by_id`)
+- **常量**：全大写 + 下划线 (`MAX_RETRY_COUNT`)
 
 ### 日志使用
+
 ```python
 from app.core.logger import logger
 
-# 信息日志
 logger.info(f"设备 {device_id} 创建成功")
-
-# 警告日志
 logger.warning(f"设备 {device_id} 数据异常")
-
-# 错误日志
 logger.error(f"数据库操作失败: {e}")
-
-# 异常日志（包含堆栈）
 logger.exception(f"未处理异常: {e}")
 ```
 
 ### 异常处理
+
 ```python
 from app.core.exceptions import ResourceNotFoundException
 
-# 抛出异常
 if not device:
     raise ResourceNotFoundException("设备", device_id)
-
-# 异常会被全局处理器自动捕获并转换为标准响应
 ```
 
 ---
@@ -238,34 +336,24 @@ if not device:
 ## 🔐 安全规范
 
 ### 1. 认证保护
-需要认证的端点必须添加依赖：
+
+受保护路由在 `router_registry.PROTECTED_ROUTERS` 中已统一挂上 `Depends(get_current_user)`。若新增公开接口，应放入 `PUBLIC_ROUTERS`。
+
 ```python
 from app.api.deps import get_current_user
 
 @router.get("/")
-def protected_endpoint(
-    current_user: User = Depends(get_current_user)
-):
-    # 只有登录用户才能访问
+def protected_endpoint(current_user: User = Depends(get_current_user)):
     pass
 ```
 
-### 2. 密码处理
-```python
-from app.core.security import get_password_hash, verify_password
+### 2. 密码与 JWT
 
-# 生成密码哈希
+```python
+from app.core.security import get_password_hash, verify_password, create_access_token
+
 hashed = get_password_hash("plain_password")
-
-# 验证密码
 is_valid = verify_password("plain_password", hashed)
-```
-
-### 3. JWT Token
-```python
-from app.core.security import create_access_token
-
-# 生成Token
 token = create_access_token(data={"sub": username})
 ```
 
@@ -273,166 +361,56 @@ token = create_access_token(data={"sub": username})
 
 ## 📊 数据库操作
 
-### 1. 使用依赖注入获取会话
+### 使用依赖注入获取会话
+
 ```python
 from app.core.database import get_session
 
 @router.get("/")
 def endpoint(session: Session = Depends(get_session)):
-    # session会自动管理，无需手动关闭
     pass
 ```
 
-### 2. 查询示例
-```python
-# 查询所有
-devices = session.exec(select(Device)).all()
+### 查询与增删改示例
 
-# 条件查询
-device = session.exec(
-    select(Device).where(Device.id == device_id)
-).first()
-
-# 排序和限制
-devices = session.exec(
-    select(Device)
-    .order_by(Device.created_at.desc())
-    .limit(10)
-).all()
-```
-
-### 3. 增删改
-```python
-# 创建
-new_device = Device(name="设备1", sn="SN001", ...)
-session.add(new_device)
-session.commit()
-session.refresh(new_device)
-
-# 更新
-device = session.get(Device, device_id)
-device.name = "新名称"
-session.add(device)
-session.commit()
-
-# 删除
-device = session.get(Device, device_id)
-session.delete(device)
-session.commit()
-```
+与原先一致：使用 `session.exec(select(...))`、`session.add`、`session.commit` 等；复杂查询可抽到 `repositories/`。
 
 ---
 
-## 🧪 测试建议
+## 🧪 测试
 
-### 单元测试结构
-```
-tests/
-├── test_api/
-│   ├── test_auth.py
-│   ├── test_devices.py
-│   └── ...
-├── test_services/
-│   ├── test_device_service.py
-│   └── ...
-└── test_core/
-    ├── test_security.py
-    └── ...
-```
+仓库根目录 `tests/` 中已有与当前模块对应的示例：
 
-### 测试示例
-```python
-def test_get_device_by_id():
-    # 准备测试数据
-    session = TestSession()
-    device = Device(name="测试设备", sn="TEST001", ...)
-    session.add(device)
-    session.commit()
-    
-    # 调用Service方法
-    result = DeviceService.get_device_by_id(session, device.id)
-    
-    # 断言
-    assert result.name == "测试设备"
-```
+- `tests/test_mqtt_processor.py`：`mqtt_processor` 兼容层（解析、指标归一、`process_payload` 与 mock 落库）
+- `tests/test_scheduler_jobs.py`：`scheduler_jobs` 在成功/禁用/模块不可用时的日志与分支
+
+可按业务继续补充 `test_api/`、`test_services/` 等结构。
 
 ---
 
 ## 📝 添加新功能指南
 
-### 1. 添加新的API端点
+### 1. 添加新的 API 端点
 
-#### Step 1: 在Service层添加业务逻辑
-```python
-# app/services/your_service.py
-class YourService:
-    @staticmethod
-    def your_method(session: Session, param: Type) -> ReturnType:
-        """方法说明"""
-        # 业务逻辑
-        pass
-```
-
-#### Step 2: 创建API端点
-```python
-# app/api/endpoints/your_endpoint.py
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
-
-from app.core.database import get_session
-from app.services.your_service import YourService
-
-router = APIRouter()
-
-@router.get("/")
-def your_endpoint(session: Session = Depends(get_session)):
-    """端点说明"""
-    return YourService.your_method(session, param)
-```
-
-#### Step 3: 注册路由
-在 `app/main.py` 的 `_ROUTERS` 列表中追加一项（需认证路由），或单独 `include_router`（无需认证）：
-```python
-# app/main.py
-# 需认证：在 _ROUTERS 中添加
-_ROUTERS = [
-    ...
-    (your_endpoint, "/your-prefix", "模块名称"),
-]
-# 无需认证：在“路由注册（无需认证）”区块单独 include_router
-```
+1. 在 `services/` 或 `application/` 中实现业务或用例。
+2. 在 `api/endpoints/` 下新增路由模块（或子包内文件），定义 `APIRouter`。
+3. 在 `app/api/router_registry.py` 的 `PUBLIC_ROUTERS` 或 `PROTECTED_ROUTERS` 中增加一项 `(router, prefix, ("标签",))`。
+4. 若需完全无认证的独立前缀，使用 `PUBLIC_ROUTERS`；默认业务接口走 `PROTECTED_ROUTERS`。
 
 ### 2. 添加新的数据模型
 
-```python
-# app/models/tables.py
-class YourModel(SQLModel, table=True):
-    """模型说明"""
-    __tablename__ = "your_table"
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    created_at: datetime = Field(default_factory=datetime.now)
-```
+在 `app/models/tables.py` 中定义 SQLModel 表，必要时配合迁移脚本（项目若使用 Alembic 等）。
 
 ### 3. 添加新的配置项
 
-```python
-# app/core/settings.py
-class Settings(BaseSettings):
-    # 添加新配置
-    your_config: str = Field(
-        default="default_value",
-        env="YOUR_CONFIG",
-        description="配置说明"
-    )
-```
+在 `app/core/settings.py` 的 `Settings` 中增加字段，并通过 `env` 或环境变量注入。
 
 ---
 
 ## 🔍 常见问题
 
-### Q1: 如何在Service层使用logger？
+### Q1: Service 层如何使用 logger？
+
 ```python
 from app.core.logger import logger
 
@@ -440,32 +418,24 @@ class YourService:
     @staticmethod
     def your_method():
         logger.info("操作开始")
-        # 业务逻辑
-        logger.info("操作完成")
 ```
 
-### Q2: 如何处理业务异常？
-```python
-from app.core.exceptions import ResourceNotFoundException
+### Q2: 业务异常如何变成 HTTP 响应？
 
-# 抛出异常
-raise ResourceNotFoundException("资源", resource_id)
+抛出 `app.core.exceptions` 中的异常，由 `error_handlers` 统一转换为标准 JSON 响应。
 
-# 异常会被自动转换为HTTP 404响应
-```
+### Q3: 如何向所有 WebSocket 客户端推送？
 
-### Q3: 如何添加WebSocket推送？
 ```python
 from app.core.socket_manager import manager
 
-# 广播消息给所有客户端
-await manager.broadcast({
-    "type": "notification",
-    "data": {"message": "更新通知"}
-})
+await manager.broadcast({"type": "telemetry_update", "data": {...}})
 ```
 
-### Q4: 如何使用Redis缓存？
+前端连接地址为应用根路径下的 **`/ws`**（见 `api/websocket.py`）。
+
+### Q4: 如何使用 Redis？
+
 ```python
 from app.core.redis import RedisClient
 
@@ -474,11 +444,17 @@ await redis.set("key", "value")
 value = await redis.get("key")
 ```
 
+### Q5: 定时任务在哪里配置？
+
+- 任务函数：`scheduler_jobs.py`
+- 是否注册、触发器类型：`scheduler_registry.py`（结合 `settings` 中的开关）
+- 进程内调度器生命周期：`scheduler_service.py`，由 `lifecycle.startup` / `shutdown` 调用
+
 ---
 
 ## 📚 相关文档
 
-- [文档中心](../docs/README.md)（新手入门、开发部署、架构与设计等）
+- [文档中心](../docs/README.md)
 - [快速启动指南](../docs/01-新手入门/快速启动指南.md)
 - [后端功能实现详解](../docs/05-架构与设计/后端功能实现详解.md)
 - [本地开发快速参考](../docs/07-快速参考/本地开发快速参考.md)
@@ -487,17 +463,14 @@ value = await redis.get("key")
 
 ## 🎯 最佳实践总结
 
-1. ✅ **职责分离**：API层不写业务逻辑，Service层不处理HTTP
-2. ✅ **依赖注入**：通过FastAPI的Depends管理依赖
-3. ✅ **异常处理**：使用自定义异常，由全局处理器统一处理
-4. ✅ **日志记录**：关键操作使用logger记录
-5. ✅ **类型提示**：所有函数都应有完整的类型提示
-6. ✅ **文档字符串**：每个函数/类都应有docstring
-7. ✅ **配置管理**：所有配置从settings统一读取
-8. ✅ **代码复用**：相同逻辑封装到Service层或Core层
+1. **职责分离**：路由薄、规则与流程分层（domain / application / service）
+2. **依赖注入**：会话与用户通过 FastAPI `Depends`
+3. **异常与日志**：自定义异常 + 全局处理；关键路径打日志
+4. **配置单一来源**：`settings.py`
+5. **MQTT 与集成**：主逻辑放在 `integrations/`，Worker 只负责连接与线程
+6. **路由集中注册**：改动 `router_registry.py`，保持 `main.py` 简洁
 
 ---
 
 **维护者**：MineEnergySystem 团队  
-**最后更新**：2026-03
-
+**最后更新**：2026-03-24

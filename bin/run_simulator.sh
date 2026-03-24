@@ -1,7 +1,16 @@
 #!/bin/bash
 # 在 Docker 容器中运行统一设备模拟器
-# 自动设置正确的环境变量
-# 支持多能源类型和远程控制
+
+set -e
+
+PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+cd "$PROJECT_DIR"
+
+if ! docker ps --format '{{.Names}}' | grep -q '^mine_backend$'; then
+    echo "❌ 未检测到 mine_backend 容器"
+    echo "请先启动系统，例如执行: ./bin/fast_start.sh"
+    exit 1
+fi
 
 echo "🏭 启动统一设备模拟器..."
 echo "支持：电、水、气、热、冷等多种能源类型"

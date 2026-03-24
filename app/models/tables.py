@@ -153,6 +153,22 @@ class Device(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class DeviceIngestionHealth(SQLModel, table=True):
+    """设备接入健康状态表。"""
+
+    __tablename__ = "device_ingestion_health"
+
+    device_id: int = Field(primary_key=True, foreign_key="device.id", description="设备ID")
+    last_message_at: Optional[datetime] = Field(default=None, index=True, description="最近一次接收到消息的时间")
+    last_success_at: Optional[datetime] = Field(default=None, index=True, description="最近一次成功入库时间")
+    last_failure_at: Optional[datetime] = Field(default=None, index=True, description="最近一次失败时间")
+    last_failure_reason: Optional[str] = Field(default=None, description="最近一次失败原因")
+    consecutive_failures: int = Field(default=0, description="连续失败次数")
+    total_messages: int = Field(default=0, description="累计接收消息数")
+    total_failures: int = Field(default=0, description="累计失败次数")
+    updated_at: datetime = Field(default_factory=datetime.now, description="最后更新时间")
+
+
 class EnergyData(SQLModel, table=True):
     """
     通用能源数据表（时序表）- 支持多种能源类型。

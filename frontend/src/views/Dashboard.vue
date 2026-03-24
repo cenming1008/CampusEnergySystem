@@ -1,243 +1,158 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, reactive, computed, nextTick } from 'vue'
-import * as echarts from 'echarts'
-import { getDevices, type Device } from '@/api/device'
-import { getHistory, getAnalysis } from '@/api/telemetry'
-import { getEnergyStatistics, type EnergyStatistics } from '@/api/energy'
+import { onMounted, watch, computed, nextTick } from 'vue'
 import { useSocketStore } from '@/stores/useSocketStore'
+import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
+import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
+import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
+import { useDashboardRealtime } from '@/features/dashboard/composables/useDashboardRealtime'
+import { useECharts } from '@/shared/composables/useECharts'
+import MetricCard from '@/shared/ui/MetricCard.vue'
+import StatTile from '@/shared/ui/StatTile.vue'
 
 // --- 状态定义 ---
 const socketStore = useSocketStore()
-const currentDeviceId = ref<number | undefined>(undefined)
-const deviceList = ref<Device[]>([])
-
-// 图表引用
-const mainChartRef = ref<HTMLElement | null>(null)
-const gaugeChartRef = ref<HTMLElement | null>(null)
-const pieChartRef = ref<HTMLElement | null>(null)
-let mainChart: echarts.ECharts | null = null
-let gaugeChart: echarts.ECharts | null = null
-let pieChart: echarts.ECharts | null = null
-
-// 当前时间
-const currentTime = ref('')
-const currentDate = ref('')
-let timeTimer: ReturnType<typeof setInterval> | null = null
-
-// 能源统计
-const energyStats = reactive<Record<string, EnergyStatistics>>({})
-
-// 实时数据
-const realTimeData = reactive({
-  power: 0,
-  energy: 0,
-  current: 0,
-  voltage: 0
+const { currentTime, currentDate } = useDashboardClock()
+const { currentDevice, currentDeviceId, deviceList, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
+const { energyStats, todayEnergy, loadEnergyStats } = useDashboardEnergyStats()
+const {
+  displayCurrent,
+  displayEnergy,
+  displayPower,
+  energyTrendData,
+  isStorageDevice,
+  realTimeData,
+  storageStatus,
+  loadDeviceData
+} = useDashboardRealtime({
+  currentDeviceId,
+  deviceList,
+  latestMessage: socketStore.latestMessage
 })
 
-// 当前设备是否是储能设备
-const isStorageDevice = computed(() => {
-  const device = deviceList.value.find(d => d.id === currentDeviceId.value)
-  return device?.device_type === 'storage'
-})
-
-// 储能设备状态（充电/放电）
-const storageStatus = computed(() => {
-  if (!isStorageDevice.value) return ''
-  return realTimeData.power < 0 ? '充电中' : '放电中'
-})
-
-// 显示用的功率值（绝对值）
-const displayPower = computed(() => Math.abs(realTimeData.power))
-const displayCurrent = computed(() => Math.abs(realTimeData.current))
-const displayEnergy = computed(() => Math.abs(realTimeData.energy))
+// 图表实例
+const mainChart = useECharts()
+const gaugeChart = useECharts()
+const pieChart = useECharts()
 
 // 系统概览
-const overview = reactive({
-  totalDevices: 0,
-  onlineDevices: 0,
+const overview = computed(() => ({
+  totalDevices: totalDevices.value,
+  onlineDevices: onlineDevices.value,
   alarmCount: 20,
-  todayEnergy: 0
-})
+  todayEnergy: todayEnergy.value
+}))
 
 // 计算属性
 const onlineRate = computed(() => {
-  if (overview.totalDevices === 0) return 0
-  return Math.round((overview.onlineDevices / overview.totalDevices) * 100)
+  if (totalDevices.value === 0) return 0
+  return Math.round((onlineDevices.value / totalDevices.value) * 100)
 })
 
-// 更新时间
-const updateTime = () => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('zh-CN', { hour12: false })
-  currentDate.value = now.toLocaleDateString('zh-CN', { 
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit',
-    weekday: 'long'
-  })
-}
+const overviewCards = computed(() => [
+  {
+    label: '设备总数',
+    value: overview.value.totalDevices,
+    caption: '已接入矿区能源网络',
+    tone: 'cyan' as const
+  },
+  {
+    label: '在线率',
+    value: `${onlineRate.value}%`,
+    caption: `${overview.value.onlineDevices} 台在线`,
+    tone: 'green' as const
+  },
+  {
+    label: '告警数',
+    value: overview.value.alarmCount,
+    caption: '待接入实时告警聚合',
+    tone: 'red' as const
+  },
+  {
+    label: '今日用电',
+    value: overview.value.todayEnergy.toFixed(0),
+    caption: '单位 kWh',
+    tone: 'purple' as const
+  }
+])
 
-// 用电趋势数据（今日用电量累计曲线）
-const energyTrendData = reactive<{ times: string[], values: number[] }>({
-  times: [],
-  values: []
-})
+const energyRows = computed(() => [
+  { icon: '⚡', name: '电力', tone: 'cyan', value: `${(energyStats.electricity?.total_consumption || 0).toFixed(1)} kWh` },
+  { icon: '💧', name: '用水', tone: 'blue', value: `${(energyStats.water?.total_consumption || 0).toFixed(1)} m³` },
+  { icon: '🔥', name: '燃气', tone: 'pink', value: `${(energyStats.gas?.total_consumption || 0).toFixed(1)} m³` },
+  { icon: '♨️', name: '热力', tone: 'red', value: `${(energyStats.heat?.total_consumption || 0).toFixed(1)} GJ` },
+  { icon: '❄️', name: '冷气', tone: 'purple', value: `${(energyStats.cooling?.total_consumption || 0).toFixed(1)} kWh` }
+])
+
+const liveMetricCards = computed(() => [
+  {
+    accent: 'cyan' as const,
+    icon: '⚡',
+    label: '实时功率',
+    value: displayPower.value.toFixed(1),
+    unit: 'kW',
+    badge: isStorageDevice.value ? storageStatus.value : undefined,
+    progress: Math.min(displayPower.value, 100)
+  },
+  {
+    accent: 'green' as const,
+    icon: '📊',
+    label: '今日用电',
+    value: displayEnergy.value.toFixed(1),
+    unit: 'kWh'
+  },
+  {
+    accent: 'pink' as const,
+    icon: '🔌',
+    label: 'A相电流',
+    value: displayCurrent.value.toFixed(1),
+    unit: 'A'
+  },
+  {
+    accent: 'purple' as const,
+    icon: '🔋',
+    label: '母线电压',
+    value: realTimeData.voltage.toFixed(1),
+    unit: 'V'
+  }
+])
+
+const selectedDeviceSummary = computed(() => ({
+  name: currentDevice.value?.name || '暂无设备',
+  type: currentDevice.value?.device_type || '未选择',
+  energyType: currentDevice.value?.energy_type || '未知',
+  status: currentDevice.value?.is_active ? '在线运行' : '离线待机'
+}))
 
 // --- 初始化 ---
 onMounted(async () => {
   socketStore.connect()
-  updateTime()
-  timeTimer = setInterval(updateTime, 1000)
   
   // 等待 DOM 渲染完成
   await nextTick()
   
   // 初始化图表
-  initCharts()
+  await initCharts()
   
   // 加载数据
-  await loadDeviceList()  // 这里面会调用 loadDeviceData，加载用电曲线
+  await loadDeviceList()
+  await loadDeviceData()
   await loadEnergyStats()
 })
 
-onUnmounted(() => {
-  if (timeTimer) clearInterval(timeTimer)
-  window.removeEventListener('resize', handleResize)
-  mainChart?.dispose()
-  gaugeChart?.dispose()
-  pieChart?.dispose()
-})
+const initCharts = async () => {
+  await Promise.all([
+    mainChart.initChart(),
+    gaugeChart.initChart(),
+    pieChart.initChart()
+  ])
 
-const initCharts = () => {
-  if (mainChartRef.value) mainChart = echarts.init(mainChartRef.value)
-  if (gaugeChartRef.value) gaugeChart = echarts.init(gaugeChartRef.value)
-  if (pieChartRef.value) pieChart = echarts.init(pieChartRef.value)
-  window.addEventListener('resize', handleResize)
-  
-  renderGauge(0)
-  renderPieChart()
+  await renderGauge(0)
+  await renderPieChart()
   // 主图表会在 loadPowerTrend 后渲染
 }
 
-const handleResize = () => {
-  setTimeout(() => {
-    mainChart?.resize()
-    gaugeChart?.resize()
-    pieChart?.resize()
-  }, 100)
-}
-
-// --- 数据加载 ---
-const loadDeviceList = async () => {
-  try {
-    const res = await getDevices()
-    deviceList.value = res
-    overview.totalDevices = res.length
-    overview.onlineDevices = res.filter(d => d.is_active).length
-    
-    if (res.length > 0) {
-      // 优先选择普通用电设备（load类型），避免储能设备显示负值
-      const loadDevice = res.find(d => d.device_type === 'load')
-      currentDeviceId.value = loadDevice?.id || res[0].id
-      await loadDeviceData()
-    }
-  } catch (e) {
-    console.error('加载设备失败:', e)
-  }
-}
-
-const loadDeviceData = async () => {
-  if (!currentDeviceId.value) return
-  
-  try {
-    // 加载设备分析数据
-    const analysis = await getAnalysis(currentDeviceId.value)
-    realTimeData.power = analysis.current_power || 0
-    realTimeData.energy = analysis.today_energy || 0
-    realTimeData.current = analysis.current || 0
-    realTimeData.voltage = analysis.voltage || 0
-    
-    // 仪表盘使用绝对值
-    renderGauge(Math.abs(realTimeData.power))
-    
-    // 加载该设备的今日用电曲线
-    await loadEnergyTrend()
-  } catch (e) {
-    console.error('加载设备数据失败:', e)
-  }
-}
-
-// 加载实时负荷曲线（当前选中设备）
-const loadEnergyTrend = async () => {
-  if (!currentDeviceId.value) return
-  
-  try {
-    console.log('📈 加载设备负荷曲线, ID:', currentDeviceId.value)
-    const history = await getHistory(currentDeviceId.value, 100)
-    
-    if (history && history.length > 0) {
-      console.log('✅ 获取到', history.length, '条历史数据')
-      
-      // 按时间正序处理（API返回的是倒序）
-      const sortedHistory = [...history].reverse()
-      
-      // 使用 flow_rate（实时功率 kW）
-      energyTrendData.times = sortedHistory.map((d: any) => d.timestamp?.substring(11, 19) || '')
-      energyTrendData.values = sortedHistory.map((d: any) => Math.abs(d.flow_rate || 0))
-      
-      console.log('📊 负荷数据:', energyTrendData.values.slice(-5))
-      renderMainChart()
-    } else {
-      console.log('⚠️ 无历史数据')
-      energyTrendData.times = []
-      energyTrendData.values = []
-      renderMainChart()
-    }
-  } catch (e) {
-    console.error('❌ 加载负荷曲线失败:', e)
-  }
-}
-
-const loadEnergyStats = async () => {
-  try {
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
-    const types = ['electricity', 'water', 'gas', 'heat', 'cooling']
-    const results = await Promise.all(
-      types.map(async (type) => {
-        try {
-          const stats = await getEnergyStatistics({
-            energy_type: type,
-            start_time: `${dateStr}T00:00:00`,
-            end_time: `${dateStr}T23:59:59`
-          })
-          return { type, stats }
-        } catch {
-          return { type, stats: { total_consumption: 0, data_count: 0 } as EnergyStatistics }
-        }
-      })
-    )
-    
-    results.forEach(({ type, stats }) => {
-      energyStats[type] = stats
-    })
-    
-    overview.todayEnergy = energyStats.electricity?.total_consumption || 0
-    
-    await nextTick()
-    renderPieChart()
-  } catch (e) {
-    console.error('加载能源统计失败:', e)
-  }
-}
-
-
 // --- 图表渲染 ---
-const renderGauge = (value: number) => {
-  if (!gaugeChart) return
-  
+const renderGauge = async (value: number) => {
   const option = {
     series: [{
       type: 'gauge',
@@ -281,21 +196,15 @@ const renderGauge = (value: number) => {
       data: [{ value: Math.min(value, 100) }]
     }]
   }
-  gaugeChart.setOption(option)
+  await gaugeChart.setOptions(option)
 }
 
-const renderMainChart = () => {
-  if (!mainChart) {
-    console.warn('⚠️ mainChart 未初始化')
-    return
-  }
-  
+const renderMainChart = async () => {
   const { times, values } = energyTrendData
   console.log('📊 渲染负荷曲线:', times.length, '个数据点')
   
   // 获取当前设备名称
-  const device = deviceList.value.find(d => d.id === currentDeviceId.value)
-  const deviceName = device?.name || '设备'
+  const deviceName = currentDevice.value?.name || '设备'
   
   const option = {
     tooltip: {
@@ -348,12 +257,10 @@ const renderMainChart = () => {
       }
     ]
   }
-  mainChart.setOption(option, true)
+  await mainChart.setOptions(option, { notMerge: true })
 }
 
-const renderPieChart = () => {
-  if (!pieChart) return
-  
+const renderPieChart = async () => {
   const data = [
     { value: energyStats.electricity?.total_consumption || 0, name: '电力', itemStyle: { color: '#00f2fe' } },
     { value: energyStats.water?.total_consumption || 0, name: '水', itemStyle: { color: '#4facfe' } },
@@ -393,39 +300,20 @@ const renderPieChart = () => {
       data
     }]
   }
-  pieChart.setOption(option)
+  await pieChart.setOptions(option)
 }
 
-// --- WebSocket 实时更新 ---
-watch(() => socketStore.latestMessage, (msg) => {
-  if (msg?.type === 'telemetry_update') {
-    const data = msg.data
-    
-    // 只处理当前选中设备的数据
-    if (data.device_id === currentDeviceId.value) {
-      // 更新仪表盘数据
-      realTimeData.power = data.power || 0
-      realTimeData.current = data.current || 0
-      realTimeData.voltage = data.voltage || 0
-      renderGauge(Math.abs(realTimeData.power))
-      
-      // 更新实时负荷曲线（追加新的功率点）
-      const time = data.timestamp?.substring(11, 19) || new Date().toTimeString().substring(0, 8)
-      const power = Math.abs(data.power || 0)
-      
-      energyTrendData.times.push(time)
-      energyTrendData.values.push(power)
-      
-      // 保持最近100个点
-      if (energyTrendData.times.length > 100) {
-        energyTrendData.times.shift()
-        energyTrendData.values.shift()
-      }
-      
-      renderMainChart()
-    }
-  }
+watch(() => realTimeData.power, (value) => {
+  renderGauge(Math.abs(value))
 })
+
+watch(energyTrendData, () => {
+  renderMainChart()
+}, { deep: true })
+
+watch(energyStats, () => {
+  renderPieChart()
+}, { deep: true })
 </script>
 
 <template>
@@ -482,22 +370,14 @@ watch(() => socketStore.latestMessage, (msg) => {
           </div>
           <div class="card-body">
             <div class="stat-grid">
-              <div class="stat-item">
-                <div class="stat-value cyan">{{ overview.totalDevices }}</div>
-                <div class="stat-label">设备总数</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value green">{{ onlineRate }}%</div>
-                <div class="stat-label">在线率</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value red">{{ overview.alarmCount }}</div>
-                <div class="stat-label">告警数</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value purple">{{ overview.todayEnergy.toFixed(0) }}</div>
-                <div class="stat-label">今日用电</div>
-              </div>
+              <StatTile
+                v-for="item in overviewCards"
+                :key="item.label"
+                :tone="item.tone"
+                :label="item.label"
+                :value="item.value"
+                :caption="item.caption"
+              />
             </div>
           </div>
         </div>
@@ -509,7 +389,7 @@ watch(() => socketStore.latestMessage, (msg) => {
             <span class="card-subtitle">Energy Distribution</span>
           </div>
           <div class="card-body">
-            <div class="chart-container" ref="pieChartRef"></div>
+            <div class="chart-container" :ref="pieChart.chartRef"></div>
           </div>
         </div>
 
@@ -521,30 +401,13 @@ watch(() => socketStore.latestMessage, (msg) => {
           </div>
           <div class="card-body">
             <div class="energy-list">
-              <div class="energy-row">
-                <span class="energy-icon cyan">⚡</span>
-                <span class="energy-name">电力</span>
-                <span class="energy-value">{{ (energyStats.electricity?.total_consumption || 0).toFixed(1) }} kWh</span>
-              </div>
-              <div class="energy-row">
-                <span class="energy-icon blue">💧</span>
-                <span class="energy-name">用水</span>
-                <span class="energy-value">{{ (energyStats.water?.total_consumption || 0).toFixed(1) }} m³</span>
-              </div>
-              <div class="energy-row">
-                <span class="energy-icon pink">🔥</span>
-                <span class="energy-name">燃气</span>
-                <span class="energy-value">{{ (energyStats.gas?.total_consumption || 0).toFixed(1) }} m³</span>
-              </div>
-              <div class="energy-row">
-                <span class="energy-icon red">♨️</span>
-                <span class="energy-name">热力</span>
-                <span class="energy-value">{{ (energyStats.heat?.total_consumption || 0).toFixed(1) }} GJ</span>
-              </div>
-              <div class="energy-row">
-                <span class="energy-icon purple">❄️</span>
-                <span class="energy-name">冷气</span>
-                <span class="energy-value">{{ (energyStats.cooling?.total_consumption || 0).toFixed(1) }} kWh</span>
+              <div v-for="item in energyRows" :key="item.name" class="energy-row">
+                <span class="energy-icon" :class="item.tone">{{ item.icon }}</span>
+                <div class="energy-copy">
+                  <span class="energy-name">{{ item.name }}</span>
+                  <span class="energy-meta">今日累计能耗</span>
+                </div>
+                <span class="energy-value">{{ item.value }}</span>
               </div>
             </div>
           </div>
@@ -553,6 +416,30 @@ watch(() => socketStore.latestMessage, (msg) => {
 
       <!-- 中间面板 -->
       <section class="panel-center">
+        <div class="focus-strip">
+          <div class="focus-copy">
+            <span class="focus-eyebrow">当前监测设备</span>
+            <h2>{{ selectedDeviceSummary.name }}</h2>
+            <div class="focus-meta">
+              <span>{{ selectedDeviceSummary.type }}</span>
+              <span>{{ selectedDeviceSummary.energyType }}</span>
+              <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
+            </div>
+          </div>
+          <div class="focus-numbers">
+            <div class="focus-number">
+              <span class="focus-number__label">当前功率</span>
+              <strong>{{ displayPower.toFixed(1) }}</strong>
+              <small>kW</small>
+            </div>
+            <div class="focus-number">
+              <span class="focus-number__label">母线电压</span>
+              <strong>{{ realTimeData.voltage.toFixed(1) }}</strong>
+              <small>V</small>
+            </div>
+          </div>
+        </div>
+
         <!-- 实时负荷仪表 -->
         <div class="card gauge-card">
           <div class="card-header">
@@ -568,7 +455,7 @@ watch(() => socketStore.latestMessage, (msg) => {
           </div>
           <div class="card-body gauge-body">
             <div class="gauge-wrapper">
-              <div class="gauge-chart" ref="gaugeChartRef"></div>
+              <div class="gauge-chart" :ref="gaugeChart.chartRef"></div>
               <div class="gauge-label">kW</div>
             </div>
           <div class="gauge-stats">
@@ -595,59 +482,25 @@ watch(() => socketStore.latestMessage, (msg) => {
             <span class="card-subtitle">Real-time Load Curve</span>
           </div>
           <div class="card-body">
-            <div class="chart-container" ref="mainChartRef"></div>
+            <div class="chart-container" :ref="mainChart.chartRef"></div>
           </div>
         </div>
       </section>
 
       <!-- 右侧面板 -->
       <aside class="panel-right">
-        <!-- 实时数据卡片 -->
-        <div class="data-card cyan">
-          <div class="data-card-bg"></div>
-          <div class="data-card-content">
-            <div class="data-icon">⚡</div>
-            <div class="data-info">
-              <span class="data-label">实时功率 <span v-if="isStorageDevice" class="storage-tag">{{ storageStatus }}</span></span>
-              <span class="data-value">{{ displayPower.toFixed(1) }}<small>kW</small></span>
-            </div>
-          </div>
-          <div class="data-bar">
-            <div class="data-bar-fill" :style="{ width: Math.min(displayPower, 100) + '%' }"></div>
-          </div>
-        </div>
-
-        <div class="data-card green">
-          <div class="data-card-bg"></div>
-          <div class="data-card-content">
-            <div class="data-icon">📊</div>
-            <div class="data-info">
-              <span class="data-label">今日用电</span>
-              <span class="data-value">{{ displayEnergy.toFixed(1) }}<small>kWh</small></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="data-card pink">
-          <div class="data-card-bg"></div>
-          <div class="data-card-content">
-            <div class="data-icon">🔌</div>
-            <div class="data-info">
-              <span class="data-label">A相电流</span>
-              <span class="data-value">{{ displayCurrent.toFixed(1) }}<small>A</small></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="data-card purple">
-          <div class="data-card-bg"></div>
-          <div class="data-card-content">
-            <div class="data-icon">🔋</div>
-            <div class="data-info">
-              <span class="data-label">母线电压</span>
-              <span class="data-value">{{ realTimeData.voltage.toFixed(1) }}<small>V</small></span>
-            </div>
-          </div>
+        <div class="metric-grid">
+          <MetricCard
+            v-for="item in liveMetricCards"
+            :key="item.label"
+            :accent="item.accent"
+            :icon="item.icon"
+            :label="item.label"
+            :value="item.value"
+            :unit="item.unit"
+            :badge="item.badge"
+            :progress="item.progress"
+          />
         </div>
 
         <!-- 设备状态 -->
@@ -657,7 +510,7 @@ watch(() => socketStore.latestMessage, (msg) => {
             <span class="card-subtitle">Device Status</span>
           </div>
           <div class="card-body">
-            <div class="device-list">
+            <div v-if="deviceList.length" class="device-list">
               <div 
                 v-for="device in deviceList.slice(0, 6)" 
                 :key="device.id" 
@@ -668,6 +521,9 @@ watch(() => socketStore.latestMessage, (msg) => {
                 <span class="device-name">{{ device.name }}</span>
                 <span class="device-type">{{ device.energy_type }}</span>
               </div>
+            </div>
+            <div v-else class="device-empty">
+              暂无设备数据接入
             </div>
           </div>
         </div>
@@ -873,13 +729,15 @@ watch(() => socketStore.latestMessage, (msg) => {
 
 /* ========== 通用卡片样式 ========== */
 .card {
+  position: relative;
   background: rgba(10,22,40,0.8);
   border: 1px solid rgba(0,242,254,0.2);
-  border-radius: 8px;
+  border-radius: 18px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px rgba(1, 9, 24, 0.22);
 }
 
 .card::before {
@@ -915,7 +773,7 @@ watch(() => socketStore.latestMessage, (msg) => {
 
 .card-body {
   flex: 1;
-  padding: 15px 20px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
 }
@@ -935,58 +793,58 @@ watch(() => socketStore.latestMessage, (msg) => {
   gap: 15px;
 }
 
-.stat-item {
-  background: rgba(0,242,254,0.05);
-  border: 1px solid rgba(0,242,254,0.1);
-  border-radius: 8px;
-  padding: 15px;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.stat-value.cyan { color: #00f2fe; }
-.stat-value.green { color: #10b981; }
-.stat-value.red { color: #ef4444; }
-.stat-value.purple { color: #a78bfa; }
-
-.stat-label {
-  font-size: 12px;
-  color: #8892b0;
-  margin-top: 5px;
-}
-
 .energy-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .energy-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background: rgba(255,255,255,0.02);
-  border-radius: 6px;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
 }
 
 .energy-icon {
   font-size: 18px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.06);
+}
+
+.energy-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .energy-name {
-  flex: 1;
   font-size: 13px;
-  color: #8892b0;
+  color: #dbe6f5;
 }
 
+.energy-meta {
+  font-size: 11px;
+  color: #6f819e;
+}
+
+.energy-icon.cyan { color: #00f2fe; }
+.energy-icon.blue { color: #4facfe; }
+.energy-icon.pink { color: #f093fb; }
+.energy-icon.red { color: #ef4444; }
+.energy-icon.purple { color: #a78bfa; }
+
 .energy-value {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: #fff;
   font-family: 'DIN', 'Monaco', monospace;
@@ -997,6 +855,96 @@ watch(() => socketStore.latestMessage, (msg) => {
   display: flex;
   flex-direction: column;
   gap: 15px;
+}
+
+.focus-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: stretch;
+  padding: 20px 24px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, rgba(0,242,254,0.12), transparent 38%),
+    radial-gradient(circle at bottom right, rgba(167,139,250,0.14), transparent 30%),
+    rgba(8, 17, 34, 0.84);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 20px 55px rgba(1, 9, 24, 0.22);
+}
+
+.focus-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.focus-eyebrow {
+  font-size: 11px;
+  color: #7b8da9;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.focus-copy h2 {
+  margin: 10px 0 8px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: #f8fbff;
+}
+
+.focus-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.focus-meta span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: #93a6c3;
+  font-size: 12px;
+}
+
+.focus-meta .online {
+  color: #00f2fe;
+  background: rgba(0,242,254,0.09);
+}
+
+.focus-numbers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 12px;
+  min-width: 280px;
+}
+
+.focus-number {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.focus-number__label {
+  font-size: 12px;
+  color: #8396b2;
+}
+
+.focus-number strong {
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1;
+  color: #fff;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.focus-number small {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7d90ab;
 }
 
 .gauge-card .card-body {
@@ -1070,93 +1018,12 @@ watch(() => socketStore.latestMessage, (msg) => {
 .panel-right {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.data-card {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(10,22,40,0.8);
-  border: 1px solid rgba(255,255,255,0.1);
-}
-
-.data-card-bg {
-  position: absolute;
-  inset: 0;
-  opacity: 0.1;
-  transition: opacity 0.3s;
-}
-
-.data-card:hover .data-card-bg {
-  opacity: 0.2;
-}
-
-.data-card.cyan { border-color: rgba(0,242,254,0.3); }
-.data-card.cyan .data-card-bg { background: linear-gradient(135deg, #00f2fe, transparent); }
-
-.data-card.green { border-color: rgba(16,185,129,0.3); }
-.data-card.green .data-card-bg { background: linear-gradient(135deg, #10b981, transparent); }
-
-.data-card.pink { border-color: rgba(240,147,251,0.3); }
-.data-card.pink .data-card-bg { background: linear-gradient(135deg, #f093fb, transparent); }
-
-.data-card.purple { border-color: rgba(167,139,250,0.3); }
-.data-card.purple .data-card-bg { background: linear-gradient(135deg, #a78bfa, transparent); }
-
-.data-card-content {
-  position: relative;
-  padding: 15px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.data-icon {
-  font-size: 24px;
-}
-
-.data-info {
-  flex: 1;
-}
-
-.data-label {
-  display: block;
-  font-size: 12px;
-  color: #8892b0;
-}
-
-.data-value {
-  font-size: 26px;
-  font-weight: 700;
-  color: #fff;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.data-value small {
-  font-size: 12px;
-  color: #8892b0;
-  margin-left: 3px;
-}
-
-.storage-tag {
-  font-size: 10px;
-  padding: 2px 6px;
-  background: rgba(240, 147, 251, 0.2);
-  color: #f093fb;
-  border-radius: 10px;
-  margin-left: 5px;
-}
-
-.data-bar {
-  height: 3px;
-  background: rgba(255,255,255,0.1);
-}
-
-.data-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #00f2fe, #4facfe);
-  transition: width 0.5s ease;
+.metric-grid {
+  display: grid;
+  gap: 14px;
 }
 
 /* 设备列表 */
@@ -1171,8 +1038,8 @@ watch(() => socketStore.latestMessage, (msg) => {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: rgba(255,255,255,0.02);
-  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
   border-left: 3px solid #ef4444;
 }
 
@@ -1206,6 +1073,17 @@ watch(() => socketStore.latestMessage, (msg) => {
   border-radius: 10px;
 }
 
+.device-empty {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7f8ea7;
+  border: 1px dashed rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.02);
+}
+
 /* ========== 响应式 ========== */
 @media (max-width: 1400px) {
   .main {
@@ -1227,9 +1105,22 @@ watch(() => socketStore.latestMessage, (msg) => {
     flex-wrap: wrap;
   }
   
-  .panel-right .data-card {
+  .metric-grid {
     flex: 1;
-    min-width: 200px;
+    min-width: 280px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panel-right .metric-grid {
+    flex: 1;
+  }
+
+  .focus-strip {
+    flex-direction: column;
+  }
+
+  .focus-numbers {
+    min-width: 0;
   }
   
   .panel-right .card {
@@ -1246,6 +1137,11 @@ watch(() => socketStore.latestMessage, (msg) => {
   .panel-right {
     grid-column: span 1;
   }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
   
   .header {
     flex-wrap: wrap;
@@ -1258,6 +1154,10 @@ watch(() => socketStore.latestMessage, (msg) => {
     order: -1;
     width: 100%;
     text-align: center;
+  }
+
+  .focus-numbers {
+    grid-template-columns: 1fr;
   }
 }
 </style>

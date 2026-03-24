@@ -77,8 +77,12 @@ logs/
 # 数据库数据
 # ============================================
 # PostgreSQL/TimescaleDB 数据目录（包含实际数据）
-/pg_data/
-/pg_data_dev/
+/pg_data/*
+/pg_data_dev/*
+!/pg_data/.gitkeep
+!/pg_data_dev/.gitkeep
+!/pg_data/README.md
+!/pg_data_dev/README.md
 *.db
 *.sqlite
 *.sqlite3
@@ -190,12 +194,14 @@ models/lstm/*.h5
 models/lstm/*.keras
 models/scalers/*.pkl
 models/versions/*.json
+models/versions_metadata.json
 
 # 保留目录结构
 !models/lstm/.gitkeep
 !models/scalers/.gitkeep
 !models/versions/.gitkeep
 !models/README.md
+!mosquitto/README.md
 
 # ============================================
 # Jupyter Notebook

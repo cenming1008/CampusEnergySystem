@@ -1,4 +1,5 @@
 {
+  "_comment": "报警阈值配置。default 为全局默认值，device_thresholds 为按设备覆盖。",
   "default": {
     "voltage_min": 190.0,
     "voltage_max": 250.0,

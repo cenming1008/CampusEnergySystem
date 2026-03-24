@@ -1,0 +1,112 @@
+"""
+能源数据与统计接口
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session
+
+from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
+from app.application.energy_management import (
+    get_energy_statistics_use_case,
+    save_energy_data_use_case,
+)
+from app.core.database import get_session
+from app.core.response import success_response
+from app.models.tables import EnergyData
+from app.services.energy_service import EnergyService
+
+from .shared import EnergyDataCreate, EnergyStatisticsResponse, extract_optional_energy_fields
+
+router = APIRouter()
+
+
+@router.post("/data", response_model=EnergyData)
+def save_energy_data(
+    data: EnergyDataCreate,
+    session: Session = Depends(get_session),
+):
+    try:
+        return save_energy_data_use_case(
+            session=session,
+            device_id=data.device_id,
+            energy_type=data.energy_type,
+            consumption=data.consumption,
+            flow_rate=data.flow_rate,
+            timestamp=data.timestamp,
+            **extract_optional_energy_fields(data),
+        )
+    except ValueError as exc:
+        raise bad_request_from_value_error(exc) from exc
+    except Exception as exc:
+        log_endpoint_exception(f"保存能源数据失败 device_id={data.device_id}, energy_type={data.energy_type}", exc)
+        raise HTTPException(status_code=500, detail="保存能源数据失败")
+
+
+@router.get("/data/{device_id}", response_model=List[EnergyData])
+def get_energy_data(
+    device_id: int,
+    energy_type: Optional[str] = Query(None, description="能源类型"),
+    start_time: Optional[datetime] = Query(None, description="开始时间"),
+    end_time: Optional[datetime] = Query(None, description="结束时间"),
+    limit: int = Query(1000, ge=1, le=10000, description="返回条数限制"),
+    session: Session = Depends(get_session),
+):
+    return EnergyService.get_energy_data(
+        session=session,
+        device_id=device_id,
+        energy_type=energy_type,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
+
+
+@router.get("/statistics", response_model=EnergyStatisticsResponse)
+def get_energy_statistics(
+    energy_type: str = Query(..., description="能源类型"),
+    start_time: datetime = Query(..., description="开始时间"),
+    end_time: datetime = Query(..., description="结束时间"),
+    device_id: Optional[int] = Query(None, description="设备ID，不传则系统级统计"),
+    period_type: str = Query("day", description="统计周期: hour/day/month/year"),
+    session: Session = Depends(get_session),
+):
+    return get_energy_statistics_use_case(
+        session=session,
+        device_id=device_id,
+        energy_type=energy_type,
+        start_time=start_time,
+        end_time=end_time,
+        period_type=period_type,
+    )
+
+
+@router.get("/types", response_model=dict)
+def get_energy_types():
+    from app.models.tables import DeviceCategory, EnergyType
+
+    return {
+        "energy_types": [
+            {"value": EnergyType.ELECTRICITY, "label": "电力", "unit": "kWh"},
+            {"value": EnergyType.WATER, "label": "水", "unit": "m³"},
+            {"value": EnergyType.GAS, "label": "燃气", "unit": "m³"},
+            {"value": EnergyType.HEAT, "label": "热力", "unit": "GJ"},
+            {"value": EnergyType.COOLING, "label": "冷气", "unit": "kWh"},
+            {"value": EnergyType.STEAM, "label": "蒸汽", "unit": "t"},
+        ],
+        "device_categories": [
+            {"value": DeviceCategory.LOAD, "label": "用电设备"},
+            {"value": DeviceCategory.SOLAR, "label": "光伏发电"},
+            {"value": DeviceCategory.WIND, "label": "风力发电"},
+            {"value": DeviceCategory.WATER_METER, "label": "水表"},
+            {"value": DeviceCategory.GAS_METER, "label": "燃气表"},
+            {"value": DeviceCategory.HEAT_METER, "label": "热量表"},
+            {"value": DeviceCategory.COOLING_METER, "label": "冷量表"},
+            {"value": DeviceCategory.STORAGE, "label": "储能设备"},
+            {"value": DeviceCategory.CHARGER, "label": "充电桩"},
+        ],
+    }

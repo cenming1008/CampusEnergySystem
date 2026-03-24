@@ -1,5 +1,7 @@
 # LSTM 模型存储目录
 
+> 注意：这里是“模型训练产物目录”，不是后端 ORM 数据模型目录。后端数据模型在 [app/models/](/Users/todo/MineEnergySystem/app/models)。
+
 此目录用于存储 LSTM 能源预测模型的训练产物。
 
 ## 📁 目录结构
@@ -8,7 +10,7 @@
 models/
 ├── lstm/          # LSTM 模型文件（.h5, .keras）
 ├── scalers/       # 数据标准化器（.pkl）
-├── versions/      # 模型版本元数据（.json）
+├── versions/      # 版本相关文件保留目录
 └── README.md      # 本文件
 ```
 
@@ -51,10 +53,12 @@ scalers/
 
 ### 3. versions/ 目录
 
-存储模型版本信息和元数据。
+用于保留版本相关文件目录。
 
-**文件**：
-- `versions_metadata.json` - 所有模型的版本信息
+当前实际实现中，版本元数据主文件是根目录下的：
+- `models/versions_metadata.json`
+
+`versions/` 目录本身可以继续用于后续扩展版本文件存储。
 
 **内容示例**：
 ```json

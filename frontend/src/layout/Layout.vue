@@ -1,18 +1,12 @@
 <script setup lang="ts">
-    import { ref, onMounted, onUnmounted } from 'vue'
+    import AlarmPopover from '@/features/alarm/components/AlarmPopover.vue'
     import { useRouter, useRoute } from 'vue-router'
     import { useAuthStore } from '@/stores/useAuthStore'
-    import { getAlarms, resolveAllAlarms, type Alarm } from '@/api/alarm'
     import { ElMessage } from 'element-plus'
     
     const router = useRouter()
     const route = useRoute()
     const authStore = useAuthStore()
-    
-    // --- 状态数据 ---
-    const alarmCount = ref(0)
-    const alarmList = ref<Alarm[]>([])
-    const pollTimer = ref<any>(null)
     
     // --- 动作：退出登录 ---
     const handleLogout = () => {
@@ -20,77 +14,6 @@
       router.push('/login')
       ElMessage.success('已退出系统')
     }
-    
-    // --- 动作：获取报警 (轮询) ---
-    const fetchAlarms = async () => {
-      try {
-        // 获取未处理报警
-        const res = await getAlarms()
-        alarmList.value = res
-        alarmCount.value = res.length
-      } catch (e) {
-        console.error('报警获取失败', e)
-      }
-    }
-    
-    // --- 动作：一键清除报警 ---
-    const handleClearAlarms = async () => {
-      try {
-        const res = await resolveAllAlarms()
-        // 使用后端返回的消息，或显示默认消息
-        const message = res?.message || `已解决 ${res?.data?.count || 0} 条报警`
-        ElMessage.success(message)
-        fetchAlarms() // 刷新状态
-      } catch (e) {
-        ElMessage.error('操作失败')
-      }
-    }
-    
-    // --- 工具函数：格式化时间戳 ---
-    const formatTime = (timestamp: string) => {
-      if (!timestamp) return ''
-      try {
-        const date = new Date(timestamp)
-        const now = new Date()
-        const diff = now.getTime() - date.getTime()
-        const minutes = Math.floor(diff / 60000)
-        const hours = Math.floor(diff / 3600000)
-        const days = Math.floor(diff / 86400000)
-        
-        // 如果是今天，显示时:分
-        if (date.toDateString() === now.toDateString()) {
-          return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-        }
-        // 如果是昨天
-        if (days === 1) {
-          return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-        }
-        // 如果是一周内
-        if (days < 7) {
-          return `${days}天前`
-        }
-        // 更早的显示完整日期
-        return date.toLocaleString('zh-CN', { 
-          month: '2-digit', 
-          day: '2-digit', 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        })
-      } catch (e) {
-        return timestamp
-      }
-    }
-    
-    // --- 生命周期 ---
-    onMounted(() => {
-      fetchAlarms()
-      // 每 5 秒轮询一次报警状态
-      pollTimer.value = setInterval(fetchAlarms, 5000)
-    })
-    
-    onUnmounted(() => {
-      if (pollTimer.value) clearInterval(pollTimer.value)
-    })
     </script>
     
     <template>
@@ -188,39 +111,7 @@
             </div>
     
             <div class="header-tools">
-              <el-popover
-                placement="bottom"
-                title="未处理报警"
-                :width="300"
-                trigger="click"
-                popper-class="alarm-popper"
-              >
-                <template #reference>
-                  <div class="tool-item alarm-wrapper">
-                    <el-badge :value="alarmCount" :hidden="alarmCount === 0" class="item">
-                      <el-button circle :class="{ 'has-alarm': alarmCount > 0 }">
-                        <el-icon><Bell /></el-icon>
-                      </el-button>
-                    </el-badge>
-                  </div>
-                </template>
-                
-                <div class="alarm-list">
-                  <div v-if="alarmList.length === 0" class="empty-alarm">
-                    🎉 系统运行正常
-                  </div>
-                  <div v-else v-for="alarm in alarmList" :key="alarm.id" class="alarm-item">
-                    <el-icon color="#ef4444"><Warning /></el-icon>
-                    <div class="alarm-content">
-                      <div class="msg">{{ alarm.message }}</div>
-                      <div class="time">{{ formatTime(alarm.timestamp) }}</div>
-                    </div>
-                  </div>
-                  <div v-if="alarmList.length > 0" class="alarm-footer">
-                    <el-button type="primary" link size="small" @click="handleClearAlarms">全部清除</el-button>
-                  </div>
-                </div>
-              </el-popover>
+              <AlarmPopover />
     
               <el-button circle class="tool-item">
                 <el-icon><Setting /></el-icon>
@@ -334,17 +225,6 @@
       color: var(--danger-color) !important; 
       animation: pulse 2s infinite; 
     }
-    
-    /* --- 报警弹窗样式 --- */
-    .alarm-list { max-height: 300px; overflow-y: auto; }
-    .alarm-item {
-      display: flex; gap: 10px; padding: 10px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .alarm-content .msg { font-size: 13px; color: #333; }
-    .alarm-content .time { font-size: 12px; color: #999; margin-top: 2px; }
-    .alarm-footer { text-align: center; margin-top: 10px; }
-    .empty-alarm { text-align: center; color: #999; padding: 20px; }
     
     /* --- 主内容区 --- */
     .main-content {

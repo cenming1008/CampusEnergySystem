@@ -1,11 +1,8 @@
 #!/bin/bash
-# ============================================
-# 开发模式快速启动 - 前后端本地运行，中间件 Docker
-# ============================================
-# 适合二次开发：热重载、断点调试、快速重启
-# - Docker: 数据库 + Redis + MQTT
-# - 本地: 后端 (python run.py) + 前端 (npm run dev)
-# ============================================
+# 开发模式快捷入口
+# 说明：
+# - 中间件启动逻辑复用 scripts/shell/start_dev_env.sh
+# - 这里只额外负责本地后端和前端的后台启动
 
 set -e
 
@@ -26,39 +23,30 @@ echo -e "${BLUE}  （中间件 Docker + 前后端本地）${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# 1. 检查 Docker
-if ! docker info &> /dev/null; then
-    echo -e "${RED}❌ Docker 未运行${NC}"
-    echo -e "${YELLOW}请先启动 Docker Desktop${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✅ Docker 运行中${NC}"
-echo ""
-
 mkdir -p logs
 
-# 2. 启动中间件（仅 db, redis, mqtt）
-echo -e "${YELLOW}➜ 启动中间件（数据库 + Redis + MQTT）...${NC}"
-docker compose -f docker-compose.dev.yml up -d
-echo -e "${GREEN}✅ 中间件已启动${NC}"
+# 1. 启动中间件（复用完整脚本）
+echo -e "${YELLOW}➜ 启动中间件环境...${NC}"
+./scripts/shell/start_dev_env.sh
 echo ""
 
-# 3. 等待中间件就绪
-echo -e "${YELLOW}➜ 等待中间件就绪...${NC}"
-sleep 5
-if docker exec mine_energy_db_dev pg_isready -U admin -d mine_energy &>/dev/null; then
-    echo -e "${GREEN}✅ 数据库就绪 (localhost:5432)${NC}"
-else
-    echo -e "${YELLOW}⚠️  数据库可能仍在启动中，请稍候${NC}"
-fi
-echo ""
-
-# 4. 启动后端（本地）
+# 2. 启动后端（本地）
 echo -e "${YELLOW}➜ 启动后端（本地）...${NC}"
 if [ ! -d "venv" ]; then
     echo -e "${RED}❌ 未找到 venv，请先创建虚拟环境: python -m venv venv${NC}"
     exit 1
 fi
+
+# 8088 已被占用时，再启动会得到 Address already in use，健康检查也可能一直等不到「新」进程
+if command -v lsof >/dev/null 2>&1; then
+    OLD_PIDS=$(lsof -nP -iTCP:8088 -sTCP:LISTEN -t 2>/dev/null || true)
+    if [ -n "$OLD_PIDS" ]; then
+        echo -e "${YELLOW}⚠️  端口 8088 已被占用 (PID: $OLD_PIDS)，先结束旧进程以便重启后端${NC}"
+        kill $OLD_PIDS 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
 echo -e "${GREEN}✅ 后端将在后台运行${NC}"
 (
     source venv/bin/activate
@@ -68,10 +56,11 @@ BACKEND_PID=$!
 echo "   后端 PID: $BACKEND_PID (日志: logs/backend_dev.log)"
 echo ""
 
-# 5. 等待后端就绪
+# 3. 等待后端就绪
 echo -e "${YELLOW}➜ 等待后端就绪...${NC}"
+# 用 /health/live：只表示进程已监听，不依赖数据库（/health 可能因 DB 慢而长时间无响应）
 for i in {1..30}; do
-    if curl -s -f http://localhost:8088/health &>/dev/null; then
+    if curl -s -f http://localhost:8088/health/live &>/dev/null; then
         echo -e "${GREEN}✅ 后端就绪 (http://localhost:8088)${NC}"
         break
     fi
@@ -82,7 +71,7 @@ for i in {1..30}; do
 done
 echo ""
 
-# 6. 启动前端（本地）
+# 4. 启动前端（本地）
 echo -e "${YELLOW}➜ 启动前端（本地）...${NC}"
 if [ ! -d "frontend" ]; then
     echo -e "${RED}❌ 未找到 frontend 目录${NC}"
@@ -99,7 +88,7 @@ echo "   前端 PID: $FRONTEND_PID (日志: logs/frontend_dev.log)"
 sleep 3
 echo ""
 
-# 7. 完成
+# 5. 完成
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ 开发环境已启动！${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

@@ -3,6 +3,8 @@
 
 统一管理数据库、Redis、MQTT、JWT、CORS、日志、服务端口等配置。
 """
+import json
+import warnings
 from typing import List, Optional
 
 # Pydantic v2 推荐：BaseSettings 在 pydantic-settings；如果环境未安装，则回退到 pydantic.v1
@@ -16,6 +18,39 @@ except Exception:
     except Exception:
         # Pydantic v1
         from pydantic import BaseSettings, Field, validator  # type: ignore
+
+
+DEFAULT_SECRET_KEY = "mine-energy-system-secret-key-change-me"
+POSTGRES_SCHEMES = ("postgresql://", "postgresql+psycopg2://")
+
+
+def validate_database_url_value(value: str) -> str:
+    """验证数据库 URL 格式。"""
+    if not value.startswith(POSTGRES_SCHEMES):
+        raise ValueError("DATABASE_URL 必须以 postgresql:// 或 postgresql+psycopg2:// 开头")
+    return value
+
+
+def validate_secret_key_value(value: str) -> str:
+    """验证密钥强度。"""
+    if len(value) < 32:
+        raise ValueError("SECRET_KEY 长度至少32个字符，请使用强密钥！")
+    if value == DEFAULT_SECRET_KEY:
+        warnings.warn(
+            "⚠️ 警告：你正在使用默认的SECRET_KEY，生产环境请务必修改！",
+            UserWarning,
+        )
+    return value
+
+
+def parse_cors_origins_value(value):
+    """解析 CORS 来源配置。"""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+    return value
 
 class Settings(BaseSettings):
     """
@@ -50,9 +85,7 @@ class Settings(BaseSettings):
     @validator("database_url")
     def validate_database_url(cls, v):
         """验证数据库URL格式：只允许PostgreSQL连接地址"""
-        if not v.startswith(("postgresql://", "postgresql+psycopg2://")):
-            raise ValueError("DATABASE_URL 必须以 postgresql:// 或 postgresql+psycopg2:// 开头")
-        return v
+        return validate_database_url_value(v)
     # ==================== Redis配置 ====================
     redis_url: str = Field(
         default="redis://localhost:6379/0",
@@ -108,10 +141,28 @@ class Settings(BaseSettings):
         env="MQTT_AUTO_CREATE_DEVICE",
         description="收到未知 device_code 时是否自动创建设备（即插即用）"
     )
+
+    mqtt_max_future_seconds: int = Field(
+        default=300,
+        env="MQTT_MAX_FUTURE_SECONDS",
+        description="允许设备时间戳领先当前时间的最大秒数，超过则丢弃"
+    )
+
+    mqtt_stale_data_days: int = Field(
+        default=90,
+        env="MQTT_STALE_DATA_DAYS",
+        description="允许接收的历史数据最大天数，超过则丢弃"
+    )
+
+    mqtt_online_timeout_seconds: int = Field(
+        default=300,
+        env="MQTT_ONLINE_TIMEOUT_SECONDS",
+        description="设备成功上报后判定在线的持续秒数"
+    )
     
     # ==================== JWT认证配置 ====================
     secret_key: str = Field(
-        default="mine-energy-system-secret-key-change-me",
+        default=DEFAULT_SECRET_KEY,
         env="SECRET_KEY",
         description="JWT密钥（生产环境必须修改！）"
     )
@@ -131,35 +182,48 @@ class Settings(BaseSettings):
     @validator("secret_key")
     def validate_secret_key(cls, v):
         """验证密钥强度"""
-        if len(v) < 32:
-            raise ValueError("SECRET_KEY 长度至少32个字符，请使用强密钥！")
-        if v == "mine-energy-system-secret-key-change-me":
-            import warnings
-            warnings.warn(
-                "⚠️ 警告：你正在使用默认的SECRET_KEY，生产环境请务必修改！",
-                UserWarning
-            )
-        return v
+        return validate_secret_key_value(v)
     
     # ==================== CORS配置 ====================
     cors_origins: List[str] = Field(
-        default=["http://localhost:5173", "http://127.0.0.1:5173"],
+        default=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
         env="CORS_ORIGINS",
         description="允许的CORS来源（JSON数组格式或逗号分隔）"
+    )
+
+    db_pool_size: int = Field(
+        default=20,
+        env="DB_POOL_SIZE",
+        description="数据库连接池基础连接数"
+    )
+
+    db_max_overflow: int = Field(
+        default=40,
+        env="DB_MAX_OVERFLOW",
+        description="数据库连接池溢出连接数"
+    )
+
+    db_pool_timeout: int = Field(
+        default=30,
+        env="DB_POOL_TIMEOUT",
+        description="数据库连接池获取连接超时时间（秒）"
+    )
+
+    db_pool_recycle: int = Field(
+        default=1800,
+        env="DB_POOL_RECYCLE",
+        description="数据库连接回收时间（秒）"
     )
     
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         """解析CORS来源配置"""
-        if isinstance(v, str):
-            # 尝试解析JSON数组
-            import json
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                # 如果不是JSON，按逗号分隔
-                return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+        return parse_cors_origins_value(v)
     
     # ==================== 电价配置 ====================
     peak_price: float = Field(
@@ -369,4 +433,3 @@ PEAK_PRICE = settings.peak_price
 FLAT_PRICE = settings.flat_price
 VALLEY_PRICE = settings.valley_price
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
-

@@ -623,7 +623,11 @@ MineEnergySystem/
 ├── docs/                    # 文档中心
 │   ├── archive/            # 归档文档
 │   └── README.md           # 文档导航
-├── config/                  # 配置文件
+├── config/                  # 运行配置（报警阈值、网关设备）
+├── models/                  # LSTM 模型产物（非 app/models）
+├── mosquitto/               # MQTT Broker 配置与挂载目录
+├── pg_data/                 # 默认/生产数据库数据目录（已忽略）
+├── pg_data_dev/             # 开发数据库数据目录（已忽略）
 ├── logs/                    # 运行日志
 ├── backups/                 # 备份文件
 ├── docker-compose.yml       # Docker 编排

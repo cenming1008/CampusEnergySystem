@@ -10,7 +10,7 @@
 
 使用方法：
 1. 安装依赖：pip install pymodbus paho-mqtt
-2. 配置 DEVICE_CONFIG 中的设备信息
+2. 在 config/gateway_devices.json 中按类别添加设备（推荐），或使用代码内默认配置
 3. 运行：python device_gateway.py
 """
 
@@ -27,18 +27,52 @@ MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = "mine/telemetry"
 
-# 设备配置列表
-# 根据你的实际设备修改这里
-DEVICE_CONFIG = [
+# 设备配置文件路径（可选）：环境变量 > 项目根 config/gateway_devices.json > 代码内默认
+def _project_root():
+    """脚本所在目录为 scripts/python，项目根为其上两级"""
+    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
+def load_device_config():
+    """
+    从配置文件加载设备列表。配置文件按类别分组，便于维护。
+    若文件不存在或解析失败，则使用代码内默认配置。
+    返回：设备字典列表，与原先 DEVICE_CONFIG 格式一致。
+    """
+    config_path = os.getenv("GATEWAY_DEVICES_CONFIG")
+    if not config_path:
+        config_path = os.path.join(_project_root(), "config", "gateway_devices.json")
+    if not os.path.isfile(config_path):
+        return None
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"⚠️ 读取配置文件失败 {config_path}: {e}，使用默认配置")
+        return None
+    categories = data.get("categories") or {}
+    devices = []
+    for cat_name, cat_value in categories.items():
+        if cat_name.startswith("_"):
+            continue
+        if isinstance(cat_value, dict) and "devices" in cat_value:
+            for d in cat_value["devices"]:
+                if isinstance(d, dict):
+                    devices.append(d)
+    if not devices:
+        return None
+    return devices
+
+# 代码内默认配置（无配置文件或配置为空时使用）
+DEFAULT_DEVICE_CONFIG = [
     {
-        "device_id": 11,          # 数据库中的设备 ID
-        "device_code": "METER001", # 设备序列号
+        "device_id": 11,
+        "device_code": "METER001",
         "name": "智能电表",
-        "protocol": "modbus_tcp",  # 协议类型: modbus_tcp, modbus_rtu, http, serial
-        "host": "192.168.1.100",   # 设备 IP（Modbus TCP）
-        "port": 502,               # 端口
-        "slave_id": 1,             # Modbus 从站地址
-        "registers": {             # 寄存器映射
+        "protocol": "modbus_tcp",
+        "host": "192.168.1.100",
+        "port": 502,
+        "slave_id": 1,
+        "registers": {
             "voltage": {"address": 0x0000, "type": "float32"},
             "current": {"address": 0x0002, "type": "float32"},
             "power": {"address": 0x0004, "type": "float32"},
@@ -50,7 +84,7 @@ DEVICE_CONFIG = [
         "device_code": "WATER001",
         "name": "水表",
         "protocol": "http",
-        "url": "http://192.168.1.101/api/data",  # 设备 HTTP 接口
+        "url": "http://192.168.1.101/api/data",
         "field_mapping": {
             "flow_rate": "flowRate",
             "consumption": "totalVolume"
@@ -155,13 +189,21 @@ def read_device(config):
 # ================= 主程序 =================
 
 def main():
+    # 优先从配置文件加载设备，便于新增/修改设备而无需改代码
+    DEVICE_CONFIG = load_device_config()
+    if DEVICE_CONFIG is None:
+        DEVICE_CONFIG = DEFAULT_DEVICE_CONFIG
+        print("📋 使用代码内默认设备配置")
+    else:
+        print("📋 已从 config/gateway_devices.json 加载设备配置")
+
     print("=" * 60)
     print("   🔌 设备网关采集器")
     print(f"   MQTT: {MQTT_BROKER}:{MQTT_PORT}")
     print(f"   设备数: {len(DEVICE_CONFIG)}")
     print("=" * 60)
     print()
-    
+
     # 连接 MQTT
     client = mqtt.Client()
     try:
@@ -171,10 +213,10 @@ def main():
     except Exception as e:
         print(f"❌ MQTT 连接失败: {e}")
         return
-    
+
     print(f"🚀 开始采集，间隔 {COLLECT_INTERVAL} 秒...")
     print("-" * 60)
-    
+
     try:
         while True:
             for config in DEVICE_CONFIG:

@@ -7,9 +7,15 @@ from datetime import datetime
 from sqlmodel import Session, select
 from app.core.logger import logger
 
+from app.domain.device_payloads import (
+    build_device_create_fields,
+    get_device_type_config,
+    normalize_device_report_payload,
+)
 from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 from app.core.device_registry import device_registry
+from app.repositories.device_repository import DeviceRepository
 from app.services.energy_service import EnergyService
 
 
@@ -34,24 +40,17 @@ class DeviceService:
             category: 设备类别筛选
             is_active: 状态筛选
         """
-        statement = select(Device)
-        
-        if energy_type:
-            statement = statement.where(Device.energy_type == energy_type)
-        
-        if category:
-            statement = statement.where(Device.device_category == category)
-        
-        if is_active is not None:
-            statement = statement.where(Device.is_active == is_active)
-        
-        statement = statement.order_by(Device.id)
-        return list(session.exec(statement).all())
+        return DeviceRepository.list_devices(
+            session,
+            energy_type=energy_type,
+            category=category,
+            is_active=is_active,
+        )
     
     @staticmethod
     def get_device_by_id(session: Session, device_id: int) -> Device:
         """根据ID获取设备"""
-        device = session.get(Device, device_id)
+        device = DeviceRepository.get_by_id(session, device_id)
         if not device:
             raise ResourceNotFoundException("设备", device_id)
         return device
@@ -59,8 +58,7 @@ class DeviceService:
     @staticmethod
     def get_device_by_sn(session: Session, sn: str) -> Optional[Device]:
         """根据序列号获取设备"""
-        statement = select(Device).where(Device.sn == sn)
-        return session.exec(statement).first()
+        return DeviceRepository.get_by_sn(session, sn)
     
     @staticmethod
     def create_device_smart(
@@ -89,14 +87,7 @@ class DeviceService:
         Returns:
             创建的设备对象
         """
-        # 检查设备类型是否在注册表中
-        config = device_registry.get(device_type)
-        if not config:
-            available_types = device_registry.list_device_types()
-            raise ValueError(
-                f"不支持的设备类型: {device_type}。"
-                f"支持的类型: {', '.join(available_types)}"
-            )
+        config = get_device_type_config(device_type)
         
         # 检查序列号是否已存在
         existing = DeviceService.get_device_by_sn(session, sn)
@@ -104,25 +95,20 @@ class DeviceService:
             logger.warning(f"设备序列号 {sn} 已存在，返回现有设备")
             return existing
         
-        # 使用配置自动填充字段
         device = Device(
-            name=name,
-            sn=sn,
-            device_type=device_type,
-            device_category=config.category.value,
-            energy_type=config.energy_type.value,
-            location=location,
-            description=description or f"{config.name_zh}设备",
-            rated_capacity=rated_capacity or config.default_capacity,
-            unit=config.unit,
-            is_active=True,
-            **extra_fields
+            **build_device_create_fields(
+                name=name,
+                sn=sn,
+                device_type=device_type,
+                location=location,
+                description=description,
+                rated_capacity=rated_capacity,
+                **extra_fields,
+            )
         )
         
         try:
-            session.add(device)
-            session.commit()
-            session.refresh(device)
+            DeviceRepository.save(session, device)
             
             logger.info(
                 f"✅ 创建设备成功: {name} (类型={device_type}, "
@@ -155,16 +141,12 @@ class DeviceService:
                     if not device.rated_capacity and config.default_capacity:
                         device.rated_capacity = config.default_capacity
             
-            session.add(device)
-            session.commit()
-            session.refresh(device)
+            DeviceRepository.save(session, device)
             return device
         except Exception as e:
             session.rollback()
             # 检查是否是重复的SN
-            existing = session.exec(
-                select(Device).where(Device.sn == device.sn)
-            ).first()
+            existing = DeviceRepository.get_by_sn(session, device.sn)
             if existing:
                 return existing
             raise DatabaseException(f"创建设备失败: {str(e)}")
@@ -192,17 +174,13 @@ class DeviceService:
         
         device.updated_at = datetime.now()
         
-        session.add(device)
-        session.commit()
-        session.refresh(device)
-        return device
+        return DeviceRepository.save(session, device)
     
     @staticmethod
     def delete_device(session: Session, device_id: int) -> None:
         """删除设备"""
         device = DeviceService.get_device_by_id(session, device_id)
-        session.delete(device)
-        session.commit()
+        DeviceRepository.delete(session, device)
     
     @staticmethod
     def toggle_device_status(session: Session, device_id: int, active: bool) -> Device:
@@ -210,10 +188,7 @@ class DeviceService:
         device = DeviceService.get_device_by_id(session, device_id)
         device.is_active = active
         device.updated_at = datetime.now()
-        session.add(device)
-        session.commit()
-        session.refresh(device)
-        return device
+        return DeviceRepository.save(session, device)
     
     # ==================== 能源数据管理（整合） ====================
     
@@ -255,59 +230,22 @@ class DeviceService:
         """
         # 获取设备信息
         device = DeviceService.get_device_by_id(session, device_id)
-        
-        # 获取设备类型配置
-        config = device_registry.get(device.device_type)
-        
-        # ========== 字段映射（在验证之前进行） ==========
-        # 1. flow_rate 字段映射：power 可以作为 flow_rate 的替代
-        if "flow_rate" not in data and "power" in data:
-            data["flow_rate"] = data["power"]
-        
-        # 2. heat_flow 字段映射：heat_power 可以作为 heat_flow 的替代
-        if "heat_flow" not in data and "heat_power" in data:
-            data["heat_flow"] = data["heat_power"]
-        
-        # ========== 验证必需字段 ==========
-        if config:
-            for field in config.required_fields:
-                if field not in data or data[field] is None:
-                    raise ValueError(f"缺少必需字段: {field}")
-        
-        # 提取通用字段
-        consumption = data.get("consumption")
-        if consumption is None:
-            raise ValueError("consumption 字段是必需的")
-        
-        flow_rate = data.get("flow_rate")
-        
-        # 提取可选字段
-        optional_fields = {}
-        optional_field_names = [
-            "voltage", "current", "power_factor",
-            "pressure", "temperature",
-            "supply_temp", "return_temp", "heat_flow",
-            "quality_index"
-        ]
-        
-        for field in optional_field_names:
-            if field in data and data[field] is not None:
-                optional_fields[field] = data[field]
+        payload = normalize_device_report_payload(device.device_type, data)
         
         # 调用 EnergyService 保存数据
         energy_data = EnergyService.save_energy_data(
             session=session,
             device_id=device_id,
             energy_type=device.energy_type,
-            consumption=consumption,
-            flow_rate=flow_rate,
+            consumption=payload.consumption,
+            flow_rate=payload.flow_rate,
             timestamp=timestamp,
-            **optional_fields
+            **payload.optional_fields
         )
         
         logger.info(
             f"📊 设备数据上报成功: 设备ID={device_id}, "
-            f"类型={device.device_type}, 消耗={consumption}"
+            f"类型={device.device_type}, 消耗={payload.consumption}"
         )
         
         return energy_data
@@ -397,4 +335,3 @@ class DeviceService:
             "icon": config.icon,
             "color": config.color,
         }
-

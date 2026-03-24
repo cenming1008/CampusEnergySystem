@@ -185,7 +185,7 @@ python scripts/python/init_complete_system.py
 # 设备模拟器（推荐开发/演示）
 python scripts/python/simulator_unified.py
 
-# 真实设备网关（Modbus/HTTP → MQTT，需配置 DEVICE_CONFIG）
+# 真实设备网关（Modbus/HTTP → MQTT，需配置 config/gateway_devices.json）
 python scripts/python/device_gateway.py
 ```
 

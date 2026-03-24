@@ -4,12 +4,16 @@
 """
 import os
 import json
+from datetime import timedelta
 from typing import List, Dict, Any, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 
 from app.models.tables import Alarm
 from app.core.logger import logger
+
+
+ALARM_DEDUP_SECONDS = 300
 
 
 class AlarmService:
@@ -127,7 +131,8 @@ class AlarmService:
         session: Session,
         device_id: int,
         message: str,
-        timestamp: datetime = None
+        timestamp: datetime = None,
+        auto_commit: bool = True,
     ) -> Alarm:
         """
         创建新的报警记录
@@ -152,11 +157,38 @@ class AlarmService:
         )
         
         session.add(alarm)
-        session.commit()
+        if auto_commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(alarm)
         
         logger.info(f"创建报警: 设备 {device_id} - {message}")
         return alarm
+
+    @staticmethod
+    def should_create_alarm(
+        session: Session,
+        device_id: int,
+        message: str,
+        timestamp: datetime,
+        dedup_seconds: int = ALARM_DEDUP_SECONDS,
+    ) -> bool:
+        """判断是否需要创建新报警，避免短时间内重复刷同类报警。"""
+        if dedup_seconds <= 0:
+            return True
+
+        cutoff_time = timestamp - timedelta(seconds=dedup_seconds)
+        existing_alarm = session.exec(
+            select(Alarm)
+            .where(Alarm.device_id == device_id)
+            .where(Alarm.message == message)
+            .where(Alarm.is_resolved == False)
+            .where(Alarm.timestamp >= cutoff_time)
+            .order_by(Alarm.timestamp.desc())
+        ).first()
+
+        return existing_alarm is None
     
     @staticmethod
     def load_thresholds() -> Dict:
@@ -211,14 +243,17 @@ class AlarmService:
             limit = dev_cfg.get("current_max", defaults.get("current_max", 45.0))
             
             if current > limit:
-                alarm = AlarmService.create_alarm(
-                    session=session,
-                    device_id=device_id,
-                    message=f"⚠️ 过载报警! 当前: {current}A (上限: {limit}A)",
-                    timestamp=timestamp
-                )
-                alarms.append(alarm)
-                logger.warning(f"设备 {device_id} 电流过载: {current}A > {limit}A")
+                message = f"⚠️ 过载报警! 当前: {current}A (上限: {limit}A)"
+                if AlarmService.should_create_alarm(session, device_id, message, timestamp):
+                    alarm = AlarmService.create_alarm(
+                        session=session,
+                        device_id=device_id,
+                        message=message,
+                        timestamp=timestamp,
+                        auto_commit=False,
+                    )
+                    alarms.append(alarm)
+                    logger.warning(f"设备 {device_id} 电流过载: {current}A > {limit}A")
         
         # 电压异常检测
         if "voltage" in data and data["voltage"] is not None:
@@ -228,14 +263,21 @@ class AlarmService:
             v_min = dev_cfg.get("voltage_min", defaults.get("voltage_min", 190.0))
             
             if voltage > v_max or voltage < v_min:
-                alarm = AlarmService.create_alarm(
-                    session=session,
-                    device_id=device_id,
-                    message=f"⚡ 电压异常! 读数: {voltage}V (范围: {v_min}-{v_max}V)",
-                    timestamp=timestamp
-                )
-                alarms.append(alarm)
-                logger.warning(f"设备 {device_id} 电压异常: {voltage}V")
+                message = f"⚡ 电压异常! 读数: {voltage}V (范围: {v_min}-{v_max}V)"
+                if AlarmService.should_create_alarm(session, device_id, message, timestamp):
+                    alarm = AlarmService.create_alarm(
+                        session=session,
+                        device_id=device_id,
+                        message=message,
+                        timestamp=timestamp,
+                        auto_commit=False,
+                    )
+                    alarms.append(alarm)
+                    logger.warning(f"设备 {device_id} 电压异常: {voltage}V")
+
+        if alarms:
+            session.commit()
+            for alarm in alarms:
+                session.refresh(alarm)
         
         return alarms
-

@@ -33,10 +33,18 @@ service.interceptors.response.use(
   (error: any) => {
     // 处理 HTTP 错误状态码
     const status = error.response?.status
-    const msg = error.response?.data?.detail || '网络请求失败'
+    const msg =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      '网络请求失败'
 
     if (status === 401) {
-      ElMessage.error('登录已过期，请重新登录')
+      // 401 可能是：Token 过期、Token 无效、未携带 Token、用户不存在等，统一提示并清除本地登录态
+      const hint = typeof msg === 'string' && msg.toLowerCase().includes('not authenticated')
+        ? '请先登录'
+        : '登录已过期或无效，请重新登录'
+      ElMessage.error(hint)
       const authStore = useAuthStore()
       authStore.logout()
       // 清除token后，通过修改URL触发路由守卫重新检查

@@ -1,0 +1,45 @@
+import os
+import unittest
+
+os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
+
+from app.domain.device_payloads import (
+    build_device_create_fields,
+    get_device_type_config,
+    normalize_device_report_payload,
+)
+
+
+class TestDeviceDomainHelpers(unittest.TestCase):
+    def test_get_device_type_config_raises_for_unknown_type(self):
+        with self.assertRaises(ValueError):
+            get_device_type_config("unknown_type")
+
+    def test_build_device_create_fields_uses_registry_defaults(self):
+        fields = build_device_create_fields(
+            name="1号水表",
+            sn="W001",
+            device_type="water_meter",
+        )
+
+        self.assertEqual(fields["energy_type"], "water")
+        self.assertEqual(fields["unit"], "m³/h")
+        self.assertTrue(fields["is_active"])
+
+    def test_normalize_device_report_payload_maps_power_to_flow_rate(self):
+        payload = normalize_device_report_payload(
+            "load",
+            {"consumption": 10.5, "power": 3.2, "voltage": 220},
+        )
+
+        self.assertEqual(payload.consumption, 10.5)
+        self.assertEqual(payload.flow_rate, 3.2)
+        self.assertEqual(payload.optional_fields["voltage"], 220)
+
+    def test_normalize_device_report_payload_requires_required_fields(self):
+        with self.assertRaises(ValueError):
+            normalize_device_report_payload("water_meter", {"consumption": 5.0})
+
+
+if __name__ == "__main__":
+    unittest.main()

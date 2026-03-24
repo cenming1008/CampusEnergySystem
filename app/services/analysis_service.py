@@ -6,8 +6,8 @@ from datetime import datetime, time
 from typing import Dict, Any, Optional
 from sqlmodel import Session, select
 
+from app.domain.energy_rules import get_electricity_price
 from app.models.tables import Device, EnergyData
-from app.services.energy_service import EnergyService
 
 
 class AnalysisService:
@@ -77,7 +77,7 @@ class AnalysisService:
         
         # 使用当前时段的电价（简化计算）
         # 更精确的方法：可以按小时查询能耗，分时段计算费用
-        current_price = EnergyService.get_electricity_price(now.hour)
+        current_price = get_electricity_price(now.hour)
         today_cost = today_kwh * current_price
         
         return today_kwh, today_cost
@@ -94,4 +94,3 @@ class AnalysisService:
             "voltage": 0,
             "current": 0
         }
-

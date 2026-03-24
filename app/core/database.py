@@ -16,7 +16,15 @@ from app.core.logger import logger
 from app.core.settings import settings
 
 
-engine = create_engine(settings.database_url, echo=settings.debug)
+engine = create_engine(
+    settings.database_url,
+    echo=settings.debug,
+    pool_pre_ping=True,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+)
 
 
 def init_db() -> None:

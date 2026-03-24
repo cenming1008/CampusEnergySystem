@@ -1,223 +1,56 @@
-# 🔧 可执行脚本目录
+# bin 目录说明
 
-> 本目录包含常用的启动和管理脚本（精简版）
+`bin/` 是这个项目的“快捷入口层”。
 
-## 📋 脚本列表
+它的用途不是承载完整实现，而是把最常用的几个动作收成短命令，方便日常启动和演示。真正更完整、更细分的脚本都放在 [`scripts/`](../scripts/README.md)。
 
-### 🚀 快速启动
+## 目录职责
 
-| 脚本 | 用途 | 适用场景 |
-|------|------|----------|
-| **fast_start.sh** | 快速启动（全 Docker） | 测试/部署，前后端都在容器中 |
-| **fast_start_dev.sh** | 开发模式（前后端本地） | 二次开发、热重载、断点调试 ⭐ |
+- `bin/`：给人直接敲的快捷脚本，命令短、上手快
+- `scripts/shell/`：完整 shell 工具集，检查更全、场景更细
+- `scripts/python/`：Python 工具和模拟器的真实实现
 
-**fast_start_dev.sh 特点**：
-- ✅ 中间件（db/redis/mqtt）在 Docker 中运行
-- ✅ 前后端在本地运行，支持热重载
-- ✅ 一键启动，无需分步操作
+## 当前脚本
 
-### 🔧 开发者模式（使用 scripts）
-
-| 场景 | 脚本 | 说明 |
+| 脚本 | 用途 | 本质 |
 |------|------|------|
-| 一键开发环境 | **bin/fast_start_dev.sh** | 中间件 Docker + 前后端本地，推荐 |
-| 只启动中间件 | **scripts/shell/start_dev_env.sh** | 前后端需手动启动 |
+| `fast_start.sh` | 快速启动整套 Docker 服务 | 快捷启动入口 |
+| `fast_start_dev.sh` | 启动开发模式 | 快捷编排入口 |
+| `run_simulator.sh` | 运行设备模拟器 | 对 Python 模拟器的容器包装 |
 
-### 🔧 工具脚本
+## 推荐理解
 
-| 脚本 | 用途 | 说明 |
-|------|------|------|
-| **run_simulator.sh** | 运行设备模拟器 | 在Docker容器内生成测试数据 |
+- `bin/` 适合“我现在就想把系统跑起来”
+- `scripts/` 适合“我需要更细的控制、排查或单独执行某一部分”
 
-## 🎯 使用方法
-
-### 从项目根目录运行
+## 常用命令
 
 ```bash
-# 方式1：使用相对路径
+# 日常快速启动
 ./bin/fast_start.sh
 
-# 方式2：直接运行（如果已在 bin 目录）
-cd bin
-./fast_start.sh
-```
+# 开发模式：中间件 Docker，前后端本地
+./bin/fast_start_dev.sh
 
-### 从任意目录运行
-
-```bash
-# 使用绝对路径
-/path/to/MineEnergySystem/bin/fast_start.sh
-```
-
-## 📝 详细说明
-
-### fast_start.sh ⭐ 推荐日常使用
-
-**功能**：智能启动，自动检测是否需要重新构建镜像
-
-**执行流程**：
-1. 检查 Docker 是否运行
-2. 检查镜像缓存是否存在
-3. 如果镜像缺失 → 完整构建（3-5分钟）
-4. 如果镜像存在 → 快速启动（10-30秒）
-5. 显示服务状态和访问地址
-
-**适用场景**：
-- ✅ 日常开发使用
-- ✅ 重启服务
-- ✅ 代码修改后快速测试
-
-**执行时间**：
-- 首次启动：3-5分钟
-- 后续启动：10-30秒
-
-### run_simulator.sh
-
-**功能**：在 Docker 容器内运行 **scripts/python/simulator_unified.py**（同一套逻辑，非重复实现）
-
-**特点**：
-- 自动设置 MQTT 和 API 环境变量
-- 在容器内运行，环境隔离
-- 本地跑模拟器可直接用：`python scripts/python/simulator_unified.py`
-
-**使用方法**：
-```bash
-./bin/run_simulator.sh
-
-# 停止：按 Ctrl+C
-```
-
-**模拟的设备类型**：
-- 智能电表
-- 主通风机
-- 中央排水泵
-- 矿用变压器
-- 瓦斯抽放泵
-- MG500采煤机
-- 皮带输送机
-- 副井提升机
-- 空气压缩机
-- 刮板输送机
-
-## 🔗 更多功能
-
-`bin/` 目录提供最常用的快捷脚本，更多完整功能请使用 `scripts/` 目录：
-
-### 完整启动脚本
-
-```bash
-# 完整启动（带详细检查和提示）
-./scripts/shell/start.sh
-
-# 停止所有服务
-./scripts/shell/stop.sh
-
-# 查看服务状态
-./scripts/shell/status.sh
-
-# 重启后端服务
-./scripts/shell/restart_backend.sh
-
-# 重建后端
-./scripts/shell/rebuild_backend.sh
-```
-
-### 前端开发
-
-```bash
-# 启动前端开发服务器（完整版，带检查）
-./scripts/shell/start_frontend.sh
-```
-
-### 健康检查
-
-```bash
-# 完整的健康检查测试
-./scripts/shell/test_health.sh
-```
-
-### Python 工具
-
-```bash
-# 创建管理员账户
-python scripts/python/create_admin.py
-
-# 设备分组演示
-python scripts/python/demo_device_group.py
-
-# 位置管理演示
-python scripts/python/demo_location.py
-
-# 维护管理演示
-python scripts/python/demo_maintenance.py
-
-# 重建数据库
-python scripts/python/rebuild_database.py
-
-# 数据迁移
-python scripts/python/migrate_devicedata_to_energydata.py
-```
-
-## 💡 使用建议
-
-### 典型工作流程
-
-```bash
-# 1. 日常启动（最常用）⭐
-./bin/fast_start.sh
-
-# 2. 查看服务状态
-./scripts/shell/status.sh
-
-# 3. 启动前端（需要Web界面时）
-./scripts/shell/start_frontend.sh
-
-# 4. 生成测试数据
-./bin/run_simulator.sh
-
-# 5. 停止服务（下班时）
-./scripts/shell/stop.sh
-```
-
-### 首次使用
-
-```bash
-# 1. 启动所有服务（会自动构建）
-./bin/fast_start.sh
-
-# 2. 创建管理员账户
-docker exec mine_backend python scripts/python/create_admin.py
-
-# 3. 运行演示脚本（可选）
-docker exec mine_backend python scripts/python/demo_unified_system.py
-
-# 4. 启动前端
-./scripts/shell/start_frontend.sh
-
-# 5. 启动模拟器生成数据
+# 运行模拟器
 ./bin/run_simulator.sh
 ```
 
-### 故障排查
+## 与 scripts 的关系
 
-```bash
-# 查看日志
-docker compose logs -f backend
+| bin 脚本 | 对应实现/能力 |
+|---------|---------------|
+| `fast_start.sh` | 与 [`scripts/shell/start.sh`](../scripts/shell/start.sh) 用途接近，但更偏“快” |
+| `fast_start_dev.sh` | 复用 [`scripts/shell/start_dev_env.sh`](../scripts/shell/start_dev_env.sh) 的中间件启动能力，再补本地前后端启动 |
+| `run_simulator.sh` | 包装 [`scripts/python/simulator_unified.py`](../scripts/python/simulator_unified.py) |
 
-# 查看所有服务日志
-docker compose logs -f
+## 什么时候不该用 bin
 
-# 健康检查
-./scripts/shell/test_health.sh
+- 你要做细粒度运维时
+- 你要单独启动某个服务时
+- 你要排查环境或做恢复、备份、清理时
 
-# 查看状态
-./scripts/shell/status.sh
-
-# 重启服务
-./scripts/shell/restart_backend.sh
-```
-
-## 🆘 常见问题
+这类场景请直接看 [`scripts/README.md`](../scripts/README.md)。
 
 ### Q: 脚本提示 "permission denied"
 
@@ -284,8 +117,9 @@ docker compose up -d --build
 
 ```
 MineEnergySystem/
-├── bin/                    # 🚀 常用快捷脚本（本目录，仅 2 个）
-│   ├── fast_start.sh      # 日常快速启动（与 scripts/shell/start.sh 用途重叠，本脚本更快捷）
+├── bin/                    # 🚀 常用快捷脚本（本目录，3 个）
+│   ├── fast_start.sh      # 日常快速启动（与 scripts/shell/start.sh 用途接近，本脚本更快捷）
+│   ├── fast_start_dev.sh  # 开发模式快捷启动
 │   └── run_simulator.sh   # 在容器内运行 scripts/python/simulator_unified.py
 ├── scripts/               # 🔧 完整工具集（31 个脚本，见 scripts/SCRIPT_LIST.md）
 │   ├── shell/            # Shell 脚本（启动、停止、测试等）

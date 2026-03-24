@@ -6,11 +6,28 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlmodel import Session
 
+from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
 from app.core.database import get_session
 from app.core.response import success_response
-from app.services.forecast_adapter import ForecastAdapter
+from app.integrations.forecasting import ForecastAdapter
 
 router = APIRouter()
+VALID_DATA_TYPES = {"load", "solar", "wind"}
+
+
+def _get_forecast_adapter() -> ForecastAdapter:
+    """创建预测适配器实例。"""
+    return ForecastAdapter()
+
+
+def _validate_data_type(data_type: str) -> str:
+    normalized_type = data_type.lower()
+    if normalized_type not in VALID_DATA_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="data_type 必须是 'load', 'solar' 或 'wind'"
+        )
+    return normalized_type
 
 
 @router.post("/generate/device/{device_id}")
@@ -27,17 +44,10 @@ def generate_device_data(
     
     用于LSTM模型训练和测试
     """
-    if data_type not in ["load", "solar", "wind"]:
-        raise HTTPException(
-            status_code=400,
-            detail="data_type 必须是 'load', 'solar' 或 'wind'"
-        )
+    data_type = _validate_data_type(data_type)
     
     try:
-        adapter = ForecastAdapter()
-        
-        # 生成数据（clear_existing 在方法内部处理）
-        count = adapter.generate_device_data(
+        count = _get_forecast_adapter().generate_device_data(
             session=session,
             device_id=device_id,
             days=days,
@@ -56,7 +66,15 @@ def generate_device_data(
             },
             message=f"成功生成 {count} 条数据"
         )
-    except Exception:
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise bad_request_from_value_error(exc) from exc
+    except Exception as exc:
+        log_endpoint_exception(
+            f"生成设备模拟数据失败 device_id={device_id}, days={days}, interval_minutes={interval_minutes}, data_type={data_type}",
+            exc,
+        )
         raise HTTPException(status_code=500, detail="生成数据失败")
 
 
@@ -76,10 +94,7 @@ def generate_all_devices_data(
     - 其他设备 → 负荷数据
     """
     try:
-        adapter = ForecastAdapter()
-        
-        # 生成数据（clear_existing 在方法内部处理）
-        total_count = adapter.generate_system_data(
+        total_count = _get_forecast_adapter().generate_system_data(
             session=session,
             days=days,
             interval_minutes=interval_minutes,
@@ -94,7 +109,11 @@ def generate_all_devices_data(
             },
             message=f"成功为所有设备生成 {total_count} 条数据"
         )
-    except Exception:
+    except Exception as exc:
+        log_endpoint_exception(
+            f"生成全量模拟数据失败 days={days}, interval_minutes={interval_minutes}, clear_existing={clear_existing}",
+            exc,
+        )
         raise HTTPException(status_code=500, detail="生成数据失败")
 
 
@@ -108,14 +127,16 @@ def clear_device_data(
     清除指定设备的数据
     """
     try:
-        adapter = ForecastAdapter()
-        adapter.clear_device_data(session, device_id=device_id, days=days)
+        _get_forecast_adapter().clear_device_data(session, device_id=device_id, days=days)
         
         return success_response(
             data={"device_id": device_id, "days": days},
             message="数据清除完成"
         )
-    except Exception:
+    except ValueError as exc:
+        raise bad_request_from_value_error(exc) from exc
+    except Exception as exc:
+        log_endpoint_exception(f"清除模拟数据失败 device_id={device_id}, days={days}", exc)
         raise HTTPException(status_code=500, detail="清除数据失败")
 
 
@@ -128,7 +149,7 @@ def get_device_data_stats(
     获取设备数据统计信息
     """
     from sqlmodel import select, func
-    from app.models.tables import EnergyData, EnergyType
+    from app.models.tables import EnergyData
     
     # 统计总数据量
     total_count = session.exec(
