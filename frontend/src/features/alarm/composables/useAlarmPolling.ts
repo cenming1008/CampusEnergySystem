@@ -24,6 +24,8 @@ export function useAlarmPolling(options: UseAlarmPollingOptions = {}) {
       alarmCount.value = alarms.length
     } catch (error) {
       console.error('报警获取失败', error)
+      alarmList.value = []
+      alarmCount.value = 0
     } finally {
       loading.value = false
     }

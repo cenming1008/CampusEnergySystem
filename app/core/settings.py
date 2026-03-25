@@ -159,6 +159,42 @@ class Settings(BaseSettings):
         env="MQTT_ONLINE_TIMEOUT_SECONDS",
         description="设备成功上报后判定在线的持续秒数"
     )
+
+    auth_rate_limit_count: int = Field(
+        default=10,
+        env="AUTH_RATE_LIMIT_COUNT",
+        description="认证接口窗口内最大请求数"
+    )
+
+    auth_rate_limit_window_seconds: int = Field(
+        default=60,
+        env="AUTH_RATE_LIMIT_WINDOW_SECONDS",
+        description="认证接口限流窗口（秒）"
+    )
+
+    device_report_rate_limit_count: int = Field(
+        default=120,
+        env="DEVICE_REPORT_RATE_LIMIT_COUNT",
+        description="设备数据上报接口窗口内最大请求数"
+    )
+
+    device_report_rate_limit_window_seconds: int = Field(
+        default=60,
+        env="DEVICE_REPORT_RATE_LIMIT_WINDOW_SECONDS",
+        description="设备数据上报接口限流窗口（秒）"
+    )
+
+    device_control_rate_limit_count: int = Field(
+        default=20,
+        env="DEVICE_CONTROL_RATE_LIMIT_COUNT",
+        description="设备控制接口窗口内最大请求数"
+    )
+
+    device_control_rate_limit_window_seconds: int = Field(
+        default=60,
+        env="DEVICE_CONTROL_RATE_LIMIT_WINDOW_SECONDS",
+        description="设备控制接口限流窗口（秒）"
+    )
     
     # ==================== JWT认证配置 ====================
     secret_key: str = Field(

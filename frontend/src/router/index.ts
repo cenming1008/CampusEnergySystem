@@ -36,6 +36,12 @@ const router = createRouter({
           meta: { title: '设备台账' }
         },
         {
+          path: 'devices/:id/monitor',
+          name: 'DeviceMonitor',
+          component: () => import('@/views/DeviceMonitor.vue'),
+          meta: { title: '设备监控' }
+        },
+        {
           path: 'locations',
           name: 'Locations',
           component: () => import('@/views/LocationManager.vue'),

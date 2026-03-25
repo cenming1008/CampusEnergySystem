@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 from typing import Optional
+from datetime import datetime
 
 from sqlmodel import Session, select
 
-from app.models.tables import Device
+from app.models.tables import Device, DeviceControlLog
 
 
 class DeviceRepository:
@@ -45,6 +46,36 @@ class DeviceRepository:
         session.commit()
         session.refresh(device)
         return device
+
+    @staticmethod
+    def save_control_log(
+        session: Session,
+        control_log: DeviceControlLog,
+        commit: bool = True,
+    ) -> DeviceControlLog:
+        session.add(control_log)
+        if commit:
+            session.commit()
+            session.refresh(control_log)
+        else:
+            session.flush()
+        return control_log
+
+    @staticmethod
+    def list_control_logs(
+        session: Session,
+        device_id: int,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> list[DeviceControlLog]:
+        statement = select(DeviceControlLog).where(DeviceControlLog.device_id == device_id)
+        if start_time:
+            statement = statement.where(DeviceControlLog.created_at >= start_time)
+        if end_time:
+            statement = statement.where(DeviceControlLog.created_at <= end_time)
+        statement = statement.order_by(DeviceControlLog.created_at.desc()).limit(limit)
+        return list(session.exec(statement).all())
 
     @staticmethod
     def delete(session: Session, device: Device) -> None:

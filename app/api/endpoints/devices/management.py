@@ -10,9 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
+from app.api.deps import get_current_user
 from app.core.database import get_session
+from app.core.rate_limit import limit_requests
 from app.core.response import success_response
-from app.models.tables import Device
+from app.core.settings import settings
+from app.models.tables import Device, User
 from app.services.device_service import DeviceService
 from app.services.mqtt_publisher import publish_control_command
 
@@ -117,8 +120,24 @@ def delete_device(
 def toggle_device_status(
     device_id: int,
     active: bool,
+    reason: Optional[str] = Query(None, description="启停原因/备注"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(
+        limit_requests(
+            bucket="device-control",
+            max_calls=settings.device_control_rate_limit_count,
+            window_seconds=settings.device_control_rate_limit_window_seconds,
+        )
+    ),
 ):
-    device = DeviceService.toggle_device_status(session, device_id, active)
+    device = DeviceService.toggle_device_status(
+        session,
+        device_id,
+        active,
+        operator=current_user.username,
+        reason=reason,
+        command_source="api",
+    )
     publish_control_command(device.id, "start" if active else "stop")
     return device

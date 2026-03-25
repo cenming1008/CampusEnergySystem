@@ -1,15 +1,17 @@
 <script setup lang="ts">
     import { ref, reactive, onMounted, computed } from 'vue'
+    import { useRouter } from 'vue-router'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
       getDeviceTypes,
       type Device, type DeviceTypeConfig 
     } from '@/api/device'
     import { ElMessage, ElMessageBox } from 'element-plus'
-    import { Plus, Search, Refresh, Delete, Edit } from '@element-plus/icons-vue'
+    import { Plus, Search, Refresh, Delete, Edit, Monitor } from '@element-plus/icons-vue'
     
     // --- 状态定义 ---
     const loading = ref(false)
+    const router = useRouter()
     const tableData = ref<Device[]>([])
     const dialogVisible = ref(false)
     const dialogTitle = ref('新增设备')
@@ -250,6 +252,19 @@
             </template>
           </el-table-column>
     
+          <el-table-column label="监控" width="90" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="success"
+                :icon="Monitor"
+                @click="row.id && router.push(`/devices/${row.id}/monitor`)"
+              >
+                监控
+              </el-button>
+            </template>
+          </el-table-column>
+
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" :icon="Edit" @click="openDialog(row)">编辑</el-button>

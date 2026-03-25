@@ -217,8 +217,31 @@ class Alarm(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(index=True, foreign_key="device.id")
     message: str
+    severity: str = Field(default="warning", index=True, description="报警级别：info/warning/critical")
+    category: str = Field(default="threshold", index=True, description="报警类别")
+    source: str = Field(default="telemetry", description="报警来源")
     timestamp: datetime = Field(default_factory=datetime.now, index=True)
     is_resolved: bool = Field(default=False)
+    resolved_at: Optional[datetime] = Field(default=None, index=True, description="解决时间")
+    resolved_by: Optional[str] = Field(default=None, description="解决人")
+    handling_note: Optional[str] = Field(default=None, description="处理备注")
+
+
+class DeviceControlLog(SQLModel, table=True):
+    """设备控制/启停记录表。"""
+
+    __tablename__ = "device_control_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(index=True, foreign_key="device.id", description="设备ID")
+    action: str = Field(index=True, description="动作：start/stop/toggle")
+    target_status: bool = Field(description="目标状态")
+    previous_status: Optional[bool] = Field(default=None, description="变更前状态")
+    operator: Optional[str] = Field(default=None, description="操作人")
+    command_source: str = Field(default="api", description="来源：api/system/mqtt")
+    result: str = Field(default="success", index=True, description="执行结果")
+    reason: Optional[str] = Field(default=None, description="备注/原因")
+    created_at: datetime = Field(default_factory=datetime.now, index=True)
 
 
 class User(SQLModel, table=True):

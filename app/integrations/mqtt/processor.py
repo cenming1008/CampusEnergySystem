@@ -16,6 +16,7 @@ from sqlmodel import Session
 from app.application.telemetry_ingestion import ingest_telemetry_use_case
 from app.core.database import engine
 from app.core.logger import logger
+from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_device_resolver import resolve_device_id
@@ -190,6 +191,7 @@ def process_payload_dict(data: dict[str, Any], topic: Optional[str] = None) -> O
     """处理已解析的 MQTT payload 字典，便于测试。"""
     if data is None:
         return None
+    runtime_state.increment("mqtt_messages_total")
     data = apply_field_aliases(data)
 
     device_id = resolve_device_id(data, topic)
@@ -208,6 +210,7 @@ def process_payload_dict(data: dict[str, Any], topic: Optional[str] = None) -> O
             IngestionHealthService.mark_message_received(session, device_id=device_id)
             IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
             session.commit()
+        runtime_state.increment("mqtt_ingestion_failure_total")
         logger.warning(f"MQTT payload validation failed: device_id={device_id}, err={exc}")
         return None
     except Exception as exc:
@@ -215,9 +218,11 @@ def process_payload_dict(data: dict[str, Any], topic: Optional[str] = None) -> O
             IngestionHealthService.mark_message_received(session, device_id=device_id)
             IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
             session.commit()
+        runtime_state.increment("mqtt_ingestion_failure_total")
         logger.warning(f"MQTT payload persist failed: device_id={device_id}, err={exc}")
         return None
 
+    runtime_state.increment("mqtt_ingestion_success_total")
     return TelemetryBroadcastMessage(
         type="telemetry_update",
         data=ws_data,

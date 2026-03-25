@@ -9,6 +9,8 @@ from app import application, domain, repositories, services
 class TestLayerExports(unittest.TestCase):
     def test_application_exports_key_use_cases(self):
         self.assertTrue(callable(application.report_device_data_use_case))
+        self.assertTrue(callable(application.get_device_data_use_case))
+        self.assertTrue(callable(application.analyze_device_use_case))
         self.assertTrue(callable(application.ingest_telemetry_use_case))
         self.assertTrue(callable(application.forecast_load_use_case))
 

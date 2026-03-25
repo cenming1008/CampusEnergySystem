@@ -4,6 +4,7 @@
 from app.models.tables import (
     User,
     Device,
+    DeviceControlLog,
     EnergyData,
     Alarm,
     Location,
@@ -30,6 +31,7 @@ from app.models.tables import (
 __all__ = [
     "User",
     "Device",
+    "DeviceControlLog",
     "EnergyData",
     "Alarm",
     "Location",
@@ -52,4 +54,3 @@ __all__ = [
     "InspectionStatus",
     "InspectionResult",
 ]
-

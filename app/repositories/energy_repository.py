@@ -9,7 +9,7 @@ from typing import Optional
 
 from sqlmodel import Session, func, select
 
-from app.models.tables import CarbonEmission, EnergyData, EnergyStatistics
+from app.models.tables import CarbonEmission, Device, EnergyData, EnergyStatistics
 
 
 class EnergyRepository:
@@ -71,6 +71,34 @@ class EnergyRepository:
             statement = statement.where(EnergyData.timestamp <= end_time)
         statement = statement.order_by(EnergyData.timestamp.desc()).limit(limit)
         return list(reversed(session.exec(statement).all()))
+
+    @staticmethod
+    def get_latest_energy_data(
+        session: Session,
+        device_id: int,
+        energy_type: Optional[str] = None,
+    ) -> Optional[EnergyData]:
+        statement = select(EnergyData).where(EnergyData.device_id == device_id)
+        if energy_type:
+            statement = statement.where(EnergyData.energy_type == energy_type)
+        statement = statement.order_by(EnergyData.timestamp.desc()).limit(1)
+        return session.exec(statement).first()
+
+    @staticmethod
+    def get_first_energy_data_since(
+        session: Session,
+        device_id: int,
+        start_time: datetime,
+        energy_type: Optional[str] = None,
+    ) -> Optional[EnergyData]:
+        statement = select(EnergyData).where(
+            EnergyData.device_id == device_id,
+            EnergyData.timestamp >= start_time,
+        )
+        if energy_type:
+            statement = statement.where(EnergyData.energy_type == energy_type)
+        statement = statement.order_by(EnergyData.timestamp.asc()).limit(1)
+        return session.exec(statement).first()
 
     @staticmethod
     def list_carbon_emissions(
@@ -135,3 +163,13 @@ class EnergyRepository:
         session.commit()
         session.refresh(stat_record)
         return stat_record
+
+    @staticmethod
+    def list_energy_report_rows(session: Session, limit: int = 1000) -> list[tuple[EnergyData, str]]:
+        statement = (
+            select(EnergyData, Device.name)
+            .join(Device, Device.id == EnergyData.device_id)
+            .order_by(EnergyData.timestamp.desc())
+            .limit(limit)
+        )
+        return list(session.exec(statement).all())

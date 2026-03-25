@@ -12,7 +12,7 @@ from app.domain.device_payloads import (
     get_device_type_config,
     normalize_device_report_payload,
 )
-from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType
+from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 from app.core.device_registry import device_registry
 from app.repositories.device_repository import DeviceRepository
@@ -183,12 +183,35 @@ class DeviceService:
         DeviceRepository.delete(session, device)
     
     @staticmethod
-    def toggle_device_status(session: Session, device_id: int, active: bool) -> Device:
+    def toggle_device_status(
+        session: Session,
+        device_id: int,
+        active: bool,
+        operator: Optional[str] = None,
+        reason: Optional[str] = None,
+        command_source: str = "api",
+    ) -> Device:
         """切换设备状态"""
         device = DeviceService.get_device_by_id(session, device_id)
+        previous_status = device.is_active
         device.is_active = active
         device.updated_at = datetime.now()
-        return DeviceRepository.save(session, device)
+        session.add(device)
+
+        control_log = DeviceControlLog(
+            device_id=device.id,
+            action="start" if active else "stop",
+            target_status=active,
+            previous_status=previous_status,
+            operator=operator,
+            command_source=command_source,
+            result="success",
+            reason=reason,
+        )
+        session.add(control_log)
+        session.commit()
+        session.refresh(device)
+        return device
     
     # ==================== 能源数据管理（整合） ====================
     

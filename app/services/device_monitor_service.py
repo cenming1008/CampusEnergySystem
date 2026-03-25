@@ -1,0 +1,283 @@
+"""
+设备监控聚合服务
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+from typing import Any, Optional
+
+from sqlmodel import Session
+
+from app.models.tables import Device, DeviceControlLog
+from app.repositories.device_repository import DeviceRepository
+from app.repositories.energy_repository import EnergyRepository
+from app.services.alarm_service import AlarmService
+from app.services.device_service import DeviceService
+from app.services.ingestion_health_service import IngestionHealthService
+
+
+class DeviceMonitorService:
+    """聚合设备监控页所需的状态、实时值、趋势、告警与控制记录。"""
+
+    @staticmethod
+    def record_control_action(
+        session: Session,
+        device_id: int,
+        active: bool,
+        operator: Optional[str] = None,
+        command_source: str = "api",
+        reason: Optional[str] = None,
+        commit: bool = True,
+    ) -> DeviceControlLog:
+        device = DeviceService.get_device_by_id(session, device_id)
+        log = DeviceControlLog(
+            device_id=device_id,
+            action="start" if active else "stop",
+            target_status=active,
+            previous_status=device.is_active,
+            operator=operator,
+            command_source=command_source,
+            result="success",
+            reason=reason,
+        )
+        return DeviceRepository.save_control_log(session, log, commit=commit)
+
+    @staticmethod
+    def get_latest_realtime(session: Session, device_id: int) -> dict[str, Any]:
+        device = DeviceService.get_device_by_id(session, device_id)
+        latest = EnergyRepository.get_latest_energy_data(session, device_id, device.energy_type)
+        if latest is None:
+            return {
+                "device_id": device_id,
+                "timestamp": None,
+                "energy_type": device.energy_type,
+                "consumption": None,
+                "flow_rate": None,
+                "voltage": None,
+                "current": None,
+                "power_factor": None,
+                "pressure": None,
+                "temperature": None,
+            }
+
+        return {
+            "device_id": latest.device_id,
+            "timestamp": latest.timestamp,
+            "energy_type": latest.energy_type,
+            "consumption": latest.consumption,
+            "flow_rate": latest.flow_rate,
+            "voltage": latest.voltage,
+            "current": latest.current,
+            "power_factor": latest.power_factor,
+            "pressure": latest.pressure,
+            "temperature": latest.temperature,
+        }
+
+    @staticmethod
+    def get_runtime_status(session: Session, device_id: int) -> dict[str, Any]:
+        device = DeviceService.get_device_by_id(session, device_id)
+        ingestion = IngestionHealthService.get_device_health(session, device_id)
+        unresolved_count = AlarmService.get_alarm_count(session, device_id=device_id, resolved=False)
+        latest = DeviceMonitorService.get_latest_realtime(session, device_id)
+
+        if not device.is_active:
+            code = "stopped"
+            label = "已停机"
+        elif ingestion["status"] == "offline":
+            code = "offline"
+            label = "离线"
+        elif unresolved_count > 0:
+            code = "alarm"
+            label = "告警中"
+        elif ingestion["status"] == "degraded":
+            code = "degraded"
+            label = "运行波动"
+        elif ingestion["status"] == "online":
+            code = "running"
+            label = "运行中"
+        else:
+            code = "unknown"
+            label = "状态未知"
+
+        return {
+            "device_id": device_id,
+            "code": code,
+            "label": label,
+            "is_active": device.is_active,
+            "is_online": ingestion.get("is_online", False),
+            "ingestion_status": ingestion.get("status"),
+            "unresolved_alarm_count": unresolved_count,
+            "last_message_at": ingestion.get("last_message_at"),
+            "last_success_at": ingestion.get("last_success_at"),
+            "latest_timestamp": latest.get("timestamp"),
+        }
+
+    @staticmethod
+    def get_control_logs(
+        session: Session,
+        device_id: int,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 50,
+    ) -> list[DeviceControlLog]:
+        DeviceService.get_device_by_id(session, device_id)
+        return DeviceRepository.list_control_logs(
+            session,
+            device_id=device_id,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+
+    @staticmethod
+    def get_trend_summary(
+        session: Session,
+        device_id: int,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        end_at = end_time or datetime.now()
+        start_at = start_time or (end_at - timedelta(hours=24))
+        points = DeviceService.get_device_data(
+            session,
+            device_id=device_id,
+            start_time=start_at,
+            end_time=end_at,
+            limit=limit,
+        )
+        values = [float(point.flow_rate or 0) for point in points]
+        latest_value = values[-1] if values else 0.0
+        peak_value = max(values) if values else 0.0
+        valley_value = min(values) if values else 0.0
+        avg_value = sum(values) / len(values) if values else 0.0
+
+        return {
+            "device_id": device_id,
+            "start_time": start_at,
+            "end_time": end_at,
+            "points": [
+                {
+                    "timestamp": point.timestamp,
+                    "value": point.flow_rate,
+                    "consumption": point.consumption,
+                    "voltage": point.voltage,
+                    "current": point.current,
+                }
+                for point in points
+            ],
+            "summary": {
+                "latest": round(latest_value, 2),
+                "peak": round(peak_value, 2),
+                "valley": round(valley_value, 2),
+                "average": round(avg_value, 2),
+            },
+        }
+
+    @staticmethod
+    def get_status_history(
+        session: Session,
+        device_id: int,
+        hours: int = 72,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        since = datetime.now() - timedelta(hours=max(1, hours))
+        alarms = AlarmService.list_alarms(
+            session,
+            device_id=device_id,
+            start_time=since,
+            limit=limit,
+        )
+        control_logs = DeviceMonitorService.get_control_logs(
+            session,
+            device_id=device_id,
+            start_time=since,
+            limit=limit,
+        )
+
+        events: list[dict[str, Any]] = []
+        for alarm in alarms:
+            events.append(
+                {
+                    "timestamp": alarm.timestamp,
+                    "event_type": "alarm",
+                    "status": "resolved" if alarm.is_resolved else "active",
+                    "title": alarm.message,
+                    "detail": f"级别: {alarm.severity}",
+                }
+            )
+            if alarm.is_resolved and alarm.resolved_at:
+                events.append(
+                    {
+                        "timestamp": alarm.resolved_at,
+                        "event_type": "alarm_resolution",
+                        "status": "resolved",
+                        "title": f"报警已处理: {alarm.message}",
+                        "detail": alarm.resolved_by or "系统/未知用户",
+                    }
+                )
+
+        for record in control_logs:
+            events.append(
+                {
+                    "timestamp": record.created_at,
+                    "event_type": "control",
+                    "status": "success" if record.result == "success" else "failed",
+                    "title": "设备启动" if record.target_status else "设备停止",
+                    "detail": record.operator or "系统/未知用户",
+                }
+            )
+
+        events.sort(key=lambda item: item["timestamp"], reverse=True)
+        return events[:limit]
+
+    @staticmethod
+    def get_monitor_overview(session: Session, device_id: int) -> dict[str, Any]:
+        device = DeviceService.get_device_by_id(session, device_id)
+        archive = {
+            "id": device.id,
+            "name": device.name,
+            "sn": device.sn,
+            "device_type": device.device_type,
+            "device_category": device.device_category,
+            "energy_type": device.energy_type,
+            "location": device.location,
+            "rated_capacity": device.rated_capacity,
+            "unit": device.unit,
+            "description": device.description,
+            "created_at": device.created_at,
+            "updated_at": device.updated_at,
+        }
+
+        return {
+            "archive": archive,
+            "runtime_status": DeviceMonitorService.get_runtime_status(session, device_id),
+            "realtime": DeviceMonitorService.get_latest_realtime(session, device_id),
+            "ingestion_health": IngestionHealthService.get_device_health(session, device_id),
+            "recent_alarms": [
+                {
+                    "id": alarm.id,
+                    "message": alarm.message,
+                    "severity": alarm.severity,
+                    "category": alarm.category,
+                    "timestamp": alarm.timestamp,
+                    "is_resolved": alarm.is_resolved,
+                }
+                for alarm in AlarmService.list_alarms(session, device_id=device_id, limit=10)
+            ],
+            "recent_control_logs": [
+                {
+                    "id": log.id,
+                    "action": log.action,
+                    "target_status": log.target_status,
+                    "previous_status": log.previous_status,
+                    "operator": log.operator,
+                    "command_source": log.command_source,
+                    "result": log.result,
+                    "reason": log.reason,
+                    "created_at": log.created_at,
+                }
+                for log in DeviceMonitorService.get_control_logs(session, device_id, limit=10)
+            ],
+        }

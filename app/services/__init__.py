@@ -6,6 +6,7 @@ from app.services.alarm_service import AlarmService
 from app.services.analysis_service import AnalysisService
 from app.services.data_cleanup_service import cleanup_old_data, get_data_statistics
 from app.services.device_group_service import DeviceGroupService
+from app.services.device_monitor_service import DeviceMonitorService
 from app.services.device_service import DeviceService
 from app.services.fdd_service import FDDService
 from app.services.energy_service import EnergyService
@@ -37,6 +38,7 @@ try:
     from app.services.scheduler_service import start_scheduler, stop_scheduler, get_jobs
     __all__ = [
         "DeviceService",
+        "DeviceMonitorService",
         "AlarmService",
         "AnalysisService",
         "data_cleanup_service",
@@ -63,6 +65,7 @@ try:
 except ImportError:
     __all__ = [
         "DeviceService",
+        "DeviceMonitorService",
         "AlarmService",
         "AnalysisService",
         "data_cleanup_service",

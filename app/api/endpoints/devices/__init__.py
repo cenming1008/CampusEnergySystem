@@ -27,8 +27,19 @@ from .management import (
     update_device,
     router as management_router,
 )
+from .monitoring import (
+    get_device_alarm_history,
+    get_device_control_logs,
+    get_device_monitor_overview,
+    get_device_monitor_trend,
+    get_device_realtime,
+    get_device_runtime_status,
+    get_device_status_history,
+    router as monitoring_router,
+)
 
 router = APIRouter()
 router.include_router(management_router)
 router.include_router(data_router)
 router.include_router(health_router)
+router.include_router(monitoring_router)

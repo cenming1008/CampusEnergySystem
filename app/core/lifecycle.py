@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from app.core.database import init_db
 from app.core.logger import logger
 from app.core.redis import RedisClient
+from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.core.socket_manager import manager
 from app.services.mqtt_worker import start_mqtt_background
@@ -46,6 +47,7 @@ async def startup() -> None:
 
     logger.info("🚀 应用启动中...")
     init_db()
+    runtime_state.mark_service("database", "healthy", "initialized")
     logger.info("✅ 数据库初始化完成")
 
     try:
@@ -53,10 +55,16 @@ async def startup() -> None:
         await redis.ping()
         logger.info("✅ Redis连接成功")
     except Exception as exc:
+        runtime_state.mark_service("redis", "unhealthy", str(exc))
         logger.warning(f"⚠️ Redis连接失败: {exc}")
+    else:
+        runtime_state.mark_service("redis", "healthy", "connected")
 
-    start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
-    logger.info("✅ MQTT服务启动完成")
+    mqtt_started = start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
+    if mqtt_started:
+        logger.info("✅ MQTT服务启动完成")
+    else:
+        logger.warning("⚠️ MQTT服务启动失败")
 
     try:
         start_scheduler()
@@ -76,14 +84,19 @@ async def shutdown() -> None:
         stop_scheduler()
         logger.info("✅ 定时任务调度器已停止")
     except Exception as exc:
+        runtime_state.mark_service("scheduler", "unhealthy", str(exc))
         logger.warning(f"⚠️ 定时任务调度器停止失败: {exc}")
 
     try:
         await RedisClient.close()
+        runtime_state.mark_service("redis", "stopped", "closed")
         logger.info("✅ Redis连接已关闭")
     except Exception as exc:
+        runtime_state.mark_service("redis", "unhealthy", str(exc))
         logger.warning(f"⚠️ Redis关闭失败: {exc}")
 
+    runtime_state.mark_service("mqtt", "stopped", "process shutdown")
+    runtime_state.mark_service("database", "stopped", "process shutdown")
     _event_loop = None
 
 

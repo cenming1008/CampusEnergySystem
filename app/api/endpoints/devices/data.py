@@ -11,11 +11,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
-from app.application.device_reporting import report_device_data_use_case
+from app.application.device_reporting import (
+    get_device_data_use_case,
+    get_device_statistics_use_case,
+    report_device_data_use_case,
+)
 from app.core.database import get_session
+from app.core.rate_limit import limit_requests
 from app.core.response import success_response
 from app.models.tables import EnergyData
-from app.services.device_service import DeviceService
+from app.core.settings import settings
 
 from .shared import DeviceDataReportRequest
 
@@ -27,6 +32,13 @@ def report_device_data(
     device_id: int,
     req: DeviceDataReportRequest,
     session: Session = Depends(get_session),
+    _: None = Depends(
+        limit_requests(
+            bucket="device-report",
+            max_calls=settings.device_report_rate_limit_count,
+            window_seconds=settings.device_report_rate_limit_window_seconds,
+        )
+    ),
 ):
     try:
         return report_device_data_use_case(
@@ -50,7 +62,7 @@ def get_device_data(
     limit: int = Query(1000, ge=1, le=10000, description="返回条数限制"),
     session: Session = Depends(get_session),
 ):
-    return DeviceService.get_device_data(
+    return get_device_data_use_case(
         session=session,
         device_id=device_id,
         start_time=start_time,
@@ -67,7 +79,7 @@ def get_device_statistics(
     period_type: str = Query("day", description="统计周期: hour/day/month/year"),
     session: Session = Depends(get_session),
 ):
-    stats = DeviceService.get_device_statistics(
+    stats = get_device_statistics_use_case(
         session=session,
         device_id=device_id,
         start_time=start_time,

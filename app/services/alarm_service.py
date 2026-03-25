@@ -46,9 +46,34 @@ class AlarmService:
         )
         alarms = session.exec(statement).all()
         return list(alarms)
+
+    @staticmethod
+    def list_alarms(
+        session: Session,
+        device_id: Optional[int] = None,
+        resolved: Optional[bool] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Alarm]:
+        statement = select(Alarm)
+        if device_id is not None:
+            statement = statement.where(Alarm.device_id == device_id)
+        if resolved is not None:
+            statement = statement.where(Alarm.is_resolved == resolved)
+        if start_time is not None:
+            statement = statement.where(Alarm.timestamp >= start_time)
+        if end_time is not None:
+            statement = statement.where(Alarm.timestamp <= end_time)
+        statement = statement.order_by(Alarm.timestamp.desc()).limit(limit)
+        return list(session.exec(statement).all())
     
     @staticmethod
-    def resolve_all_alarms(session: Session) -> int:
+    def resolve_all_alarms(
+        session: Session,
+        resolved_by: Optional[str] = None,
+        handling_note: Optional[str] = None,
+    ) -> int:
         """
         批量解决所有未解决的报警
         
@@ -70,6 +95,10 @@ class AlarmService:
         count = 0
         for alarm in unresolved:
             alarm.is_resolved = True
+            alarm.resolved_at = datetime.now()
+            alarm.resolved_by = resolved_by
+            if handling_note:
+                alarm.handling_note = handling_note
             session.add(alarm)
             count += 1
         
@@ -80,7 +109,12 @@ class AlarmService:
         return count
     
     @staticmethod
-    def resolve_alarm(session: Session, alarm_id: int) -> bool:
+    def resolve_alarm(
+        session: Session,
+        alarm_id: int,
+        resolved_by: Optional[str] = None,
+        handling_note: Optional[str] = None,
+    ) -> bool:
         """
         解决单个报警
         
@@ -96,6 +130,10 @@ class AlarmService:
             return False
         
         alarm.is_resolved = True
+        alarm.resolved_at = datetime.now()
+        alarm.resolved_by = resolved_by
+        if handling_note:
+            alarm.handling_note = handling_note
         session.add(alarm)
         session.commit()
         
@@ -132,6 +170,9 @@ class AlarmService:
         device_id: int,
         message: str,
         timestamp: datetime = None,
+        severity: str = "warning",
+        category: str = "threshold",
+        source: str = "telemetry",
         auto_commit: bool = True,
     ) -> Alarm:
         """
@@ -152,6 +193,9 @@ class AlarmService:
         alarm = Alarm(
             device_id=device_id,
             message=message,
+            severity=severity,
+            category=category,
+            source=source,
             timestamp=timestamp,
             is_resolved=False
         )
@@ -165,6 +209,14 @@ class AlarmService:
         
         logger.info(f"创建报警: 设备 {device_id} - {message}")
         return alarm
+
+    @staticmethod
+    def infer_severity(message: str) -> str:
+        if any(keyword in message for keyword in ("故障", "中断", "离线")):
+            return "critical"
+        if any(keyword in message for keyword in ("过载", "异常", "超限", "偏高", "偏低")):
+            return "warning"
+        return "info"
 
     @staticmethod
     def should_create_alarm(
@@ -250,6 +302,8 @@ class AlarmService:
                         device_id=device_id,
                         message=message,
                         timestamp=timestamp,
+                        severity="critical",
+                        category="current_overload",
                         auto_commit=False,
                     )
                     alarms.append(alarm)
@@ -270,6 +324,8 @@ class AlarmService:
                         device_id=device_id,
                         message=message,
                         timestamp=timestamp,
+                        severity="warning",
+                        category="voltage_out_of_range",
                         auto_commit=False,
                     )
                     alarms.append(alarm)

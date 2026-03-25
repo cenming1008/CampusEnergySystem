@@ -2,6 +2,10 @@ import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axio
 import { useAuthStore } from '@/stores/useAuthStore' // 稍后会创建这个 Store
 import { ElMessage } from 'element-plus'
 
+interface SilentAxiosConfig extends InternalAxiosRequestConfig {
+  silent?: boolean
+}
+
 // 创建 axios 实例
 const service = axios.create({
   baseURL: '', // 配合 vite.config.ts 的 proxy
@@ -53,7 +57,10 @@ service.interceptors.response.use(
         window.location.href = '/login'
       }
     } else {
-      ElMessage.error(msg)
+      const requestConfig = error.config as SilentAxiosConfig | undefined
+      if (!requestConfig?.silent) {
+        ElMessage.error(msg)
+      }
     }
     return Promise.reject(error)
   }

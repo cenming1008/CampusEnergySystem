@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional
 import paho.mqtt.client as mqtt
 
 from app.core.logger import logger
+from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.integrations.mqtt import process_payload
 
@@ -21,11 +22,12 @@ def process_data(payload_str: str, topic: Optional[str] = None, broadcast_callba
     return None  # record 已经不在 session 中，返回 None
 
 
-def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) -> None:
+def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) -> bool:
     """启动 MQTT 后台监听线程（非阻塞）。"""
 
     def on_connect_internal(_client, _userdata, _flags, rc):
         logger.info(f"MQTT connected rc={rc}")
+        runtime_state.mark_service("mqtt", "healthy", f"connected rc={rc}")
         # 订阅两个主题（默认: mine/telemetry, mine/device/+/telemetry），设备发到任一个都会被 process_data 处理
         _client.subscribe(settings.mqtt_topic)           # 主题一，如 mine/telemetry
         _client.subscribe(settings.mqtt_topic_wildcard) # 主题二，如 mine/device/+/telemetry
@@ -44,9 +46,13 @@ def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) 
 
         client.connect(settings.mqtt_broker, settings.mqtt_port, 60)
         client.loop_start()
+        runtime_state.mark_service("mqtt", "healthy", "background loop started")
         logger.info("MQTT loop started in background")
+        return True
     except Exception as e:
+        runtime_state.mark_service("mqtt", "unhealthy", str(e))
         logger.error(f"MQTT connect failed: {e}")
+        return False
 
 
 if __name__ == "__main__":

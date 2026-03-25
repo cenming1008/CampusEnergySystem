@@ -5,10 +5,10 @@ import csv
 import io
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select
+from sqlmodel import Session
 
+from app.application.reporting import list_energy_report_rows_use_case
 from app.core.database import get_session
-from app.models.tables import EnergyData, Device
 
 router = APIRouter()
 
@@ -27,13 +27,7 @@ def export_csv(session: Session = Depends(get_session)):
     ])
     
     # 查询数据（限制1000条）
-    statement = (
-        select(EnergyData, Device.name)
-        .join(Device, Device.id == EnergyData.device_id)
-        .order_by(EnergyData.timestamp.desc())
-        .limit(1000)
-    )
-    results = session.exec(statement).all()
+    results = list_energy_report_rows_use_case(session=session, limit=1000)
     
     # 写入数据行
     for data, device_name in results:

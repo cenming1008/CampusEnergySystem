@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { onMounted, watch, computed, nextTick } from 'vue'
 import { useSocketStore } from '@/stores/useSocketStore'
+import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
 import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
 import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
 import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
 import { useDashboardRealtime } from '@/features/dashboard/composables/useDashboardRealtime'
 import { useECharts } from '@/shared/composables/useECharts'
-import MetricCard from '@/shared/ui/MetricCard.vue'
 import StatTile from '@/shared/ui/StatTile.vue'
 
 // --- 状态定义 ---
 const socketStore = useSocketStore()
+const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
 const { currentDevice, currentDeviceId, deviceList, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
 const { energyStats, todayEnergy, loadEnergyStats } = useDashboardEnergyStats()
@@ -19,9 +20,7 @@ const {
   displayEnergy,
   displayPower,
   energyTrendData,
-  isStorageDevice,
   realTimeData,
-  storageStatus,
   loadDeviceData
 } = useDashboardRealtime({
   currentDeviceId,
@@ -38,8 +37,7 @@ const pieChart = useECharts()
 const overview = computed(() => ({
   totalDevices: totalDevices.value,
   onlineDevices: onlineDevices.value,
-  alarmCount: 20,
-  todayEnergy: todayEnergy.value
+  alarmCount: alarmCount.value
 }))
 
 // 计算属性
@@ -52,7 +50,7 @@ const overviewCards = computed(() => [
   {
     label: '设备总数',
     value: overview.value.totalDevices,
-    caption: '已接入矿区能源网络',
+    caption: '接入矿区能源网络',
     tone: 'cyan' as const
   },
   {
@@ -64,55 +62,98 @@ const overviewCards = computed(() => [
   {
     label: '告警数',
     value: overview.value.alarmCount,
-    caption: '待接入实时告警聚合',
+    caption: overview.value.alarmCount ? '待处理异常需复核' : '当前无未处理告警',
     tone: 'red' as const
-  },
-  {
-    label: '今日用电',
-    value: overview.value.todayEnergy.toFixed(0),
-    caption: '单位 kWh',
-    tone: 'purple' as const
   }
 ])
 
-const energyRows = computed(() => [
-  { icon: '⚡', name: '电力', tone: 'cyan', value: `${(energyStats.electricity?.total_consumption || 0).toFixed(1)} kWh` },
-  { icon: '💧', name: '用水', tone: 'blue', value: `${(energyStats.water?.total_consumption || 0).toFixed(1)} m³` },
-  { icon: '🔥', name: '燃气', tone: 'pink', value: `${(energyStats.gas?.total_consumption || 0).toFixed(1)} m³` },
-  { icon: '♨️', name: '热力', tone: 'red', value: `${(energyStats.heat?.total_consumption || 0).toFixed(1)} GJ` },
-  { icon: '❄️', name: '冷气', tone: 'purple', value: `${(energyStats.cooling?.total_consumption || 0).toFixed(1)} kWh` }
-])
+const regionRankings = computed(() => {
+  const regions = new Map<string, { score: number; total: number; online: number }>()
 
-const liveMetricCards = computed(() => [
+  for (const device of deviceList.value) {
+    const region = device.location?.trim() || '未分区'
+    const current = regions.get(region) || { score: 0, total: 0, online: 0 }
+    const capacity = Number(device.rated_capacity || 0)
+
+    current.total += 1
+    if (device.is_active) current.online += 1
+    current.score += capacity > 0 ? capacity : (device.is_active ? 1.2 : 0.6)
+    regions.set(region, current)
+  }
+
+  return Array.from(regions.entries())
+    .map(([name, stats], index) => ({
+      name,
+      rank: index + 1,
+      score: stats.score,
+      total: stats.total,
+      online: stats.online,
+      hasCapacity: stats.score >= stats.total
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((item, index) => ({ ...item, rank: index + 1 }))
+})
+
+const trendValues = computed(() => energyTrendData.values.map(value => Math.abs(Number(value) || 0)))
+const averageLoad = computed(() => {
+  if (!trendValues.value.length) return 0
+  return trendValues.value.reduce((sum, value) => sum + value, 0) / trendValues.value.length
+})
+const peakLoad = computed(() => trendValues.value.length ? Math.max(...trendValues.value) : 0)
+const warningThreshold = computed(() => {
+  const base = Math.max(peakLoad.value, Math.abs(displayPower.value))
+  return Number((base > 0 ? base * 0.9 : 1).toFixed(1))
+})
+const trendCurrentValue = computed(() => trendValues.value.at(-1) || 0)
+const hasEnergyDistributionData = computed(() => [
+  energyStats.electricity?.total_consumption || 0,
+  energyStats.water?.total_consumption || 0,
+  energyStats.gas?.total_consumption || 0,
+  energyStats.heat?.total_consumption || 0,
+  energyStats.cooling?.total_consumption || 0,
+].some(value => value > 0))
+
+const shiftLabel = computed(() => {
+  const hour = new Date().getHours()
+  if (hour >= 8 && hour < 16) return '白班'
+  if (hour >= 16 && hour < 24) return '中班'
+  return '夜班'
+})
+
+const runtimeStatus = computed(() => socketStore.isConnected ? '正常运行' : '通讯中断')
+const runtimeTone = computed(() => socketStore.isConnected ? 'green' as const : 'red' as const)
+
+const topSummaryCards = computed(() => [
   {
-    accent: 'cyan' as const,
-    icon: '⚡',
-    label: '实时功率',
+    tone: 'cyan' as const,
+    label: '当前总负荷',
     value: displayPower.value.toFixed(1),
-    unit: 'kW',
-    badge: isStorageDevice.value ? storageStatus.value : undefined,
-    progress: Math.min(displayPower.value, 100)
+    caption: `峰值 ${peakLoad.value.toFixed(1)} kW`
   },
   {
-    accent: 'green' as const,
-    icon: '📊',
-    label: '今日用电',
-    value: displayEnergy.value.toFixed(1),
-    unit: 'kWh'
+    tone: 'purple' as const,
+    label: '今日总能耗',
+    value: todayEnergy.value.toFixed(1),
+    caption: '全系统累计 kWh'
   },
   {
-    accent: 'pink' as const,
-    icon: '🔌',
-    label: 'A相电流',
-    value: displayCurrent.value.toFixed(1),
-    unit: 'A'
+    tone: 'green' as const,
+    label: '在线设备',
+    value: `${onlineDevices.value}/${totalDevices.value || 0}`,
+    caption: `在线率 ${onlineRate.value}%`
   },
   {
-    accent: 'purple' as const,
-    icon: '🔋',
-    label: '母线电压',
-    value: realTimeData.voltage.toFixed(1),
-    unit: 'V'
+    tone: overview.value.alarmCount ? 'red' as const : 'blue' as const,
+    label: '未处理告警',
+    value: overview.value.alarmCount,
+    caption: overview.value.alarmCount ? '请优先处理严重异常' : '当前告警队列为空'
+  },
+  {
+    tone: runtimeTone.value,
+    label: '系统评分',
+    value: socketStore.isConnected && overview.value.alarmCount === 0 ? 96 : socketStore.isConnected ? 82 : 61,
+    caption: `${runtimeStatus.value} · ${shiftLabel.value}`
   }
 ])
 
@@ -122,6 +163,57 @@ const selectedDeviceSummary = computed(() => ({
   energyType: currentDevice.value?.energy_type || '未知',
   status: currentDevice.value?.is_active ? '在线运行' : '离线待机'
 }))
+
+const focusMetrics = computed(() => [
+  { label: '实时功率', value: `${displayPower.value.toFixed(1)} kW` },
+  { label: '母线电压', value: `${realTimeData.voltage.toFixed(1)} V` },
+  { label: 'A相电流', value: `${displayCurrent.value.toFixed(1)} A` },
+  { label: '今日用电', value: `${displayEnergy.value.toFixed(1)} kWh` }
+])
+
+const trendHighlights = computed(() => [
+  { label: '当前值', value: `${trendCurrentValue.value.toFixed(1)} kW` },
+  { label: '峰值', value: `${peakLoad.value.toFixed(1)} kW` },
+  { label: '均值', value: `${averageLoad.value.toFixed(1)} kW` },
+  { label: '阈值', value: `${warningThreshold.value.toFixed(1)} kW` }
+])
+
+const resolveAlarmLevel = (message: string) => {
+  if (/中断|离线|断开|故障/.test(message)) {
+    return { label: '严重', tone: 'critical', action: '立即排查通讯与设备状态' }
+  }
+
+  if (/异常|超限|过高|偏高|偏低/.test(message)) {
+    return { label: '重要', tone: 'warning', action: '检查负荷阈值与现场参数' }
+  }
+
+  return { label: '提醒', tone: 'notice', action: '建议关注后续趋势变化' }
+}
+
+const formatAlarmTime = (timestamp: string) => {
+  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000))
+  if (diffMinutes < 1) return '刚刚'
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} 小时前`
+  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+}
+
+const latestAlarmItems = computed(() => (
+  alarmList.value.slice(0, 4).map(alarm => {
+    const level = resolveAlarmLevel(alarm.message)
+    const deviceName = deviceList.value.find(device => device.id === alarm.device_id)?.name || `设备 ${alarm.device_id}`
+
+    return {
+      id: alarm.id,
+      message: alarm.message,
+      deviceName,
+      time: formatAlarmTime(alarm.timestamp),
+      ...level
+    }
+  })
+))
 
 // --- 初始化 ---
 onMounted(async () => {
@@ -217,21 +309,22 @@ const renderMainChart = async () => {
         return `<div style="padding:5px">
           <div style="color:#8892b0">${p.axisValue}</div>
           <div style="color:#00f2fe;font-size:16px;font-weight:bold">${p.value} kW</div>
+          <div style="color:#7dd3fc;font-size:12px;margin-top:4px">预警阈值 ${warningThreshold.value.toFixed(1)} kW</div>
         </div>`
       }
     },
-    grid: { left: 60, right: 30, top: 30, bottom: 30 },
+    grid: { left: 58, right: 24, top: 42, bottom: 42 },
     xAxis: {
       type: 'category',
       data: times.length ? times : ['--'],
       axisLine: { lineStyle: { color: '#1e3a5f' } },
-      axisLabel: { color: '#8892b0', fontSize: 11 },
+      axisLabel: { color: '#8ba0bd', fontSize: 11, interval: 'auto' },
       splitLine: { show: false }
     },
     yAxis: {
       type: 'value',
       name: '负荷 (kW)',
-      nameTextStyle: { color: '#8892b0', fontSize: 11 },
+      nameTextStyle: { color: '#8ba0bd', fontSize: 11, padding: [0, 0, 6, 0] },
       axisLine: { show: false },
       axisLabel: { color: '#8892b0', fontSize: 11 },
       splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
@@ -242,17 +335,47 @@ const renderMainChart = async () => {
         type: 'line',
         data: values.length ? values : [0],
         smooth: true,
-        showSymbol: false,
-        lineStyle: { width: 3, color: '#00f2fe' },
+        showSymbol: true,
+        symbolSize: (value: number, params: any) => params.dataIndex === (values.length - 1) ? 8 : 0,
+        lineStyle: { width: 2.5, color: '#00f2fe' },
         areaStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(0,242,254,0.4)' },
+              { offset: 0, color: 'rgba(0,242,254,0.28)' },
               { offset: 1, color: 'rgba(0,242,254,0)' }
             ]
           }
+        },
+        markLine: {
+          symbol: 'none',
+          label: {
+            color: '#f59e0b',
+            formatter: '预警阈值'
+          },
+          lineStyle: {
+            color: '#f59e0b',
+            type: 'dashed',
+            opacity: 0.8
+          },
+          data: [{ yAxis: warningThreshold.value }]
+        },
+        markPoint: {
+          symbolSize: 44,
+          label: {
+            color: '#e5eefc',
+            fontSize: 10
+          },
+          itemStyle: {
+            color: '#16324f',
+            borderColor: '#00f2fe',
+            borderWidth: 1
+          },
+          data: [
+            { type: 'max', name: '峰值' },
+            { type: 'min', name: '谷值' }
+          ]
         }
       }
     ]
@@ -270,7 +393,7 @@ const renderPieChart = async () => {
   ].filter(d => d.value > 0)
   
   if (data.length === 0) {
-    data.push({ value: 1, name: '暂无数据', itemStyle: { color: '#1e3a5f' } })
+    data.push({ value: 1, name: '暂无有效数据', itemStyle: { color: '#1e3a5f' } })
   }
   
   const option = {
@@ -284,10 +407,22 @@ const renderPieChart = async () => {
       orient: 'vertical',
       right: 10,
       top: 'center',
-      textStyle: { color: '#8892b0', fontSize: 11 },
+      textStyle: { color: '#9fb0c7', fontSize: 11 },
       itemWidth: 10,
       itemHeight: 10
     },
+    graphic: data.length === 1 && data[0].name === '暂无有效数据' ? {
+      type: 'text',
+      left: 'center',
+      top: '46%',
+      style: {
+        text: '当前时段暂无有效数据\n请检查采集状态或切换时间范围',
+        fill: '#7f8ea7',
+        textAlign: 'center',
+        lineHeight: 18,
+        fontSize: 12
+      }
+    } : undefined,
     series: [{
       type: 'pie',
       radius: ['50%', '75%'],
@@ -295,7 +430,7 @@ const renderPieChart = async () => {
       label: { show: false },
       itemStyle: { borderColor: '#0a1628', borderWidth: 2 },
       emphasis: {
-        itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,242,254,0.5)' }
+        itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,242,254,0.22)' }
       },
       data
     }]
@@ -318,13 +453,6 @@ watch(energyStats, () => {
 
 <template>
   <div class="big-screen">
-    <!-- 背景装饰 -->
-    <div class="bg-decoration">
-      <div class="grid-lines"></div>
-      <div class="glow glow-1"></div>
-      <div class="glow glow-2"></div>
-    </div>
-
     <!-- 顶部标题栏 -->
     <header class="header">
       <div class="header-left">
@@ -345,6 +473,7 @@ watch(energyStats, () => {
         <div class="time-box">
           <div class="time">{{ currentTime }}</div>
           <div class="date">{{ currentDate }}</div>
+          <div class="time-meta">当前班次：{{ shiftLabel }} · 数据轮询 10s</div>
         </div>
       </div>
       
@@ -354,22 +483,19 @@ watch(energyStats, () => {
           <span class="status-text">{{ socketStore.isConnected ? '系统运行中' : '连接断开' }}</span>
         </div>
       </div>
-      
-      <div class="header-line"></div>
     </header>
 
     <!-- 主内容 -->
     <main class="main">
       <!-- 左侧面板 -->
       <aside class="panel-left">
-        <!-- 系统概览 -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">系统概览</span>
-            <span class="card-subtitle">System Overview</span>
+            <span class="card-title">迷你总览</span>
+            <span class="card-subtitle">Overview</span>
           </div>
           <div class="card-body">
-            <div class="stat-grid">
+            <div class="stat-grid stat-grid--compact">
               <StatTile
                 v-for="item in overviewCards"
                 :key="item.label"
@@ -382,125 +508,150 @@ watch(energyStats, () => {
           </div>
         </div>
 
-        <!-- 能源占比 -->
         <div class="card flex-1">
           <div class="card-header">
             <span class="card-title">能源消耗占比</span>
-            <span class="card-subtitle">Energy Distribution</span>
+            <span class="card-subtitle">Distribution</span>
           </div>
           <div class="card-body">
-            <div class="chart-container" :ref="pieChart.chartRef"></div>
+            <div v-if="hasEnergyDistributionData" class="chart-container chart-container--pie" :ref="pieChart.chartRef"></div>
+            <div v-else class="distribution-empty">
+              <strong>当前暂无有效占比数据</strong>
+              <p>请检查采集链路、时间范围或等待更多能耗数据入库后再查看。</p>
+            </div>
           </div>
         </div>
 
-        <!-- 能源列表 -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">今日能耗</span>
-            <span class="card-subtitle">Today's Consumption</span>
+            <span class="card-title">区域能耗排行</span>
+            <span class="card-subtitle">Estimated</span>
           </div>
           <div class="card-body">
-            <div class="energy-list">
-              <div v-for="item in energyRows" :key="item.name" class="energy-row">
-                <span class="energy-icon" :class="item.tone">{{ item.icon }}</span>
+            <div v-if="regionRankings.length" class="energy-list">
+              <div v-for="item in regionRankings" :key="item.name" class="energy-row ranking-row">
+                <span class="ranking-index">{{ item.rank }}</span>
                 <div class="energy-copy">
                   <span class="energy-name">{{ item.name }}</span>
-                  <span class="energy-meta">今日累计能耗</span>
+                  <span class="energy-meta">{{ item.online }}/{{ item.total }} 台在线</span>
                 </div>
-                <span class="energy-value">{{ item.value }}</span>
+                <span class="energy-value">
+                  {{ item.hasCapacity ? `${item.score.toFixed(1)} kW` : `${item.total} 台` }}
+                </span>
               </div>
             </div>
+            <div v-else class="device-empty">暂无区域设备数据可用于排行</div>
           </div>
         </div>
       </aside>
 
       <!-- 中间面板 -->
       <section class="panel-center">
-        <div class="focus-strip">
-          <div class="focus-copy">
-            <span class="focus-eyebrow">当前监测设备</span>
-            <h2>{{ selectedDeviceSummary.name }}</h2>
-            <div class="focus-meta">
-              <span>{{ selectedDeviceSummary.type }}</span>
-              <span>{{ selectedDeviceSummary.energyType }}</span>
-              <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
-            </div>
+        <div class="summary-grid">
+          <StatTile
+            v-for="item in topSummaryCards"
+            :key="item.label"
+            :tone="item.tone"
+            :label="item.label"
+            :value="item.value"
+            :caption="item.caption"
+          />
+        </div>
+
+        <div class="card chart-card chart-card--primary">
+          <div class="card-header">
+            <span class="card-title">24h 负荷趋势</span>
+            <span class="card-subtitle">Trend Analysis</span>
           </div>
-          <div class="focus-numbers">
-            <div class="focus-number">
-              <span class="focus-number__label">当前功率</span>
-              <strong>{{ displayPower.toFixed(1) }}</strong>
-              <small>kW</small>
+          <div class="card-body chart-card__body">
+            <div class="trend-summary">
+              <div v-for="item in trendHighlights" :key="item.label" class="trend-summary__item">
+                <span class="trend-summary__label">{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
             </div>
-            <div class="focus-number">
-              <span class="focus-number__label">母线电压</span>
-              <strong>{{ realTimeData.voltage.toFixed(1) }}</strong>
-              <small>V</small>
-            </div>
+            <div class="chart-container chart-container--trend" :ref="mainChart.chartRef"></div>
           </div>
         </div>
 
-        <!-- 实时负荷仪表 -->
-        <div class="card gauge-card">
-          <div class="card-header">
-            <span class="card-title">实时负荷</span>
-            <el-select 
-              v-model="currentDeviceId" 
-              size="small"
-              style="width: 160px"
-              @change="loadDeviceData"
-            >
-              <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
-            </el-select>
-          </div>
-          <div class="card-body gauge-body">
-            <div class="gauge-wrapper">
-              <div class="gauge-chart" :ref="gaugeChart.chartRef"></div>
-              <div class="gauge-label">kW</div>
+        <div class="device-section">
+          <div class="focus-strip">
+            <div class="focus-copy">
+              <span class="focus-eyebrow">当前监测设备</span>
+              <h2>{{ selectedDeviceSummary.name }}</h2>
+              <div class="focus-meta">
+                <span>{{ selectedDeviceSummary.type }}</span>
+                <span>{{ selectedDeviceSummary.energyType }}</span>
+                <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
+              </div>
             </div>
-          <div class="gauge-stats">
-            <div class="gauge-stat">
-              <span class="label">电压</span>
-              <span class="value">{{ realTimeData.voltage.toFixed(1) }}<small>V</small></span>
-            </div>
-            <div class="gauge-stat">
-              <span class="label">电流</span>
-              <span class="value">{{ displayCurrent.toFixed(1) }}<small>A</small></span>
-            </div>
-            <div class="gauge-stat">
-              <span class="label">今日用电</span>
-              <span class="value">{{ displayEnergy.toFixed(1) }}<small>kWh</small></span>
+            <div class="focus-numbers">
+              <div v-for="item in focusMetrics" :key="item.label" class="focus-number">
+                <span class="focus-number__label">{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
             </div>
           </div>
-          </div>
-        </div>
 
-        <!-- 实时负荷曲线 -->
-        <div class="card flex-1">
-          <div class="card-header">
-            <span class="card-title">实时负荷曲线</span>
-            <span class="card-subtitle">Real-time Load Curve</span>
-          </div>
-          <div class="card-body">
-            <div class="chart-container" :ref="mainChart.chartRef"></div>
+          <div class="card gauge-card gauge-card--compact">
+            <div class="card-header">
+              <span class="card-title">设备负荷</span>
+              <el-select 
+                v-model="currentDeviceId" 
+                size="small"
+                style="width: 160px"
+                @change="loadDeviceData"
+              >
+                <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
+              </el-select>
+            </div>
+            <div class="card-body gauge-body">
+              <div class="gauge-wrapper">
+                <div class="gauge-chart" :ref="gaugeChart.chartRef"></div>
+                <div class="gauge-label">kW</div>
+              </div>
+              <div class="gauge-stats">
+                <div class="gauge-stat">
+                  <span class="label">当前功率</span>
+                  <span class="value">{{ displayPower.toFixed(1) }}<small>kW</small></span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="label">预警阈值</span>
+                  <span class="value">{{ warningThreshold.toFixed(1) }}<small>kW</small></span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <!-- 右侧面板 -->
       <aside class="panel-right">
-        <div class="metric-grid">
-          <MetricCard
-            v-for="item in liveMetricCards"
-            :key="item.label"
-            :accent="item.accent"
-            :icon="item.icon"
-            :label="item.label"
-            :value="item.value"
-            :unit="item.unit"
-            :badge="item.badge"
-            :progress="item.progress"
-          />
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">最新告警</span>
+            <span class="card-subtitle">Action Required</span>
+          </div>
+          <div class="card-body">
+            <div v-if="latestAlarmItems.length" class="alarm-list">
+              <div v-for="alarm in latestAlarmItems" :key="alarm.id" class="alarm-item" :class="alarm.tone">
+                <div class="alarm-main">
+                  <div class="alarm-title-row">
+                    <span class="alarm-device">{{ alarm.deviceName }}</span>
+                    <span class="alarm-level">{{ alarm.label }}</span>
+                  </div>
+                  <p class="alarm-message">{{ alarm.message }}</p>
+                </div>
+                <div class="alarm-side">
+                  <span class="alarm-time">{{ alarm.time }}</span>
+                  <span class="alarm-action">{{ alarm.action }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="device-empty">
+              当前没有未处理告警，系统运行稳定。
+            </div>
+          </div>
         </div>
 
         <!-- 设备状态 -->
@@ -537,120 +688,63 @@ watch(energyStats, () => {
 .big-screen {
   width: 100%;
   min-height: 100vh;
-  background: #0a1628;
+  background: #0f1724;
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-/* ========== 背景装饰 ========== */
-.bg-decoration {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.grid-lines {
-  position: absolute;
-  inset: 0;
-  background-image: 
-    linear-gradient(rgba(0,242,254,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,242,254,0.03) 1px, transparent 1px);
-  background-size: 50px 50px;
-}
-
-.glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.15;
-}
-
-.glow-1 {
-  width: 600px;
-  height: 600px;
-  background: #00f2fe;
-  top: -200px;
-  left: -100px;
-  animation: float 20s ease-in-out infinite;
-}
-
-.glow-2 {
-  width: 500px;
-  height: 500px;
-  background: #f093fb;
-  bottom: -150px;
-  right: -100px;
-  animation: float 25s ease-in-out infinite reverse;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(50px, 30px); }
-}
-
 /* ========== 顶部标题栏 ========== */
 .header {
-  height: 80px;
-  padding: 0 30px;
+  min-height: 76px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: relative;
   z-index: 10;
-  background: linear-gradient(180deg, rgba(10,22,40,0.95) 0%, rgba(10,22,40,0.8) 100%);
-}
-
-.header-line {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, #00f2fe, transparent);
+  background: #111a28;
+  border-bottom: 1px solid rgba(72, 95, 132, 0.32);
 }
 
 .title-box {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
 }
 
 .title-icon {
-  width: 50px;
-  height: 50px;
-  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  background: #1d2938;
+  border: 1px solid rgba(91, 113, 148, 0.3);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 30px rgba(0,242,254,0.4);
 }
 
 .title-icon svg {
-  width: 28px;
-  height: 28px;
-  color: white;
+  width: 20px;
+  height: 20px;
+  color: #7dd3fc;
 }
 
 .title-text h1 {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(90deg, #fff 0%, #00f2fe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: 3px;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
 }
 
 .title-text span {
   font-size: 11px;
-  color: #4a5568;
-  letter-spacing: 1px;
+  color: #8697af;
+  letter-spacing: 0.04em;
 }
 
 .time-box {
@@ -658,61 +752,60 @@ watch(energyStats, () => {
 }
 
 .time-box .time {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 700;
   font-family: 'DIN', 'Monaco', monospace;
-  color: #00f2fe;
-  text-shadow: 0 0 20px rgba(0,242,254,0.5);
-  letter-spacing: 4px;
+  color: #f8fafc;
+  letter-spacing: 0.08em;
 }
 
 .time-box .date {
   font-size: 13px;
-  color: #8892b0;
+  color: #94a3b8;
   margin-top: 2px;
+}
+
+.time-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #7f90a8;
 }
 
 .status-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  background: rgba(239,68,68,0.15);
-  border: 1px solid rgba(239,68,68,0.3);
-  border-radius: 25px;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(127, 29, 29, 0.18);
+  border: 1px solid rgba(239,68,68,0.22);
+  border-radius: 999px;
   transition: all 0.3s;
 }
 
 .status-box.online {
-  background: rgba(0,242,254,0.15);
-  border-color: rgba(0,242,254,0.3);
+  background: rgba(20, 83, 45, 0.18);
+  border-color: rgba(34,197,94,0.22);
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   background: #ef4444;
   border-radius: 50%;
-  animation: pulse 2s infinite;
 }
 
 .status-box.online .status-dot {
-  background: #00f2fe;
-  box-shadow: 0 0 10px #00f2fe;
+  background: #22c55e;
 }
 
 .status-text {
-  font-size: 13px;
+  font-size: 12px;
   color: #ef4444;
+  font-weight: 600;
 }
 
 .status-box.online .status-text {
-  color: #00f2fe;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  color: #86efac;
 }
 
 /* ========== 主内容区 ========== */
@@ -720,60 +813,52 @@ watch(energyStats, () => {
   flex: 1;
   display: grid;
   grid-template-columns: 300px 1fr 320px;
-  gap: 20px;
-  padding: 20px;
+  gap: 16px;
+  padding: 16px;
+  width: min(100%, 1680px);
+  margin: 0 auto;
   position: relative;
   z-index: 10;
   min-height: 600px;
+  align-items: start;
 }
 
 /* ========== 通用卡片样式 ========== */
 .card {
   position: relative;
-  background: rgba(10,22,40,0.8);
-  border: 1px solid rgba(0,242,254,0.2);
-  border-radius: 18px;
+  background: #131d2b;
+  border: 1px solid #243244;
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 50px rgba(1, 9, 24, 0.22);
-}
-
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #00f2fe, transparent);
+  box-shadow: none;
 }
 
 .card-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid rgba(0,242,254,0.1);
+  padding: 14px 16px;
+  border-bottom: 1px solid #223042;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .card-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: #e5edf7;
 }
 
 .card-subtitle {
-  font-size: 11px;
-  color: #4a5568;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-size: 10px;
+  color: #6f8199;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
 }
 
 .card-body {
   flex: 1;
-  padding: 18px 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
 }
@@ -784,13 +869,18 @@ watch(energyStats, () => {
 .panel-left {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
+  min-width: 0;
 }
 
 .stat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 12px;
+}
+
+.stat-grid--compact {
+  grid-template-columns: 1fr;
 }
 
 .energy-list {
@@ -803,21 +893,40 @@ watch(energyStats, () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px;
+  padding: 12px;
+  background: #162130;
+  border: 1px solid #243244;
+  border-radius: 12px;
+}
+
+.ranking-row {
+  min-height: 52px;
+}
+
+.ranking-index {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #cfe2f7;
+  background: #1b2838;
+  border: 1px solid #314055;
+  flex: 0 0 auto;
 }
 
 .energy-icon {
   font-size: 18px;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.06);
+  background: #1b2838;
 }
 
 .energy-copy {
@@ -837,9 +946,9 @@ watch(energyStats, () => {
   color: #6f819e;
 }
 
-.energy-icon.cyan { color: #00f2fe; }
-.energy-icon.blue { color: #4facfe; }
-.energy-icon.pink { color: #f093fb; }
+.energy-icon.cyan { color: #38bdf8; }
+.energy-icon.blue { color: #60a5fa; }
+.energy-icon.pink { color: #f59e0b; }
 .energy-icon.red { color: #ef4444; }
 .energy-icon.purple { color: #a78bfa; }
 
@@ -854,22 +963,64 @@ watch(energyStats, () => {
 .panel-center {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
+  min-width: 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chart-card--primary .card-body {
+  gap: 16px;
+}
+
+.trend-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trend-summary__item {
+  padding: 12px 14px;
+  background: #162130;
+  border: 1px solid #243244;
+  border-radius: 12px;
+}
+
+.trend-summary__label {
+  display: block;
+  font-size: 12px;
+  color: #8ea0bc;
+}
+
+.trend-summary__item strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 20px;
+  color: #f8fafc;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.device-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 320px;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .focus-strip {
   display: flex;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   align-items: stretch;
-  padding: 20px 24px;
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at top left, rgba(0,242,254,0.12), transparent 38%),
-    radial-gradient(circle at bottom right, rgba(167,139,250,0.14), transparent 30%),
-    rgba(8, 17, 34, 0.84);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 20px 55px rgba(1, 9, 24, 0.22);
+  padding: 18px;
+  border-radius: 14px;
+  background: #131d2b;
+  border: 1px solid #243244;
+  box-shadow: none;
 }
 
 .focus-copy {
@@ -880,13 +1031,13 @@ watch(energyStats, () => {
 
 .focus-eyebrow {
   font-size: 11px;
-  color: #7b8da9;
-  letter-spacing: 0.18em;
+  color: #8da2bd;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .focus-copy h2 {
-  margin: 10px 0 8px;
+  margin: 8px 0;
   font-size: 28px;
   line-height: 1.2;
   color: #f8fbff;
@@ -899,33 +1050,33 @@ watch(energyStats, () => {
 }
 
 .focus-meta span {
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.06);
-  color: #93a6c3;
-  font-size: 12px;
+  background: #1a2636;
+  color: #9bb0c9;
+  font-size: 11px;
 }
 
 .focus-meta .online {
-  color: #00f2fe;
-  background: rgba(0,242,254,0.09);
+  color: #86efac;
+  background: rgba(20, 83, 45, 0.28);
 }
 
 .focus-numbers {
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 12px;
-  min-width: 280px;
+  min-width: 360px;
 }
 
 .focus-number {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.05);
+  padding: 14px;
+  border-radius: 12px;
+  background: #162130;
+  border: 1px solid #243244;
 }
 
 .focus-number__label {
@@ -935,28 +1086,27 @@ watch(energyStats, () => {
 
 .focus-number strong {
   margin-top: 8px;
-  font-size: 30px;
+  font-size: 22px;
   line-height: 1;
   color: #fff;
   font-family: 'DIN', 'Monaco', monospace;
 }
 
-.focus-number small {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #7d90ab;
-}
-
 .gauge-card .card-body {
   flex-direction: row;
   align-items: center;
-  gap: 30px;
+  gap: 18px;
+}
+
+.gauge-card--compact .card-body {
+  justify-content: space-between;
 }
 
 .gauge-wrapper {
   position: relative;
-  width: 200px;
-  height: 180px;
+  width: 160px;
+  height: 150px;
+  flex: 0 0 auto;
 }
 
 .gauge-chart {
@@ -969,30 +1119,30 @@ watch(energyStats, () => {
   bottom: 25px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 16px;
-  color: #8892b0;
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 .gauge-stats {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
 }
 
 .gauge-stat {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 15px;
-  background: rgba(0,242,254,0.05);
-  border-radius: 8px;
-  border-left: 3px solid #00f2fe;
+  padding: 12px 14px;
+  background: #162130;
+  border-radius: 10px;
+  border: 1px solid #243244;
 }
 
 .gauge-stat .label {
   font-size: 13px;
-  color: #8892b0;
+  color: #95a7c3;
 }
 
 .gauge-stat .value {
@@ -1009,9 +1159,17 @@ watch(energyStats, () => {
 }
 
 .chart-container {
-  flex: 1;
   width: 100%;
   min-height: 200px;
+}
+
+.chart-container--pie {
+  height: clamp(240px, 28vh, 320px);
+}
+
+.chart-container--trend {
+  height: clamp(400px, 48vh, 560px);
+  min-height: 400px;
 }
 
 /* ========== 右侧面板 ========== */
@@ -1019,11 +1177,31 @@ watch(energyStats, () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
-.metric-grid {
-  display: grid;
-  gap: 14px;
+.distribution-empty {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border: 1px dashed #314055;
+  border-radius: 12px;
+  background: #162130;
+}
+
+.distribution-empty strong {
+  font-size: 15px;
+  color: #e5edf7;
+}
+
+.distribution-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8ea0bc;
 }
 
 /* 设备列表 */
@@ -1038,13 +1216,13 @@ watch(energyStats, () => {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
+  background: #162130;
   border-radius: 12px;
-  border-left: 3px solid #ef4444;
+  border: 1px solid #243244;
 }
 
 .device-item.active {
-  border-left-color: #00f2fe;
+  border-color: rgba(34,197,94,0.28);
 }
 
 .device-status {
@@ -1055,8 +1233,8 @@ watch(energyStats, () => {
 }
 
 .device-item.active .device-status {
-  background: #00f2fe;
-  box-shadow: 0 0 8px #00f2fe;
+  background: #22c55e;
+  box-shadow: none;
 }
 
 .device-name {
@@ -1069,7 +1247,7 @@ watch(energyStats, () => {
   font-size: 11px;
   color: #8892b0;
   padding: 2px 8px;
-  background: rgba(255,255,255,0.05);
+  background: #1d2938;
   border-radius: 10px;
 }
 
@@ -1078,16 +1256,125 @@ watch(energyStats, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #7f8ea7;
-  border: 1px dashed rgba(255,255,255,0.08);
-  border-radius: 14px;
-  background: rgba(255,255,255,0.02);
+  color: #8396b1;
+  border: 1px dashed #314055;
+  border-radius: 12px;
+  background: #162130;
+  text-align: center;
+  padding: 18px;
+}
+
+.alarm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.alarm-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #243244;
+  background: #162130;
+}
+
+.alarm-item.critical {
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.alarm-item.warning {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.alarm-item.notice {
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+.alarm-main,
+.alarm-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alarm-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.alarm-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.alarm-device {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fbff;
+}
+
+.alarm-level {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #dbe6f5;
+  background: rgba(255,255,255,0.08);
+}
+
+.alarm-item.critical .alarm-level {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.alarm-item.warning .alarm-level {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.alarm-item.notice .alarm-level {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+
+.alarm-message {
+  margin: 0;
+  color: #cdd9ec;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alarm-side {
+  min-width: 132px;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.alarm-time {
+  font-size: 11px;
+  color: #95a7c3;
+}
+
+.alarm-action {
+  font-size: 12px;
+  color: #dbe6f5;
+  line-height: 1.4;
 }
 
 /* ========== 响应式 ========== */
 @media (max-width: 1400px) {
   .main {
     grid-template-columns: 260px 1fr 280px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .device-section {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1104,16 +1391,6 @@ watch(energyStats, () => {
     flex-direction: row;
     flex-wrap: wrap;
   }
-  
-  .metric-grid {
-    flex: 1;
-    min-width: 280px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .panel-right .metric-grid {
-    flex: 1;
-  }
 
   .focus-strip {
     flex-direction: column;
@@ -1121,6 +1398,14 @@ watch(energyStats, () => {
 
   .focus-numbers {
     min-width: 0;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trend-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .panel-right .card {
@@ -1136,11 +1421,6 @@ watch(energyStats, () => {
   
   .panel-right {
     grid-column: span 1;
-  }
-
-  .metric-grid {
-    grid-template-columns: 1fr;
-    min-width: 0;
   }
   
   .header {
@@ -1158,6 +1438,24 @@ watch(energyStats, () => {
 
   .focus-numbers {
     grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .alarm-item {
+    flex-direction: column;
+  }
+
+  .alarm-side {
+    min-width: 0;
+    align-items: flex-start;
+    text-align: left;
   }
 }
 </style>

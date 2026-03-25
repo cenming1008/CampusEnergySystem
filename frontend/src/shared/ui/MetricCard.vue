@@ -7,6 +7,7 @@ defineProps<{
   unit?: string
   badge?: string
   progress?: number
+  meta?: string
 }>()
 </script>
 
@@ -24,6 +25,7 @@ defineProps<{
           {{ value }}
           <small v-if="unit">{{ unit }}</small>
         </div>
+        <div v-if="meta" class="metric-card__meta">{{ meta }}</div>
       </div>
     </div>
     <div v-if="progress !== undefined" class="metric-card__bar">
@@ -36,40 +38,40 @@ defineProps<{
 .metric-card {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
-  background: rgba(8, 17, 34, 0.84);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 16px 40px rgba(1, 9, 24, 0.24);
+  border-radius: 12px;
+  background: #131d2b;
+  border: 1px solid #243244;
+  box-shadow: none;
   transition: transform 0.25s ease, border-color 0.25s ease;
 }
 
 .metric-card:hover {
-  transform: translateY(-2px);
+  border-color: #314055;
 }
 
 .metric-card__bg {
   position: absolute;
   inset: 0;
-  opacity: 0.16;
+  opacity: 0.04;
 }
 
 .metric-card__content {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .metric-card__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  background: rgba(255,255,255,0.08);
+  font-size: 20px;
+  background: #1b2838;
 }
 
 .metric-card__info {
@@ -82,7 +84,7 @@ defineProps<{
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #9ba9c4;
+  color: #9aacbf;
 }
 
 .metric-card__badge {
@@ -90,12 +92,12 @@ defineProps<{
   border-radius: 999px;
   font-size: 10px;
   color: inherit;
-  background: rgba(255,255,255,0.1);
+  background: #1d2938;
 }
 
 .metric-card__value {
   margin-top: 6px;
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.1;
   font-weight: 700;
   color: #fff;
@@ -108,9 +110,15 @@ defineProps<{
   color: #8ea0bc;
 }
 
+.metric-card__meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #8ea0bc;
+}
+
 .metric-card__bar {
-  height: 4px;
-  background: rgba(255,255,255,0.08);
+  height: 3px;
+  background: #1d2938;
 }
 
 .metric-card__bar-fill {
@@ -120,47 +128,47 @@ defineProps<{
 }
 
 .cyan {
-  color: #00f2fe;
-  border-color: rgba(0,242,254,0.28);
+  color: #38bdf8;
+  border-color: #243244;
 }
 
 .cyan .metric-card__bg {
-  background: linear-gradient(135deg, rgba(0,242,254,0.65), transparent 65%);
+  background: linear-gradient(135deg, rgba(56,189,248,0.5), transparent 65%);
 }
 
 .green {
-  color: #10b981;
-  border-color: rgba(16,185,129,0.28);
+  color: #22c55e;
+  border-color: #243244;
 }
 
 .green .metric-card__bg {
-  background: linear-gradient(135deg, rgba(16,185,129,0.65), transparent 65%);
+  background: linear-gradient(135deg, rgba(34,197,94,0.45), transparent 65%);
 }
 
 .pink {
-  color: #f093fb;
-  border-color: rgba(240,147,251,0.28);
+  color: #f59e0b;
+  border-color: #243244;
 }
 
 .pink .metric-card__bg {
-  background: linear-gradient(135deg, rgba(240,147,251,0.65), transparent 65%);
+  background: linear-gradient(135deg, rgba(245,158,11,0.45), transparent 65%);
 }
 
 .purple {
   color: #a78bfa;
-  border-color: rgba(167,139,250,0.28);
+  border-color: #243244;
 }
 
 .purple .metric-card__bg {
-  background: linear-gradient(135deg, rgba(167,139,250,0.65), transparent 65%);
+  background: linear-gradient(135deg, rgba(167,139,250,0.45), transparent 65%);
 }
 
 .blue {
-  color: #4facfe;
-  border-color: rgba(79,172,254,0.28);
+  color: #60a5fa;
+  border-color: #243244;
 }
 
 .blue .metric-card__bg {
-  background: linear-gradient(135deg, rgba(79,172,254,0.65), transparent 65%);
+  background: linear-gradient(135deg, rgba(96,165,250,0.45), transparent 65%);
 }
 </style>

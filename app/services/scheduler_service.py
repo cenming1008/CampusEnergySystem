@@ -8,6 +8,7 @@ import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from typing import Optional
 from app.core.logger import logger
+from app.core.runtime_state import runtime_state
 from app.services.scheduler_registry import register_default_jobs
 
 # 全局调度器实例
@@ -27,14 +28,21 @@ def start_scheduler():
     with _scheduler_lock:
         if _scheduler is not None and _scheduler.running:
             logger.warning("调度器已在运行")
+            runtime_state.mark_service("scheduler", "healthy", "already running")
             return
         
         _scheduler = BackgroundScheduler()
 
         register_default_jobs(_scheduler)
         
-        _scheduler.start()
-        logger.info("定时任务调度器已启动")
+        try:
+            _scheduler.start()
+            runtime_state.mark_service("scheduler", "healthy", "running")
+            logger.info("定时任务调度器已启动")
+        except Exception as exc:
+            runtime_state.mark_service("scheduler", "unhealthy", str(exc))
+            runtime_state.increment("scheduler_job_failures_total")
+            raise
 
 
 def stop_scheduler():
@@ -44,6 +52,7 @@ def stop_scheduler():
     with _scheduler_lock:
         if _scheduler is not None and _scheduler.running:
             _scheduler.shutdown(wait=True)
+            runtime_state.mark_service("scheduler", "stopped", "shutdown complete")
             logger.info("定时任务调度器已停止")
         _scheduler = None
 
@@ -61,6 +70,7 @@ def add_custom_job(func, trigger, job_id: str, **kwargs):
         replace_existing=True,
         **kwargs
     )
+    runtime_state.mark_service("scheduler", "healthy", f"job added: {job_id}")
     logger.info(f"已添加自定义任务: {job_id}")
 
 
@@ -73,9 +83,11 @@ def remove_job(job_id: str):
     
     try:
         _scheduler.remove_job(job_id)
+        runtime_state.mark_service("scheduler", "healthy", f"job removed: {job_id}")
         logger.info(f"已移除任务: {job_id}")
         return True
     except Exception:
+        runtime_state.increment("scheduler_job_failures_total")
         return False
 
 

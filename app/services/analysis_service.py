@@ -4,10 +4,12 @@
 """
 from datetime import datetime, time
 from typing import Dict, Any, Optional
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.domain.energy_rules import get_electricity_price
-from app.models.tables import Device, EnergyData
+from app.models.tables import EnergyData
+from app.repositories.device_repository import DeviceRepository
+from app.repositories.energy_repository import EnergyRepository
 
 
 class AnalysisService:
@@ -17,7 +19,7 @@ class AnalysisService:
     def analyze_device(session: Session, device_id: int) -> Dict[str, Any]:
         """分析设备数据"""
         # 获取设备状态
-        device = session.get(Device, device_id)
+        device = DeviceRepository.get_by_id(session, device_id)
         is_active = device.is_active if device else False
         
         # 获取最新数据
@@ -43,12 +45,7 @@ class AnalysisService:
     @staticmethod
     def _get_latest_data(session: Session, device_id: int) -> Optional[EnergyData]:
         """获取设备最新数据"""
-        return session.exec(
-            select(EnergyData)
-            .where(EnergyData.device_id == device_id)
-            .order_by(EnergyData.timestamp.desc())
-            .limit(1)
-        ).first()
+        return EnergyRepository.get_latest_energy_data(session, device_id)
     
     @staticmethod
     def _calculate_today_consumption(
@@ -65,13 +62,11 @@ class AnalysisService:
         now = datetime.now()
         today_start = datetime.combine(now.date(), time.min)
         
-        first_today = session.exec(
-            select(EnergyData)
-            .where(EnergyData.device_id == device_id)
-            .where(EnergyData.timestamp >= today_start)
-            .order_by(EnergyData.timestamp.asc())
-            .limit(1)
-        ).first()
+        first_today = EnergyRepository.get_first_energy_data_since(
+            session=session,
+            device_id=device_id,
+            start_time=today_start,
+        )
         
         today_kwh = (latest.consumption - first_today.consumption) if first_today else 0
         

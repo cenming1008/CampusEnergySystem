@@ -1,13 +1,15 @@
 """
 报警管理API端点
 """
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
+from app.api.deps import get_current_user
 from app.core.database import get_session
 from app.core.response import success_response
-from app.models.tables import Alarm
+from app.models.tables import Alarm, User
 from app.services.alarm_service import AlarmService
 
 router = APIRouter()
@@ -16,6 +18,10 @@ router = APIRouter()
 @router.get("/", response_model=List[Alarm])
 def get_alarms(
     limit: int = 20,
+    device_id: Optional[int] = Query(None, description="按设备筛选"),
+    resolved: Optional[bool] = Query(False, description="是否已解决，默认仅看未解决"),
+    start_time: Optional[datetime] = Query(None, description="开始时间"),
+    end_time: Optional[datetime] = Query(None, description="结束时间"),
     session: Session = Depends(get_session)
 ):
     """
@@ -33,11 +39,22 @@ def get_alarms(
     if limit < 1:
         limit = 1
     
-    return AlarmService.get_unresolved_alarms(session, limit)
+    return AlarmService.list_alarms(
+        session,
+        device_id=device_id,
+        resolved=resolved,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
 
 
 @router.post("/resolve-all")
-def resolve_all_alarms(session: Session = Depends(get_session)):
+def resolve_all_alarms(
+    handling_note: Optional[str] = Query(None, description="处理备注"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """
     批量解决所有未处理的报警
     
@@ -46,7 +63,11 @@ def resolve_all_alarms(session: Session = Depends(get_session)):
     Returns:
         包含解决数量的响应对象
     """
-    count = AlarmService.resolve_all_alarms(session)
+    count = AlarmService.resolve_all_alarms(
+        session,
+        resolved_by=current_user.username,
+        handling_note=handling_note,
+    )
     return success_response(
         data={"count": count},
         message=f"已解决 {count} 条报警"
@@ -56,7 +77,9 @@ def resolve_all_alarms(session: Session = Depends(get_session)):
 @router.post("/resolve/{alarm_id}")
 def resolve_alarm(
     alarm_id: int,
-    session: Session = Depends(get_session)
+    handling_note: Optional[str] = Query(None, description="处理备注"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     解决单个报警
@@ -70,7 +93,12 @@ def resolve_alarm(
     Raises:
         HTTPException: 报警不存在或已解决时返回404
     """
-    success = AlarmService.resolve_alarm(session, alarm_id)
+    success = AlarmService.resolve_alarm(
+        session,
+        alarm_id,
+        resolved_by=current_user.username,
+        handling_note=handling_note,
+    )
     if not success:
         raise HTTPException(status_code=404, detail="报警不存在或已解决")
     

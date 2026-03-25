@@ -52,8 +52,10 @@ export function deleteDevice(id: number) {
 }
 
 // 5. 启停控制 (反向控制)
-export function toggleDeviceStatus(id: number, active: boolean) {
-  return request.post<any, Device>(`/devices/${id}/toggle?active=${active}`)
+export function toggleDeviceStatus(id: number, active: boolean, reason?: string) {
+  const params = new URLSearchParams({ active: String(active) })
+  if (reason?.trim()) params.set('reason', reason.trim())
+  return request.post<any, Device>(`/devices/${id}/toggle?${params.toString()}`)
 }
 
 // 6. 获取支持的设备类型列表（从后端动态获取）

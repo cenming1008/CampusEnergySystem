@@ -1,6 +1,9 @@
 """FastAPI 应用主入口。"""
 
+from time import perf_counter
+
 from fastapi import FastAPI
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router_registry import register_routers
@@ -22,6 +25,16 @@ app = FastAPI(
 )
 
 register_exception_handlers(app)
+
+
+@app.middleware("http")
+async def request_observability_middleware(request: Request, call_next):
+    """记录请求耗时，并给响应增加耗时头。"""
+    started_at = perf_counter()
+    response = await call_next(request)
+    duration_ms = round((perf_counter() - started_at) * 1000, 2)
+    response.headers["X-Process-Time-Ms"] = str(duration_ms)
+    return response
 
 app.add_middleware(
     CORSMiddleware,

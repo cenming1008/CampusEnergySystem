@@ -4,8 +4,8 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
+from app.application.analysis import analyze_device_use_case
 from app.core.database import get_session
-from app.services.analysis_service import AnalysisService
 
 router = APIRouter()
 
@@ -16,4 +16,4 @@ def analyze_device(
     session: Session = Depends(get_session)
 ):
     """获取设备数据分析"""
-    return AnalysisService.analyze_device(session, device_id)
+    return analyze_device_use_case(session, device_id)

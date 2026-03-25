@@ -162,28 +162,42 @@
       gap: 10px;
     }
     .logo-text {
-      font-weight: 800;
-      font-size: 18px;
+      font-weight: 700;
+      font-size: 17px;
       color: #fff;
-      letter-spacing: 1px;
+      letter-spacing: 0.04em;
     }
     
     .menu-header {
-      font-size: 12px;
-      color: var(--text-secondary);
-      padding: 15px 20px 5px;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 18px 20px 8px;
       font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     
     /* 覆盖 Element Menu 默认样式以适配暗黑主题 */
     :deep(.el-menu) {
       border-right: none;
+      padding: 8px 12px 16px;
+    }
+    :deep(.el-menu-item) {
+      height: 42px;
+      margin-bottom: 6px;
+      border-radius: 10px;
+      color: var(--text-secondary) !important;
+    }
+    :deep(.el-menu-item .el-icon) {
+      font-size: 16px;
     }
     :deep(.el-menu-item:hover) {
-      background-color: rgba(255, 255, 255, 0.05) !important;
+      background-color: rgba(255, 255, 255, 0.04) !important;
+      color: #fff !important;
     }
     :deep(.el-menu-item.is-active) {
-      background-color: var(--brand-color) !important;
+      background-color: rgba(59, 130, 246, 0.12) !important;
+      box-shadow: inset 3px 0 0 0 var(--brand-color);
       color: #fff !important;
     }
     
@@ -210,17 +224,22 @@
     
     /* --- 顶部 Header --- */
     .top-header {
-      background-color: var(--bg-sidebar);
+      background-color: #111a28;
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: space-between;
       height: 60px;
+      padding: 0 20px;
     }
-    .breadcrumb { color: var(--text-secondary); font-size: 14px; }
+    .breadcrumb { color: var(--text-secondary); font-size: 13px; }
     
     .header-tools { display: flex; gap: 15px; align-items: center; }
-    .tool-item { background: transparent; border: none; color: var(--text-secondary); }
+    .tool-item {
+      background: #162130;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
     .has-alarm { 
       color: var(--danger-color) !important; 
       animation: pulse 2s infinite; 
@@ -228,7 +247,7 @@
     
     /* --- 主内容区 --- */
     .main-content {
-      padding: 20px !important;
+      padding: 16px !important;
       background-color: var(--bg-body);
       overflow-y: auto;
       width: 100%;

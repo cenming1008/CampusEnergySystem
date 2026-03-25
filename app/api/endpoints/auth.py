@@ -6,6 +6,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
 from app.core.database import get_session
+from app.core.rate_limit import limit_requests
+from app.core.settings import settings
 from app.core.security import verify_password, create_access_token
 from app.core.exceptions import AuthenticationException
 from app.models.tables import User
@@ -16,7 +18,14 @@ router = APIRouter()
 @router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    _: None = Depends(
+        limit_requests(
+            bucket="auth-login",
+            max_calls=settings.auth_rate_limit_count,
+            window_seconds=settings.auth_rate_limit_window_seconds,
+        )
+    ),
 ):
     """用户登录"""
     # 查询用户

@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 from app.core.database import get_session
 from app.core.redis import RedisClient
 from app.core.logger import logger
+from app.core.runtime_state import runtime_state
 
 router = APIRouter()
 
@@ -40,7 +41,9 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
         "version": "2.0.0",
         "services": {
             "database": "unknown",
-            "redis": "unknown"
+            "redis": "unknown",
+            "mqtt": "unknown",
+            "scheduler": "unknown",
         }
     }
     
@@ -71,6 +74,18 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
         if health_status["status"] == "healthy":
             health_status["status"] = "degraded"
         logger.warning(f"⚠️ 健康检查: Redis连接失败 - {e}")
+
+    runtime_snapshot = runtime_state.snapshot()
+    for service_name in ("mqtt", "scheduler"):
+        service_payload = runtime_snapshot["services"].get(service_name, {})
+        service_status = service_payload.get("status", "unknown")
+        health_status["services"][service_name] = service_status
+        if service_status in {"unhealthy"}:
+            health_status["status"] = "unhealthy"
+        elif service_status not in {"healthy", "unknown"} and health_status["status"] == "healthy":
+            health_status["status"] = "degraded"
+
+    health_status["runtime"] = runtime_snapshot
     
     return health_status
 
