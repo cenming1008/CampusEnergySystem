@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
-from app.api.deps import get_current_user
+from app.api.deps import MAINTAINER_OR_ADMIN, OPERATOR_OR_ADMIN, get_current_user
+from app.core.access_control import ensure_device_access, filter_devices_by_scope
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.response import success_response
@@ -30,13 +32,15 @@ def get_devices(
     category: Optional[str] = Query(None, description="按设备类别筛选"),
     is_active: Optional[bool] = Query(None, description="按状态筛选"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    return DeviceService.get_all_devices(
+    devices = DeviceService.get_all_devices(
         session,
         energy_type=energy_type,
         category=category,
         is_active=is_active,
     )
+    return filter_devices_by_scope(devices, current_user)
 
 
 @router.get("/types")
@@ -56,9 +60,10 @@ def get_device_type_info(device_type: str):
 def create_device_smart(
     req: DeviceCreateRequest,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     try:
-        return DeviceService.create_device_smart(
+        result = DeviceService.create_device_smart(
             session=session,
             name=req.name,
             sn=req.sn,
@@ -67,6 +72,8 @@ def create_device_smart(
             description=req.description,
             rated_capacity=req.rated_capacity,
         )
+        audit_log("device.create", current_user.username, f"device:{result.id}", role=current_user.role)
+        return result
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
     except Exception as exc:
@@ -78,15 +85,20 @@ def create_device_smart(
 def create_device_legacy(
     device: Device,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    return DeviceService.create_device(session, device)
+    result = DeviceService.create_device(session, device)
+    audit_log("device.create_legacy", current_user.username, f"device:{result.id}", role=current_user.role)
+    return result
 
 
 @router.get("/{device_id}", response_model=Device)
 def get_device(
     device_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    ensure_device_access(session, current_user, device_id)
     return DeviceService.get_device_by_id(session, device_id)
 
 
@@ -95,8 +107,10 @@ def update_device(
     device_id: int,
     req: DeviceUpdateRequest,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    return DeviceService.update_device(
+    ensure_device_access(session, current_user, device_id)
+    result = DeviceService.update_device(
         session,
         device_id,
         name=req.name,
@@ -104,15 +118,20 @@ def update_device(
         description=req.description,
         rated_capacity=req.rated_capacity,
     )
+    audit_log("device.update", current_user.username, f"device:{device_id}", role=current_user.role)
+    return result
 
 
 @router.delete("/{device_id}")
 def delete_device(
     device_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
+    ensure_device_access(session, current_user, device_id)
     device = DeviceService.get_device_by_id(session, device_id)
     DeviceService.delete_device(session, device_id)
+    audit_log("device.delete", current_user.username, f"device:{device_id}", role=current_user.role)
     return success_response(message=f"设备 {device.name} 已删除")
 
 
@@ -122,7 +141,7 @@ def toggle_device_status(
     active: bool,
     reason: Optional[str] = Query(None, description="启停原因/备注"),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(OPERATOR_OR_ADMIN),
     _: None = Depends(
         limit_requests(
             bucket="device-control",
@@ -131,6 +150,7 @@ def toggle_device_status(
         )
     ),
 ):
+    ensure_device_access(session, current_user, device_id)
     device = DeviceService.toggle_device_status(
         session,
         device_id,
@@ -140,4 +160,12 @@ def toggle_device_status(
         command_source="api",
     )
     publish_control_command(device.id, "start" if active else "stop")
+    audit_log(
+        "device.toggle",
+        current_user.username,
+        f"device:{device.id}",
+        active=active,
+        reason=reason,
+        role=current_user.role,
+    )
     return device

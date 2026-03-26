@@ -5,6 +5,8 @@ from app.models.tables import (
     User,
     Device,
     DeviceControlLog,
+    AuditEvent,
+    MqttIngestionRecord,
     EnergyData,
     Alarm,
     Location,
@@ -26,12 +28,17 @@ from app.models.tables import (
     LocationType,
     InspectionStatus,
     InspectionResult,
+    UserRole,
+    AuditOutcome,
+    MqttIngestionStatus,
 )
 
 __all__ = [
     "User",
     "Device",
     "DeviceControlLog",
+    "AuditEvent",
+    "MqttIngestionRecord",
     "EnergyData",
     "Alarm",
     "Location",
@@ -53,4 +60,7 @@ __all__ = [
     "LocationType",
     "InspectionStatus",
     "InspectionResult",
+    "UserRole",
+    "AuditOutcome",
+    "MqttIngestionStatus",
 ]

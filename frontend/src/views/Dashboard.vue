@@ -1,31 +1,44 @@
 <script setup lang="ts">
 import { onMounted, watch, computed, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useSocketStore } from '@/stores/useSocketStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
 import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
 import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
 import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
 import { useDashboardRealtime } from '@/features/dashboard/composables/useDashboardRealtime'
 import { useECharts } from '@/shared/composables/useECharts'
+import { usePermissions } from '@/shared/composables/usePermissions'
 import StatTile from '@/shared/ui/StatTile.vue'
+
+interface TrendTooltipParam {
+  axisValue: string
+  value: number
+  dataIndex: number
+}
 
 // --- 状态定义 ---
 const socketStore = useSocketStore()
+const authStore = useAuthStore()
+const { latestMessage, isConnected } = storeToRefs(socketStore)
+const { hasScopedAccess } = usePermissions()
 const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
-const { currentDevice, currentDeviceId, deviceList, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
+const { currentDevice, currentDeviceId, deviceList, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
 const { energyStats, todayEnergy, loadEnergyStats } = useDashboardEnergyStats()
 const {
   displayCurrent,
   displayEnergy,
   displayPower,
   energyTrendData,
+  loading: realtimeLoading,
   realTimeData,
   loadDeviceData
 } = useDashboardRealtime({
   currentDeviceId,
   deviceList,
-  latestMessage: socketStore.latestMessage
+  latestMessage
 })
 
 // 图表实例
@@ -121,41 +134,13 @@ const shiftLabel = computed(() => {
   return '夜班'
 })
 
-const runtimeStatus = computed(() => socketStore.isConnected ? '正常运行' : '通讯中断')
-const runtimeTone = computed(() => socketStore.isConnected ? 'green' as const : 'red' as const)
-
-const topSummaryCards = computed(() => [
-  {
-    tone: 'cyan' as const,
-    label: '当前总负荷',
-    value: displayPower.value.toFixed(1),
-    caption: `峰值 ${peakLoad.value.toFixed(1)} kW`
-  },
-  {
-    tone: 'purple' as const,
-    label: '今日总能耗',
-    value: todayEnergy.value.toFixed(1),
-    caption: '全系统累计 kWh'
-  },
-  {
-    tone: 'green' as const,
-    label: '在线设备',
-    value: `${onlineDevices.value}/${totalDevices.value || 0}`,
-    caption: `在线率 ${onlineRate.value}%`
-  },
-  {
-    tone: overview.value.alarmCount ? 'red' as const : 'blue' as const,
-    label: '未处理告警',
-    value: overview.value.alarmCount,
-    caption: overview.value.alarmCount ? '请优先处理严重异常' : '当前告警队列为空'
-  },
-  {
-    tone: runtimeTone.value,
-    label: '系统评分',
-    value: socketStore.isConnected && overview.value.alarmCount === 0 ? 96 : socketStore.isConnected ? 82 : 61,
-    caption: `${runtimeStatus.value} · ${shiftLabel.value}`
+const runtimeTone = computed(() => isConnected.value ? 'green' as const : 'red' as const)
+const dashboardScopeHint = computed(() => {
+  if (!authStore.locationScope) {
+    return '当前驾驶舱展示的是当前账号可访问的全部设备汇总。'
   }
-])
+  return `当前驾驶舱已按位置范围 ${authStore.locationScope} 过滤，统计结果不代表全矿全量数据。`
+})
 
 const selectedDeviceSummary = computed(() => ({
   name: currentDevice.value?.name || '暂无设备',
@@ -164,12 +149,26 @@ const selectedDeviceSummary = computed(() => ({
   status: currentDevice.value?.is_active ? '在线运行' : '离线待机'
 }))
 
+const selectedDeviceLabel = computed(() => {
+  if (!currentDevice.value) return '未选择设备'
+  const location = currentDevice.value.location?.trim()
+  return location ? `${currentDevice.value.name} · ${location}` : currentDevice.value.name
+})
+
+const selectableDeviceCount = computed(() => selectableDevices.value.length)
+const selectedDeviceStatusTone = computed(() => currentDevice.value?.is_active ? 'online' : 'offline')
+
 const focusMetrics = computed(() => [
   { label: '实时功率', value: `${displayPower.value.toFixed(1)} kW` },
   { label: '母线电压', value: `${realTimeData.voltage.toFixed(1)} V` },
   { label: 'A相电流', value: `${displayCurrent.value.toFixed(1)} A` },
   { label: '今日用电', value: `${displayEnergy.value.toFixed(1)} kWh` }
 ])
+
+const selectDevice = (deviceId?: number) => {
+  if (typeof deviceId !== 'number' || deviceId === currentDeviceId.value) return
+  currentDeviceId.value = deviceId
+}
 
 const trendHighlights = computed(() => [
   { label: '当前值', value: `${trendCurrentValue.value.toFixed(1)} kW` },
@@ -214,6 +213,66 @@ const latestAlarmItems = computed(() => (
     }
   })
 ))
+
+const selectedDeviceAlarmItems = computed(() => {
+  if (!currentDevice.value?.id) return latestAlarmItems.value.slice(0, 3)
+
+  return alarmList.value
+    .filter(alarm => alarm.device_id === currentDevice.value?.id)
+    .slice(0, 3)
+    .map(alarm => {
+      const level = resolveAlarmLevel(alarm.message)
+      return {
+        id: alarm.id,
+        message: alarm.message,
+        deviceName: currentDevice.value?.name || `设备 ${alarm.device_id}`,
+        time: formatAlarmTime(alarm.timestamp),
+        ...level
+      }
+    })
+})
+
+const scadaStatusCards = computed(() => [
+  {
+    label: '总负荷',
+    value: `${displayPower.value.toFixed(1)} kW`,
+    meta: `峰值 ${peakLoad.value.toFixed(1)} kW`,
+    tone: 'cyan'
+  },
+  {
+    label: '今日能耗',
+    value: `${todayEnergy.value.toFixed(1)} kWh`,
+    meta: '系统累计',
+    tone: 'purple'
+  },
+  {
+    label: '在线设备',
+    value: `${onlineDevices.value}/${totalDevices.value || 0}`,
+    meta: `在线率 ${onlineRate.value}%`,
+    tone: 'green'
+  },
+  {
+    label: '活动告警',
+    value: String(alarmCount.value),
+    meta: alarmCount.value ? '需要人工复核' : '当前稳定',
+    tone: alarmCount.value ? 'red' : 'blue'
+  },
+  {
+    label: '通讯状态',
+    value: isConnected.value ? '正常' : '中断',
+    meta: `当前班次 ${shiftLabel.value}`,
+    tone: runtimeTone.value
+  }
+])
+
+const selectedDeviceProfile = computed(() => [
+  { label: '设备类型', value: selectedDeviceSummary.value.type },
+  { label: '能源介质', value: selectedDeviceSummary.value.energyType },
+  { label: '运行状态', value: selectedDeviceSummary.value.status },
+  { label: '预警阈值', value: `${warningThreshold.value.toFixed(1)} kW` }
+])
+
+const deviceBoardItems = computed(() => selectableDevices.value.slice(0, 12))
 
 // --- 初始化 ---
 onMounted(async () => {
@@ -304,7 +363,7 @@ const renderMainChart = async () => {
       backgroundColor: 'rgba(0,0,0,0.8)',
       borderColor: '#00f2fe',
       textStyle: { color: '#fff' },
-      formatter: (params: any) => {
+      formatter: (params: TrendTooltipParam[]) => {
         const p = params[0]
         return `<div style="padding:5px">
           <div style="color:#8892b0">${p.axisValue}</div>
@@ -336,7 +395,7 @@ const renderMainChart = async () => {
         data: values.length ? values : [0],
         smooth: true,
         showSymbol: true,
-        symbolSize: (value: number, params: any) => params.dataIndex === (values.length - 1) ? 8 : 0,
+        symbolSize: (_value: number, params: { dataIndex: number }) => params.dataIndex === (values.length - 1) ? 8 : 0,
         lineStyle: { width: 2.5, color: '#00f2fe' },
         areaStyle: {
           color: {
@@ -449,6 +508,11 @@ watch(energyTrendData, () => {
 watch(energyStats, () => {
   renderPieChart()
 }, { deep: true })
+
+watch(currentDeviceId, (deviceId, previousId) => {
+  if (!deviceId || deviceId === previousId) return
+  void loadDeviceData()
+})
 </script>
 
 <template>
@@ -458,8 +522,11 @@ watch(energyStats, () => {
       <div class="header-left">
         <div class="title-box">
           <div class="title-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 3L4 14h7v7l9-11h-7V3z"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M13 3L4 14h7v7l9-11h-7V3z" />
             </svg>
           </div>
           <div class="title-text">
@@ -471,17 +538,34 @@ watch(energyStats, () => {
       
       <div class="header-center">
         <div class="time-box">
-          <div class="time">{{ currentTime }}</div>
-          <div class="date">{{ currentDate }}</div>
-          <div class="time-meta">当前班次：{{ shiftLabel }} · 数据轮询 10s</div>
+          <div class="time">
+            {{ currentTime }}
+          </div>
+          <div class="date">
+            {{ currentDate }}
+          </div>
+          <div class="time-meta">
+            当前班次：{{ shiftLabel }} · 数据轮询 10s
+          </div>
         </div>
       </div>
       
       <div class="header-right">
-        <div class="status-box" :class="{ online: socketStore.isConnected }">
-          <span class="status-dot"></span>
-          <span class="status-text">{{ socketStore.isConnected ? '系统运行中' : '连接断开' }}</span>
+        <div
+          class="status-box"
+          :class="{ online: isConnected }"
+        >
+          <span class="status-dot" />
+          <span class="status-text">{{ isConnected ? '系统运行中' : '连接断开' }}</span>
         </div>
+        <el-tag
+          v-if="hasScopedAccess"
+          size="small"
+          type="warning"
+          effect="dark"
+        >
+          范围受限视图
+        </el-tag>
       </div>
     </header>
 
@@ -489,10 +573,17 @@ watch(energyStats, () => {
     <main class="main">
       <!-- 左侧面板 -->
       <aside class="panel-left">
+        <el-alert
+          :title="dashboardScopeHint"
+          :type="hasScopedAccess ? 'warning' : 'info'"
+          :closable="false"
+          show-icon
+          class="scope-alert"
+        />
         <div class="card">
           <div class="card-header">
-            <span class="card-title">迷你总览</span>
-            <span class="card-subtitle">Overview</span>
+            <span class="card-title">运行总览</span>
+            <span class="card-subtitle">System Status</span>
           </div>
           <div class="card-body">
             <div class="stat-grid stat-grid--compact">
@@ -510,114 +601,257 @@ watch(energyStats, () => {
 
         <div class="card flex-1">
           <div class="card-header">
-            <span class="card-title">能源消耗占比</span>
-            <span class="card-subtitle">Distribution</span>
+            <span class="card-title">告警队列</span>
+            <span class="card-subtitle">Alarm Queue</span>
           </div>
           <div class="card-body">
-            <div v-if="hasEnergyDistributionData" class="chart-container chart-container--pie" :ref="pieChart.chartRef"></div>
-            <div v-else class="distribution-empty">
-              <strong>当前暂无有效占比数据</strong>
-              <p>请检查采集链路、时间范围或等待更多能耗数据入库后再查看。</p>
+            <div
+              v-if="latestAlarmItems.length"
+              class="alarm-list"
+            >
+              <div
+                v-for="alarm in latestAlarmItems"
+                :key="alarm.id"
+                class="alarm-item"
+                :class="alarm.tone"
+              >
+                <div class="alarm-main">
+                  <div class="alarm-title-row">
+                    <span class="alarm-device">{{ alarm.deviceName }}</span>
+                    <span class="alarm-level">{{ alarm.label }}</span>
+                  </div>
+                  <p class="alarm-message">
+                    {{ alarm.message }}
+                  </p>
+                </div>
+                <div class="alarm-side">
+                  <span class="alarm-time">{{ alarm.time }}</span>
+                  <span class="alarm-action">{{ alarm.action }}</span>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="device-empty"
+            >
+              当前没有未处理告警，系统运行稳定。
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <span class="card-title">区域能耗排行</span>
-            <span class="card-subtitle">Estimated</span>
+            <span class="card-title">能源占比</span>
+            <span class="card-subtitle">Distribution</span>
           </div>
           <div class="card-body">
-            <div v-if="regionRankings.length" class="energy-list">
-              <div v-for="item in regionRankings" :key="item.name" class="energy-row ranking-row">
-                <span class="ranking-index">{{ item.rank }}</span>
-                <div class="energy-copy">
-                  <span class="energy-name">{{ item.name }}</span>
-                  <span class="energy-meta">{{ item.online }}/{{ item.total }} 台在线</span>
-                </div>
-                <span class="energy-value">
-                  {{ item.hasCapacity ? `${item.score.toFixed(1)} kW` : `${item.total} 台` }}
-                </span>
-              </div>
+            <div
+              v-if="hasEnergyDistributionData"
+              :ref="pieChart.chartRef"
+              class="chart-container chart-container--pie"
+            />
+            <div
+              v-else
+              class="distribution-empty"
+            >
+              <strong>当前暂无有效占比数据</strong>
+              <p>请检查采集链路、时间范围或等待更多能耗数据入库后再查看。</p>
             </div>
-            <div v-else class="device-empty">暂无区域设备数据可用于排行</div>
           </div>
         </div>
       </aside>
 
       <!-- 中间面板 -->
       <section class="panel-center">
-        <div class="summary-grid">
-          <StatTile
-            v-for="item in topSummaryCards"
+        <div class="ops-strip">
+          <div
+            v-for="item in scadaStatusCards"
             :key="item.label"
-            :tone="item.tone"
-            :label="item.label"
-            :value="item.value"
-            :caption="item.caption"
-          />
+            class="ops-strip__item"
+            :class="`ops-strip__item--${item.tone}`"
+          >
+            <span class="ops-strip__label">{{ item.label }}</span>
+            <strong class="ops-strip__value">{{ item.value }}</strong>
+            <span class="ops-strip__meta">{{ item.meta }}</span>
+          </div>
         </div>
 
         <div class="card chart-card chart-card--primary">
           <div class="card-header">
-            <span class="card-title">24h 负荷趋势</span>
+            <span class="card-title">负荷趋势联动</span>
             <span class="card-subtitle">Trend Analysis</span>
           </div>
           <div class="card-body chart-card__body">
             <div class="trend-summary">
-              <div v-for="item in trendHighlights" :key="item.label" class="trend-summary__item">
+              <div
+                v-for="item in trendHighlights"
+                :key="item.label"
+                class="trend-summary__item"
+              >
                 <span class="trend-summary__label">{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
               </div>
             </div>
-            <div class="chart-container chart-container--trend" :ref="mainChart.chartRef"></div>
+            <div
+              :ref="mainChart.chartRef"
+              class="chart-container chart-container--trend"
+            />
           </div>
         </div>
 
         <div class="device-section">
-          <div class="focus-strip">
-            <div class="focus-copy">
-              <span class="focus-eyebrow">当前监测设备</span>
-              <h2>{{ selectedDeviceSummary.name }}</h2>
-              <div class="focus-meta">
-                <span>{{ selectedDeviceSummary.type }}</span>
-                <span>{{ selectedDeviceSummary.energyType }}</span>
-                <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
-              </div>
-            </div>
-            <div class="focus-numbers">
-              <div v-for="item in focusMetrics" :key="item.label" class="focus-number">
-                <span class="focus-number__label">{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="card gauge-card gauge-card--compact">
+          <div class="card device-focus-card">
             <div class="card-header">
-              <span class="card-title">设备负荷</span>
-              <el-select 
-                v-model="currentDeviceId" 
-                size="small"
-                style="width: 160px"
-                @change="loadDeviceData"
-              >
-                <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
-              </el-select>
+              <span class="card-title">联动控制台</span>
+              <span class="card-subtitle">Selected Device Console</span>
             </div>
-            <div class="card-body gauge-body">
-              <div class="gauge-wrapper">
-                <div class="gauge-chart" :ref="gaugeChart.chartRef"></div>
-                <div class="gauge-label">kW</div>
-              </div>
-              <div class="gauge-stats">
-                <div class="gauge-stat">
-                  <span class="label">当前功率</span>
-                  <span class="value">{{ displayPower.toFixed(1) }}<small>kW</small></span>
+            <div class="card-body">
+              <div class="focus-strip">
+                <div class="focus-copy">
+                  <span class="focus-eyebrow">当前控制点</span>
+                  <h2>{{ selectedDeviceSummary.name }}</h2>
+                  <div class="focus-meta">
+                    <span>{{ selectedDeviceSummary.type }}</span>
+                    <span>{{ selectedDeviceSummary.energyType }}</span>
+                    <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
+                  </div>
                 </div>
-                <div class="gauge-stat">
-                  <span class="label">预警阈值</span>
-                  <span class="value">{{ warningThreshold.toFixed(1) }}<small>kW</small></span>
+                <div class="focus-numbers">
+                  <div
+                    v-for="item in selectedDeviceProfile"
+                    :key="item.label"
+                    class="focus-number"
+                  >
+                    <span class="focus-number__label">{{ item.label }}</span>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="focus-dual-panel">
+                <div class="card gauge-card">
+                  <div class="card-header gauge-card__header">
+                    <div>
+                      <span class="card-title">实时设备面板</span>
+                      <div class="gauge-card__caption">
+                        选择设备后，状态灯、趋势和监测值联动刷新
+                      </div>
+                    </div>
+                    <el-tag
+                      size="small"
+                      type="info"
+                      effect="dark"
+                    >
+                      可选 {{ selectableDeviceCount }} 台
+                    </el-tag>
+                  </div>
+                  <div class="card-body gauge-body">
+                    <div class="gauge-toolbar">
+                      <div class="gauge-toolbar__meta">
+                        <span class="gauge-toolbar__label">监测设备</span>
+                        <strong>{{ selectedDeviceLabel }}</strong>
+                        <span class="gauge-toolbar__hint">通过右侧设备监控列表或下方快速切换区切换监测对象</span>
+                      </div>
+                      <el-tag
+                        size="small"
+                        type="info"
+                        effect="dark"
+                        :class="{ 'is-loading': realtimeLoading.device }"
+                      >
+                        {{ realtimeLoading.device ? '数据切换中' : '实时联动中' }}
+                      </el-tag>
+                    </div>
+                    <div
+                      v-if="deviceBoardItems.length"
+                      class="device-quick-switch"
+                    >
+                      <button
+                        v-for="device in deviceBoardItems.slice(0, 6)"
+                        :key="device.id"
+                        type="button"
+                        class="device-chip"
+                        :class="{ active: device.id === currentDeviceId, offline: !device.is_active }"
+                        @click="selectDevice(device.id)"
+                      >
+                        <span class="device-chip__dot" />
+                        <span class="device-chip__label">{{ device.name }}</span>
+                      </button>
+                    </div>
+                    <div class="gauge-console">
+                      <div class="gauge-wrapper">
+                        <div
+                          :ref="gaugeChart.chartRef"
+                          class="gauge-chart"
+                        />
+                        <div class="gauge-label">
+                          kW
+                        </div>
+                      </div>
+                      <div class="gauge-readout">
+                        <div class="readout-head">
+                          <span
+                            class="signal-dot"
+                            :class="selectedDeviceStatusTone"
+                          />
+                          <span>{{ selectedDeviceSummary.status }}</span>
+                        </div>
+                        <div class="readout-value">
+                          {{ displayPower.toFixed(1) }}<small>kW</small>
+                        </div>
+                        <div class="readout-caption">
+                          当前负荷
+                        </div>
+                      </div>
+                    </div>
+                    <div class="gauge-stats">
+                      <div
+                        v-for="item in focusMetrics"
+                        :key="item.label"
+                        class="gauge-stat"
+                      >
+                        <span class="label">{{ item.label }}</span>
+                        <span class="value">{{ item.value }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card event-card">
+                  <div class="card-header">
+                    <span class="card-title">联动事件</span>
+                    <span class="card-subtitle">Selected Device Alarms</span>
+                  </div>
+                  <div class="card-body">
+                    <div
+                      v-if="selectedDeviceAlarmItems.length"
+                      class="event-list"
+                    >
+                      <div
+                        v-for="alarm in selectedDeviceAlarmItems"
+                        :key="alarm.id"
+                        class="event-item"
+                        :class="alarm.tone"
+                      >
+                        <div class="event-item__head">
+                          <span class="event-item__name">{{ alarm.deviceName }}</span>
+                          <span class="event-item__time">{{ alarm.time }}</span>
+                        </div>
+                        <p class="event-item__message">
+                          {{ alarm.message }}
+                        </p>
+                        <div class="event-item__footer">
+                          <span class="event-item__level">{{ alarm.label }}</span>
+                          <span class="event-item__action">{{ alarm.action }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      v-else
+                      class="device-empty"
+                    >
+                      当前选中设备没有活动告警，趋势面板将优先显示实时负荷变化。
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -629,52 +863,83 @@ watch(energyStats, () => {
       <aside class="panel-right">
         <div class="card">
           <div class="card-header">
-            <span class="card-title">最新告警</span>
-            <span class="card-subtitle">Action Required</span>
+            <span class="card-title">设备监控列表</span>
+            <span class="card-subtitle">SCADA Device Board</span>
           </div>
           <div class="card-body">
-            <div v-if="latestAlarmItems.length" class="alarm-list">
-              <div v-for="alarm in latestAlarmItems" :key="alarm.id" class="alarm-item" :class="alarm.tone">
-                <div class="alarm-main">
-                  <div class="alarm-title-row">
-                    <span class="alarm-device">{{ alarm.deviceName }}</span>
-                    <span class="alarm-level">{{ alarm.label }}</span>
-                  </div>
-                  <p class="alarm-message">{{ alarm.message }}</p>
-                </div>
-                <div class="alarm-side">
-                  <span class="alarm-time">{{ alarm.time }}</span>
-                  <span class="alarm-action">{{ alarm.action }}</span>
-                </div>
+            <div class="device-board-header">
+              <div class="device-board-header__item">
+                <span>在线</span>
+                <strong>{{ onlineDevices }}</strong>
+              </div>
+              <div class="device-board-header__item">
+                <span>总数</span>
+                <strong>{{ totalDevices }}</strong>
+              </div>
+              <div class="device-board-header__item">
+                <span>当前</span>
+                <strong>{{ currentDevice?.name || '--' }}</strong>
               </div>
             </div>
-            <div v-else class="device-empty">
-              当前没有未处理告警，系统运行稳定。
+            <div
+              v-if="deviceBoardItems.length"
+              class="device-list scada-device-list"
+            >
+              <button
+                v-for="device in deviceBoardItems"
+                :key="device.id"
+                class="device-item device-item--button"
+                :class="{ active: device.id === currentDeviceId, offline: !device.is_active }"
+                type="button"
+                @click="selectDevice(device.id)"
+              >
+                <span class="device-status" />
+                <div class="device-copy">
+                  <span class="device-name">{{ device.name }}</span>
+                  <span class="device-location">{{ device.location || '未标注位置' }}</span>
+                </div>
+                <span class="device-type">{{ device.energy_type || device.device_type }}</span>
+              </button>
+            </div>
+            <div
+              v-else
+              class="device-empty"
+            >
+              暂无设备数据接入
             </div>
           </div>
         </div>
 
-        <!-- 设备状态 -->
         <div class="card flex-1">
           <div class="card-header">
-            <span class="card-title">设备状态</span>
-            <span class="card-subtitle">Device Status</span>
+            <span class="card-title">区域负荷排行</span>
+            <span class="card-subtitle">Regional Ranking</span>
           </div>
           <div class="card-body">
-            <div v-if="deviceList.length" class="device-list">
-              <div 
-                v-for="device in deviceList.slice(0, 6)" 
-                :key="device.id" 
-                class="device-item"
-                :class="{ active: device.is_active }"
+            <div
+              v-if="regionRankings.length"
+              class="energy-list"
+            >
+              <div
+                v-for="item in regionRankings"
+                :key="item.name"
+                class="energy-row ranking-row"
               >
-                <span class="device-status"></span>
-                <span class="device-name">{{ device.name }}</span>
-                <span class="device-type">{{ device.energy_type }}</span>
+                <span class="ranking-index">{{ item.rank }}</span>
+                <div class="energy-copy">
+                  <span class="energy-name">{{ item.name }}</span>
+                  <span class="energy-meta">{{ item.online }}/{{ item.total }} 台在线</span>
+                </div>
+                <span class="energy-value">
+                  {{ item.hasCapacity ? `${item.score.toFixed(1)} kW` : `${item.total} 台` }}
+                </span>
               </div>
             </div>
-            <div v-else class="device-empty">
-              暂无设备数据接入
+            <div
+              v-else
+              class="device-empty"
+            >
+              暂无区域设备数据可用于排行
             </div>
           </div>
         </div>
@@ -695,6 +960,10 @@ watch(energyStats, () => {
   overflow-x: auto;
   overflow-y: auto;
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 /* ========== 顶部标题栏 ========== */
@@ -967,11 +1236,56 @@ watch(energyStats, () => {
   min-width: 0;
 }
 
-.summary-grid {
+.ops-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
+
+.ops-strip__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid #243244;
+  background: #131d2b;
+  border-radius: 12px;
+}
+
+.ops-strip__item::before {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+.ops-strip__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa1bb;
+}
+
+.ops-strip__value {
+  font-size: 24px;
+  line-height: 1.1;
+  color: #f8fafc;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.ops-strip__meta {
+  font-size: 11px;
+  color: #7f92ad;
+}
+
+.ops-strip__item--cyan { color: #38bdf8; }
+.ops-strip__item--green { color: #22c55e; }
+.ops-strip__item--red { color: #ef4444; }
+.ops-strip__item--purple { color: #a78bfa; }
+.ops-strip__item--blue { color: #60a5fa; }
 
 .chart-card--primary .card-body {
   gap: 16px;
@@ -1005,10 +1319,13 @@ watch(energyStats, () => {
 }
 
 .device-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) 320px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.device-focus-card > .card-body {
   gap: 16px;
-  align-items: stretch;
 }
 
 .focus-strip {
@@ -1021,6 +1338,15 @@ watch(energyStats, () => {
   background: #131d2b;
   border: 1px solid #243244;
   box-shadow: none;
+}
+
+.focus-dual-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
 }
 
 .focus-copy {
@@ -1066,7 +1392,7 @@ watch(energyStats, () => {
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 12px;
-  min-width: 360px;
+  min-width: 0;
 }
 
 .focus-number {
@@ -1093,20 +1419,15 @@ watch(energyStats, () => {
 }
 
 .gauge-card .card-body {
-  flex-direction: row;
-  align-items: center;
   gap: 18px;
-}
-
-.gauge-card--compact .card-body {
-  justify-content: space-between;
 }
 
 .gauge-wrapper {
   position: relative;
-  width: 160px;
-  height: 150px;
+  width: min(180px, 100%);
+  height: 170px;
   flex: 0 0 auto;
+  margin: 0 auto;
 }
 
 .gauge-chart {
@@ -1124,9 +1445,8 @@ watch(energyStats, () => {
 }
 
 .gauge-stats {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1156,6 +1476,248 @@ watch(energyStats, () => {
   font-size: 12px;
   color: #8892b0;
   margin-left: 3px;
+}
+
+.gauge-card__header {
+  align-items: flex-start;
+}
+
+.gauge-card__caption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #7d8fa8;
+}
+
+.gauge-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.gauge-console {
+  display: grid;
+  grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.gauge-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #162130;
+  border: 1px solid #243244;
+}
+
+.gauge-toolbar__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gauge-toolbar__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa1ba;
+}
+
+.gauge-toolbar__meta strong {
+  color: #f8fafc;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gauge-toolbar__hint {
+  font-size: 11px;
+  color: #7d8fa8;
+}
+
+.device-quick-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #243244;
+  background: #162130;
+  color: #cfe1f5;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.device-chip:hover {
+  border-color: #35608d;
+  background: #192638;
+}
+
+.device-chip.active {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: #1a2b3f;
+}
+
+.device-chip.offline {
+  color: #94a3b8;
+}
+
+.device-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e;
+  flex: 0 0 auto;
+}
+
+.device-chip.offline .device-chip__dot {
+  background: #ef4444;
+}
+
+.device-chip__label {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.gauge-readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  min-height: 140px;
+  border-radius: 12px;
+  background: #162130;
+  border: 1px solid #243244;
+}
+
+.readout-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #90a4c0;
+}
+
+.signal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
+.signal-dot.online {
+  background: #22c55e;
+}
+
+.signal-dot.offline {
+  background: #ef4444;
+}
+
+.readout-value {
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+  color: #f8fafc;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.readout-value small {
+  margin-left: 6px;
+  font-size: 13px;
+  color: #92a5bf;
+}
+
+.readout-caption {
+  font-size: 12px;
+  color: #7d8fa8;
+}
+
+.event-card .card-body {
+  padding-top: 12px;
+}
+
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #243244;
+  background: #162130;
+}
+
+.event-item.critical {
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.event-item.warning {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.event-item.notice {
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+.event-item__head,
+.event-item__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.event-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.event-item__time {
+  font-size: 11px;
+  color: #91a4bf;
+}
+
+.event-item__message {
+  margin: 0;
+  color: #d8e2ef;
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.event-item__level {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: #dce7f6;
+  font-size: 11px;
+}
+
+.event-item__action {
+  font-size: 12px;
+  color: #8ea2bc;
+  text-align: right;
 }
 
 .chart-container {
@@ -1211,6 +1773,44 @@ watch(energyStats, () => {
   gap: 8px;
 }
 
+.scada-device-list {
+  gap: 10px;
+  margin-top: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.device-board-header {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.device-board-header__item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #162130;
+  border: 1px solid #243244;
+}
+
+.device-board-header__item span {
+  font-size: 11px;
+  color: #90a4c0;
+}
+
+.device-board-header__item strong {
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .device-item {
   display: flex;
   align-items: center;
@@ -1221,8 +1821,21 @@ watch(energyStats, () => {
   border: 1px solid #243244;
 }
 
+.device-item--button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.device-item--button:hover {
+  border-color: #35608d;
+  background: #192638;
+}
+
 .device-item.active {
-  border-color: rgba(34,197,94,0.28);
+  border-color: rgba(56, 189, 248, 0.45);
+  background: #19293d;
 }
 
 .device-status {
@@ -1237,10 +1850,26 @@ watch(energyStats, () => {
   box-shadow: none;
 }
 
-.device-name {
+.device-item.offline .device-status {
+  background: #ef4444;
+}
+
+.device-copy {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device-name {
   font-size: 13px;
   color: #fff;
+}
+
+.device-location {
+  font-size: 11px;
+  color: #7f93ae;
 }
 
 .device-type {
@@ -1369,11 +1998,29 @@ watch(energyStats, () => {
     grid-template-columns: 260px 1fr 280px;
   }
 
-  .summary-grid {
+  .ops-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .device-section {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-dual-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1320px) {
+  .focus-strip {
+    flex-direction: column;
+  }
+
+  .focus-numbers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .focus-dual-panel {
     grid-template-columns: 1fr;
   }
 }
@@ -1392,15 +2039,16 @@ watch(energyStats, () => {
     flex-wrap: wrap;
   }
 
-  .focus-strip {
+  .gauge-toolbar {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .focus-numbers {
-    min-width: 0;
+  .gauge-console {
+    grid-template-columns: 1fr;
   }
 
-  .summary-grid {
+  .ops-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1440,11 +2088,15 @@ watch(energyStats, () => {
     grid-template-columns: 1fr;
   }
 
-  .summary-grid {
+  .ops-strip {
     grid-template-columns: 1fr;
   }
 
   .trend-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .gauge-stats {
     grid-template-columns: 1fr;
   }
 

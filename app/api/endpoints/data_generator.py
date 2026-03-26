@@ -6,10 +6,13 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlmodel import Session
 
+from app.api.deps import ADMIN_ONLY
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
 from app.integrations.forecasting import ForecastAdapter
+from app.models.tables import User
 
 router = APIRouter()
 VALID_DATA_TYPES = {"load", "solar", "wind"}
@@ -37,7 +40,8 @@ def generate_device_data(
     interval_minutes: int = Body(60, ge=1, le=1440, description="数据间隔（分钟）"),
     data_type: str = Body("load", description="数据类型：load/solar/wind"),
     clear_existing: bool = Body(False, description="是否清除现有数据"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(ADMIN_ONLY),
 ):
     """
     为指定设备生成模拟数据
@@ -56,6 +60,13 @@ def generate_device_data(
             clear_existing=clear_existing
         )
         
+        audit_log(
+            "data_generator.generate_device",
+            current_user.username,
+            f"device:{device_id}",
+            count=count,
+            data_type=data_type,
+        )
         return success_response(
             data={
                 "device_id": device_id,
@@ -83,7 +94,8 @@ def generate_all_devices_data(
     days: int = Body(60, ge=1, le=365, description="生成数据的天数"),
     interval_minutes: int = Body(60, ge=1, le=1440, description="数据间隔（分钟）"),
     clear_existing: bool = Body(False, description="是否清除现有数据"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(ADMIN_ONLY),
 ):
     """
     为所有活动设备生成模拟数据
@@ -101,6 +113,12 @@ def generate_all_devices_data(
             clear_existing=clear_existing
         )
         
+        audit_log(
+            "data_generator.generate_all",
+            current_user.username,
+            "device:*",
+            total_count=total_count,
+        )
         return success_response(
             data={
                 "days": days,
@@ -121,13 +139,15 @@ def generate_all_devices_data(
 def clear_device_data(
     device_id: int,
     days: Optional[int] = Query(None, description="清除最近N天的数据，不提供则清除所有"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(ADMIN_ONLY),
 ):
     """
     清除指定设备的数据
     """
     try:
         _get_forecast_adapter().clear_device_data(session, device_id=device_id, days=days)
+        audit_log("data_generator.clear_device", current_user.username, f"device:{device_id}", days=days)
         
         return success_response(
             data={"device_id": device_id, "days": days},

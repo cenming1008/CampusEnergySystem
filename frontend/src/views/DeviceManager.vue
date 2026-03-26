@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { ref, reactive, onMounted, computed } from 'vue'
-    import { useRouter } from 'vue-router'
+	    import { useRouter } from 'vue-router'
+	    import { usePermissions } from '@/shared/composables/usePermissions'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
       getDeviceTypes,
@@ -11,7 +12,8 @@
     
     // --- 状态定义 ---
     const loading = ref(false)
-    const router = useRouter()
+	    const router = useRouter()
+	    const { canManageDevices, canControlDevices, hasScopedAccess } = usePermissions()
     const tableData = ref<Device[]>([])
     const dialogVisible = ref(false)
     const dialogTitle = ref('新增设备')
@@ -176,8 +178,8 @@
     const fetchDeviceTypes = async () => {
       try {
         const res = await getDeviceTypes()
-        if (res.data) {
-          deviceTypes.value = res.data
+        if (res.length) {
+          deviceTypes.value = res
         }
       } catch (e) {
         console.error('获取设备类型失败:', e)
@@ -198,130 +200,241 @@
     })
     </script>
     
-    <template>
-      <div class="device-container">
-        <div class="toolbar">
-          <div class="left">
-            <h2 class="page-title">设备全生命周期台账</h2>
-          </div>
-          <div class="right">
-            <el-button :icon="Refresh" circle @click="fetchData" />
-            <el-button type="primary" :icon="Plus" @click="openDialog(undefined)">
-              新增设备
-            </el-button>
-          </div>
-        </div>
-    
-        <el-table 
-          v-loading="loading" 
-          :data="tableData" 
-          style="width: 100%" 
-          class="custom-table"
-          :header-cell-style="{ background: '#1e293b', color: '#94a3b8', borderBottom: '1px solid #334155' }"
-          :cell-style="{ background: '#1e293b', color: '#cbd5e1', borderBottom: '1px solid #334155' }"
+<template>
+  <div class="device-container">
+    <div class="toolbar">
+      <div class="left">
+        <h2 class="page-title">
+          设备全生命周期台账
+        </h2>
+        <el-tag
+          v-if="hasScopedAccess"
+          size="small"
+          effect="dark"
+          type="warning"
         >
-          <el-table-column prop="id" label="ID" width="80" align="center" />
-          
-          <el-table-column label="设备名称" min-width="180">
-            <template #default="{ row }">
-              <div class="device-name-cell">
-                <span class="name">{{ row.name }}</span>
-                <el-tag size="small" type="info" effect="dark" class="sn-tag">{{ row.sn }}</el-tag>
-              </div>
-            </template>
-          </el-table-column>
-    
-          <el-table-column prop="device_type" label="设备类型" width="140">
-            <template #default="{ row }">
-              {{ deviceTypeMap[row.device_type] || row.device_type }}
-            </template>
-          </el-table-column>
-    
-          <el-table-column prop="location" label="安装位置" width="150" />
-    
-          <el-table-column label="运行状态 (远程控制)" width="200">
-            <template #default="{ row }">
-              <el-switch
-                v-model="row.is_active"
-                inline-prompt
-                active-text="运行中"
-                inactive-text="已停机"
-                style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
-                :before-change="() => handleStatusChange(!row.is_active, row)"
-              />
-            </template>
-          </el-table-column>
-    
-          <el-table-column label="监控" width="90" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                link
-                type="success"
-                :icon="Monitor"
-                @click="row.id && router.push(`/devices/${row.id}/monitor`)"
-              >
-                监控
-              </el-button>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="primary" :icon="Edit" @click="openDialog(row)">编辑</el-button>
-              <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-    
-        <el-dialog
-          v-model="dialogVisible"
-          :title="dialogTitle"
-          width="500px"
-          class="custom-dialog"
-        >
-          <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px" status-icon>
-            <el-form-item label="设备名称" prop="name">
-              <el-input v-model="formData.name" placeholder="例如: 智能电表" />
-            </el-form-item>
-            
-            <el-form-item label="序列号 SN" prop="sn">
-              <el-input v-model="formData.sn" placeholder="例如: METER-001" :disabled="!!formData.id"/>
-            </el-form-item>
-    
-            <el-form-item label="设备类型" prop="device_type">
-              <el-select v-model="formData.device_type" placeholder="请选择设备类型" style="width:100%">
-                <el-option 
-                  v-for="t in deviceTypes" 
-                  :key="t.device_type" 
-                  :label="`${t.icon} ${t.name_zh} (${t.unit})`" 
-                  :value="t.device_type"
-                >
-                  <span style="float: left">{{ t.icon }} {{ t.name_zh }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 12px">{{ t.energy_type }} | {{ t.unit }}</span>
-                </el-option>
-              </el-select>
-            </el-form-item>
-    
-            <el-form-item label="安装位置" prop="location">
-              <el-input v-model="formData.location" placeholder="例如: 总配电室" />
-            </el-form-item>
-            
-            <el-form-item label="描述备注" prop="description">
-              <el-input v-model="formData.description" type="textarea" />
-            </el-form-item>
-          </el-form>
-          
-          <template #footer>
-            <span class="dialog-footer">
-              <el-button @click="dialogVisible = false">取消</el-button>
-              <el-button type="primary" :loading="formLoading" @click="handleSubmit">
-                确认提交
-              </el-button>
-            </span>
-          </template>
-        </el-dialog>
+          当前列表已按位置范围过滤
+        </el-tag>
       </div>
-    </template>
+      <div class="right">
+        <el-button
+          :icon="Refresh"
+          circle
+          @click="fetchData"
+        />
+        <el-button
+          v-if="canManageDevices"
+          type="primary"
+          :icon="Plus"
+          @click="openDialog(undefined)"
+        >
+          新增设备
+        </el-button>
+      </div>
+    </div>
+    
+    <el-table 
+      v-loading="loading" 
+      :data="tableData" 
+      style="width: 100%" 
+      class="custom-table"
+      :header-cell-style="{ background: '#1e293b', color: '#94a3b8', borderBottom: '1px solid #334155' }"
+      :cell-style="{ background: '#1e293b', color: '#cbd5e1', borderBottom: '1px solid #334155' }"
+    >
+      <el-table-column
+        prop="id"
+        label="ID"
+        width="80"
+        align="center"
+      />
+          
+      <el-table-column
+        label="设备名称"
+        min-width="180"
+      >
+        <template #default="{ row }">
+          <div class="device-name-cell">
+            <span class="name">{{ row.name }}</span>
+            <el-tag
+              size="small"
+              type="info"
+              effect="dark"
+              class="sn-tag"
+            >
+              {{ row.sn }}
+            </el-tag>
+          </div>
+        </template>
+      </el-table-column>
+    
+      <el-table-column
+        prop="device_type"
+        label="设备类型"
+        width="140"
+      >
+        <template #default="{ row }">
+          {{ deviceTypeMap[row.device_type] || row.device_type }}
+        </template>
+      </el-table-column>
+    
+      <el-table-column
+        prop="location"
+        label="安装位置"
+        width="150"
+      />
+    
+      <el-table-column
+        label="运行状态 (远程控制)"
+        width="200"
+      >
+        <template #default="{ row }">
+          <el-switch
+            v-model="row.is_active"
+            inline-prompt
+            active-text="运行中"
+            inactive-text="已停机"
+            style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
+            :disabled="!canControlDevices"
+            :before-change="() => handleStatusChange(!row.is_active, row)"
+          />
+        </template>
+      </el-table-column>
+    
+      <el-table-column
+        label="监控"
+        width="90"
+        fixed="right"
+      >
+        <template #default="{ row }">
+          <el-button
+            link
+            type="success"
+            :icon="Monitor"
+            @click="row.id && router.push(`/devices/${row.id}/monitor`)"
+          >
+            监控
+          </el-button>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        v-if="canManageDevices"
+        label="操作"
+        width="180"
+        fixed="right"
+      >
+        <template #default="{ row }">
+          <el-button
+            link
+            type="primary"
+            :icon="Edit"
+            @click="openDialog(row)"
+          >
+            编辑
+          </el-button>
+          <el-button
+            link
+            type="danger"
+            :icon="Delete"
+            @click="handleDelete(row)"
+          >
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="500px"
+      class="custom-dialog"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-width="100px"
+        status-icon
+      >
+        <el-form-item
+          label="设备名称"
+          prop="name"
+        >
+          <el-input
+            v-model="formData.name"
+            placeholder="例如: 智能电表"
+          />
+        </el-form-item>
+            
+        <el-form-item
+          label="序列号 SN"
+          prop="sn"
+        >
+          <el-input
+            v-model="formData.sn"
+            placeholder="例如: METER-001"
+            :disabled="!!formData.id"
+          />
+        </el-form-item>
+    
+        <el-form-item
+          label="设备类型"
+          prop="device_type"
+        >
+          <el-select
+            v-model="formData.device_type"
+            placeholder="请选择设备类型"
+            style="width:100%"
+          >
+            <el-option 
+              v-for="t in deviceTypes" 
+              :key="t.device_type" 
+              :label="`${t.icon} ${t.name_zh} (${t.unit})`" 
+              :value="t.device_type"
+            >
+              <span style="float: left">{{ t.icon }} {{ t.name_zh }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px">{{ t.energy_type }} | {{ t.unit }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+    
+        <el-form-item
+          label="安装位置"
+          prop="location"
+        >
+          <el-input
+            v-model="formData.location"
+            placeholder="例如: 总配电室"
+          />
+        </el-form-item>
+            
+        <el-form-item
+          label="描述备注"
+          prop="description"
+        >
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+          />
+        </el-form-item>
+      </el-form>
+          
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="formLoading"
+            @click="handleSubmit"
+          >
+            确认提交
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
     
     <style scoped>
     .device-container {

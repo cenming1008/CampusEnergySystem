@@ -22,6 +22,7 @@ from app.services.mqtt_processor import (
     validate_payload_content,
     validate_timestamp,
 )
+from app.integrations.mqtt.processor import process_payload_dict as process_integrated_payload_dict
 
 
 class TestMqttProcessorReliability(unittest.TestCase):
@@ -79,6 +80,32 @@ class TestMqttProcessorReliability(unittest.TestCase):
         mock_persist_device_data.assert_not_called()
         mock_mark_message_received.assert_called_once()
         mock_mark_ingestion_failure.assert_called_once()
+
+    @patch("app.integrations.mqtt.processor.Session")
+    @patch("app.integrations.mqtt.processor.MqttReliabilityService.claim_message")
+    @patch("app.integrations.mqtt.processor.resolve_device_id")
+    @patch("app.integrations.mqtt.processor.persist_device_data")
+    def test_integrated_processor_skips_duplicate_messages(
+        self,
+        mock_persist_device_data,
+        mock_resolve_device_id,
+        mock_claim_message,
+        mock_session_cls,
+    ):
+        mock_resolve_device_id.return_value = 7
+        mock_claim_message.return_value = (SimpleNamespace(), True)
+        context = MagicMock()
+        context.__enter__.return_value = MagicMock()
+        context.__exit__.return_value = None
+        mock_session_cls.return_value = context
+
+        result = process_integrated_payload_dict(
+            {"device_id": 7, "power": 4.56, "timestamp": "2026-03-25T10:00:00"},
+            topic="mine/telemetry",
+        )
+
+        self.assertIsNone(result)
+        mock_persist_device_data.assert_not_called()
 
 
 class TestMqttDeviceResolverReliability(unittest.TestCase):

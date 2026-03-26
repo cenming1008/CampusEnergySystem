@@ -8,19 +8,24 @@ from __future__ import annotations
 
 import json
 import math
+import hashlib
+from time import perf_counter
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.application.telemetry_ingestion import ingest_telemetry_use_case
 from app.core.database import engine
 from app.core.logger import logger
+from app.core.metrics import observe_mqtt_message
 from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_device_resolver import resolve_device_id
 from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastMessage
+from app.services.mqtt_reliability_service import MqttReliabilityService
+from app.models.tables import MqttIngestionRecord
 
 
 FIELD_ALIASES = {
@@ -110,6 +115,11 @@ def parse_payload(payload_str: str) -> Optional[dict[str, Any]]:
     return data
 
 
+def hash_payload_string(payload_str: str) -> str:
+    """对原始 payload 字符串做哈希，便于失败重放和比对。"""
+    return hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
+
+
 def parse_timestamp(data: dict[str, Any]) -> datetime:
     """解析时间戳，缺失或非法时回退到当前时间。"""
     timestamp = data.get("timestamp")
@@ -183,13 +193,19 @@ def process_payload(payload_str: str, topic: Optional[str] = None) -> Optional[d
     if data is None:
         return None
 
-    message = process_payload_dict(data, topic=topic)
+    message = process_payload_dict(data, topic=topic, raw_payload=payload_str)
     return message.to_dict() if message else None
 
 
-def process_payload_dict(data: dict[str, Any], topic: Optional[str] = None) -> Optional[TelemetryBroadcastMessage]:
+def process_payload_dict(
+    data: dict[str, Any],
+    topic: Optional[str] = None,
+    raw_payload: Optional[str] = None,
+) -> Optional[TelemetryBroadcastMessage]:
     """处理已解析的 MQTT payload 字典，便于测试。"""
+    started_at = perf_counter()
     if data is None:
+        observe_mqtt_message("invalid", perf_counter() - started_at)
         return None
     runtime_state.increment("mqtt_messages_total")
     data = apply_field_aliases(data)
@@ -197,32 +213,74 @@ def process_payload_dict(data: dict[str, Any], topic: Optional[str] = None) -> O
     device_id = resolve_device_id(data, topic)
     if not device_id:
         logger.warning("MQTT payload missing device_id/device_code, skipped")
+        observe_mqtt_message("invalid", perf_counter() - started_at)
         return None
 
+    timestamp = parse_timestamp(data)
+    payload_hash = MqttReliabilityService.build_payload_hash(data)
+    fingerprint = MqttReliabilityService.build_fingerprint(device_id, topic, timestamp, payload_hash)
+
     try:
+        with Session(engine) as session:
+            record, should_skip = MqttReliabilityService.claim_message(
+                session,
+                fingerprint=fingerprint,
+                payload_hash=payload_hash,
+                raw_payload=raw_payload,
+                device_id=device_id,
+                topic=topic,
+                telemetry_timestamp=timestamp,
+            )
+            session.commit()
+        if should_skip:
+            runtime_state.increment("mqtt_duplicates_total")
+            logger.info(f"MQTT duplicate skipped: device_id={device_id}, fingerprint={fingerprint[:12]}")
+            observe_mqtt_message("duplicate", perf_counter() - started_at)
+            return None
+
         validate_payload_content(data)
-        timestamp = validate_timestamp(parse_timestamp(data))
+        timestamp = validate_timestamp(timestamp)
         voltage, current, power, energy = normalize_metrics(data)
         data_dict = build_data_dict(data, voltage, current, power, energy)
         ws_data = persist_device_data(device_id, data_dict, timestamp)
+        with Session(engine) as session:
+            record = session.exec(
+                select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)
+            ).first()
+            if record:
+                MqttReliabilityService.mark_success(session, record)
+                session.commit()
     except ValueError as exc:
         with Session(engine) as session:
+            record = session.exec(
+                select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)
+            ).first()
+            if record:
+                MqttReliabilityService.mark_failure(session, record, str(exc))
             IngestionHealthService.mark_message_received(session, device_id=device_id)
             IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
             session.commit()
         runtime_state.increment("mqtt_ingestion_failure_total")
         logger.warning(f"MQTT payload validation failed: device_id={device_id}, err={exc}")
+        observe_mqtt_message("validation_failed", perf_counter() - started_at)
         return None
     except Exception as exc:
         with Session(engine) as session:
+            record = session.exec(
+                select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)
+            ).first()
+            if record:
+                MqttReliabilityService.mark_failure(session, record, str(exc))
             IngestionHealthService.mark_message_received(session, device_id=device_id)
             IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
             session.commit()
         runtime_state.increment("mqtt_ingestion_failure_total")
         logger.warning(f"MQTT payload persist failed: device_id={device_id}, err={exc}")
+        observe_mqtt_message("failed", perf_counter() - started_at)
         return None
 
     runtime_state.increment("mqtt_ingestion_success_total")
+    observe_mqtt_message("success", perf_counter() - started_at)
     return TelemetryBroadcastMessage(
         type="telemetry_update",
         data=ws_data,

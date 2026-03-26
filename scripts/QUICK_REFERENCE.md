@@ -167,6 +167,9 @@ python scripts/python/generate_training_data.py
 
 # 查看备份
 ls -lh backups/
+
+# 一键执行恢复演练并生成记录
+./scripts/shell/restore_drill.sh
 ```
 
 ### 重置数据
@@ -202,8 +205,17 @@ python scripts/python/device_gateway.py
 # 检查配置
 python scripts/python/check_config.py
 
+# 生成生产密钥片段
+python scripts/python/generate_prod_secrets.py
+
 # 测试健康检查
 ./scripts/shell/test_health.sh
+
+# 压测 / 生成容量基线
+python scripts/python/stress_test.py --endpoint /health/live --workers 20 --duration-seconds 60 --output artifacts/load/health_live.json
+
+# 一键跑后端容量基线
+bash ./scripts/shell/load_baseline.sh
 ```
 
 ### 查看日志

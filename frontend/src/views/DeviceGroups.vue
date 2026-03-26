@@ -5,6 +5,7 @@ import {
   getDeviceGroups,
   getGroupTypes,
   getAllGroupStatistics,
+  getGroupDetail,
   createGroup,
   updateGroup,
   deleteGroup,
@@ -12,23 +13,30 @@ import {
   addDeviceToGroup,
   batchAddDevicesToGroup,
   removeDeviceFromGroup,
+  getGroupDeviceCount as fetchGroupDeviceCount,
   getGroupStatistics,
+  searchGroups,
   type DeviceGroup,
   type GroupTypeInfo,
   type GroupStatistics,
+  type AllGroupStatistics,
   type GroupCreateRequest
 } from '@/api/deviceGroup'
 import { getDevices, type Device } from '@/api/device'
+import { usePermissions } from '@/shared/composables/usePermissions'
 
 // --- 状态 ---
 const loading = ref(false)
 const groupList = ref<DeviceGroup[]>([])
 const typeList = ref<GroupTypeInfo[]>([])
-const allStats = ref<any[]>([])
+const allStats = ref<AllGroupStatistics[]>([])
 const deviceList = ref<Device[]>([])
 const selectedGroup = ref<DeviceGroup | null>(null)
 const groupDevices = ref<Device[]>([])
 const groupStats = ref<GroupStatistics | null>(null)
+const exactGroupDeviceCount = ref<number | null>(null)
+const searchKeyword = ref('')
+const { canManageGroups, hasScopedAccess } = usePermissions()
 
 // 对话框状态
 const dialogVisible = ref(false)
@@ -77,7 +85,7 @@ const loadData = async () => {
   loading.value = true
   try {
     const [groups, types, stats] = await Promise.all([
-      getDeviceGroups(),
+      searchKeyword.value.trim() ? searchGroups(searchKeyword.value.trim()) : getDeviceGroups(),
       getGroupTypes(),
       getAllGroupStatistics()
     ])
@@ -100,23 +108,29 @@ const loadDevices = async () => {
   }
 }
 
-const getGroupDeviceCount = (groupId: number) => {
+const getGroupDeviceCountLabel = (groupId: number) => {
   const stat = allStats.value.find(s => s.group_id === groupId)
   return stat?.device_count || 0
 }
 
 const selectGroup = async (group: DeviceGroup) => {
-  selectedGroup.value = group
+  selectedGroup.value = await getGroupDetail(group.id)
   try {
-    const [devices, stats] = await Promise.all([
+    const [devices, stats, count] = await Promise.all([
       getGroupDevices(group.id),
-      getGroupStatistics(group.id)
+      getGroupStatistics(group.id),
+      fetchGroupDeviceCount(group.id)
     ])
     groupDevices.value = devices
     groupStats.value = stats.data || null
+    exactGroupDeviceCount.value = count.data?.count || 0
   } catch (e) {
     console.error('加载分组详情失败:', e)
   }
+}
+
+const handleSearch = () => {
+  loadData()
 }
 
 const openCreateDialog = () => {
@@ -178,8 +192,8 @@ const handleDelete = async (group: DeviceGroup) => {
       groupStats.value = null
     }
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') {
+  } catch (error) {
+    if (error !== 'cancel') {
       ElMessage.error('删除失败')
     }
   }
@@ -197,7 +211,9 @@ const handleAddDevices = async () => {
   }
   try {
     if (selectedDeviceIds.value.length === 1) {
-      await addDeviceToGroup(selectedGroup.value.id, selectedDeviceIds.value[0])
+      const targetDeviceId = selectedDeviceIds.value[0]
+      if (targetDeviceId == null) return
+      await addDeviceToGroup(selectedGroup.value.id, targetDeviceId)
     } else {
       await batchAddDevicesToGroup(selectedGroup.value.id, selectedDeviceIds.value)
     }
@@ -218,13 +234,14 @@ const handleRemoveDevice = async (device: Device) => {
     await ElMessageBox.confirm(`确定将 "${device.name}" 从分组中移除？`, '提示', {
       type: 'warning'
     })
+    if (device.id == null) return
     await removeDeviceFromGroup(selectedGroup.value.id, device.id)
     ElMessage.success('移除成功')
     const devices = await getGroupDevices(selectedGroup.value.id)
     groupDevices.value = devices
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') {
+  } catch (error) {
+    if (error !== 'cancel') {
       ElMessage.error('移除失败')
     }
   }
@@ -240,8 +257,22 @@ onMounted(async () => {
 <template>
   <div class="groups-page">
     <div class="page-header">
-      <h2>设备分组</h2>
-      <el-button type="primary" @click="openCreateDialog">
+      <div>
+        <h2>设备分组</h2>
+        <el-tag
+          v-if="hasScopedAccess"
+          size="small"
+          type="warning"
+          effect="dark"
+        >
+          当前分组与设备已按位置范围过滤
+        </el-tag>
+      </div>
+      <el-button
+        v-if="canManageGroups"
+        type="primary"
+        @click="openCreateDialog"
+      >
         <el-icon><Plus /></el-icon>新建分组
       </el-button>
     </div>
@@ -251,12 +282,27 @@ onMounted(async () => {
       <div class="group-list-panel">
         <div class="panel-header">
           <span>分组列表</span>
-          <el-button text size="small" @click="loadData">
+          <el-button
+            text
+            size="small"
+            @click="loadData"
+          >
             <el-icon><Refresh /></el-icon>
           </el-button>
         </div>
+        <div class="search-box">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索分组名称/编码"
+            clearable
+            @change="handleSearch"
+          />
+        </div>
         
-        <div class="group-list" v-loading="loading">
+        <div
+          v-loading="loading"
+          class="group-list"
+        >
           <div
             v-for="group in groupList"
             :key="group.id"
@@ -266,28 +312,59 @@ onMounted(async () => {
           >
             <div class="group-info">
               <div class="group-name">
-                <span class="color-dot" :style="{ background: typeColor(group.group_type || '') }"></span>
+                <span
+                  class="color-dot"
+                  :style="{ background: typeColor(group.group_type || '') }"
+                />
                 {{ group.name }}
               </div>
               <div class="group-meta">
-                <el-tag size="small" :color="typeColor(group.group_type || '')" effect="dark">
+                <el-tag
+                  size="small"
+                  :color="typeColor(group.group_type || '')"
+                  effect="dark"
+                >
                   {{ typeLabel(group.group_type || '') }}
                 </el-tag>
-                <span class="device-count">{{ getGroupDeviceCount(group.id) }} 台设备</span>
+                <span class="device-count">{{ getGroupDeviceCountLabel(group.id) }} 台设备</span>
               </div>
             </div>
-            <div class="group-actions" @click.stop>
-              <el-button text size="small" @click="openEditDialog(group)">
+            <div
+              v-if="canManageGroups"
+              class="group-actions"
+              @click.stop
+            >
+              <el-button
+                text
+                size="small"
+                @click="openEditDialog(group)"
+              >
                 <el-icon><Edit /></el-icon>
               </el-button>
-              <el-button text size="small" type="danger" @click="handleDelete(group)">
+              <el-button
+                text
+                size="small"
+                type="danger"
+                @click="handleDelete(group)"
+              >
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
           </div>
           
-          <el-empty v-if="groupList.length === 0 && !loading" description="暂无分组" :image-size="60">
-            <el-button type="primary" size="small" @click="openCreateDialog">创建分组</el-button>
+          <el-empty
+            v-if="groupList.length === 0 && !loading"
+            description="暂无分组"
+            :image-size="60"
+          >
+            <el-button
+              v-if="canManageGroups"
+              type="primary"
+              size="small"
+              @click="openCreateDialog"
+            >
+              创建分组
+            </el-button>
           </el-empty>
         </div>
       </div>
@@ -299,9 +376,14 @@ onMounted(async () => {
           <div class="info-card">
             <div class="card-header">
               <div class="group-title">
-                <span class="color-dot large" :style="{ background: typeColor(selectedGroup.group_type || '') }"></span>
+                <span
+                  class="color-dot large"
+                  :style="{ background: typeColor(selectedGroup.group_type || '') }"
+                />
                 <span class="name">{{ selectedGroup.name }}</span>
-                <el-tag size="small">{{ typeLabel(selectedGroup.group_type || '') }}</el-tag>
+                <el-tag size="small">
+                  {{ typeLabel(selectedGroup.group_type || '') }}
+                </el-tag>
               </div>
             </div>
             
@@ -322,26 +404,52 @@ onMounted(async () => {
                 <label>创建时间</label>
                 <span>{{ selectedGroup.created_at ? new Date(selectedGroup.created_at).toLocaleDateString() : '-' }}</span>
               </div>
+              <div class="info-item">
+                <label>精确设备数</label>
+                <span>{{ exactGroupDeviceCount ?? groupDevices.length }}</span>
+              </div>
             </div>
             
-            <div v-if="selectedGroup.description" class="description">
+            <div
+              v-if="selectedGroup.description"
+              class="description"
+            >
               {{ selectedGroup.description }}
             </div>
           </div>
 
           <!-- 统计 -->
-          <div class="stats-row" v-if="groupStats">
+          <div
+            v-if="groupStats"
+            class="stats-row"
+          >
             <div class="stat-item">
-              <div class="stat-value">{{ groupStats.total_devices }}</div>
-              <div class="stat-label">总设备数</div>
+              <div class="stat-value">
+                {{ groupStats.total_devices }}
+              </div>
+              <div class="stat-label">
+                总设备数
+              </div>
             </div>
             <div class="stat-item">
-              <div class="stat-value success">{{ groupStats.active_devices }}</div>
-              <div class="stat-label">在线设备</div>
+              <div class="stat-value success">
+                {{ groupStats.active_devices }}
+              </div>
+              <div class="stat-label">
+                在线设备
+              </div>
             </div>
-            <div class="stat-item" v-for="(count, type) in groupStats.by_energy_type" :key="type">
-              <div class="stat-value">{{ count }}</div>
-              <div class="stat-label">{{ type }}</div>
+            <div
+              v-for="(count, type) in groupStats.by_energy_type"
+              :key="type"
+              class="stat-item"
+            >
+              <div class="stat-value">
+                {{ count }}
+              </div>
+              <div class="stat-label">
+                {{ type }}
+              </div>
             </div>
           </div>
 
@@ -349,79 +457,176 @@ onMounted(async () => {
           <div class="device-list-card">
             <div class="card-header">
               <span>分组设备</span>
-              <el-button type="primary" size="small" @click="openAddDeviceDialog">
+              <el-button
+                v-if="canManageGroups"
+                type="primary"
+                size="small"
+                @click="openAddDeviceDialog"
+              >
                 <el-icon><Plus /></el-icon>添加设备
               </el-button>
             </div>
             
-            <el-table :data="groupDevices" stripe max-height="400">
-              <el-table-column prop="id" label="ID" width="60" />
-              <el-table-column prop="name" label="设备名称" />
-              <el-table-column prop="energy_type" label="能源类型" width="100" />
-              <el-table-column prop="device_type" label="设备类型" width="100" />
-              <el-table-column label="状态" width="80">
+            <el-table
+              :data="groupDevices"
+              stripe
+              max-height="400"
+            >
+              <el-table-column
+                prop="id"
+                label="ID"
+                width="60"
+              />
+              <el-table-column
+                prop="name"
+                label="设备名称"
+              />
+              <el-table-column
+                prop="energy_type"
+                label="能源类型"
+                width="100"
+              />
+              <el-table-column
+                prop="device_type"
+                label="设备类型"
+                width="100"
+              />
+              <el-table-column
+                label="状态"
+                width="80"
+              >
                 <template #default="{ row }">
-                  <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+                  <el-tag
+                    :type="row.is_active ? 'success' : 'info'"
+                    size="small"
+                  >
                     {{ row.is_active ? '在线' : '离线' }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="80" fixed="right">
+              <el-table-column
+                v-if="canManageGroups"
+                label="操作"
+                width="80"
+                fixed="right"
+              >
                 <template #default="{ row }">
-                  <el-button type="danger" link size="small" @click="handleRemoveDevice(row)">
+                  <el-button
+                    type="danger"
+                    link
+                    size="small"
+                    @click="handleRemoveDevice(row)"
+                  >
                     移除
                   </el-button>
                 </template>
               </el-table-column>
             </el-table>
             
-            <el-empty v-if="groupDevices.length === 0" description="暂无设备" :image-size="60" />
+            <el-empty
+              v-if="groupDevices.length === 0"
+              description="暂无设备"
+              :image-size="60"
+            />
           </div>
         </template>
 
         <template v-else>
           <div class="empty-detail">
-            <el-empty description="请在左侧选择一个分组" :image-size="120" />
+            <el-empty
+              description="请在左侧选择一个分组"
+              :image-size="120"
+            />
           </div>
         </template>
       </div>
     </div>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
+    <el-dialog
+      v-if="canManageGroups"
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="500px"
+    >
       <el-form label-width="100px">
-        <el-form-item label="分组名称" required>
-          <el-input v-model="formData.name" placeholder="请输入分组名称" />
+        <el-form-item
+          label="分组名称"
+          required
+        >
+          <el-input
+            v-model="formData.name"
+            placeholder="请输入分组名称"
+          />
         </el-form-item>
         <el-form-item label="分组类型">
-          <el-select v-model="formData.group_type" style="width: 100%">
-            <el-option v-for="t in typeList" :key="t.value" :label="t.label" :value="t.value">
-              <span class="color-dot" :style="{ background: typeColor(t.value) }"></span>
+          <el-select
+            v-model="formData.group_type"
+            style="width: 100%"
+            teleported
+            popper-class="app-select-popper"
+          >
+            <el-option
+              v-for="t in typeList"
+              :key="t.value"
+              :label="t.label"
+              :value="t.value"
+            >
+              <span
+                class="color-dot"
+                :style="{ background: typeColor(t.value) }"
+              />
               <span style="margin-left: 8px">{{ t.label }}</span>
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="分组编码">
-          <el-input v-model="formData.code" placeholder="请输入编码" />
+          <el-input
+            v-model="formData.code"
+            placeholder="请输入编码"
+          />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input v-model="formData.manager" placeholder="请输入负责人" />
+          <el-input
+            v-model="formData.manager"
+            placeholder="请输入负责人"
+          />
         </el-form-item>
         <el-form-item label="联系方式">
-          <el-input v-model="formData.contact" placeholder="请输入联系方式" />
+          <el-input
+            v-model="formData.contact"
+            placeholder="请输入联系方式"
+          />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleSubmit"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 添加设备对话框 -->
-    <el-dialog v-model="addDeviceDialogVisible" title="添加设备到分组" width="500px">
+    <el-dialog
+      v-if="canManageGroups"
+      v-model="addDeviceDialogVisible"
+      title="添加设备到分组"
+      width="500px"
+    >
       <el-form label-width="80px">
         <el-form-item label="选择设备">
           <el-select
@@ -430,6 +635,8 @@ onMounted(async () => {
             style="width: 100%"
             multiple
             filterable
+            teleported
+            popper-class="app-select-popper"
           >
             <el-option
               v-for="d in availableDevices"
@@ -444,8 +651,15 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="addDeviceDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAddDevices">确定</el-button>
+        <el-button @click="addDeviceDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleAddDevices"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -495,6 +709,10 @@ onMounted(async () => {
   margin-bottom: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.search-box {
+  margin-bottom: 12px;
 }
 
 .group-list {

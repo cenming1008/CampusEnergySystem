@@ -9,7 +9,9 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime
 from threading import Lock
-from typing import Any
+from typing import Any, Optional
+
+from app.core.metrics import set_runtime_counter, set_runtime_service_status
 
 
 class RuntimeState:
@@ -28,26 +30,30 @@ class RuntimeState:
                 "mqtt_messages_total": 0,
                 "mqtt_ingestion_success_total": 0,
                 "mqtt_ingestion_failure_total": 0,
+                "mqtt_duplicates_total": 0,
                 "scheduler_job_failures_total": 0,
             },
         }
 
     @staticmethod
-    def _service_payload(status: str, detail: str | None = None) -> dict[str, Any]:
+    def _service_payload(status: str, detail: Optional[str] = None) -> dict[str, Any]:
         return {
             "status": status,
             "detail": detail,
             "updated_at": datetime.now().isoformat(),
         }
 
-    def mark_service(self, name: str, status: str, detail: str | None = None) -> None:
+    def mark_service(self, name: str, status: str, detail: Optional[str] = None) -> None:
         with self._lock:
             self._state["services"][name] = self._service_payload(status, detail)
+        set_runtime_service_status(name, status)
 
     def increment(self, counter_name: str, amount: int = 1) -> None:
         with self._lock:
             counters = self._state["counters"]
             counters[counter_name] = counters.get(counter_name, 0) + amount
+            current_value = counters[counter_name]
+        set_runtime_counter(counter_name, current_value)
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -55,4 +61,3 @@ class RuntimeState:
 
 
 runtime_state = RuntimeState()
-

@@ -1,0 +1,66 @@
+{
+  "base_url": "http://127.0.0.1:8088",
+  "endpoint": "/health/live",
+  "method": "GET",
+  "workers": 5,
+  "duration_seconds": 1,
+  "requests_per_worker": 0,
+  "elapsed_seconds": 1.0,
+  "total_requests": 3174,
+  "successful_requests": 0,
+  "failed_requests": 3174,
+  "requests_per_second": 3173.01,
+  "success_rate": 0.0,
+  "latency_ms": {
+    "avg": 1.57,
+    "p50": 1.32,
+    "p95": 2.87,
+    "p99": 7.42,
+    "max": 32.63
+  },
+  "status_codes": {
+    "0": 3174
+  },
+  "sample_errors": [
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    },
+    {
+      "status_code": 0,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8088): Max retries exceeded with url: /health/live (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8088): Failed to establish a new connection: [Errno 1] Operation not permitted\"))"
+    }
+  ]
+}

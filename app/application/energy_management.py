@@ -41,6 +41,7 @@ def get_energy_statistics_use_case(
     end_time: datetime,
     device_id: Optional[int] = None,
     period_type: str = "day",
+    allowed_device_ids: Optional[set[int]] = None,
 ) -> Dict[str, Any]:
     """统一能源统计入口。"""
     return EnergyService.calculate_statistics(
@@ -50,6 +51,7 @@ def get_energy_statistics_use_case(
         start_time=start_time,
         end_time=end_time,
         period_type=period_type,
+        allowed_device_ids=allowed_device_ids,
     )
 
 
@@ -58,6 +60,7 @@ def get_carbon_summary_use_case(
     start_time: datetime,
     end_time: datetime,
     device_id: Optional[int] = None,
+    allowed_device_ids: Optional[set[int]] = None,
 ) -> Dict[str, Any]:
     """统一碳排放汇总入口。"""
     return EnergyService.get_carbon_summary(
@@ -65,6 +68,7 @@ def get_carbon_summary_use_case(
         start_time=start_time,
         end_time=end_time,
         device_id=device_id,
+        allowed_device_ids=allowed_device_ids,
     )
 
 
@@ -74,6 +78,7 @@ def list_carbon_emissions_use_case(
     energy_type: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    allowed_device_ids: Optional[set[int]] = None,
 ) -> list[CarbonEmission]:
     """统一碳排放查询入口。"""
     return EnergyService.get_carbon_emissions(
@@ -82,4 +87,5 @@ def list_carbon_emissions_use_case(
         energy_type=energy_type,
         start_time=start_time,
         end_time=end_time,
+        allowed_device_ids=allowed_device_ids,
     )

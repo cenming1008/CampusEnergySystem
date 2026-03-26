@@ -4,6 +4,7 @@
 统一管理数据库、Redis、MQTT、JWT、CORS、日志、服务端口等配置。
 """
 import json
+import smtplib
 import warnings
 from typing import List, Optional
 
@@ -52,6 +53,19 @@ def parse_cors_origins_value(value):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
     return value
 
+
+def parse_list_setting(value):
+    """解析 JSON 数组或逗号分隔列表配置。"""
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return value
+
 class Settings(BaseSettings):
     """
     应用配置类
@@ -73,6 +87,18 @@ class Settings(BaseSettings):
         default=False,
         env="DEBUG",
         description="调试模式（开发环境设为True）"
+    )
+
+    app_env: str = Field(
+        default="development",
+        env="APP_ENV",
+        description="运行环境：development/staging/production"
+    )
+
+    strict_startup_checks: bool = Field(
+        default=True,
+        env="STRICT_STARTUP_CHECKS",
+        description="是否启用严格启动检查"
     )
     
     # ==================== 数据库配置 ====================
@@ -160,6 +186,18 @@ class Settings(BaseSettings):
         description="设备成功上报后判定在线的持续秒数"
     )
 
+    mqtt_retry_max_attempts: int = Field(
+        default=3,
+        env="MQTT_RETRY_MAX_ATTEMPTS",
+        description="MQTT 消息失败后的最大自动/运维重试次数"
+    )
+
+    mqtt_retry_backoff_seconds: int = Field(
+        default=60,
+        env="MQTT_RETRY_BACKOFF_SECONDS",
+        description="MQTT 消息失败后的基础重试退避秒数"
+    )
+
     auth_rate_limit_count: int = Field(
         default=10,
         env="AUTH_RATE_LIMIT_COUNT",
@@ -195,6 +233,84 @@ class Settings(BaseSettings):
         env="DEVICE_CONTROL_RATE_LIMIT_WINDOW_SECONDS",
         description="设备控制接口限流窗口（秒）"
     )
+
+    api_global_rate_limit_count: int = Field(
+        default=300,
+        env="API_GLOBAL_RATE_LIMIT_COUNT",
+        description="全局 API 限流窗口内最大请求数"
+    )
+
+    api_global_rate_limit_window_seconds: int = Field(
+        default=60,
+        env="API_GLOBAL_RATE_LIMIT_WINDOW_SECONDS",
+        description="全局 API 限流窗口（秒）"
+    )
+
+    report_export_rate_limit_count: int = Field(
+        default=20,
+        env="REPORT_EXPORT_RATE_LIMIT_COUNT",
+        description="报表导出接口窗口内最大请求数"
+    )
+
+    report_export_rate_limit_window_seconds: int = Field(
+        default=300,
+        env="REPORT_EXPORT_RATE_LIMIT_WINDOW_SECONDS",
+        description="报表导出接口限流窗口（秒）"
+    )
+
+    forecast_training_rate_limit_count: int = Field(
+        default=5,
+        env="FORECAST_TRAINING_RATE_LIMIT_COUNT",
+        description="模型训练接口窗口内最大请求数"
+    )
+
+    forecast_training_rate_limit_window_seconds: int = Field(
+        default=600,
+        env="FORECAST_TRAINING_RATE_LIMIT_WINDOW_SECONDS",
+        description="模型训练接口限流窗口（秒）"
+    )
+
+    rate_limit_backend: str = Field(
+        default="auto",
+        env="RATE_LIMIT_BACKEND",
+        description="限流后端：auto/memory/redis"
+    )
+
+    rate_limit_key_prefix: str = Field(
+        default="mine-energy-system:rate-limit",
+        env="RATE_LIMIT_KEY_PREFIX",
+        description="共享限流键前缀"
+    )
+
+    rate_limit_fail_open: bool = Field(
+        default=True,
+        env="RATE_LIMIT_FAIL_OPEN",
+        description="共享限流异常时是否放行请求"
+    )
+
+    rate_limit_fallback_to_memory: bool = Field(
+        default=True,
+        env="RATE_LIMIT_FALLBACK_TO_MEMORY",
+        description="共享限流异常时是否回退到进程内限流"
+    )
+
+    websocket_auth_mode: str = Field(
+        default="query_token",
+        env="WEBSOCKET_AUTH_MODE",
+        description="WebSocket 鉴权方式：query_token/disabled"
+    )
+
+    monitoring_access_mode: str = Field(
+        default="internal_or_jwt",
+        env="MONITORING_ACCESS_MODE",
+        description="监控端点访问控制：public/internal/jwt/internal_or_jwt"
+    )
+
+    monitoring_access_roles: List[str] = Field(
+        default=["admin", "maintainer"],
+        env="MONITORING_ACCESS_ROLES",
+        description="允许访问监控端点的角色列表"
+    )
     
     # ==================== JWT认证配置 ====================
     secret_key: str = Field(
@@ -213,6 +329,24 @@ class Settings(BaseSettings):
         default=300,
         env="ACCESS_TOKEN_EXPIRE_MINUTES",
         description="访问令牌过期时间（分钟）"
+    )
+
+    refresh_token_expire_minutes: int = Field(
+        default=60 * 24 * 7,
+        env="REFRESH_TOKEN_EXPIRE_MINUTES",
+        description="刷新令牌过期时间（分钟）"
+    )
+
+    auth_max_failed_attempts: int = Field(
+        default=5,
+        env="AUTH_MAX_FAILED_ATTEMPTS",
+        description="连续登录失败锁定阈值"
+    )
+
+    auth_lock_minutes: int = Field(
+        default=15,
+        env="AUTH_LOCK_MINUTES",
+        description="账户锁定时长（分钟）"
     )
     
     @validator("secret_key")
@@ -255,11 +389,169 @@ class Settings(BaseSettings):
         env="DB_POOL_RECYCLE",
         description="数据库连接回收时间（秒）"
     )
+
+    db_auto_create_tables: bool = Field(
+        default=True,
+        env="DB_AUTO_CREATE_TABLES",
+        description="启动时是否自动创建缺失表，仅建议开发环境启用"
+    )
+
+    db_runtime_schema_sync: bool = Field(
+        default=True,
+        env="DB_RUNTIME_SCHEMA_SYNC",
+        description="启动时是否自动补齐旧表字段，仅建议开发环境启用"
+    )
     
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         """解析CORS来源配置"""
         return parse_cors_origins_value(v)
+
+    trusted_hosts: List[str] = Field(
+        default=["localhost", "127.0.0.1"],
+        env="TRUSTED_HOSTS",
+        description="允许访问的 Host 列表（JSON 数组或逗号分隔）"
+    )
+
+    force_https: bool = Field(
+        default=False,
+        env="FORCE_HTTPS",
+        description="是否在应用层强制 HTTPS 重定向"
+    )
+
+    security_hsts_seconds: int = Field(
+        default=31536000,
+        env="SECURITY_HSTS_SECONDS",
+        description="HSTS 生效秒数"
+    )
+
+    security_content_security_policy: str = Field(
+        default="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        env="SECURITY_CONTENT_SECURITY_POLICY",
+        description="CSP 头"
+    )
+
+    security_referrer_policy: str = Field(
+        default="strict-origin-when-cross-origin",
+        env="SECURITY_REFERRER_POLICY",
+        description="Referrer-Policy 头"
+    )
+
+    security_permissions_policy: str = Field(
+        default="geolocation=(), microphone=(), camera=(), payment=()",
+        env="SECURITY_PERMISSIONS_POLICY",
+        description="Permissions-Policy 头"
+    )
+
+    alerting_enabled: bool = Field(
+        default=False,
+        env="ALERTING_ENABLED",
+        description="是否启用运行时告警通知"
+    )
+
+    alerting_project_name: str = Field(
+        default="MineEnergySystem",
+        env="ALERTING_PROJECT_NAME",
+        description="告警通知中的项目名"
+    )
+
+    alerting_webhook_url: Optional[str] = Field(
+        default=None,
+        env="ALERTING_WEBHOOK_URL",
+        description="告警 Webhook 地址"
+    )
+
+    alerting_email_enabled: bool = Field(
+        default=False,
+        env="ALERTING_EMAIL_ENABLED",
+        description="是否启用 SMTP 邮件通知"
+    )
+
+    alerting_smtp_host: Optional[str] = Field(
+        default=None,
+        env="ALERTING_SMTP_HOST",
+        description="SMTP 主机"
+    )
+
+    alerting_smtp_port: int = Field(
+        default=587,
+        env="ALERTING_SMTP_PORT",
+        description="SMTP 端口"
+    )
+
+    alerting_smtp_username: Optional[str] = Field(
+        default=None,
+        env="ALERTING_SMTP_USERNAME",
+        description="SMTP 用户名"
+    )
+
+    alerting_smtp_password: Optional[str] = Field(
+        default=None,
+        env="ALERTING_SMTP_PASSWORD",
+        description="SMTP 密码"
+    )
+
+    alerting_email_from: Optional[str] = Field(
+        default=None,
+        env="ALERTING_EMAIL_FROM",
+        description="告警发件人"
+    )
+
+    alerting_email_to: List[str] = Field(
+        default=[],
+        env="ALERTING_EMAIL_TO",
+        description="告警收件人列表"
+    )
+
+    alerting_cooldown_seconds: int = Field(
+        default=300,
+        env="ALERTING_COOLDOWN_SECONDS",
+        description="同类告警通知冷却时间（秒）"
+    )
+
+    @validator("trusted_hosts", pre=True)
+    def parse_trusted_hosts(cls, v):
+        return parse_list_setting(v)
+
+    @validator("alerting_email_to", pre=True)
+    def parse_alerting_email_to(cls, v):
+        return parse_list_setting(v)
+
+    @validator("monitoring_access_roles", pre=True)
+    def parse_monitoring_access_roles(cls, v):
+        return parse_list_setting(v)
+
+    @validator("app_env")
+    def validate_app_env(cls, v):
+        normalized = v.lower().strip()
+        allowed = {"development", "staging", "production"}
+        if normalized not in allowed:
+            raise ValueError(f"APP_ENV 必须是 {sorted(allowed)} 之一")
+        return normalized
+
+    @validator("rate_limit_backend")
+    def validate_rate_limit_backend(cls, v):
+        normalized = str(v).lower().strip()
+        allowed = {"auto", "memory", "redis"}
+        if normalized not in allowed:
+            raise ValueError(f"RATE_LIMIT_BACKEND 必须是 {sorted(allowed)} 之一")
+        return normalized
+
+    @validator("websocket_auth_mode")
+    def validate_websocket_auth_mode(cls, v):
+        normalized = str(v).lower().strip()
+        allowed = {"query_token", "disabled"}
+        if normalized not in allowed:
+            raise ValueError(f"WEBSOCKET_AUTH_MODE 必须是 {sorted(allowed)} 之一")
+        return normalized
+
+    @validator("monitoring_access_mode")
+    def validate_monitoring_access_mode(cls, v):
+        normalized = str(v).lower().strip()
+        allowed = {"public", "internal", "jwt", "internal_or_jwt"}
+        if normalized not in allowed:
+            raise ValueError(f"MONITORING_ACCESS_MODE 必须是 {sorted(allowed)} 之一")
+        return normalized
     
     # ==================== 电价配置 ====================
     peak_price: float = Field(
@@ -452,6 +744,14 @@ class Settings(BaseSettings):
         case_sensitive = False  # 不区分大小写
         # 允许使用环境变量前缀（可选）
         # env_prefix = "MINE_EMS_"
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.app_env == "development"
 
 
 # 创建全局配置实例

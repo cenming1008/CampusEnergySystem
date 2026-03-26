@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from sqlmodel import Session, select
 
@@ -35,7 +35,7 @@ class IngestionHealthService:
     def mark_message_received(
         session: Session,
         device_id: int,
-        timestamp: datetime | None = None,
+        timestamp: Optional[datetime] = None,
     ) -> DeviceIngestionHealth:
         status = IngestionHealthService._get_or_create(session, device_id)
         status.last_message_at = timestamp or datetime.now()
@@ -48,7 +48,7 @@ class IngestionHealthService:
     def mark_ingestion_success(
         session: Session,
         device_id: int,
-        timestamp: datetime | None = None,
+        timestamp: Optional[datetime] = None,
     ) -> DeviceIngestionHealth:
         status = IngestionHealthService._get_or_create(session, device_id)
         status.last_message_at = timestamp or datetime.now()
@@ -64,7 +64,7 @@ class IngestionHealthService:
         session: Session,
         device_id: int,
         reason: str,
-        timestamp: datetime | None = None,
+        timestamp: Optional[datetime] = None,
     ) -> DeviceIngestionHealth:
         status = IngestionHealthService._get_or_create(session, device_id)
         status.last_message_at = timestamp or datetime.now()

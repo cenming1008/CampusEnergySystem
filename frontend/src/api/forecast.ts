@@ -19,6 +19,36 @@ export interface ForecastResponse {
   count: number
 }
 
+export interface ForecastHistoryPoint extends ForecastPoint {
+  id?: number
+  actual_value?: number | null
+  created_at?: string
+}
+
+export interface ForecastAccuracy {
+  prediction_type: PredictionType
+  device_id?: number
+  total_predictions: number
+  matched_actuals: number
+  accuracy_rate: number
+  mae?: number | null
+  mape?: number | null
+  rmse?: number | null
+}
+
+interface ForecastListItem {
+  forecast_time: string
+  predicted_value: number
+  confidence?: number
+}
+
+interface SchedulerJob {
+  id: string
+  name: string
+  next_run_time: string | null
+  trigger: string
+}
+
 // 模型版本信息
 export interface ModelVersion {
   version: string
@@ -37,6 +67,16 @@ export interface ModelVersion {
   is_active: boolean
 }
 
+export interface VersionComparison {
+  version1: ModelVersion
+  version2: ModelVersion
+  improvements: {
+    mae?: number
+    mape?: number
+    rmse?: number
+  }
+}
+
 // 训练参数
 export interface TrainParams {
   sequence_length?: number
@@ -46,6 +86,18 @@ export interface TrainParams {
   batch_size?: number
   validation_split?: number
   patience?: number
+}
+
+export interface HyperparameterSearchResult {
+  best_params: TrainParams | null
+  best_score: number
+  all_results: Array<{
+    params: TrainParams
+    val_loss: number
+    train_loss: number
+    epochs_trained: number
+  }>
+  total_tested: number
 }
 
 // 训练请求
@@ -61,11 +113,11 @@ export interface TrainRequest {
 
 // 负荷预测
 export function forecastLoad(deviceId?: number, hours: number = 24, algorithm?: string) {
-  const params: any = { hours }
+  const params: Record<string, string | number> = { hours }
   if (deviceId) params.device_id = deviceId
   if (algorithm) params.algorithm = algorithm
   
-  return request.post<any, ForecastResponse>('/forecast/load', null, { params })
+  return request.post<null, ForecastResponse>('/forecast/load', null, { params })
 }
 
 // 风光预测
@@ -75,11 +127,11 @@ export function forecastRenewable(
   hours: number = 24,
   algorithm?: string
 ) {
-  const params: any = { hours }
+  const params: Record<string, string | number> = { hours }
   if (deviceId) params.device_id = deviceId
   if (algorithm) params.algorithm = algorithm
   
-  return request.post<any, ForecastResponse>(`/forecast/renewable/${type}`, null, { params })
+  return request.post<null, ForecastResponse>(`/forecast/renewable/${type}`, null, { params })
 }
 
 // 获取最新预测
@@ -88,18 +140,48 @@ export function getLatestForecast(
   deviceId?: number,
   limit: number = 24
 ) {
-  const params: any = { limit }
+  const params: Record<string, number> & { device_id?: number } = { limit }
   if (deviceId) params.device_id = deviceId
   
-  return request.get<any, { predictions: any[], count: number }>(
+  return request.get<never, { predictions: ForecastListItem[]; count: number }>(
     `/forecast/latest/${type}`,
     { params }
   )
 }
 
+export function getForecastAccuracy(
+  type: PredictionType,
+  deviceId?: number,
+  days: number = 7
+) {
+  const params: Record<string, number> & { device_id?: number } = { days }
+  if (deviceId) params.device_id = deviceId
+
+  return request
+    .get<never, { success: boolean; data: ForecastAccuracy }>(`/forecast/accuracy/${type}`, { params })
+    .then((response) => response.data)
+}
+
+export function getForecastHistory(
+  type: PredictionType,
+  params?: {
+    device_id?: number
+    start_time?: string
+    end_time?: string
+    limit?: number
+  }
+) {
+  return request
+    .get<never, { success: boolean; data: { predictions: ForecastHistoryPoint[]; count: number } }>(
+      `/forecast/history/${type}`,
+      { params }
+    )
+    .then((response) => response.data)
+}
+
 // 训练LSTM模型
 export function trainLSTMModel(data: TrainRequest) {
-  return request.post<any, {
+  return request.post<TrainRequest, {
     status: string
     model_path: string
     train_loss: number
@@ -107,7 +189,7 @@ export function trainLSTMModel(data: TrainRequest) {
     epochs_trained: number
     multivariate: boolean
     version?: string
-  }>('/forecast/lstm/train', data)
+  }>('/forecast/lstm/train', data, { timeout: 900000 })
 }
 
 // 评估LSTM模型
@@ -116,10 +198,10 @@ export function evaluateLSTMModel(
   deviceId?: number,
   testDays: number = 7
 ) {
-  const params: any = { test_days: testDays }
+  const params: Record<string, number> & { device_id?: number } = { test_days: testDays }
   if (deviceId) params.device_id = deviceId
   
-  return request.get<any, {
+  return request.get<never, {
     mae: number
     mape: number
     rmse: number
@@ -132,10 +214,10 @@ export function getModelVersions(
   type: PredictionType,
   deviceId?: number
 ) {
-  const params: any = {}
+  const params: { device_id?: number } = {}
   if (deviceId) params.device_id = deviceId
   
-  return request.get<any, {
+  return request.get<never, {
     versions: ModelVersion[]
     count: number
   }>(`/forecast/lstm/versions/${type}`, { params })
@@ -147,7 +229,7 @@ export function activateModelVersion(
   version: string,
   deviceId?: number
 ) {
-  return request.post<any, {
+  return request.post<{ version: string; device_id?: number }, {
     version: string
     is_active: boolean
   }>(`/forecast/lstm/versions/${type}/activate`, {
@@ -163,29 +245,18 @@ export function compareModelVersions(
   version2: string,
   deviceId?: number
 ) {
-  const params: any = { version1, version2 }
+  const params: { version1: string; version2: string; device_id?: number } = { version1, version2 }
   if (deviceId) params.device_id = deviceId
   
-  return request.get<any, {
-    version1: any
-    version2: any
-    improvements: {
-      mae?: number
-      mape?: number
-      rmse?: number
-    }
-  }>(`/forecast/lstm/versions/${type}/compare`, { params })
+  return request
+    .get<never, { success: boolean; data: VersionComparison }>(`/forecast/lstm/versions/${type}/compare`, { params })
+    .then((response) => response.data)
 }
 
 // 获取定时任务列表
 export function getSchedulerJobs() {
-  return request.get<any, {
-    jobs: Array<{
-      id: string
-      name: string
-      next_run_time: string | null
-      trigger: string
-    }>
+  return request.get<never, {
+    jobs: SchedulerJob[]
     count: number
   }>('/forecast/scheduler/jobs')
 }
@@ -196,19 +267,14 @@ export function hyperparameterSearch(
   deviceId?: number,
   days: number = 60
 ) {
-  return request.post<any, {
-    best_params: TrainParams
-    best_score: number
-    all_results: Array<{
-      params: TrainParams
-      val_loss: number
-      train_loss: number
-      epochs_trained: number
-    }>
-    total_tested: number
-  }>('/forecast/lstm/hyperparameter-search', {
-    prediction_type: type,
-    device_id: deviceId,
-    days
-  })
+  return request
+    .post<
+      { prediction_type: PredictionType; device_id?: number; days: number },
+      { success: boolean; data: HyperparameterSearchResult }
+    >('/forecast/lstm/hyperparameter-search', {
+      prediction_type: type,
+      device_id: deviceId,
+      days
+    }, { timeout: 900000 })
+    .then((response) => response.data)
 }

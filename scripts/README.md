@@ -11,8 +11,8 @@
 
 ## 当前规模
 
-- Shell 脚本：19 个
-- Python 脚本：20 个
+- Shell 脚本：22 个
+- Python 脚本：22 个
 
 ## 推荐使用方式
 
@@ -42,6 +42,10 @@
 - [start_frontend.sh](/Users/todo/MineEnergySystem/scripts/shell/start_frontend.sh)：启动前端开发服务器
 - [status.sh](/Users/todo/MineEnergySystem/scripts/shell/status.sh)：查看系统状态
 - [test_health.sh](/Users/todo/MineEnergySystem/scripts/shell/test_health.sh)：健康检查
+- [pilot_smoke_test.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_smoke_test.sh)：试点联调冒烟检查
+- [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)：试点前总检查并输出证据目录
+- [pilot_drill.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_drill.sh)：串联 readiness、容量基线和冒烟
+- [load_baseline.sh](/Users/todo/MineEnergySystem/scripts/shell/load_baseline.sh)：生成容量基线和 Markdown 验收摘要
 
 ### Python
 
@@ -50,6 +54,7 @@
 - [simulator_unified.py](/Users/todo/MineEnergySystem/scripts/python/simulator_unified.py)：统一设备模拟器
 - [device_gateway.py](/Users/todo/MineEnergySystem/scripts/python/device_gateway.py)：真实设备网关采集器
 - [check_config.py](/Users/todo/MineEnergySystem/scripts/python/check_config.py)：配置检查
+- [send_test_alert.py](/Users/todo/MineEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 
 ## 脚本分类
 
@@ -62,10 +67,14 @@
 
 - `status.sh`
 - `test_health.sh`
+- `pilot_smoke_test.sh`
+- `pilot_readiness.sh`
+- `pilot_drill.sh`
 - `check_websocket.sh`
 - `check_mac_env.sh`
 - `check_config.py`
 - `stress_test.py`
+- `evaluate_capacity_baseline.py`
 
 ### 数据与环境维护
 
@@ -89,6 +98,7 @@
 ### 设备接入与协议调试
 
 - `device_gateway.py`
+- `send_test_alert.py`
 - `mqtt_send_test.py`
 - `mqtt_subscriber_template.py`
 - `test_http_device.py`

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { SuccessResponse } from '@/types/api'
 
 // 对应后端 Device 模型
 export interface Device {
@@ -33,37 +34,41 @@ export interface DeviceTypeConfig {
 
 // 1. 获取所有设备
 export function getDevices() {
-  return request.get<any, Device[]>('/devices/')
+  return request.get<never, Device[]>('/devices/')
 }
 
 // 2. 新增设备（智能创建）
 export function createDevice(data: Partial<Device>) {
-  return request.post<any, Device>('/devices/', data)
+  return request.post<Partial<Device>, Device>('/devices/', data)
 }
 
 // 3. 修改设备 (Put)
 export function updateDevice(id: number, data: Partial<Device>) {
-  return request.put<any, Device>(`/devices/${id}`, data)
+  return request.put<Partial<Device>, Device>(`/devices/${id}`, data)
 }
 
 // 4. 删除设备
 export function deleteDevice(id: number) {
-  return request.delete<any, any>(`/devices/${id}`)
+  return request.delete<never, void>(`/devices/${id}`)
 }
 
 // 5. 启停控制 (反向控制)
 export function toggleDeviceStatus(id: number, active: boolean, reason?: string) {
   const params = new URLSearchParams({ active: String(active) })
   if (reason?.trim()) params.set('reason', reason.trim())
-  return request.post<any, Device>(`/devices/${id}/toggle?${params.toString()}`)
+  return request.post<never, Device>(`/devices/${id}/toggle?${params.toString()}`)
 }
 
 // 6. 获取支持的设备类型列表（从后端动态获取）
 export function getDeviceTypes() {
-  return request.get<any, { code: number; data: DeviceTypeConfig[] }>('/devices/types')
+  return request
+    .get<never, SuccessResponse<DeviceTypeConfig[]>>('/devices/types')
+    .then((response) => response.data)
 }
 
 // 7. 获取单个设备类型详情
 export function getDeviceTypeInfo(deviceType: string) {
-  return request.get<any, { code: number; data: DeviceTypeConfig }>(`/devices/types/${deviceType}`)
+  return request
+    .get<never, SuccessResponse<DeviceTypeConfig>>(`/devices/types/${deviceType}`)
+    .then((response) => response.data)
 }

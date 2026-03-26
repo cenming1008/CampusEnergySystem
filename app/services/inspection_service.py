@@ -2,7 +2,7 @@
 巡检运维服务层
 封装巡检相关的业务逻辑
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timedelta
 from sqlmodel import Session, select, func, and_
 from app.core.logger import logger
@@ -462,10 +462,16 @@ class InspectionService:
         inspector: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
+        allowed_route_ids: Optional[Set[int]] = None,
         limit: int = 50
     ) -> List[InspectionTask]:
         """获取巡检任务列表"""
         statement = select(InspectionTask)
+
+        if allowed_route_ids is not None:
+            if not allowed_route_ids:
+                return []
+            statement = statement.where(InspectionTask.route_id.in_(allowed_route_ids))
         
         if status:
             statement = statement.where(InspectionTask.status == status)
@@ -633,7 +639,8 @@ class InspectionService:
     def get_inspection_statistics(
         session: Session,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        allowed_route_ids: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
         """获取巡检统计信息"""
         # 默认统计最近30天
@@ -648,7 +655,12 @@ class InspectionService:
             .where(InspectionTask.task_date >= start_date)
             .where(InspectionTask.task_date <= end_date)
         )
-        tasks = list(session.exec(statement).all())
+        if allowed_route_ids is not None:
+            if not allowed_route_ids:
+                tasks = []
+            else:
+                statement = statement.where(InspectionTask.route_id.in_(allowed_route_ids))
+        tasks = list(session.exec(statement).all()) if allowed_route_ids != set() else []
         
         # 统计
         total_tasks = len(tasks)
@@ -689,7 +701,10 @@ class InspectionService:
         }
     
     @staticmethod
-    def get_today_tasks(session: Session) -> List[InspectionTask]:
+    def get_today_tasks(
+        session: Session,
+        allowed_route_ids: Optional[Set[int]] = None,
+    ) -> List[InspectionTask]:
         """获取今日巡检任务"""
         today = datetime.now().date()
         tomorrow = today + timedelta(days=1)
@@ -700,10 +715,18 @@ class InspectionService:
             .where(InspectionTask.task_date < datetime.combine(tomorrow, datetime.min.time()))
             .order_by(InspectionTask.task_date)
         )
+        if allowed_route_ids is not None:
+            if not allowed_route_ids:
+                return []
+            statement = statement.where(InspectionTask.route_id.in_(allowed_route_ids))
         return list(session.exec(statement).all())
     
     @staticmethod
-    def get_pending_tasks(session: Session, limit: int = 10) -> List[InspectionTask]:
+    def get_pending_tasks(
+        session: Session,
+        limit: int = 10,
+        allowed_route_ids: Optional[Set[int]] = None,
+    ) -> List[InspectionTask]:
         """获取待执行的巡检任务"""
         statement = (
             select(InspectionTask)
@@ -711,4 +734,8 @@ class InspectionService:
             .order_by(InspectionTask.task_date)
             .limit(limit)
         )
+        if allowed_route_ids is not None:
+            if not allowed_route_ids:
+                return []
+            statement = statement.where(InspectionTask.route_id.in_(allowed_route_ids))
         return list(session.exec(statement).all())

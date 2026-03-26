@@ -102,6 +102,26 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
+      '/metrics': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
+      '/users': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
+      '/audit': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
+      '/frontend-errors': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
       // WebSocket 代理
       '/ws': {
         target: backendTarget,
@@ -116,6 +136,41 @@ export default defineConfig({
           proxy.on('proxyReqWs', (proxyReq, _req, _socket) => {
             console.log('WebSocket 代理请求:', proxyReq.path);
           });
+        }
+      }
+    }
+  },
+
+  build: {
+    sourcemap: 'hidden',
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('/three/')) {
+            return 'three-vendor'
+          }
+
+          if (id.includes('/echarts/')) {
+            return 'echarts-vendor'
+          }
+
+          if (id.includes('/element-plus/') || id.includes('/@element-plus/')) {
+            return 'ui-vendor'
+          }
+
+          if (
+            id.includes('/vue/') ||
+            id.includes('/vue-router/') ||
+            id.includes('/pinia/') ||
+            id.includes('/axios/')
+          ) {
+            return 'core-vendor'
+          }
+
+          return 'vendor'
         }
       }
     }

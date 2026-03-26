@@ -1,6 +1,5 @@
 import { nextTick, onUnmounted, ref, shallowRef } from 'vue'
-import * as echarts from 'echarts'
-import type { ECharts, EChartsCoreOption, SetOptionOpts } from 'echarts'
+import { echarts, type ECharts, type EChartsCoreOption, type SetOptionOpts } from '@/shared/lib/echarts'
 
 interface UseEChartsOptions {
   autoResize?: boolean

@@ -55,11 +55,39 @@ def get_password_hash(password: Union[str, bytes]) -> str:
     return pwd_context.hash(secret)
 
 
+def validate_password_strength(password: Union[str, bytes]) -> str:
+    """校验密码复杂度。"""
+    if isinstance(password, bytes):
+        password_text = password.decode("utf-8", errors="ignore")
+    else:
+        password_text = password
+
+    if len(password_text) < 12:
+        raise ValueError("密码长度至少 12 位")
+    if password_text.lower() == password_text or password_text.upper() == password_text:
+        raise ValueError("密码必须同时包含大小写字母")
+    if not any(ch.isdigit() for ch in password_text):
+        raise ValueError("密码必须包含数字")
+    if not any(not ch.isalnum() for ch in password_text):
+        raise ValueError("密码必须包含特殊字符")
+    return password_text
+
+
 def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """生成 JWT access token。"""
     to_encode = data.copy()
     expire = datetime.utcnow() + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "typ": "access"})
+    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+
+
+def create_refresh_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """生成 JWT refresh token。"""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=settings.refresh_token_expire_minutes)
+    )
+    to_encode.update({"exp": expire, "typ": "refresh"})
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)

@@ -22,6 +22,10 @@
 |------|------|
 | `status.sh` | 查看容器状态、端口映射和整体运行情况。 |
 | `test_health.sh` | 调用后端健康检查接口。 |
+| `pilot_smoke_test.sh` | 试点部署后的冒烟验收。 |
+| `pilot_readiness.sh` | 执行试点前总检查并归档证据。 |
+| `pilot_drill.sh` | 串联 readiness、容量基线和冒烟验收。 |
+| `load_baseline.sh` | 生成后端容量基线并输出 Markdown 验收摘要。 |
 | `check_websocket.sh` | 检查 WebSocket 链路。 |
 | `check_mac_env.sh` | 检查 macOS 本地开发环境。 |
 
@@ -48,6 +52,8 @@
 | `create_admin.py` | 创建管理员账号。 |
 | `rebuild_database.py` | 重建数据库，危险操作。 |
 | `check_config.py` | 检查环境配置和连接状态。 |
+| `send_test_alert.py` | 发送测试告警验证通知通道。 |
+| `evaluate_capacity_baseline.py` | 校验压测结果是否达到试点阈值。 |
 
 ### 演示脚本
 
@@ -89,9 +95,9 @@
 
 | 类型 | 数量 |
 |------|------|
-| Shell | 19 |
-| Python | 20 |
-| 合计 | 39 |
+| Shell | 22 |
+| Python | 22 |
+| 合计 | 44 |
 
 ## 与 bin 的关系
 

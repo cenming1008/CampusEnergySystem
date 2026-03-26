@@ -6,10 +6,11 @@ API 路由注册
 
 from fastapi import Depends, FastAPI
 
-from app.api.deps import get_current_user
+from app.api.deps import ensure_password_change_completed, get_current_user
 from app.api.endpoints import (
     alarms,
     analysis,
+    audit,
     auth,
     data_cleanup,
     data_generator,
@@ -18,17 +19,20 @@ from app.api.endpoints import (
     energy,
     fdd,
     forecast,
+    frontend_errors,
     health,
     inspection,
     locations,
     maintenance,
     reports,
+    users,
 )
 
 
 PUBLIC_ROUTERS = (
     (health.router, "", ("系统健康",)),
     (auth.router, "/auth", ("认证",)),
+    (frontend_errors.router, "", ("前端可观测性",)),
 )
 
 PROTECTED_ROUTERS = (
@@ -41,6 +45,8 @@ PROTECTED_ROUTERS = (
     (data_generator.router, "/data-generator", ("数据生成",)),
     (energy.router, "/energy", ("多能源管理",)),
     (maintenance.router, "/maintenance", ("设备维护",)),
+    (users.router, "/users", ("用户管理",)),
+    (audit.router, "/audit", ("审计日志",)),
     (locations.router, "/locations", ("位置管理",)),
     (device_groups.router, "/device-groups", ("设备分组",)),
     (data_cleanup.router, "/data-cleanup", ("数据清理",)),
@@ -53,7 +59,7 @@ def register_routers(app: FastAPI) -> None:
     for router, prefix, tags in PUBLIC_ROUTERS:
         app.include_router(router, prefix=prefix, tags=list(tags))
 
-    protected_dependencies = [Depends(get_current_user)]
+    protected_dependencies = [Depends(get_current_user), Depends(ensure_password_change_completed)]
     for router, prefix, tags in PROTECTED_ROUTERS:
         app.include_router(
             router,

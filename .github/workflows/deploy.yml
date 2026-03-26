@@ -1,0 +1,116 @@
+name: deploy
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/backend
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-remote:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'production' }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      ENV_PROD_FILE: ${{ secrets.ENV_PROD_FILE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        run: |
+          test -n "$DEPLOY_HOST" || (echo "DEPLOY_HOST is required" && exit 1)
+          test -n "$DEPLOY_USER" || (echo "DEPLOY_USER is required" && exit 1)
+          test -n "$ENV_PROD_FILE" || (echo "ENV_PROD_FILE is required" && exit 1)
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Add remote host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Create release bundle
+        run: |
+          git archive --format=tar.gz --output /tmp/mine-energy-release.tgz HEAD
+          printf '%s\n' "$ENV_PROD_FILE" > /tmp/.env.prod
+
+      - name: Upload release bundle
+        run: |
+          scp -P "${DEPLOY_PORT:-22}" /tmp/mine-energy-release.tgz "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/mine-energy-release.tgz"
+          scp -P "${DEPLOY_PORT:-22}" /tmp/.env.prod "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/mine-energy.env.prod"
+
+      - name: Deploy remotely
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" <<EOF
+          set -euo pipefail
+          DEPLOY_ROOT="${DEPLOY_PATH:-/opt/mine-energy-system}"
+          RELEASE_DIR="\${DEPLOY_ROOT}/releases/${GITHUB_SHA}"
+          mkdir -p "\${DEPLOY_ROOT}/releases"
+          rm -rf "\${RELEASE_DIR}"
+          mkdir -p "\${RELEASE_DIR}"
+          tar -xzf /tmp/mine-energy-release.tgz -C "\${RELEASE_DIR}"
+          mv /tmp/mine-energy.env.prod "\${RELEASE_DIR}/.env.prod"
+          chmod 600 "\${RELEASE_DIR}/.env.prod"
+          ln -sfn "\${RELEASE_DIR}" "\${DEPLOY_ROOT}/current"
+          cd "\${DEPLOY_ROOT}/current"
+          bash ./scripts/shell/deploy_prod.sh
+          rm -f /tmp/mine-energy-release.tgz
+          EOF

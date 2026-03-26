@@ -20,9 +20,12 @@ import {
   type DeviceTrendResponse,
 } from '@/api/deviceMonitor'
 
+import { usePermissions } from '@/shared/composables/usePermissions'
+
 const route = useRoute()
 const router = useRouter()
 const chart = useECharts()
+const { canControlDevices } = usePermissions()
 
 const deviceId = computed(() => Number(route.params.id))
 const loading = ref(false)
@@ -259,9 +262,9 @@ async function loadTrendAndTables() {
       getDeviceMonitorControlLogs(deviceId.value, params),
     ])
 
-    trend.value = trendRes.data
-    alarms.value = alarmsRes.data.items
-    controlLogs.value = logsRes.data.items
+    trend.value = trendRes
+    alarms.value = alarmsRes.items
+    controlLogs.value = logsRes.items
     await renderTrendChart()
   } finally {
     chartLoading.value = false
@@ -274,7 +277,7 @@ async function loadPage(showLoading: boolean = true) {
 
   try {
     const overviewRes = await getDeviceMonitorOverview(deviceId.value)
-    overview.value = overviewRes.data
+    overview.value = overviewRes
     await loadTrendAndTables()
   } catch (error) {
     console.error(error)
@@ -291,7 +294,7 @@ async function loadStatusHistory() {
       hours: Math.min(timelineHours.value, 720),
       limit: 30,
     })
-    statusHistory.value = response.data.items
+    statusHistory.value = response.items
   } catch (error) {
     console.error(error)
   }
@@ -306,13 +309,13 @@ async function refreshRealtime() {
     ])
     overview.value = {
       ...overview.value,
-      realtime: realtimeRes.data,
+      realtime: realtimeRes,
       runtime_status: {
         ...overview.value.runtime_status,
-        latest_timestamp: realtimeRes.data.timestamp || overview.value.runtime_status.latest_timestamp,
+        latest_timestamp: realtimeRes.timestamp || overview.value.runtime_status.latest_timestamp,
       },
     }
-    trend.value = trendRes.data
+    trend.value = trendRes
     await renderTrendChart()
     await loadStatusHistory()
   } catch (error) {
@@ -342,7 +345,7 @@ async function handleResolveAlarm(row: DeviceAlarmRecord) {
     await resolveAlarm(row.id, value)
     ElMessage.success('告警已处理')
     await loadPage(false)
-  } catch (error: any) {
+  } catch (error) {
     if (error === 'cancel' || error === 'close') return
     console.error(error)
     ElMessage.error('告警处理失败')
@@ -368,7 +371,7 @@ async function handleToggleDevice() {
     await toggleDeviceStatus(deviceId.value, nextActive, value)
     ElMessage.success(nextActive ? '设备已启动' : '设备已停止')
     await loadPage(false)
-  } catch (error: any) {
+  } catch (error) {
     if (error === 'cancel' || error === 'close') return
     console.error(error)
     ElMessage.error(nextActive ? '设备启动失败' : '设备停止失败')
@@ -390,34 +393,58 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="monitor-page" v-loading="loading">
+  <div
+    v-loading="loading"
+    class="monitor-page"
+  >
     <div class="page-head">
       <div class="head-left">
-        <el-button :icon="ArrowLeft" text @click="router.push('/devices')">返回设备台账</el-button>
+        <el-button
+          :icon="ArrowLeft"
+          text
+          @click="router.push('/devices')"
+        >
+          返回设备台账
+        </el-button>
         <div>
           <h2>{{ archive?.name || '设备监控' }}</h2>
           <p>{{ archive?.sn || '--' }} · {{ archive?.location || '未设置位置' }}</p>
         </div>
       </div>
       <div class="head-right">
-        <el-tag :type="statusTagType(runtimeStatus?.code)" size="large">{{ runtimeStatus?.label || '状态未知' }}</el-tag>
+        <el-tag
+          :type="statusTagType(runtimeStatus?.code)"
+          size="large"
+        >
+          {{ runtimeStatus?.label || '状态未知' }}
+        </el-tag>
         <el-button
           :type="toggleButtonType"
           plain
           :icon="SwitchButton"
           :loading="toggleSubmitting"
+          :disabled="!canControlDevices"
           @click="handleToggleDevice"
         >
           {{ toggleActionLabel }}
         </el-button>
-        <el-button :icon="Refresh" @click="loadPage(true)">刷新</el-button>
+        <el-button
+          :icon="Refresh"
+          @click="loadPage(true)"
+        >
+          刷新
+        </el-button>
       </div>
     </div>
 
     <div class="monitor-grid">
       <section class="main-column">
         <div class="metric-grid">
-          <div v-for="item in metricCards" :key="item.label" class="metric-card">
+          <div
+            v-for="item in metricCards"
+            :key="item.label"
+            class="metric-card"
+          >
             <span class="metric-label">{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
             <small>{{ item.unit }}</small>
@@ -431,11 +458,15 @@ onBeforeUnmount(() => {
               <span>按时间范围查看设备实时曲线</span>
             </div>
             <div class="trend-toolbar">
-              <el-radio-group v-model="chartMetric" size="small" @change="renderTrendChart">
+              <el-radio-group
+                v-model="chartMetric"
+                size="small"
+                @change="renderTrendChart"
+              >
                 <el-radio-button
                   v-for="item in chartMetricOptions"
                   :key="item.value"
-                  :label="item.value"
+                  :value="item.value"
                 >
                   {{ item.label }}
                 </el-radio-button>
@@ -458,7 +489,11 @@ onBeforeUnmount(() => {
             <span>均值 {{ formatMetric(trendSummary.average) }} {{ chartUnit }}</span>
             <span>谷值 {{ formatMetric(trendSummary.valley) }} {{ chartUnit }}</span>
           </div>
-          <div class="trend-chart" v-loading="chartLoading" :ref="chart.chartRef"></div>
+          <div
+            :ref="chart.chartRef"
+            v-loading="chartLoading"
+            class="trend-chart"
+          />
         </div>
 
         <div class="panel">
@@ -478,22 +513,52 @@ onBeforeUnmount(() => {
               @change="handleRangeChange"
             />
           </div>
-          <el-table :data="alarms" class="dark-table" empty-text="暂无告警记录">
-            <el-table-column prop="timestamp" label="时间" min-width="170">
-              <template #default="{ row }">{{ formatTime(row.timestamp) }}</template>
-            </el-table-column>
-            <el-table-column prop="message" label="内容" min-width="260" />
-            <el-table-column prop="severity" label="级别" width="100">
+          <el-table
+            :data="alarms"
+            class="dark-table"
+            empty-text="暂无告警记录"
+          >
+            <el-table-column
+              prop="timestamp"
+              label="时间"
+              min-width="170"
+            >
               <template #default="{ row }">
-                <el-tag :type="severityTagType(row.severity)">{{ row.severity || 'info' }}</el-tag>
+                {{ formatTime(row.timestamp) }}
               </template>
             </el-table-column>
-            <el-table-column prop="is_resolved" label="状态" width="100">
+            <el-table-column
+              prop="message"
+              label="内容"
+              min-width="260"
+            />
+            <el-table-column
+              prop="severity"
+              label="级别"
+              width="100"
+            >
               <template #default="{ row }">
-                <el-tag :type="row.is_resolved ? 'success' : 'danger'">{{ row.is_resolved ? '已处理' : '未处理' }}</el-tag>
+                <el-tag :type="severityTagType(row.severity)">
+                  {{ row.severity || 'info' }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column
+              prop="is_resolved"
+              label="状态"
+              width="100"
+            >
+              <template #default="{ row }">
+                <el-tag :type="row.is_resolved ? 'success' : 'danger'">
+                  {{ row.is_resolved ? '已处理' : '未处理' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="操作"
+              width="120"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <el-button
                   v-if="!row.is_resolved"
@@ -505,7 +570,10 @@ onBeforeUnmount(() => {
                 >
                   处理
                 </el-button>
-                <span v-else class="muted-text">已关闭</span>
+                <span
+                  v-else
+                  class="muted-text"
+                >已关闭</span>
               </template>
             </el-table-column>
           </el-table>
@@ -518,18 +586,46 @@ onBeforeUnmount(() => {
               <span>设备启停与控制操作留痕</span>
             </div>
           </div>
-          <el-table :data="controlLogs" class="dark-table" empty-text="暂无启停记录">
-            <el-table-column prop="created_at" label="时间" min-width="170">
-              <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-            </el-table-column>
-            <el-table-column prop="action" label="动作" width="100" />
-            <el-table-column prop="result" label="结果" width="100">
+          <el-table
+            :data="controlLogs"
+            class="dark-table"
+            empty-text="暂无启停记录"
+          >
+            <el-table-column
+              prop="created_at"
+              label="时间"
+              min-width="170"
+            >
               <template #default="{ row }">
-                <el-tag :type="row.result === 'success' ? 'success' : 'danger'">{{ row.result || '--' }}</el-tag>
+                {{ formatTime(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column prop="operator" label="操作人" width="120" />
-            <el-table-column prop="reason" label="备注" min-width="220" />
+            <el-table-column
+              prop="action"
+              label="动作"
+              width="100"
+            />
+            <el-table-column
+              prop="result"
+              label="结果"
+              width="100"
+            >
+              <template #default="{ row }">
+                <el-tag :type="row.result === 'success' ? 'success' : 'danger'">
+                  {{ row.result || '--' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="operator"
+              label="操作人"
+              width="120"
+            />
+            <el-table-column
+              prop="reason"
+              label="备注"
+              min-width="220"
+            />
           </el-table>
         </div>
       </section>
@@ -542,7 +638,10 @@ onBeforeUnmount(() => {
               <span>汇总设备告警与启停事件</span>
             </div>
           </div>
-          <div v-if="statusHistory.length" class="timeline-wrap">
+          <div
+            v-if="statusHistory.length"
+            class="timeline-wrap"
+          >
             <el-timeline>
               <el-timeline-item
                 v-for="item in statusHistory"
@@ -554,14 +653,22 @@ onBeforeUnmount(() => {
                 <div class="timeline-card">
                   <div class="timeline-head">
                     <strong>{{ item.title }}</strong>
-                    <el-tag size="small" :type="historyTagType(item.status)">{{ item.status }}</el-tag>
+                    <el-tag
+                      size="small"
+                      :type="historyTagType(item.status)"
+                    >
+                      {{ item.status }}
+                    </el-tag>
                   </div>
                   <p>{{ item.detail || '无附加说明' }}</p>
                 </div>
               </el-timeline-item>
             </el-timeline>
           </div>
-          <el-empty v-else description="当前时间范围内暂无状态事件" />
+          <el-empty
+            v-else
+            description="当前时间范围内暂无状态事件"
+          />
         </div>
 
         <div class="panel">
@@ -572,11 +679,21 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="status-list">
-            <div class="status-row"><span>设备状态</span><strong>{{ runtimeStatus?.label || '--' }}</strong></div>
-            <div class="status-row"><span>在线状态</span><strong>{{ runtimeStatus?.is_online ? '在线' : '离线' }}</strong></div>
-            <div class="status-row"><span>未处理告警</span><strong>{{ runtimeStatus?.unresolved_alarm_count ?? 0 }}</strong></div>
-            <div class="status-row"><span>最近消息</span><strong>{{ formatTime(runtimeStatus?.last_message_at) }}</strong></div>
-            <div class="status-row"><span>最近成功入库</span><strong>{{ formatTime(runtimeStatus?.last_success_at) }}</strong></div>
+            <div class="status-row">
+              <span>设备状态</span><strong>{{ runtimeStatus?.label || '--' }}</strong>
+            </div>
+            <div class="status-row">
+              <span>在线状态</span><strong>{{ runtimeStatus?.is_online ? '在线' : '离线' }}</strong>
+            </div>
+            <div class="status-row">
+              <span>未处理告警</span><strong>{{ runtimeStatus?.unresolved_alarm_count ?? 0 }}</strong>
+            </div>
+            <div class="status-row">
+              <span>最近消息</span><strong>{{ formatTime(runtimeStatus?.last_message_at) }}</strong>
+            </div>
+            <div class="status-row">
+              <span>最近成功入库</span><strong>{{ formatTime(runtimeStatus?.last_success_at) }}</strong>
+            </div>
           </div>
         </div>
 
@@ -588,13 +705,27 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="archive-list">
-            <div class="archive-row"><span>设备名称</span><strong>{{ archive?.name || '--' }}</strong></div>
-            <div class="archive-row"><span>序列号</span><strong>{{ archive?.sn || '--' }}</strong></div>
-            <div class="archive-row"><span>设备类型</span><strong>{{ archive?.device_type || '--' }}</strong></div>
-            <div class="archive-row"><span>能源类型</span><strong>{{ archive?.energy_type || '--' }}</strong></div>
-            <div class="archive-row"><span>安装位置</span><strong>{{ archive?.location || '--' }}</strong></div>
-            <div class="archive-row"><span>额定容量</span><strong>{{ archive?.rated_capacity ?? '--' }}</strong></div>
-            <div class="archive-row"><span>描述</span><strong>{{ archive?.description || '--' }}</strong></div>
+            <div class="archive-row">
+              <span>设备名称</span><strong>{{ archive?.name || '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>序列号</span><strong>{{ archive?.sn || '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>设备类型</span><strong>{{ archive?.device_type || '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>能源类型</span><strong>{{ archive?.energy_type || '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>安装位置</span><strong>{{ archive?.location || '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>额定容量</span><strong>{{ archive?.rated_capacity ?? '--' }}</strong>
+            </div>
+            <div class="archive-row">
+              <span>描述</span><strong>{{ archive?.description || '--' }}</strong>
+            </div>
           </div>
         </div>
       </aside>

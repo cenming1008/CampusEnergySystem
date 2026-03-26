@@ -4,7 +4,58 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataAnalysis, DataBoard, Monitor, InfoFilled, Refresh, CircleCheck, Connection, Delete } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { getDevices, type Device } from '@/api/device'
-import { cleanupData, getCleanupStats, cleanupAllData } from '@/api/dataCleanup'
+import { cleanupData, getCleanupStats, cleanupAllData, type CleanupResult } from '@/api/dataCleanup'
+
+interface MessageResponse {
+  message?: string
+}
+
+interface SystemStatus {
+  status?: string
+  timestamp?: string
+  version?: string
+  services?: {
+    database?: string
+    redis?: string
+    mqtt?: string
+    scheduler?: string
+  }
+  runtime?: {
+    counters?: {
+      mqtt_duplicates_total?: number
+      mqtt_processing_failed_total?: number
+    }
+  }
+  [key: string]: unknown
+}
+
+interface IngestionRecord {
+  id: number
+  topic?: string
+  received_at?: string
+  status?: string
+  payload?: string
+  [key: string]: unknown
+}
+
+interface DeviceStats {
+  total_count?: number
+  days?: number
+  earliest_time?: string
+  latest_time?: string
+  [key: string]: unknown
+}
+
+interface CleanupStats {
+  energy_data?: { total?: number }
+  alarm_data?: { total?: number }
+  [key: string]: unknown
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
 
 // --- 状态 ---
 const activeTab = ref('data')
@@ -21,36 +72,44 @@ const generateForm = reactive({
 })
 
 // 系统状态
-const systemStatus = ref<any>(null)
+const systemStatus = ref<SystemStatus | null>(null)
+const metricsText = ref('')
+const ingestionRecords = ref<IngestionRecord[]>([])
+const ingestionLoading = ref(false)
 
 // 数据统计
-const dataStats = ref<any>(null)
+const dataStats = ref<DeviceStats | null>(null)
 const selectedDeviceForStats = ref<number | undefined>(undefined)
 
 // 数据清理
 const cleanupHours = ref(1)
 const cleanupLoading = ref(false)
 const cleanupAllLoading = ref(false)
-const cleanupStats = ref<any>(null)
+const cleanupStats = ref<CleanupStats | null>(null)
 
 // --- API 调用 ---
 const generateDeviceData = async () => {
-  if (!generateForm.device_id) {
+  if (generateForm.device_id == null) {
     ElMessage.warning('请选择设备')
     return
   }
   
   loading.value = true
   try {
-    const res = await request.post(`/data-generator/generate/device/${generateForm.device_id}`, {
+    const res = await request.post<{
+      days: number
+      interval_minutes: number
+      data_type: string
+      clear_existing: boolean
+    }, MessageResponse>(`/data-generator/generate/device/${generateForm.device_id}`, {
       days: generateForm.days,
       interval_minutes: generateForm.interval_minutes,
       data_type: generateForm.data_type,
       clear_existing: generateForm.clear_existing
     })
     ElMessage.success(res.message || '数据生成成功')
-  } catch (e: any) {
-    ElMessage.error(e.message || '生成失败')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '生成失败'))
   } finally {
     loading.value = false
   }
@@ -67,21 +126,25 @@ const generateAllData = async () => {
   
   loading.value = true
   try {
-    const res = await request.post('/data-generator/generate/all', {
+    const res = await request.post<{
+      days: number
+      interval_minutes: number
+      clear_existing: boolean
+    }, MessageResponse>('/data-generator/generate/all', {
       days: generateForm.days,
       interval_minutes: generateForm.interval_minutes,
       clear_existing: generateForm.clear_existing
     })
     ElMessage.success(res.message || '数据生成成功')
-  } catch (e: any) {
-    ElMessage.error(e.message || '生成失败')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '生成失败'))
   } finally {
     loading.value = false
   }
 }
 
 const clearDeviceData = async () => {
-  if (!selectedDeviceForStats.value) {
+  if (selectedDeviceForStats.value == null) {
     ElMessage.warning('请先选择设备')
     return
   }
@@ -96,11 +159,11 @@ const clearDeviceData = async () => {
   
   loading.value = true
   try {
-    await request.delete(`/data-generator/clear/${selectedDeviceForStats.value}`)
+    await request.delete<never, MessageResponse>(`/data-generator/clear/${selectedDeviceForStats.value}`)
     ElMessage.success('数据已清除')
     loadDeviceStats()
-  } catch (e: any) {
-    ElMessage.error(e.message || '清除失败')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '清除失败'))
   } finally {
     loading.value = false
   }
@@ -113,8 +176,8 @@ const loadDeviceStats = async () => {
   }
   
   try {
-    const res = await request.get(`/data-generator/stats/${selectedDeviceForStats.value}`)
-    dataStats.value = res.data || res
+    const res = await request.get<never, DeviceStats>(`/data-generator/stats/${selectedDeviceForStats.value}`)
+    dataStats.value = res
   } catch (e) {
     console.error('加载统计失败:', e)
   }
@@ -122,10 +185,47 @@ const loadDeviceStats = async () => {
 
 const loadSystemStatus = async () => {
   try {
-    const res = await request.get('/health')
+    const res = await request.get<never, SystemStatus>('/health')
     systemStatus.value = res
   } catch (e) {
     console.error('加载系统状态失败:', e)
+  }
+}
+
+const loadMetrics = async () => {
+  try {
+    const res = await fetch('/metrics', {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`
+      }
+    })
+    metricsText.value = await res.text()
+  } catch (e) {
+    console.error('加载 metrics 失败:', e)
+  }
+}
+
+const loadIngestionRecords = async () => {
+  ingestionLoading.value = true
+  try {
+    const res = await request.get<never, { items?: IngestionRecord[] }>('/devices/ingestion-records', {
+      params: { limit: 20 }
+    })
+    ingestionRecords.value = res.items || []
+  } catch (e) {
+    console.error('加载 MQTT 接入记录失败:', e)
+  } finally {
+    ingestionLoading.value = false
+  }
+}
+
+const replayIngestionRecord = async (recordId: number) => {
+  try {
+    await request.post<Record<string, never>, MessageResponse>(`/devices/ingestion-records/${recordId}/replay`, {})
+    ElMessage.success('已触发消息重放')
+    await loadIngestionRecords()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '重放失败'))
   }
 }
 
@@ -156,8 +256,7 @@ const handleCleanupData = async () => {
   
   cleanupLoading.value = true
   try {
-    const res = await cleanupData(cleanupHours.value)
-    const result = res.data || res
+    const result: CleanupResult = await cleanupData(cleanupHours.value)
     
     if (result.status === 'success' || result.status === 'partial') {
       const total = result.total_deleted || 0
@@ -181,8 +280,8 @@ const handleCleanupData = async () => {
     } else {
       ElMessage.warning('清理完成，但可能有一些错误')
     }
-  } catch (e: any) {
-    ElMessage.error(e.message || '清理失败')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '清理失败'))
   } finally {
     cleanupLoading.value = false
   }
@@ -192,7 +291,7 @@ const handleCleanupData = async () => {
 const loadCleanupStats = async () => {
   try {
     const res = await getCleanupStats()
-    cleanupStats.value = res.data || res
+    cleanupStats.value = res
   } catch (e) {
     console.error('加载清理统计失败:', e)
   }
@@ -241,8 +340,7 @@ const handleCleanupAllData = async () => {
   
   cleanupAllLoading.value = true
   try {
-    const res = await cleanupAllData()
-    const result = res.data || res
+    const result: CleanupResult = await cleanupAllData()
     
     if (result.status === 'success' || result.status === 'partial') {
       const total = result.total_deleted || 0
@@ -266,8 +364,8 @@ const handleCleanupAllData = async () => {
     } else {
       ElMessage.warning('清除完成，但可能有一些错误')
     }
-  } catch (e: any) {
-    ElMessage.error(e.message || '清除失败')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '清除失败'))
   } finally {
     cleanupAllLoading.value = false
   }
@@ -276,7 +374,7 @@ const handleCleanupAllData = async () => {
 // --- 生命周期 ---
 onMounted(async () => {
   await loadDevices()
-  await loadSystemStatus()
+  await Promise.all([loadSystemStatus(), loadMetrics(), loadIngestionRecords()])
   await loadCleanupStats()
 })
 </script>
@@ -287,9 +385,15 @@ onMounted(async () => {
       <h2>系统设置</h2>
     </div>
 
-    <el-tabs v-model="activeTab" class="settings-tabs">
+    <el-tabs
+      v-model="activeTab"
+      class="settings-tabs"
+    >
       <!-- 数据管理 -->
-      <el-tab-pane label="数据管理" name="data">
+      <el-tab-pane
+        label="数据管理"
+        name="data"
+      >
         <div class="tab-content">
           <div class="section-row">
             <!-- 数据生成 -->
@@ -299,44 +403,100 @@ onMounted(async () => {
                 <span>生成模拟数据</span>
               </div>
               <div class="card-body">
-                <p class="section-desc">为设备生成模拟的历史数据，用于系统测试和模型训练。</p>
+                <p class="section-desc">
+                  为设备生成模拟的历史数据，用于系统测试和模型训练。
+                </p>
                 
                 <el-form label-position="top">
                   <el-form-item label="选择设备">
-                    <el-select v-model="generateForm.device_id" placeholder="选择设备" style="width: 100%">
-                      <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
+                    <el-select
+                      v-model="generateForm.device_id"
+                      placeholder="选择设备"
+                      style="width: 100%"
+                      teleported
+                      popper-class="app-select-popper"
+                    >
+                      <el-option
+                        v-for="d in deviceList"
+                        :key="d.id"
+                        :label="d.name"
+                        :value="d.id"
+                      />
                     </el-select>
                   </el-form-item>
                   
                   <el-form-item label="生成天数">
-                    <el-input-number v-model="generateForm.days" :min="1" :max="365" style="width: 100%" />
+                    <el-input-number
+                      v-model="generateForm.days"
+                      :min="1"
+                      :max="365"
+                      style="width: 100%"
+                    />
                   </el-form-item>
                   
                   <el-form-item label="数据间隔(分钟)">
-                    <el-select v-model="generateForm.interval_minutes" style="width: 100%">
-                      <el-option :value="15" label="15分钟" />
-                      <el-option :value="30" label="30分钟" />
-                      <el-option :value="60" label="1小时" />
+                    <el-select
+                      v-model="generateForm.interval_minutes"
+                      style="width: 100%"
+                      teleported
+                      popper-class="app-select-popper"
+                    >
+                      <el-option
+                        :value="15"
+                        label="15分钟"
+                      />
+                      <el-option
+                        :value="30"
+                        label="30分钟"
+                      />
+                      <el-option
+                        :value="60"
+                        label="1小时"
+                      />
                     </el-select>
                   </el-form-item>
                   
                   <el-form-item label="数据类型">
-                    <el-select v-model="generateForm.data_type" style="width: 100%">
-                      <el-option value="load" label="负荷数据" />
-                      <el-option value="solar" label="光伏数据" />
-                      <el-option value="wind" label="风电数据" />
+                    <el-select
+                      v-model="generateForm.data_type"
+                      style="width: 100%"
+                      teleported
+                      popper-class="app-select-popper"
+                    >
+                      <el-option
+                        value="load"
+                        label="负荷数据"
+                      />
+                      <el-option
+                        value="solar"
+                        label="光伏数据"
+                      />
+                      <el-option
+                        value="wind"
+                        label="风电数据"
+                      />
                     </el-select>
                   </el-form-item>
                   
                   <el-form-item>
-                    <el-checkbox v-model="generateForm.clear_existing">清除现有数据</el-checkbox>
+                    <el-checkbox v-model="generateForm.clear_existing">
+                      清除现有数据
+                    </el-checkbox>
                   </el-form-item>
                   
                   <div class="button-group">
-                    <el-button type="primary" @click="generateDeviceData" :loading="loading">
+                    <el-button
+                      type="primary"
+                      :loading="loading"
+                      @click="generateDeviceData"
+                    >
                       生成数据
                     </el-button>
-                    <el-button type="warning" @click="generateAllData" :loading="loading">
+                    <el-button
+                      type="warning"
+                      :loading="loading"
+                      @click="generateAllData"
+                    >
                       为所有设备生成
                     </el-button>
                   </div>
@@ -351,7 +511,9 @@ onMounted(async () => {
                 <span>数据统计</span>
               </div>
               <div class="card-body">
-                <p class="section-desc">查看设备的数据量和时间范围。</p>
+                <p class="section-desc">
+                  查看设备的数据量和时间范围。
+                </p>
                 
                 <el-form label-position="top">
                   <el-form-item label="选择设备">
@@ -359,14 +521,24 @@ onMounted(async () => {
                       v-model="selectedDeviceForStats"
                       placeholder="选择设备"
                       style="width: 100%"
+                      teleported
+                      popper-class="app-select-popper"
                       @change="loadDeviceStats"
                     >
-                      <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
+                      <el-option
+                        v-for="d in deviceList"
+                        :key="d.id"
+                        :label="d.name"
+                        :value="d.id"
+                      />
                     </el-select>
                   </el-form-item>
                 </el-form>
                 
-                <div class="stats-display" v-if="dataStats">
+                <div
+                  v-if="dataStats"
+                  class="stats-display"
+                >
                   <div class="stat-row">
                     <label>数据总量</label>
                     <span class="value">{{ dataStats.total_count?.toLocaleString() }} 条</span>
@@ -385,14 +557,18 @@ onMounted(async () => {
                   </div>
                 </div>
                 
-                <el-empty v-else-if="!selectedDeviceForStats" description="请选择设备" :image-size="60" />
+                <el-empty
+                  v-else-if="!selectedDeviceForStats"
+                  description="请选择设备"
+                  :image-size="60"
+                />
                 
                 <el-button
                   type="danger"
-                  @click="clearDeviceData"
                   :loading="loading"
                   :disabled="!selectedDeviceForStats"
                   style="margin-top: 15px"
+                  @click="clearDeviceData"
                 >
                   清除数据
                 </el-button>
@@ -406,20 +582,40 @@ onMounted(async () => {
                 <span>数据清理</span>
               </div>
               <div class="card-body">
-                <p class="section-desc">清理指定时间之前的历史数据，释放存储空间。</p>
+                <p class="section-desc">
+                  清理指定时间之前的历史数据，释放存储空间。
+                </p>
                 
                 <el-form label-position="top">
                   <el-form-item label="清理时间范围">
-                    <el-select v-model="cleanupHours" style="width: 100%">
-                      <el-option :value="1" label="1小时前" />
-                      <el-option :value="6" label="6小时前" />
-                      <el-option :value="12" label="12小时前" />
-                      <el-option :value="24" label="24小时前" />
+                    <el-select
+                      v-model="cleanupHours"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        :value="1"
+                        label="1小时前"
+                      />
+                      <el-option
+                        :value="6"
+                        label="6小时前"
+                      />
+                      <el-option
+                        :value="12"
+                        label="12小时前"
+                      />
+                      <el-option
+                        :value="24"
+                        label="24小时前"
+                      />
                     </el-select>
                   </el-form-item>
                 </el-form>
                 
-                <div class="cleanup-info" v-if="cleanupStats">
+                <div
+                  v-if="cleanupStats"
+                  class="cleanup-info"
+                >
                   <div class="info-item">
                     <span class="label">时序数据总量：</span>
                     <span class="value">{{ cleanupStats.energy_data?.total?.toLocaleString() || 0 }} 条</span>
@@ -445,9 +641,9 @@ onMounted(async () => {
                 
                 <el-button
                   type="danger"
-                  @click="handleCleanupData"
                   :loading="cleanupLoading"
                   style="width: 100%"
+                  @click="handleCleanupData"
                 >
                   <el-icon><Delete /></el-icon>
                   清理 {{ cleanupHours }} 小时前的数据
@@ -470,10 +666,10 @@ onMounted(async () => {
                 
                 <el-button
                   type="danger"
-                  @click="handleCleanupAllData"
                   :loading="cleanupAllLoading"
                   style="width: 100%"
                   plain
+                  @click="handleCleanupAllData"
                 >
                   <el-icon><Delete /></el-icon>
                   清除所有数据
@@ -485,60 +681,118 @@ onMounted(async () => {
       </el-tab-pane>
 
       <!-- 系统状态 -->
-      <el-tab-pane label="系统状态" name="status">
+      <el-tab-pane
+        label="系统状态"
+        name="status"
+      >
         <div class="tab-content">
           <div class="section-card full-width">
             <div class="card-header">
               <el-icon><Monitor /></el-icon>
               <span>系统健康状态</span>
-              <el-button text @click="loadSystemStatus" style="margin-left: auto">
+              <el-button
+                text
+                style="margin-left: auto"
+                @click="loadSystemStatus"
+              >
                 <el-icon><Refresh /></el-icon>刷新
               </el-button>
             </div>
             <div class="card-body">
-              <div class="status-grid" v-if="systemStatus">
+              <div
+                v-if="systemStatus"
+                class="status-grid"
+              >
                 <div class="status-item">
-                  <div class="status-icon" :class="{ success: systemStatus.status === 'healthy' }">
+                  <div
+                    class="status-icon"
+                    :class="{ success: systemStatus.status === 'healthy' }"
+                  >
                     <el-icon><CircleCheck /></el-icon>
                   </div>
                   <div class="status-info">
-                    <div class="status-label">系统状态</div>
-                    <div class="status-value">{{ systemStatus.status === 'healthy' ? '运行正常' : '异常' }}</div>
+                    <div class="status-label">
+                      系统状态
+                    </div>
+                    <div class="status-value">
+                      {{ systemStatus.status === 'healthy' ? '运行正常' : '异常' }}
+                    </div>
                   </div>
                 </div>
                 
                 <div class="status-item">
-                  <div class="status-icon" :class="{ success: systemStatus.database === 'connected' }">
+                  <div
+                    class="status-icon"
+                    :class="{ success: systemStatus.services?.database === 'healthy' }"
+                  >
                     <el-icon><Connection /></el-icon>
                   </div>
                   <div class="status-info">
-                    <div class="status-label">数据库</div>
-                    <div class="status-value">{{ systemStatus.database === 'connected' ? '已连接' : '未连接' }}</div>
+                    <div class="status-label">
+                      数据库
+                    </div>
+                    <div class="status-value">
+                      {{ systemStatus.services?.database || 'unknown' }}
+                    </div>
                   </div>
                 </div>
                 
                 <div class="status-item">
-                  <div class="status-icon" :class="{ success: systemStatus.redis === 'connected' }">
+                  <div
+                    class="status-icon"
+                    :class="{ success: systemStatus.services?.redis === 'healthy' }"
+                  >
                     <el-icon><Connection /></el-icon>
                   </div>
                   <div class="status-info">
-                    <div class="status-label">Redis</div>
-                    <div class="status-value">{{ systemStatus.redis === 'connected' ? '已连接' : '未连接' }}</div>
+                    <div class="status-label">
+                      Redis
+                    </div>
+                    <div class="status-value">
+                      {{ systemStatus.services?.redis || 'unknown' }}
+                    </div>
                   </div>
                 </div>
                 
                 <div class="status-item">
-                  <div class="status-icon" :class="{ success: systemStatus.mqtt === 'connected' }">
+                  <div
+                    class="status-icon"
+                    :class="{ success: systemStatus.services?.mqtt === 'healthy' }"
+                  >
                     <el-icon><Connection /></el-icon>
                   </div>
                   <div class="status-info">
-                    <div class="status-label">MQTT</div>
-                    <div class="status-value">{{ systemStatus.mqtt === 'connected' ? '已连接' : '未连接' }}</div>
+                    <div class="status-label">
+                      MQTT
+                    </div>
+                    <div class="status-value">
+                      {{ systemStatus.services?.mqtt || 'unknown' }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="status-item">
+                  <div
+                    class="status-icon"
+                    :class="{ success: systemStatus.services?.scheduler === 'healthy' }"
+                  >
+                    <el-icon><Connection /></el-icon>
+                  </div>
+                  <div class="status-info">
+                    <div class="status-label">
+                      调度器
+                    </div>
+                    <div class="status-value">
+                      {{ systemStatus.services?.scheduler || 'unknown' }}
+                    </div>
                   </div>
                 </div>
               </div>
               
-              <div class="system-info" v-if="systemStatus">
+              <div
+                v-if="systemStatus"
+                class="system-info"
+              >
                 <div class="info-row">
                   <label>服务版本</label>
                   <span>{{ systemStatus.version || '-' }}</span>
@@ -547,6 +801,100 @@ onMounted(async () => {
                   <label>服务器时间</label>
                   <span>{{ systemStatus.timestamp ? new Date(systemStatus.timestamp).toLocaleString('zh-CN') : '-' }}</span>
                 </div>
+                <div class="info-row">
+                  <label>MQTT 重复消息</label>
+                  <span>{{ systemStatus.runtime?.counters?.mqtt_duplicates_total || 0 }}</span>
+                </div>
+                <div class="info-row">
+                  <label>MQTT 处理失败</label>
+                  <span>{{ systemStatus.runtime?.counters?.mqtt_processing_failed_total || 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-row">
+            <div class="section-card">
+              <div class="card-header">
+                <el-icon><Monitor /></el-icon>
+                <span>Prometheus Metrics</span>
+                <el-button
+                  text
+                  style="margin-left: auto"
+                  @click="loadMetrics"
+                >
+                  <el-icon><Refresh /></el-icon>刷新
+                </el-button>
+              </div>
+              <div class="card-body">
+                <pre class="metrics-preview">{{ metricsText || '暂无 metrics 输出' }}</pre>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="card-header">
+                <el-icon><Connection /></el-icon>
+                <span>MQTT 接入记录</span>
+                <el-button
+                  text
+                  style="margin-left: auto"
+                  @click="loadIngestionRecords"
+                >
+                  <el-icon><Refresh /></el-icon>刷新
+                </el-button>
+              </div>
+              <div class="card-body">
+                <el-table
+                  v-loading="ingestionLoading"
+                  :data="ingestionRecords"
+                  size="small"
+                >
+                  <el-table-column
+                    prop="device_id"
+                    label="设备"
+                    width="80"
+                  />
+                  <el-table-column
+                    prop="status"
+                    label="状态"
+                    width="110"
+                  />
+                  <el-table-column
+                    prop="retry_count"
+                    label="重试"
+                    width="70"
+                  />
+                  <el-table-column
+                    prop="replay_count"
+                    label="重放"
+                    width="70"
+                  />
+                  <el-table-column
+                    prop="error_reason"
+                    label="错误原因"
+                    min-width="160"
+                  />
+                  <el-table-column
+                    prop="received_at"
+                    label="接收时间"
+                    min-width="180"
+                  />
+                  <el-table-column
+                    label="操作"
+                    width="100"
+                  >
+                    <template #default="{ row }">
+                      <el-button
+                        link
+                        type="primary"
+                        :disabled="!['failed', 'dead_letter'].includes(row.status)"
+                        @click="replayIngestionRecord(row.id)"
+                      >
+                        重放
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
               </div>
             </div>
           </div>
@@ -554,7 +902,10 @@ onMounted(async () => {
       </el-tab-pane>
 
       <!-- 关于系统 -->
-      <el-tab-pane label="关于系统" name="about">
+      <el-tab-pane
+        label="关于系统"
+        name="about"
+      >
         <div class="tab-content">
           <div class="section-card full-width">
             <div class="card-header">
@@ -563,9 +914,13 @@ onMounted(async () => {
             </div>
             <div class="card-body about-content">
               <div class="logo-section">
-                <div class="logo">⚡</div>
+                <div class="logo">
+                  ⚡
+                </div>
                 <h3>MINE Energy Management System</h3>
-                <p class="version">Version 2.2.0</p>
+                <p class="version">
+                  Version 2.2.0
+                </p>
               </div>
               
               <div class="feature-list">

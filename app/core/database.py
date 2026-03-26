@@ -2,8 +2,8 @@
 数据库连接与初始化
 
 - 使用 SQLModel 管理 ORM
-- 启动阶段自动 create_all
-- 如数据库为 TimescaleDB，则尝试将 `devicedata` 转换为 hypertable（失败不阻塞）
+- 开发环境可自动 create_all / 运行时补齐字段
+- 生产环境默认要求通过版本化 migration 管理表结构
 """
 
 from __future__ import annotations
@@ -30,8 +30,17 @@ engine = create_engine(
 
 def init_db() -> None:
     """初始化数据库表结构，并尝试开启 TimescaleDB hypertable 优化。"""
-    SQLModel.metadata.create_all(engine)
-    _sync_runtime_schema()
+    if settings.db_auto_create_tables:
+        SQLModel.metadata.create_all(engine)
+    else:
+        _assert_required_tables_exist()
+
+    if settings.db_runtime_schema_sync:
+        _sync_runtime_schema()
+        _ensure_runtime_indexes()
+    else:
+        _assert_required_columns_present()
+
     _try_enable_timescaledb_hypertable()
 
 
@@ -60,23 +69,138 @@ def _sync_runtime_schema() -> None:
             # 新表由 create_all 创建；这里不需要额外处理。
             pass
 
-        # 高频查询索引，兼容旧数据库实例。
-        index_sql = (
-            "CREATE INDEX IF NOT EXISTS idx_energydata_device_timestamp "
-            "ON energydata (device_id, timestamp DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_energydata_energy_type_timestamp "
-            "ON energydata (energy_type, timestamp DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_alarm_device_resolved_timestamp "
-            "ON alarm (device_id, is_resolved, timestamp DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_success "
-            "ON device_ingestion_health (last_success_at DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_failure "
-            "ON device_ingestion_health (last_failure_at DESC)",
-        )
-        for sql in index_sql:
-            session.exec(text(sql))
+        if "mqtt_ingestion_record" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("mqtt_ingestion_record")}
+            if "raw_payload" not in existing_columns:
+                logger.info("Schema sync: adding mqtt_ingestion_record.raw_payload")
+                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN raw_payload TEXT NULL"))
+            if "retry_count" not in existing_columns:
+                logger.info("Schema sync: adding mqtt_ingestion_record.retry_count")
+                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN retry_count INTEGER DEFAULT 0"))
+            if "next_retry_at" not in existing_columns:
+                logger.info("Schema sync: adding mqtt_ingestion_record.next_retry_at")
+                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN next_retry_at TIMESTAMP NULL"))
+            if "replay_count" not in existing_columns:
+                logger.info("Schema sync: adding mqtt_ingestion_record.replay_count")
+                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN replay_count INTEGER DEFAULT 0"))
+            if "last_replayed_at" not in existing_columns:
+                logger.info("Schema sync: adding mqtt_ingestion_record.last_replayed_at")
+                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN last_replayed_at TIMESTAMP NULL"))
+
+        if "user" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("user")}
+            if "role" not in existing_columns:
+                logger.info("Schema sync: adding user.role")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN role VARCHAR(32) DEFAULT 'admin'"))
+                session.exec(text("UPDATE \"user\" SET role = 'admin' WHERE role IS NULL"))
+                session.exec(text("CREATE INDEX IF NOT EXISTS idx_user_role ON \"user\" (role)"))
+            if "location_scope" not in existing_columns:
+                logger.info("Schema sync: adding user.location_scope")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN location_scope TEXT NULL"))
+            if "must_change_password" not in existing_columns:
+                logger.info("Schema sync: adding user.must_change_password")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
+            if "failed_login_attempts" not in existing_columns:
+                logger.info("Schema sync: adding user.failed_login_attempts")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN failed_login_attempts INTEGER DEFAULT 0"))
+            if "locked_until" not in existing_columns:
+                logger.info("Schema sync: adding user.locked_until")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN locked_until TIMESTAMP NULL"))
+                session.exec(text("CREATE INDEX IF NOT EXISTS idx_user_locked_until ON \"user\" (locked_until)"))
+            if "token_version" not in existing_columns:
+                logger.info("Schema sync: adding user.token_version")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN token_version INTEGER DEFAULT 0"))
+            if "last_login_at" not in existing_columns:
+                logger.info("Schema sync: adding user.last_login_at")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login_at TIMESTAMP NULL"))
+            if "last_password_changed_at" not in existing_columns:
+                logger.info("Schema sync: adding user.last_password_changed_at")
+                session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_password_changed_at TIMESTAMP NULL"))
 
         session.commit()
+
+
+def _ensure_runtime_indexes() -> None:
+    """开发/兼容模式下补齐高频索引。"""
+    index_sql = (
+        "CREATE INDEX IF NOT EXISTS idx_energydata_device_timestamp "
+        "ON energydata (device_id, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_energydata_energy_type_timestamp "
+        "ON energydata (energy_type, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_alarm_device_resolved_timestamp "
+        "ON alarm (device_id, is_resolved, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_success "
+        "ON device_ingestion_health (last_success_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_failure "
+        "ON device_ingestion_health (last_failure_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_event_action_created_at "
+        "ON audit_event (action, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_event_actor_created_at "
+        "ON audit_event (actor, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_event_outcome_created_at "
+        "ON audit_event (outcome, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_device_received "
+        "ON mqtt_ingestion_record (device_id, received_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_status_received "
+        "ON mqtt_ingestion_record (status, received_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_next_retry_at "
+        "ON mqtt_ingestion_record (next_retry_at)",
+    )
+    with Session(engine) as session:
+        for sql in index_sql:
+            session.exec(text(sql))
+        session.commit()
+
+
+def _assert_required_tables_exist() -> None:
+    """生产模式下，要求关键表已由 migration 正式创建。"""
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    required_tables = {
+        "alarm",
+        "audit_event",
+        "device",
+        "device_control_log",
+        "device_ingestion_health",
+        "energydata",
+        "mqtt_ingestion_record",
+        "user",
+    }
+    missing_tables = sorted(required_tables - existing_tables)
+    if missing_tables:
+        raise RuntimeError(
+            "数据库缺少关键表，请先执行 migration 后再启动应用: "
+            + ", ".join(missing_tables)
+        )
+
+
+def _assert_required_columns_present() -> None:
+    """生产模式下验证关键表字段已通过 migration 到位。"""
+    inspector = inspect(engine)
+    required_columns = {
+        "alarm": {"severity", "category", "source", "resolved_at", "resolved_by", "handling_note"},
+        "mqtt_ingestion_record": {"raw_payload", "retry_count", "next_retry_at", "replay_count", "last_replayed_at"},
+        "user": {
+            "role",
+            "location_scope",
+            "must_change_password",
+            "failed_login_attempts",
+            "locked_until",
+            "token_version",
+            "last_login_at",
+            "last_password_changed_at",
+        },
+    }
+    missing_fields: list[str] = []
+    for table_name, columns in required_columns.items():
+        existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+        missing = sorted(columns - existing_columns)
+        missing_fields.extend(f"{table_name}.{column}" for column in missing)
+    if missing_fields:
+        raise RuntimeError(
+            "数据库 schema 与当前应用不兼容，请先执行 migration: "
+            + ", ".join(missing_fields)
+        )
 
 
 def _try_enable_timescaledb_hypertable() -> None:

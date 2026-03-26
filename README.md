@@ -25,7 +25,7 @@ cd MineEnergySystem
 
 # 3️⃣ 访问系统
 # 打开浏览器访问: http://localhost:8088/docs
-# 默认账号: admin / 123456
+# 首次执行创建管理员: python scripts/python/create_admin.py
 ```
 
 **前置条件**: 已安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) ✅
@@ -173,13 +173,173 @@ cd MineEnergySystem
 
 - [ ] 单元测试和集成测试（进行中）
 - [ ] API 限流保护
-- [ ] 数据库迁移工具（Alembic）
-- [ ] 性能监控（Prometheus）
+- [x] 数据库迁移工具（Alembic 基线）
+ - [x] 性能监控（Prometheus 基线）
 - [ ] CI/CD 流程
 - [ ] 故障诊断专家系统增强
 - [ ] 移动端 App
 
 📌 **距离实际应用还缺什么？** 见 [与实际应用的差距](./docs/05-架构与设计/与实际应用的差距.md)：安全（HTTPS、限流、RBAC）、测试与迁移、监控与告警、备份策略等清单与优先级。
+
+📌 **准备正式工业上线前怎么核对？** 见 [工业上线清单](./docs/03-开发与部署/工业上线清单.md)。
+
+## 🧱 数据库迁移与生产护栏
+
+项目现已包含 Alembic migration 基线，建议按以下方式使用：
+
+```bash
+# 安装新增依赖
+pip install -r requirements.txt
+
+# 已有旧库接入 migration 基线
+alembic stamp 20260325_0001
+
+# 执行后续迁移
+alembic upgrade head
+
+# 生产部署前检查
+python scripts/python/check_production_readiness.py
+```
+
+生产环境建议至少配置：
+
+```env
+APP_ENV=production
+STRICT_STARTUP_CHECKS=True
+DB_AUTO_CREATE_TABLES=False
+DB_RUNTIME_SCHEMA_SYNC=False
+RELOAD=False
+```
+
+观测栈模板也已提供：
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d prometheus grafana
+```
+
+默认访问地址：
+
+- Prometheus: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3001`
+
+预置内容：
+
+- Prometheus 抓取配置: [prometheus.yml](/Users/todo/MineEnergySystem/monitoring/prometheus/prometheus.yml)
+- 告警规则: [alert_rules.yml](/Users/todo/MineEnergySystem/monitoring/prometheus/alert_rules.yml)
+- Grafana 数据源预置: [prometheus datasource](/Users/todo/MineEnergySystem/monitoring/grafana/provisioning/datasources/prometheus.yml)
+- Grafana 仪表盘模板: [mine_overview.json](/Users/todo/MineEnergySystem/monitoring/grafana/dashboards/mine_overview.json)
+
+## 🔒 反向代理与 HTTPS
+
+项目现已提供生产反向代理模板：
+
+- Nginx HTTP 反代配置: [default.conf](/Users/todo/MineEnergySystem/nginx/conf.d/default.conf)
+- HTTPS 模板: [default.ssl.conf.example](/Users/todo/MineEnergySystem/nginx/conf.d/default.ssl.conf.example)
+
+生产 compose 已内置 `nginx` 服务；如需启用 HTTPS，建议：
+
+1. 准备证书并放到 `nginx/ssl/`
+2. 用 `default.ssl.conf.example` 替换 `default.conf`
+3. 在 `.env.prod` 中设置：
+
+```env
+TRUSTED_HOSTS=["api.yourcompany.com","energy.yourcompany.com"]
+FORCE_HTTPS=True
+```
+
+应用侧也会自动追加安全头，并校验可信 Host。
+
+## ✅ CI/CD 与发布门禁
+
+项目现已包含一条基础 GitHub Actions 后端流水线：
+
+- Workflow: [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)
+
+流水线会自动执行：
+
+- Python 源码编译检查
+- 开发配置检查
+- 生产配置检查
+- 后端单元测试
+- 生产 compose 编排校验
+
+本地发布前也可以直接执行：
+
+```bash
+./scripts/shell/release_readiness.sh
+```
+
+生产部署脚本现在会先跑这条检查，再继续构建和上线。
+
+## 💾 备份恢复与回滚
+
+备份脚本现在会额外生成：
+
+- 数据库压缩备份
+- `sha256` 清单文件
+- 一份部署配置归档
+- `latest_<label>` 软链接，便于自动化恢复
+
+常用命令：
+
+```bash
+# 手动备份
+bash ./scripts/shell/backup.sh --label manual
+
+# 指定容器做演练（如开发库）
+DB_CONTAINER_OVERRIDE=mine_energy_db_dev bash ./scripts/shell/backup.sh --label drill
+
+# 仅校验备份文件完整性
+bash ./scripts/shell/restore.sh --verify-only backups/backup_xxx.sql.gz
+
+# 执行恢复（恢复前会自动再做一次 pre_restore 备份）
+bash ./scripts/shell/restore.sh backups/backup_xxx.sql.gz
+
+# 生产回滚（默认可使用 latest_pre_deploy.sql.gz）
+bash ./scripts/shell/rollback_prod.sh backups/latest_pre_deploy.sql.gz
+```
+
+生产部署脚本在真正发布前也会先自动生成 `pre_deploy` 备份。
+
+## 📣 告警通知
+
+项目现在同时支持两层告警出口：
+
+- 应用运行时异常通知：Webhook / SMTP 邮件
+- Prometheus 告警路由：Alertmanager
+
+已提供的模板与入口：
+
+- 应用侧通知实现: [notifications.py](/Users/todo/MineEnergySystem/app/core/notifications.py)
+- Alertmanager 配置模板: [alertmanager.yml](/Users/todo/MineEnergySystem/monitoring/alertmanager/alertmanager.yml)
+- 生产 compose 已内置 `alertmanager`
+
+建议的接入顺序：
+
+1. 先在 `.env.prod` 中启用 `ALERTING_WEBHOOK_URL`
+2. 再按需补 SMTP 邮件
+3. 最后把 Alertmanager 路由改成企业微信/飞书/Slack/邮件等正式渠道
+
+## ♻️ MQTT 自动补偿与死信
+
+MQTT 接入台账现在支持：
+
+- `failed`：失败但仍可重试
+- `dead_letter`：达到最大重试次数，进入死信
+- `retry_count / next_retry_at`：用于退避和批量补偿
+
+运维补偿入口：
+
+```bash
+./venv/bin/python scripts/python/replay_mqtt_failures.py --limit 20
+```
+
+相关配置：
+
+```env
+MQTT_RETRY_MAX_ATTEMPTS=3
+MQTT_RETRY_BACKOFF_SECONDS=60
+```
 
 ---
 
@@ -528,13 +688,21 @@ docker exec -it ems_redis redis-cli ping
 docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
 ```
 
-### 默认账号
+### 管理员账号
 
-系统首次启动会自动创建默认管理员账号：
+系统不会再写入默认弱口令。
 - **用户名**: `admin`
-- **密码**: `123456`
+- **创建方式**: 执行 `python scripts/python/create_admin.py` 或在容器内运行同名脚本
+- **密码要求**: 至少 12 位，包含大小写字母、数字和特殊字符
 
-⚠️ **生产环境务必修改默认密码！**
+### 角色说明
+
+- `admin`：系统管理员，可管理用户、模型训练/激活、数据清理与所有高风险操作
+- `maintainer`：维护人员，可管理设备、位置、分组、巡检、维护等配置类对象
+- `operator`：操作员，可执行设备启停、报警处理、巡检执行、业务数据写入
+- `viewer`：只读用户，仅访问查询类接口
+
+详细矩阵见 [角色权限矩阵](./docs/05-架构与设计/角色权限矩阵.md)
 
 ### 使用脚本工具
 

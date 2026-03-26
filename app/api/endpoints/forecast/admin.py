@@ -7,19 +7,26 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
+from app.api.deps import ADMIN_ONLY
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.logger import logger
 from app.core.response import success_response
+from app.models.tables import User
 
 router = APIRouter()
 
 
 @router.get("/scheduler/jobs")
-def get_scheduler_jobs(session: Session = Depends(get_session)):
+def get_scheduler_jobs(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(ADMIN_ONLY),
+):
     try:
         from app.services.scheduler_service import get_jobs
 
         jobs = get_jobs()
+        audit_log("forecast.scheduler.list_jobs", current_user.username, "scheduler:*")
         return success_response(
             data={"jobs": jobs, "count": len(jobs)},
             message="获取定时任务列表成功",

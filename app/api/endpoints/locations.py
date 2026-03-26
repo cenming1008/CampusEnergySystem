@@ -6,9 +6,16 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from app.api.deps import MAINTAINER_OR_ADMIN, get_current_user
+from app.core.access_control import (
+    ensure_location_access,
+    filter_location_tree_by_scope,
+    filter_locations_by_scope,
+)
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
-from app.models.tables import Location, Device, LocationType
+from app.models.tables import Device, Location, LocationType, User
 from app.services.location_service import LocationService
 
 router = APIRouter()
@@ -52,7 +59,8 @@ def get_locations(
     location_type: Optional[str] = Query(None, description="按类型筛选"),
     parent_id: Optional[int] = Query(None, description="按父级ID筛选"),
     is_active: Optional[bool] = Query(None, description="按状态筛选"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取位置列表
@@ -62,12 +70,13 @@ def get_locations(
     - parent_id: 父级位置ID
     - is_active: 是否启用
     """
-    return LocationService.get_all_locations(
+    locations = LocationService.get_all_locations(
         session=session,
         location_type=location_type,
         parent_id=parent_id,
         is_active=is_active
     )
+    return filter_locations_by_scope(locations, current_user)
 
 
 # 位置类型展示文案（与 models.tables.LocationType 一一对应）
@@ -95,21 +104,25 @@ def get_location_types():
 
 
 @router.get("/roots", response_model=List[Location])
-def get_root_locations(session: Session = Depends(get_session)):
+def get_root_locations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """
     获取所有顶级位置（没有父级的位置）
     
     Returns:
         顶级位置列表
     """
-    return LocationService.get_root_locations(session)
+    return filter_locations_by_scope(LocationService.get_root_locations(session), current_user)
 
 
 @router.get("/tree")
 def get_location_tree(
     root_id: Optional[int] = Query(None, description="根位置ID（不指定则从顶级开始）"),
     max_depth: Optional[int] = Query(None, description="最大深度"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取位置树形结构
@@ -121,18 +134,21 @@ def get_location_tree(
     Returns:
         树形结构数据
     """
+    if root_id is not None:
+        ensure_location_access(session, current_user, root_id)
     tree = LocationService.get_location_tree(
         session=session,
         root_location_id=root_id,
         max_depth=max_depth
     )
-    return success_response(data=tree)
+    return success_response(data=filter_location_tree_by_scope(tree, current_user))
 
 
 @router.get("/search", response_model=List[Location])
 def search_locations(
     keyword: str = Query(..., description="搜索关键词"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     搜索位置（按名称、编码、描述）
@@ -143,27 +159,30 @@ def search_locations(
     Returns:
         匹配的位置列表
     """
-    return LocationService.search_locations(session, keyword)
+    return filter_locations_by_scope(LocationService.search_locations(session, keyword), current_user)
 
 
 @router.get("/{location_id}", response_model=Location)
 def get_location_detail(
     location_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取位置详情（资源不存在时由全局异常处理器返回 404）
     """
+    ensure_location_access(session, current_user, location_id)
     return LocationService.get_location_by_id(session, location_id)
 
 
 @router.post("/", response_model=Location)
 def create_location(
     request: LocationCreateRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """创建位置（业务校验失败由全局异常处理器返回 400/404）"""
-    return LocationService.create_location(
+    result = LocationService.create_location(
         session=session,
         name=request.name,
         location_type=request.location_type,
@@ -174,27 +193,34 @@ def create_location(
         manager=request.manager,
         contact=request.contact
     )
+    audit_log("location.create", current_user.username, f"location:{result.id}", role=current_user.role)
+    return result
 
 
 @router.put("/{location_id}", response_model=Location)
 def update_location(
     location_id: int,
     request: LocationUpdateRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """更新位置信息（资源不存在等由全局异常处理器处理）"""
     update_data = request.model_dump(exclude_unset=True)
-    return LocationService.update_location(session, location_id, **update_data)
+    result = LocationService.update_location(session, location_id, **update_data)
+    audit_log("location.update", current_user.username, f"location:{location_id}", role=current_user.role)
+    return result
 
 
 @router.delete("/{location_id}")
 def delete_location(
     location_id: int,
     force: bool = Query(False, description="是否强制删除（包括子位置和设备）"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """删除位置（依赖冲突等由全局异常处理器处理）"""
     LocationService.delete_location(session, location_id, force=force)
+    audit_log("location.delete", current_user.username, f"location:{location_id}", force=force, role=current_user.role)
     return success_response(message=f"位置 {location_id} 已删除")
 
 
@@ -204,12 +230,14 @@ def delete_location(
 def get_child_locations(
     location_id: int,
     recursive: bool = Query(False, description="是否递归获取所有子孙位置"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """获取子位置（位置不存在时由全局异常处理器返回 404）"""
-    return LocationService.get_child_locations(
+    ensure_location_access(session, current_user, location_id)
+    return filter_locations_by_scope(LocationService.get_child_locations(
         session, location_id, recursive=recursive
-    )
+    ), current_user)
 
 
 # ==================== 设备管理 ====================
@@ -220,9 +248,11 @@ def get_location_devices(
     recursive: bool = Query(False, description="是否包含子位置的设备"),
     energy_type: Optional[str] = Query(None, description="按能源类型筛选"),
     is_active: Optional[bool] = Query(None, description="按状态筛选"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """获取位置下的设备（位置不存在时由全局异常处理器返回 404）"""
+    ensure_location_access(session, current_user, location_id)
     return LocationService.get_devices_by_location(
         session=session,
         location_id=location_id,
@@ -236,14 +266,23 @@ def get_location_devices(
 def assign_device_to_location(
     location_id: int,
     request: DeviceAssignRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """将设备分配到位置（设备/位置不存在等由全局异常处理器处理）"""
-    return LocationService.assign_device_to_location(
+    result = LocationService.assign_device_to_location(
         session=session,
         device_id=request.device_id,
         location_id=location_id
     )
+    audit_log(
+        "location.assign_device",
+        current_user.username,
+        f"location:{location_id}",
+        device_id=request.device_id,
+        role=current_user.role,
+    )
+    return result
 
 
 # ==================== 统计分析 ====================
@@ -252,9 +291,11 @@ def assign_device_to_location(
 def get_location_statistics(
     location_id: int,
     recursive: bool = Query(True, description="是否包含子位置"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """获取位置统计信息（位置不存在时由全局异常处理器返回 404）"""
+    ensure_location_access(session, current_user, location_id)
     stats = LocationService.get_location_statistics(
         session=session,
         location_id=location_id,

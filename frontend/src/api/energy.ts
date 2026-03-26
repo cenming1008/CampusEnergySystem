@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { SuccessResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
@@ -78,6 +79,23 @@ export interface CarbonFactor {
   unit: string
 }
 
+export interface CarbonCalculationResult {
+  energy_type: string
+  consumption: number
+  consumption_unit: string
+  carbon_factor: number
+  carbon_emission: number
+  emission_unit: string
+}
+
+export type EnergyDataInput = {
+  device_id: number
+  energy_type: string
+  consumption: number
+  flow_rate?: number
+  timestamp?: string
+} & Record<string, unknown>
+
 // ==================== API 函数 ====================
 
 /**
@@ -90,7 +108,7 @@ export function getEnergyData(params: {
   end_time?: string
   limit?: number
 }) {
-  return request.get<any, EnergyData[]>(`/energy/data/${params.device_id}`, {
+  return request.get<never, EnergyData[]>(`/energy/data/${params.device_id}`, {
     params: {
       energy_type: params.energy_type,
       start_time: params.start_time,
@@ -110,7 +128,7 @@ export function getEnergyStatistics(params: {
   device_id?: number
   period_type?: string
 }) {
-  return request.get<any, EnergyStatistics>('/energy/statistics', { params })
+  return request.get<never, EnergyStatistics>('/energy/statistics', { params })
 }
 
 /**
@@ -122,7 +140,7 @@ export function getCarbonEmissions(params: {
   start_time?: string
   end_time?: string
 }) {
-  return request.get<any, CarbonEmission[]>('/energy/carbon/emissions', { params })
+  return request.get<never, CarbonEmission[]>('/energy/carbon/emissions', { params })
 }
 
 /**
@@ -133,14 +151,14 @@ export function getCarbonSummary(params: {
   end_time: string
   device_id?: number
 }) {
-  return request.get<any, CarbonSummary>('/energy/carbon/summary', { params })
+  return request.get<never, CarbonSummary>('/energy/carbon/summary', { params })
 }
 
 /**
  * 获取支持的能源类型列表
  */
 export function getEnergyTypes() {
-  return request.get<any, {
+  return request.get<never, {
     energy_types: EnergyTypeInfo[]
     device_categories: Array<{ value: string; label: string }>
   }>('/energy/types')
@@ -150,7 +168,7 @@ export function getEnergyTypes() {
  * 获取碳排放因子
  */
 export function getCarbonFactors() {
-  return request.get<any, {
+  return request.get<never, {
     carbon_factors: { [key: string]: CarbonFactor }
     description: string
   }>('/energy/carbon/factors')
@@ -163,29 +181,14 @@ export function calculateCarbon(params: {
   energy_type: string
   consumption: number
 }) {
-  return request.post<any, {
-    success: boolean
-    data: {
-      energy_type: string
-      consumption: number
-      consumption_unit: string
-      carbon_factor: number
-      carbon_emission: number
-      emission_unit: string
-    }
-  }>('/energy/carbon/calculate', null, { params })
+  return request
+    .post<never, SuccessResponse<CarbonCalculationResult>>('/energy/carbon/calculate', null, { params })
+    .then((response) => response.data)
 }
 
 /**
  * 保存能源数据（一般由后端自动处理，此API用于手动补录）
  */
-export function saveEnergyData(data: {
-  device_id: number
-  energy_type: string
-  consumption: number
-  flow_rate?: number
-  timestamp?: string
-  [key: string]: any
-}) {
-  return request.post<any, EnergyData>('/energy/data', data)
+export function saveEnergyData(data: EnergyDataInput) {
+  return request.post<EnergyDataInput, EnergyData>('/energy/data', data)
 }

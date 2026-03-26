@@ -6,7 +6,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
 from app.models.tables import Alarm, User
@@ -53,7 +54,7 @@ def get_alarms(
 def resolve_all_alarms(
     handling_note: Optional[str] = Query(None, description="处理备注"),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
 ):
     """
     批量解决所有未处理的报警
@@ -68,6 +69,13 @@ def resolve_all_alarms(
         resolved_by=current_user.username,
         handling_note=handling_note,
     )
+    audit_log(
+        "alarm.resolve_all",
+        current_user.username,
+        "alarm:*",
+        count=count,
+        role=getattr(current_user, "role", None),
+    )
     return success_response(
         data={"count": count},
         message=f"已解决 {count} 条报警"
@@ -79,7 +87,7 @@ def resolve_alarm(
     alarm_id: int,
     handling_note: Optional[str] = Query(None, description="处理备注"),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
 ):
     """
     解决单个报警
@@ -101,6 +109,12 @@ def resolve_alarm(
     )
     if not success:
         raise HTTPException(status_code=404, detail="报警不存在或已解决")
+    audit_log(
+        "alarm.resolve",
+        current_user.username,
+        f"alarm:{alarm_id}",
+        role=getattr(current_user, "role", None),
+    )
     
     return success_response(
         data={"alarm_id": alarm_id},

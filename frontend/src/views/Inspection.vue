@@ -12,6 +12,21 @@ import {
   type InspectionTask, type InspectionRecord, type InspectionStatistics
 } from '@/api/inspection'
 import { getDevices, type Device } from '@/api/device'
+import { usePermissions } from '@/shared/composables/usePermissions'
+
+interface ApiErrorLike {
+  response?: {
+    status?: number
+    data?: {
+      detail?: string
+    }
+  }
+}
+
+const getErrorDetail = (error: unknown, fallback: string) => {
+  const apiError = error as ApiErrorLike
+  return apiError.response?.data?.detail || fallback
+}
 
 // ==================== 状态 ====================
 const loading = ref(false)
@@ -26,6 +41,7 @@ const todayTasks = ref<InspectionTask[]>([])
 const devices = ref<Device[]>([])
 const statistics = ref<InspectionStatistics | null>(null)
 const currentRecords = ref<InspectionRecord[]>([])
+const { canManageInspection, canOperateInspection, hasScopedAccess } = usePermissions()
 
 // 对话框
 const routeDialogVisible = ref(false)
@@ -167,8 +183,8 @@ const loadData = async () => {
     tasks.value = tasksRes
     todayTasks.value = todayRes
     devices.value = devicesRes
-    if (statsRes.data) {
-      statistics.value = statsRes.data
+    if (statsRes) {
+      statistics.value = statsRes
     }
   } catch (e) {
     console.error('加载数据失败:', e)
@@ -210,8 +226,8 @@ const submitRoute = async () => {
     }
     routeDialogVisible.value = false
     loadData()
-  } catch (e: any) {
-    const msg = e?.response?.data?.detail || (isEditingRoute.value ? '更新失败' : '创建失败')
+  } catch (error) {
+    const msg = getErrorDetail(error, isEditingRoute.value ? '更新失败' : '创建失败')
     ElMessage.error(msg)
   }
 }
@@ -224,10 +240,11 @@ const handleDeleteRoute = (route: InspectionRoute) => {
       await deleteRoute(route.id!)
       ElMessage.success('删除成功')
       loadData()
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail || ''
+    } catch (error) {
+      const apiError = error as ApiErrorLike
+      const detail = apiError.response?.data?.detail || ''
       // 如果是因为有关联数据，询问是否强制删除
-      if (e?.response?.status === 409 && detail.includes('无法删除')) {
+      if (apiError.response?.status === 409 && detail.includes('无法删除')) {
         ElMessageBox.confirm(
           `${detail}\n\n是否强制删除（将同时删除所有关联数据）？`,
           '存在关联数据',
@@ -237,8 +254,8 @@ const handleDeleteRoute = (route: InspectionRoute) => {
             await deleteRoute(route.id!, true)
             ElMessage.success('删除成功')
             loadData()
-          } catch (e2: any) {
-            ElMessage.error(e2?.response?.data?.detail || '删除失败')
+          } catch (forceDeleteError) {
+            ElMessage.error(getErrorDetail(forceDeleteError, '删除失败'))
           }
         }).catch(() => {})
       } else {
@@ -346,8 +363,8 @@ const submitPlan = async () => {
     }
     planDialogVisible.value = false
     loadData()
-  } catch (e: any) {
-    const msg = e?.response?.data?.detail || (isEditingPlan.value ? '更新失败' : '创建失败')
+  } catch (error) {
+    const msg = getErrorDetail(error, isEditingPlan.value ? '更新失败' : '创建失败')
     ElMessage.error(msg)
   }
 }
@@ -360,9 +377,10 @@ const handleDeletePlan = (plan: InspectionPlan) => {
       await deletePlan(plan.id!)
       ElMessage.success('删除成功')
       loadData()
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail || ''
-      if (e?.response?.status === 409 && detail.includes('无法删除')) {
+    } catch (error) {
+      const apiError = error as ApiErrorLike
+      const detail = apiError.response?.data?.detail || ''
+      if (apiError.response?.status === 409 && detail.includes('无法删除')) {
         ElMessageBox.confirm(
           `${detail}\n\n是否强制删除？`,
           '存在关联数据',
@@ -372,8 +390,8 @@ const handleDeletePlan = (plan: InspectionPlan) => {
             await deletePlan(plan.id!, true)
             ElMessage.success('删除成功')
             loadData()
-          } catch (e2: any) {
-            ElMessage.error(e2?.response?.data?.detail || '删除失败')
+          } catch (forceDeleteError) {
+            ElMessage.error(getErrorDetail(forceDeleteError, '删除失败'))
           }
         }).catch(() => {})
       } else {
@@ -412,8 +430,8 @@ const handleStartTask = async (task: InspectionTask) => {
       await startTask(task.id!, value)
       ElMessage.success('巡检任务已开始')
       loadData()
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || '开始任务失败'
+    } catch (error) {
+      const msg = getErrorDetail(error, '开始任务失败')
       ElMessage.error(msg)
     }
   }).catch(() => {})
@@ -427,8 +445,8 @@ const handleCompleteTask = async (task: InspectionTask) => {
       await completeTask(task.id!)
       ElMessage.success('巡检任务已完成')
       loadData()
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || '完成任务失败'
+    } catch (error) {
+      const msg = getErrorDetail(error, '完成任务失败')
       ElMessage.error(msg)
     }
   }).catch(() => {})
@@ -473,8 +491,8 @@ const submitRecordForm = async () => {
     // 刷新记录
     currentRecords.value = await getTaskRecords(selectedTask.value!.id!)
     loadData()
-  } catch (e: any) {
-    const msg = e?.response?.data?.detail || '提交失败'
+  } catch (error) {
+    const msg = getErrorDetail(error, '提交失败')
     ElMessage.error(msg)
   }
 }
@@ -496,65 +514,143 @@ onMounted(() => {
 <template>
   <div class="inspection-container">
     <!-- 头部统计卡片 -->
-    <div class="stats-row" v-if="statistics">
+    <div
+      v-if="statistics"
+      class="stats-row"
+    >
       <div class="stat-card">
-        <div class="stat-icon" style="background: #3b82f6;">
+        <div
+          class="stat-icon"
+          style="background: #3b82f6;"
+        >
           <el-icon><Clock /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ statistics.tasks.total }}</div>
-          <div class="stat-label">总任务数</div>
+          <div class="stat-value">
+            {{ statistics.tasks.total }}
+          </div>
+          <div class="stat-label">
+            总任务数
+          </div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #10b981;">
+        <div
+          class="stat-icon"
+          style="background: #10b981;"
+        >
           <el-icon><Check /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ statistics.tasks.completion_rate }}%</div>
-          <div class="stat-label">完成率</div>
+          <div class="stat-value">
+            {{ statistics.tasks.completion_rate }}%
+          </div>
+          <div class="stat-label">
+            完成率
+          </div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #f59e0b;">
+        <div
+          class="stat-icon"
+          style="background: #f59e0b;"
+        >
           <el-icon><Warning /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ statistics.abnormal.count }}</div>
-          <div class="stat-label">异常数</div>
+          <div class="stat-value">
+            {{ statistics.abnormal.count }}
+          </div>
+          <div class="stat-label">
+            异常数
+          </div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #8b5cf6;">
+        <div
+          class="stat-icon"
+          style="background: #8b5cf6;"
+        >
           <el-icon><Location /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ statistics.points.completed }}</div>
-          <div class="stat-label">已检查点</div>
+          <div class="stat-value">
+            {{ statistics.points.completed }}
+          </div>
+          <div class="stat-label">
+            已检查点
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 主内容区 -->
-    <el-tabs v-model="activeTab" class="main-tabs">
+    <el-tabs
+      v-model="activeTab"
+      class="main-tabs"
+    >
       <!-- 巡检任务 Tab -->
-      <el-tab-pane label="巡检任务" name="tasks">
+      <el-tab-pane
+        label="巡检任务"
+        name="tasks"
+      >
         <div class="tab-toolbar">
-          <el-button type="primary" :icon="Plus" @click="openTaskDialog">新建任务</el-button>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <el-button
+            v-if="canManageInspection"
+            type="primary"
+            :icon="Plus"
+            @click="openTaskDialog"
+          >
+            新建任务
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            @click="loadData"
+          >
+            刷新
+          </el-button>
         </div>
+        <el-alert
+          v-if="hasScopedAccess"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 12px;"
+        >
+          当前巡检任务与路线已按位置范围过滤
+        </el-alert>
 
         <!-- 今日任务 -->
-        <div class="section-title">今日任务</div>
-        <el-table :data="todayTasks" v-loading="loading" class="custom-table">
-          <el-table-column prop="task_no" label="任务编号" width="160" />
-          <el-table-column label="巡检路线" min-width="150">
+        <div class="section-title">
+          今日任务
+        </div>
+        <el-table
+          v-loading="loading"
+          :data="todayTasks"
+          class="custom-table"
+        >
+          <el-table-column
+            prop="task_no"
+            label="任务编号"
+            width="160"
+          />
+          <el-table-column
+            label="巡检路线"
+            min-width="150"
+          >
             <template #default="{ row }">
               {{ routes.find(r => r.id === row.route_id)?.name || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="inspector" label="巡检员" width="100" />
-          <el-table-column label="进度" width="150">
+          <el-table-column
+            prop="inspector"
+            label="巡检员"
+            width="100"
+          />
+          <el-table-column
+            label="进度"
+            width="150"
+          >
             <template #default="{ row }">
               <el-progress 
                 :percentage="row.total_points > 0 ? Math.round(row.completed_points / row.total_points * 100) : 0"
@@ -562,65 +658,124 @@ onMounted(() => {
               />
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="100">
+          <el-table-column
+            label="状态"
+            width="100"
+          >
             <template #default="{ row }">
-              <el-tag :type="statusTagType(row.status)" size="small">
+              <el-tag
+                :type="statusTagType(row.status)"
+                size="small"
+              >
                 {{ statusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column
+            label="操作"
+            width="200"
+            fixed="right"
+          >
             <template #default="{ row }">
               <el-button 
-                v-if="row.status === 'pending'" 
-                link type="success" 
+                v-if="canOperateInspection && row.status === 'pending'" 
+                link
+                type="success" 
                 @click="handleStartTask(row)"
-              >开始</el-button>
+              >
+                开始
+              </el-button>
               <el-button 
-                v-if="row.status === 'in_progress'" 
-                link type="primary" 
+                v-if="canOperateInspection && row.status === 'in_progress'" 
+                link
+                type="primary" 
                 @click="openExecuteDialog(row)"
-              >执行</el-button>
+              >
+                执行
+              </el-button>
               <el-button 
-                v-if="row.status === 'in_progress'" 
-                link type="success" 
+                v-if="canOperateInspection && row.status === 'in_progress'" 
+                link
+                type="success" 
                 @click="handleCompleteTask(row)"
-              >完成</el-button>
+              >
+                完成
+              </el-button>
               <el-button 
                 v-if="row.status === 'completed'" 
-                link type="info" 
+                link
+                type="info" 
                 @click="openExecuteDialog(row)"
-              >查看</el-button>
+              >
+                查看
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
 
         <!-- 历史任务 -->
-        <div class="section-title" style="margin-top: 20px;">历史任务</div>
-        <el-table :data="tasks" v-loading="loading" class="custom-table">
-          <el-table-column prop="task_no" label="任务编号" width="160" />
-          <el-table-column label="巡检路线" min-width="150">
+        <div
+          class="section-title"
+          style="margin-top: 20px;"
+        >
+          历史任务
+        </div>
+        <el-table
+          v-loading="loading"
+          :data="tasks"
+          class="custom-table"
+        >
+          <el-table-column
+            prop="task_no"
+            label="任务编号"
+            width="160"
+          />
+          <el-table-column
+            label="巡检路线"
+            min-width="150"
+          >
             <template #default="{ row }">
               {{ routes.find(r => r.id === row.route_id)?.name || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="task_date" label="任务日期" width="180">
+          <el-table-column
+            prop="task_date"
+            label="任务日期"
+            width="180"
+          >
             <template #default="{ row }">
               {{ new Date(row.task_date).toLocaleString() }}
             </template>
           </el-table-column>
-          <el-table-column prop="inspector" label="巡检员" width="100" />
-          <el-table-column label="异常" width="80">
+          <el-table-column
+            prop="inspector"
+            label="巡检员"
+            width="100"
+          />
+          <el-table-column
+            label="异常"
+            width="80"
+          >
             <template #default="{ row }">
-              <el-tag v-if="row.abnormal_count > 0" type="danger" size="small">
+              <el-tag
+                v-if="row.abnormal_count > 0"
+                type="danger"
+                size="small"
+              >
                 {{ row.abnormal_count }}
               </el-tag>
               <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="100">
+          <el-table-column
+            label="状态"
+            width="100"
+          >
             <template #default="{ row }">
-              <el-tag :type="statusTagType(row.status)" size="small">
+              <el-tag
+                :type="statusTagType(row.status)"
+                size="small"
+              >
                 {{ statusLabel(row.status) }}
               </el-tag>
             </template>
@@ -629,10 +784,25 @@ onMounted(() => {
       </el-tab-pane>
 
       <!-- 巡检路线 Tab -->
-      <el-tab-pane label="巡检路线" name="routes">
+      <el-tab-pane
+        label="巡检路线"
+        name="routes"
+      >
         <div class="tab-toolbar">
-          <el-button type="primary" :icon="Plus" @click="openRouteDialog">新建路线</el-button>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <el-button
+            v-if="canManageInspection"
+            type="primary"
+            :icon="Plus"
+            @click="openRouteDialog"
+          >
+            新建路线
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            @click="loadData"
+          >
+            刷新
+          </el-button>
         </div>
 
         <div class="routes-grid">
@@ -644,47 +814,109 @@ onMounted(() => {
           >
             <div class="route-header">
               <span class="route-name">{{ route.name }}</span>
-              <el-tag size="small">{{ route.device_count }} 个巡检点</el-tag>
+              <el-tag size="small">
+                {{ route.device_count }} 个巡检点
+              </el-tag>
             </div>
             <div class="route-info">
               <span>预计耗时: {{ route.estimated_duration }} 分钟</span>
               <span v-if="route.code">编码: {{ route.code }}</span>
             </div>
-            <div class="route-desc" v-if="route.description">
+            <div
+              v-if="route.description"
+              class="route-desc"
+            >
               {{ route.description }}
             </div>
-            <div class="route-actions">
-              <el-button size="small" @click.stop="openPointDialog(route)">添加巡检点</el-button>
-              <el-button size="small" type="primary" @click.stop="openRouteDialog(route)">编辑</el-button>
-              <el-button size="small" type="danger" @click.stop="handleDeleteRoute(route)">删除</el-button>
+            <div
+              v-if="canManageInspection"
+              class="route-actions"
+            >
+              <el-button
+                size="small"
+                @click.stop="openPointDialog(route)"
+              >
+                添加巡检点
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                @click.stop="openRouteDialog(route)"
+              >
+                编辑
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                @click.stop="handleDeleteRoute(route)"
+              >
+                删除
+              </el-button>
             </div>
           </div>
         </div>
 
         <!-- 巡检点列表 -->
-        <div v-if="selectedRoute" class="points-section">
+        <div
+          v-if="selectedRoute"
+          class="points-section"
+        >
           <div class="section-title">
             {{ selectedRoute.name }} - 巡检点列表
           </div>
-          <el-table :data="points" class="custom-table">
-            <el-table-column prop="sequence" label="顺序" width="80" />
-            <el-table-column prop="name" label="巡检点名称" min-width="150" />
-            <el-table-column label="关联设备" min-width="150">
+          <el-table
+            :data="points"
+            class="custom-table"
+          >
+            <el-table-column
+              prop="sequence"
+              label="顺序"
+              width="80"
+            />
+            <el-table-column
+              prop="name"
+              label="巡检点名称"
+              min-width="150"
+            />
+            <el-table-column
+              label="关联设备"
+              min-width="150"
+            >
               <template #default="{ row }">
                 {{ deviceName(row.device_id) }}
               </template>
             </el-table-column>
-            <el-table-column prop="location" label="位置" width="150" />
-            <el-table-column label="必检" width="80">
+            <el-table-column
+              prop="location"
+              label="位置"
+              width="150"
+            />
+            <el-table-column
+              label="必检"
+              width="80"
+            >
               <template #default="{ row }">
-                <el-tag :type="row.is_required ? 'danger' : 'info'" size="small">
+                <el-tag
+                  :type="row.is_required ? 'danger' : 'info'"
+                  size="small"
+                >
                   {{ row.is_required ? '是' : '否' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100">
+            <el-table-column
+              v-if="canManageInspection"
+              label="操作"
+              width="100"
+            >
               <template #default="{ row }">
-                <el-button link type="danger" @click="handleDeletePoint(row)">删除</el-button>
+                <el-button
+                  link
+                  type="danger"
+                  @click="handleDeletePoint(row)"
+                >
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -692,31 +924,91 @@ onMounted(() => {
       </el-tab-pane>
 
       <!-- 巡检计划 Tab -->
-      <el-tab-pane label="巡检计划" name="plans">
+      <el-tab-pane
+        label="巡检计划"
+        name="plans"
+      >
         <div class="tab-toolbar">
-          <el-button type="primary" :icon="Plus" @click="openPlanDialog">新建计划</el-button>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <el-button
+            v-if="canManageInspection"
+            type="primary"
+            :icon="Plus"
+            @click="openPlanDialog"
+          >
+            新建计划
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            @click="loadData"
+          >
+            刷新
+          </el-button>
         </div>
 
-        <el-table :data="plans" v-loading="loading" class="custom-table">
-          <el-table-column prop="name" label="计划名称" min-width="150" />
-          <el-table-column label="巡检路线" min-width="150">
+        <el-table
+          v-loading="loading"
+          :data="plans"
+          class="custom-table"
+        >
+          <el-table-column
+            prop="name"
+            label="计划名称"
+            min-width="150"
+          />
+          <el-table-column
+            label="巡检路线"
+            min-width="150"
+          >
             <template #default="{ row }">
               {{ routes.find(r => r.id === row.route_id)?.name || '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="计划类型" width="120">
+          <el-table-column
+            label="计划类型"
+            width="120"
+          >
             <template #default="{ row }">
-              <el-tag size="small">{{ planTypeLabel(row.plan_type) }}</el-tag>
+              <el-tag size="small">
+                {{ planTypeLabel(row.plan_type) }}
+              </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="execution_time" label="执行时间" width="100" />
-          <el-table-column prop="assigned_to" label="负责人" width="100" />
-          <el-table-column prop="department" label="部门" width="120" />
-          <el-table-column label="操作" width="150" fixed="right">
+          <el-table-column
+            prop="execution_time"
+            label="执行时间"
+            width="100"
+          />
+          <el-table-column
+            prop="assigned_to"
+            label="负责人"
+            width="100"
+          />
+          <el-table-column
+            prop="department"
+            label="部门"
+            width="120"
+          />
+          <el-table-column
+            v-if="canManageInspection"
+            label="操作"
+            width="150"
+            fixed="right"
+          >
             <template #default="{ row }">
-              <el-button link type="primary" @click="openPlanDialog(row)">编辑</el-button>
-              <el-button link type="danger" @click="handleDeletePlan(row)">删除</el-button>
+              <el-button
+                link
+                type="primary"
+                @click="openPlanDialog(row)"
+              >
+                编辑
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                @click="handleDeletePlan(row)"
+              >
+                删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -724,36 +1016,89 @@ onMounted(() => {
     </el-tabs>
 
     <!-- 新建/编辑路线对话框 -->
-    <el-dialog v-model="routeDialogVisible" :title="isEditingRoute ? '编辑巡检路线' : '新建巡检路线'" width="500px">
-      <el-form :model="routeForm" label-width="100px">
-        <el-form-item label="路线名称" required>
-          <el-input v-model="routeForm.name" placeholder="如：配电室日常巡检" />
+    <el-dialog
+      v-if="canManageInspection"
+      v-model="routeDialogVisible"
+      :title="isEditingRoute ? '编辑巡检路线' : '新建巡检路线'"
+      width="500px"
+    >
+      <el-form
+        :model="routeForm"
+        label-width="100px"
+      >
+        <el-form-item
+          label="路线名称"
+          required
+        >
+          <el-input
+            v-model="routeForm.name"
+            placeholder="如：配电室日常巡检"
+          />
         </el-form-item>
         <el-form-item label="路线编码">
-          <el-input v-model="routeForm.code" placeholder="如：PDR-001" />
+          <el-input
+            v-model="routeForm.code"
+            placeholder="如：PDR-001"
+          />
         </el-form-item>
         <el-form-item label="预计耗时">
-          <el-input-number v-model="routeForm.estimated_duration" :min="5" :max="480" />
+          <el-input-number
+            v-model="routeForm.estimated_duration"
+            :min="5"
+            :max="480"
+          />
           <span style="margin-left: 10px;">分钟</span>
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="routeForm.description" type="textarea" rows="3" />
+          <el-input
+            v-model="routeForm.description"
+            type="textarea"
+            rows="3"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="routeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitRoute">确定</el-button>
+        <el-button @click="routeDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="submitRoute"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 添加巡检点对话框 -->
-    <el-dialog v-model="pointDialogVisible" title="添加巡检点" width="500px">
-      <el-form :model="pointForm" label-width="100px">
-        <el-form-item label="巡检点名称" required>
-          <el-input v-model="pointForm.name" placeholder="如：1号配电柜" />
+    <el-dialog
+      v-if="canManageInspection"
+      v-model="pointDialogVisible"
+      title="添加巡检点"
+      width="500px"
+    >
+      <el-form
+        :model="pointForm"
+        label-width="100px"
+      >
+        <el-form-item
+          label="巡检点名称"
+          required
+        >
+          <el-input
+            v-model="pointForm.name"
+            placeholder="如：1号配电柜"
+          />
         </el-form-item>
         <el-form-item label="关联设备">
-          <el-select v-model="pointForm.device_id" placeholder="选择设备" clearable style="width: 100%">
+          <el-select
+            v-model="pointForm.device_id"
+            placeholder="选择设备"
+            clearable
+            style="width: 100%"
+            teleported
+            popper-class="app-select-popper"
+          >
             <el-option 
               v-for="d in devices" 
               :key="d.id" 
@@ -763,29 +1108,62 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="位置描述">
-          <el-input v-model="pointForm.location" placeholder="如：配电室A区" />
+          <el-input
+            v-model="pointForm.location"
+            placeholder="如：配电室A区"
+          />
         </el-form-item>
         <el-form-item label="巡检顺序">
-          <el-input-number v-model="pointForm.sequence" :min="1" />
+          <el-input-number
+            v-model="pointForm.sequence"
+            :min="1"
+          />
         </el-form-item>
         <el-form-item label="是否必检">
           <el-switch v-model="pointForm.is_required" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="pointDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitPoint">确定</el-button>
+        <el-button @click="pointDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="submitPoint"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 新建/编辑计划对话框 -->
-    <el-dialog v-model="planDialogVisible" :title="isEditingPlan ? '编辑巡检计划' : '新建巡检计划'" width="500px">
-      <el-form :model="planForm" label-width="100px">
-        <el-form-item label="计划名称" required>
-          <el-input v-model="planForm.name" placeholder="如：配电室每日巡检" />
+    <el-dialog
+      v-if="canManageInspection"
+      v-model="planDialogVisible"
+      :title="isEditingPlan ? '编辑巡检计划' : '新建巡检计划'"
+      width="500px"
+    >
+      <el-form
+        :model="planForm"
+        label-width="100px"
+      >
+        <el-form-item
+          label="计划名称"
+          required
+        >
+          <el-input
+            v-model="planForm.name"
+            placeholder="如：配电室每日巡检"
+          />
         </el-form-item>
-        <el-form-item label="巡检路线" required>
-          <el-select v-model="planForm.route_id" style="width: 100%">
+        <el-form-item
+          label="巡检路线"
+          required
+        >
+          <el-select
+            v-model="planForm.route_id"
+            style="width: 100%"
+          >
             <el-option 
               v-for="r in routes" 
               :key="r.id" 
@@ -795,10 +1173,22 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="计划类型">
-          <el-select v-model="planForm.plan_type" style="width: 100%">
-            <el-option label="每日巡检" value="daily" />
-            <el-option label="每周巡检" value="weekly" />
-            <el-option label="每月巡检" value="monthly" />
+          <el-select
+            v-model="planForm.plan_type"
+            style="width: 100%"
+          >
+            <el-option
+              label="每日巡检"
+              value="daily"
+            />
+            <el-option
+              label="每周巡检"
+              value="weekly"
+            />
+            <el-option
+              label="每月巡检"
+              value="monthly"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="执行时间">
@@ -810,7 +1200,10 @@ onMounted(() => {
             placeholder="选择时间"
           />
         </el-form-item>
-        <el-form-item label="开始日期" required>
+        <el-form-item
+          label="开始日期"
+          required
+        >
           <el-date-picker 
             v-model="planForm.start_date" 
             type="date" 
@@ -826,16 +1219,37 @@ onMounted(() => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="planDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitPlan">确定</el-button>
+        <el-button @click="planDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="submitPlan"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 新建任务对话框 -->
-    <el-dialog v-model="taskDialogVisible" title="新建巡检任务" width="400px">
-      <el-form :model="taskForm" label-width="100px">
-        <el-form-item label="巡检路线" required>
-          <el-select v-model="taskForm.route_id" style="width: 100%">
+    <el-dialog
+      v-if="canManageInspection"
+      v-model="taskDialogVisible"
+      title="新建巡检任务"
+      width="400px"
+    >
+      <el-form
+        :model="taskForm"
+        label-width="100px"
+      >
+        <el-form-item
+          label="巡检路线"
+          required
+        >
+          <el-select
+            v-model="taskForm.route_id"
+            style="width: 100%"
+          >
             <el-option 
               v-for="r in routes" 
               :key="r.id" 
@@ -845,12 +1259,22 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="巡检员">
-          <el-input v-model="taskForm.inspector" placeholder="可在开始时填写" />
+          <el-input
+            v-model="taskForm.inspector"
+            placeholder="可在开始时填写"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="taskDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitTask">创建</el-button>
+        <el-button @click="taskDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="submitTask"
+        >
+          创建
+        </el-button>
       </template>
     </el-dialog>
 
@@ -860,43 +1284,82 @@ onMounted(() => {
       :title="`执行巡检 - ${selectedTask?.task_no || ''}`" 
       width="700px"
     >
-      <div class="execute-info" v-if="selectedTask">
+      <div
+        v-if="selectedTask"
+        class="execute-info"
+      >
         <span>巡检员: {{ selectedTask.inspector || '-' }}</span>
         <span>进度: {{ selectedTask.completed_points }} / {{ selectedTask.total_points }}</span>
         <span>
           状态: 
-          <el-tag :type="statusTagType(selectedTask.status)" size="small">
+          <el-tag
+            :type="statusTagType(selectedTask.status)"
+            size="small"
+          >
             {{ statusLabel(selectedTask.status) }}
           </el-tag>
         </span>
       </div>
 
-      <el-table :data="points" class="custom-table">
-        <el-table-column prop="sequence" label="序号" width="70" />
-        <el-table-column prop="name" label="巡检点" min-width="150" />
-        <el-table-column label="关联设备" width="150">
+      <el-table
+        :data="points"
+        class="custom-table"
+      >
+        <el-table-column
+          prop="sequence"
+          label="序号"
+          width="70"
+        />
+        <el-table-column
+          prop="name"
+          label="巡检点"
+          min-width="150"
+        />
+        <el-table-column
+          label="关联设备"
+          width="150"
+        >
           <template #default="{ row }">
             {{ deviceName(row.device_id) }}
           </template>
         </el-table-column>
-        <el-table-column label="检查结果" width="100">
+        <el-table-column
+          label="检查结果"
+          width="100"
+        >
           <template #default="{ row }">
             <template v-if="isPointChecked(row.id)">
-              <el-tag :type="resultTagType(getPointRecord(row.id)!.result)" size="small">
+              <el-tag
+                :type="resultTagType(getPointRecord(row.id)!.result)"
+                size="small"
+              >
                 {{ resultLabel(getPointRecord(row.id)!.result) }}
               </el-tag>
             </template>
-            <span v-else style="color: #909399;">未检查</span>
+            <span
+              v-else
+              style="color: #909399;"
+            >未检查</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column
+          label="操作"
+          width="120"
+        >
           <template #default="{ row }">
             <el-button 
               v-if="!isPointChecked(row.id) && selectedTask?.status === 'in_progress'"
-              link type="primary" 
+              link
+              type="primary" 
               @click="openRecordDialog(row)"
-            >检查</el-button>
-            <el-tag v-else-if="isPointChecked(row.id)" type="success" size="small">
+            >
+              检查
+            </el-button>
+            <el-tag
+              v-else-if="isPointChecked(row.id)"
+              type="success"
+              size="small"
+            >
               已完成
             </el-tag>
           </template>
@@ -905,34 +1368,87 @@ onMounted(() => {
     </el-dialog>
 
     <!-- 提交检查记录对话框 -->
-    <el-dialog v-model="recordDialogVisible" :title="`检查 - ${selectedPoint?.name || ''}`" width="450px">
-      <el-form :model="recordForm" label-width="100px">
-        <el-form-item label="检查结果" required>
+    <el-dialog
+      v-model="recordDialogVisible"
+      :title="`检查 - ${selectedPoint?.name || ''}`"
+      width="450px"
+    >
+      <el-form
+        :model="recordForm"
+        label-width="100px"
+      >
+        <el-form-item
+          label="检查结果"
+          required
+        >
           <el-radio-group v-model="recordForm.result">
-            <el-radio value="normal">正常</el-radio>
-            <el-radio value="abnormal">异常</el-radio>
-            <el-radio value="defect">缺陷</el-radio>
-            <el-radio value="serious">严重</el-radio>
+            <el-radio value="normal">
+              正常
+            </el-radio>
+            <el-radio value="abnormal">
+              异常
+            </el-radio>
+            <el-radio value="defect">
+              缺陷
+            </el-radio>
+            <el-radio value="serious">
+              严重
+            </el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="仪表读数">
-          <el-input-number v-model="recordForm.meter_reading" :precision="2" />
+          <el-input-number
+            v-model="recordForm.meter_reading"
+            :precision="2"
+          />
         </el-form-item>
-        <el-form-item v-if="recordForm.result !== 'normal'" label="异常等级">
-          <el-select v-model="recordForm.abnormal_level" style="width: 100%">
-            <el-option label="轻微" value="minor" />
-            <el-option label="一般" value="medium" />
-            <el-option label="严重" value="major" />
-            <el-option label="紧急" value="critical" />
+        <el-form-item
+          v-if="recordForm.result !== 'normal'"
+          label="异常等级"
+        >
+          <el-select
+            v-model="recordForm.abnormal_level"
+            style="width: 100%"
+          >
+            <el-option
+              label="轻微"
+              value="minor"
+            />
+            <el-option
+              label="一般"
+              value="medium"
+            />
+            <el-option
+              label="严重"
+              value="major"
+            />
+            <el-option
+              label="紧急"
+              value="critical"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="recordForm.result !== 'normal'" label="异常描述">
-          <el-input v-model="recordForm.abnormal_description" type="textarea" rows="3" />
+        <el-form-item
+          v-if="recordForm.result !== 'normal'"
+          label="异常描述"
+        >
+          <el-input
+            v-model="recordForm.abnormal_description"
+            type="textarea"
+            rows="3"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="recordDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitRecordForm">提交</el-button>
+        <el-button @click="recordDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="submitRecordForm"
+        >
+          提交
+        </el-button>
       </template>
     </el-dialog>
   </div>

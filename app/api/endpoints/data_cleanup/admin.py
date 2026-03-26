@@ -10,7 +10,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, text
 
-from app.api.deps import get_current_user
+from app.api.deps import ADMIN_ONLY
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.logger import logger
 from app.core.response import success_response
@@ -21,7 +22,7 @@ router = APIRouter()
 @router.post("/cleanup-all")
 def cleanup_all_data(
     session: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    current_user=Depends(ADMIN_ONLY),
 ) -> Dict[str, Any]:
     try:
         results = {
@@ -84,6 +85,13 @@ def cleanup_all_data(
         total_deleted = results["energy_data"] + results["alarm_data"] + results["carbon_emission"]
         results["total_deleted"] = total_deleted
         results["status"] = "success" if len(results["errors"]) == 0 else "partial"
+        audit_log(
+            "data_cleanup.cleanup_all",
+            current_user.username,
+            "all:data",
+            total_deleted=total_deleted,
+            status=results["status"],
+        )
         logger.warning(f"⚠️ 清除所有数据完成：共清除 {total_deleted} 条记录")
         return success_response(data=results, message=f"清除完成：共删除 {total_deleted} 条记录")
     except Exception as exc:
@@ -94,7 +102,7 @@ def cleanup_all_data(
 @router.get("/stats")
 def get_cleanup_stats(
     session: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    current_user=Depends(ADMIN_ONLY),
 ) -> Dict[str, Any]:
     from app.services.data_cleanup_service import get_data_statistics
 

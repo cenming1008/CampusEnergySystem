@@ -10,6 +10,7 @@
 - [create_admin.py](/Users/todo/MineEnergySystem/scripts/python/create_admin.py)：创建管理员
 - [rebuild_database.py](/Users/todo/MineEnergySystem/scripts/python/rebuild_database.py)：重建数据库
 - [check_config.py](/Users/todo/MineEnergySystem/scripts/python/check_config.py)：检查配置
+- [evaluate_capacity_baseline.py](/Users/todo/MineEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
 
 ### 演示脚本
 
@@ -53,6 +54,9 @@ python scripts/python/simulator_unified.py
 
 # 真实设备接入
 python scripts/python/device_gateway.py
+
+# 容量基线判定
+python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/health_live.json --min-rps 20 --max-p95-ms 200 --min-success-rate 99 --expect-status-code 200
 ```
 
 ## 使用建议

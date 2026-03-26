@@ -1,0 +1,38 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Loki",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "showLabels": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{service=\"backend\"} |= ``", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Backend Application Logs",
+      "type": "logs"
+    },
+    {
+      "datasource": "Loki",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "id": 2,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "showLabels": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{service=\"nginx\"} |= ``", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Nginx Logs",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["mine", "logs", "loki"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "MineEnergySystem Logs Overview",
+  "version": 1
+}

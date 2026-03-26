@@ -7,14 +7,30 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.exceptions import AppException
+from app.core.audit import audit_log
+from app.core.exceptions import AppException, PermissionDeniedException
+from app.core.notifications import notification_service
 from app.core.response import error_response
 from app.core.logger import logger
 
 
-async def app_exception_handler(_request: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """处理自定义应用异常"""
     logger.warning(f"业务异常: {exc.code} - {exc.message}")
+    if isinstance(exc, PermissionDeniedException):
+        current_user = getattr(request.state, "current_user", None)
+        actor = getattr(current_user, "username", "anonymous")
+        actor_role = getattr(current_user, "role", None)
+        audit_log(
+            "access.denied",
+            actor,
+            request.url.path,
+            outcome="denied",
+            role=actor_role,
+            reason=exc.message,
+            code=exc.code,
+            method=request.method,
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response(
@@ -42,11 +58,18 @@ async def validation_exception_handler(
 
 
 async def sqlalchemy_exception_handler(
-    _request: Request,
+    request: Request,
     exc: SQLAlchemyError,
 ) -> JSONResponse:
     """处理数据库异常"""
     logger.error(f"数据库异常: {str(exc)}")
+    notification_service.notify(
+        event_key="database.error",
+        severity="critical",
+        title="Database error",
+        message="后端发生数据库异常",
+        details={"path": str(request.url.path), "error": str(exc)},
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=error_response(
@@ -57,11 +80,18 @@ async def sqlalchemy_exception_handler(
 
 
 async def general_exception_handler(
-    _request: Request,
+    request: Request,
     exc: Exception,
 ) -> JSONResponse:
     """处理未捕获的通用异常"""
     logger.exception(f"未处理异常: {str(exc)}")
+    notification_service.notify(
+        event_key=f"unhandled:{request.url.path}",
+        severity="critical",
+        title="Unhandled application exception",
+        message="后端发生未处理异常",
+        details={"path": str(request.url.path), "error": str(exc)},
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=error_response(
@@ -77,4 +107,3 @@ def register_exception_handlers(app):
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
-

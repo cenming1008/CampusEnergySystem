@@ -24,10 +24,10 @@ export interface DeviceAnalysis {
 // 获取单个设备的历史趋势 (默认取最近50条)
 // 注意：已修改为使用新的设备数据端点
 export function getHistory(deviceId: number, limit: number = 50) {
-  return request.get<any, DeviceData[]>(`/devices/${deviceId}/data?limit=${limit}`)
+  return request.get<never, DeviceData[]>(`/devices/${deviceId}/data?limit=${limit}`)
 }
 
 // 获取单个设备的实时分析数据 (用于仪表盘卡片)
 export function getAnalysis(deviceId: number) {
-  return request.get<any, DeviceAnalysis>(`/analysis/${deviceId}`)
+  return request.get<never, DeviceAnalysis>(`/analysis/${deviceId}`)
 }

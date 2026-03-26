@@ -4,8 +4,6 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   ArrowRight,
-  DataAnalysis,
-  Histogram,
   Key,
   Lightning,
   Lock,
@@ -47,10 +45,10 @@ const handleLogin = async () => {
     params.append('password', loginForm.password)
 
     const res = await loginApi(params)
-    authStore.setToken(res.access_token, loginForm.username)
+    authStore.setSession(res, loginForm.username)
 
     ElMessage.success('登录成功，欢迎进入系统')
-    router.push('/')
+    router.push(res.must_change_password ? '/account/security' : '/')
   } catch (error) {
     console.error(error)
   } finally {
@@ -167,7 +165,10 @@ const handleLogin = async () => {
           <p>仅限授权工业人员。安全访问会话。</p>
         </div>
 
-        <form class="auth-form" @submit.prevent="handleLogin">
+        <form
+          class="auth-form"
+          @submit.prevent="handleLogin"
+        >
           <div class="field-group">
             <label for="username">用户名</label>
             <div class="input-shell">
@@ -178,14 +179,19 @@ const handleLogin = async () => {
                 autocomplete="username"
                 placeholder="输入操作员 ID"
                 type="text"
-              />
+              >
             </div>
           </div>
 
           <div class="field-group">
             <div class="field-meta">
               <label for="password">密码</label>
-              <button class="forgot-link" type="button">忘记了？</button>
+              <button
+                class="forgot-link"
+                type="button"
+              >
+                忘记了？
+              </button>
             </div>
 
             <div class="input-shell">
@@ -196,23 +202,35 @@ const handleLogin = async () => {
                 :type="showPassword ? 'text' : 'password'"
                 autocomplete="current-password"
                 placeholder=""
-              />
-              <button class="visibility-btn" type="button" @click="showPassword = !showPassword">
+              >
+              <button
+                class="visibility-btn"
+                type="button"
+                @click="showPassword = !showPassword"
+              >
                 {{ showPassword ? '隐藏' : '显示' }}
               </button>
             </div>
           </div>
 
-          <button class="submit-btn" type="submit">
+          <button
+            class="submit-btn"
+            type="submit"
+          >
             <span>{{ loading ? '建立连接中...' : '建立连接' }}</span>
-            <el-icon class="submit-icon"><ArrowRight /></el-icon>
+            <el-icon class="submit-icon">
+              <ArrowRight />
+            </el-icon>
           </button>
 
           <div class="divider">
             <span>二次验证</span>
           </div>
 
-          <button class="card-login-btn" type="button">
+          <button
+            class="card-login-btn"
+            type="button"
+          >
             <el-icon><Key /></el-icon>
             <span>使用智能卡登录</span>
           </button>

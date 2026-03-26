@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { SuccessResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
@@ -20,7 +21,7 @@ export interface InspectionPoint {
   name: string
   location?: string
   sequence: number
-  check_items?: string
+  check_items?: string | string[]
   qr_code?: string
   is_required: boolean
   is_active: boolean
@@ -95,72 +96,77 @@ export interface InspectionStatistics {
   }
 }
 
+interface InspectionMutationResult {
+  success?: boolean
+  message?: string
+}
+
 // ==================== 巡检路线 API ====================
 
 export function getRoutes(is_active?: boolean, offset?: number, limit?: number) {
-  return request.get<any, InspectionRoute[]>('/inspection/routes', {
+  return request.get<never, InspectionRoute[]>('/inspection/routes', {
     params: { is_active, offset, limit }
   })
 }
 
 export function createRoute(data: Partial<InspectionRoute>) {
-  return request.post<any, InspectionRoute>('/inspection/routes', data)
+  return request.post<Partial<InspectionRoute>, InspectionRoute>('/inspection/routes', data)
 }
 
 export function getRoute(id: number) {
-  return request.get<any, InspectionRoute>(`/inspection/routes/${id}`)
+  return request.get<never, InspectionRoute>(`/inspection/routes/${id}`)
 }
 
 export function updateRoute(id: number, data: Partial<InspectionRoute>) {
-  return request.put<any, InspectionRoute>(`/inspection/routes/${id}`, data)
+  return request.put<Partial<InspectionRoute>, InspectionRoute>(`/inspection/routes/${id}`, data)
 }
 
 export function deleteRoute(id: number, force: boolean = false) {
-  return request.delete(`/inspection/routes/${id}`, {
+  return request.delete<never, InspectionMutationResult>(`/inspection/routes/${id}`, {
     params: { force }
   })
 }
 
 export function getRoutePoints(routeId: number) {
-  return request.get<any, InspectionPoint[]>(`/inspection/routes/${routeId}/points`)
+  return request.get<never, InspectionPoint[]>(`/inspection/routes/${routeId}/points`)
 }
 
 // ==================== 巡检点 API ====================
 
 export function createPoint(data: Partial<InspectionPoint>) {
-  return request.post<any, InspectionPoint>('/inspection/points', data)
+  return request.post<Partial<InspectionPoint>, InspectionPoint>('/inspection/points', data)
 }
 
 export function updatePoint(id: number, data: Partial<InspectionPoint>) {
-  return request.put<any, InspectionPoint>(`/inspection/points/${id}`, data)
+  return request.put<Partial<InspectionPoint>, InspectionPoint>(`/inspection/points/${id}`, data)
 }
 
 export function deletePoint(id: number) {
-  return request.delete(`/inspection/points/${id}`)
+  return request.delete<never, InspectionMutationResult>(`/inspection/points/${id}`)
 }
 
 // ==================== 巡检计划 API ====================
 
 export function getPlans(is_active?: boolean, offset?: number, limit?: number) {
-  return request.get<any, InspectionPlan[]>('/inspection/plans', {
+  return request.get<never, InspectionPlan[]>('/inspection/plans', {
     params: { is_active, offset, limit }
   })
 }
 
 export function createPlan(data: Partial<InspectionPlan>) {
-  return request.post<any, InspectionPlan>('/inspection/plans', data)
+  return request.post<Partial<InspectionPlan>, InspectionPlan>('/inspection/plans', data)
 }
 
 export function getPlan(id: number) {
-  return request.get<any, InspectionPlan>(`/inspection/plans/${id}`)
+  return request.get<never, InspectionPlan>(`/inspection/plans/${id}`)
 }
 
 export function updatePlan(id: number, data: Partial<InspectionPlan>) {
-  return request.put<any, InspectionPlan>(`/inspection/plans/${id}`, data)
+  return request.put<Partial<InspectionPlan>, InspectionPlan>(`/inspection/plans/${id}`, data)
 }
 
 export function deletePlan(id: number, force: boolean = false) {
-  return request.delete(`/inspection/plans/${id}`, {
+  return request.delete<never, InspectionMutationResult>(`/inspection/plans/${id}`, {
     params: { force }
   })
 }
@@ -174,15 +180,15 @@ export function getTasks(params?: {
   end_date?: string
   limit?: number
 }) {
-  return request.get<any, InspectionTask[]>('/inspection/tasks', { params })
+  return request.get<never, InspectionTask[]>('/inspection/tasks', { params })
 }
 
 export function getTodayTasks() {
-  return request.get<any, InspectionTask[]>('/inspection/tasks/today')
+  return request.get<never, InspectionTask[]>('/inspection/tasks/today')
 }
 
 export function getPendingTasks(limit: number = 10) {
-  return request.get<any, InspectionTask[]>('/inspection/tasks/pending', {
+  return request.get<never, InspectionTask[]>('/inspection/tasks/pending', {
     params: { limit }
   })
 }
@@ -193,27 +199,27 @@ export function createTask(data: {
   plan_id?: number
   inspector?: string
 }) {
-  return request.post<any, InspectionTask>('/inspection/tasks', data)
+  return request.post<typeof data, InspectionTask>('/inspection/tasks', data)
 }
 
 export function getTask(id: number) {
-  return request.get<any, InspectionTask>(`/inspection/tasks/${id}`)
+  return request.get<never, InspectionTask>(`/inspection/tasks/${id}`)
 }
 
 export function startTask(id: number, inspector?: string) {
-  return request.post<any, InspectionTask>(`/inspection/tasks/${id}/start`, null, {
+  return request.post<never, InspectionTask>(`/inspection/tasks/${id}/start`, null, {
     params: { inspector }
   })
 }
 
 export function completeTask(id: number, remark?: string) {
-  return request.post<any, InspectionTask>(`/inspection/tasks/${id}/complete`, null, {
+  return request.post<never, InspectionTask>(`/inspection/tasks/${id}/complete`, null, {
     params: { remark }
   })
 }
 
 export function getTaskRecords(taskId: number) {
-  return request.get<any, InspectionRecord[]>(`/inspection/tasks/${taskId}/records`)
+  return request.get<never, InspectionRecord[]>(`/inspection/tasks/${taskId}/records`)
 }
 
 // ==================== 巡检记录 API ====================
@@ -229,7 +235,7 @@ export function submitRecord(data: {
   images?: string[]
   inspector?: string
 }) {
-  return request.post<any, InspectionRecord>('/inspection/records', data)
+  return request.post<typeof data, InspectionRecord>('/inspection/records', data)
 }
 
 // ==================== 统计 API ====================
@@ -238,5 +244,7 @@ export function getStatistics(params?: {
   start_date?: string
   end_date?: string
 }) {
-  return request.get<any, { code: number; data: InspectionStatistics }>('/inspection/statistics', { params })
+  return request
+    .get<never, SuccessResponse<InspectionStatistics>>('/inspection/statistics', { params })
+    .then((response) => response.data)
 }

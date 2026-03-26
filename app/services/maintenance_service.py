@@ -2,7 +2,7 @@
 设备维护管理服务层
 封装设备维护相关的业务逻辑
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timedelta
 from sqlmodel import Session, select, func, or_, and_
 from app.core.logger import logger
@@ -129,6 +129,7 @@ class MaintenanceService:
         status: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
+        allowed_device_ids: Optional[Set[int]] = None,
         limit: int = 50,
         offset: int = 0
     ) -> List[DeviceMaintenance]:
@@ -150,6 +151,13 @@ class MaintenanceService:
         """
         statement = select(DeviceMaintenance)
         
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(
+                DeviceMaintenance.device_id.in_(allowed_device_ids)
+            )
+
         # 应用筛选条件
         if device_id:
             statement = statement.where(DeviceMaintenance.device_id == device_id)
@@ -333,6 +341,7 @@ class MaintenanceService:
     def get_device_maintenance_history(
         session: Session,
         device_id: int,
+        allowed_device_ids: Optional[Set[int]] = None,
         limit: int = 10
     ) -> List[DeviceMaintenance]:
         """
@@ -349,12 +358,14 @@ class MaintenanceService:
         return MaintenanceService.get_maintenance_list(
             session=session,
             device_id=device_id,
+            allowed_device_ids=allowed_device_ids,
             limit=limit
         )
     
     @staticmethod
     def get_upcoming_maintenance(
         session: Session,
+        allowed_device_ids: Optional[Set[int]] = None,
         days: int = 7
     ) -> List[DeviceMaintenance]:
         """
@@ -381,12 +392,20 @@ class MaintenanceService:
             )
             .order_by(DeviceMaintenance.scheduled_time)
         )
+
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(
+                DeviceMaintenance.device_id.in_(allowed_device_ids)
+            )
         
         return list(session.exec(statement).all())
     
     @staticmethod
     def get_overdue_maintenance(
-        session: Session
+        session: Session,
+        allowed_device_ids: Optional[Set[int]] = None
     ) -> List[DeviceMaintenance]:
         """
         获取逾期未完成的维护计划
@@ -409,6 +428,13 @@ class MaintenanceService:
             )
             .order_by(DeviceMaintenance.scheduled_time)
         )
+
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(
+                DeviceMaintenance.device_id.in_(allowed_device_ids)
+            )
         
         return list(session.exec(statement).all())
     
@@ -417,7 +443,8 @@ class MaintenanceService:
         session: Session,
         device_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        allowed_device_ids: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
         """
         获取维护统计信息
@@ -433,6 +460,28 @@ class MaintenanceService:
         """
         # 构建基础查询
         statement = select(DeviceMaintenance)
+
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                records = []
+                return {
+                    "total_count": 0,
+                    "status_breakdown": {status.value: 0 for status in MaintenanceStatus},
+                    "type_breakdown": {mtype.value: 0 for mtype in MaintenanceType},
+                    "cost_statistics": {
+                        "total_cost": 0,
+                        "average_cost": 0,
+                        "max_cost": 0,
+                    },
+                    "duration_statistics": {
+                        "total_duration_minutes": 0,
+                        "average_duration_minutes": 0,
+                        "completed_count": 0,
+                    },
+                }
+            statement = statement.where(
+                DeviceMaintenance.device_id.in_(allowed_device_ids)
+            )
         
         if device_id:
             statement = statement.where(DeviceMaintenance.device_id == device_id)

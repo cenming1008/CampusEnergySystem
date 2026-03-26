@@ -22,9 +22,28 @@ export interface ApiResponse<T> {
   code: string
 }
 
+interface AlarmRequestOptions {
+  silent?: boolean
+}
+
 // 获取未处理报警
-export function getAlarms(limit: number = 20) {
-  return request.get<any, Alarm[]>(`/alarms/?limit=${limit}`, { silent: true } as any)
+export function getAlarms(params: {
+  limit?: number
+  device_id?: number
+  resolved?: boolean
+  start_time?: string
+  end_time?: string
+} = {}) {
+  return request.get<never, Alarm[]>('/alarms/', {
+    params: {
+      limit: params.limit ?? 20,
+      device_id: params.device_id,
+      resolved: params.resolved,
+      start_time: params.start_time,
+      end_time: params.end_time,
+    },
+    silent: true
+  } as AlarmRequestOptions)
 }
 
 // 解决单条报警
@@ -32,10 +51,10 @@ export function resolveAlarm(alarmId: number, handlingNote?: string) {
   const params = new URLSearchParams()
   if (handlingNote?.trim()) params.set('handling_note', handlingNote.trim())
   const suffix = params.toString() ? `?${params.toString()}` : ''
-  return request.post<any, ApiResponse<{ alarm_id: number }>>(`/alarms/resolve/${alarmId}${suffix}`)
+  return request.post<never, ApiResponse<{ alarm_id: number }>>(`/alarms/resolve/${alarmId}${suffix}`)
 }
 
 // 一键解决所有报警
 export function resolveAllAlarms() {
-  return request.post<any, ApiResponse<{ count: number }>>('/alarms/resolve-all')
+  return request.post<never, ApiResponse<{ count: number }>>('/alarms/resolve-all')
 }

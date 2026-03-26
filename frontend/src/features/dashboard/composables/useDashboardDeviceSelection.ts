@@ -4,6 +4,9 @@ import { getDevices, type Device } from '@/api/device'
 export function useDashboardDeviceSelection() {
   const currentDeviceId = ref<number | undefined>(undefined)
   const deviceList = ref<Device[]>([])
+  const selectableDevices = computed(() =>
+    deviceList.value.filter((device): device is Device & { id: number } => typeof device.id === 'number')
+  )
 
   const currentDevice = computed(() =>
     deviceList.value.find((device) => device.id === currentDeviceId.value)
@@ -17,9 +20,14 @@ export function useDashboardDeviceSelection() {
       const devices = await getDevices()
       deviceList.value = devices
 
-      if (!currentDeviceId.value && devices.length > 0) {
-        const loadDevice = devices.find((device) => device.device_type === 'load')
-        currentDeviceId.value = loadDevice?.id || devices[0].id
+      const availableIds = new Set(selectableDevices.value.map((device) => device.id))
+      if (currentDeviceId.value && !availableIds.has(currentDeviceId.value)) {
+        currentDeviceId.value = undefined
+      }
+
+      if (!currentDeviceId.value && selectableDevices.value.length > 0) {
+        const loadDevice = selectableDevices.value.find((device) => device.device_type === 'load')
+        currentDeviceId.value = loadDevice?.id || selectableDevices.value[0].id
       }
 
       return devices
@@ -33,6 +41,7 @@ export function useDashboardDeviceSelection() {
     currentDeviceId,
     currentDevice,
     deviceList,
+    selectableDevices,
     totalDevices,
     onlineDevices,
     loadDeviceList

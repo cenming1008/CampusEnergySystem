@@ -246,7 +246,8 @@ class EnergyService:
         device_id: Optional[int] = None,
         energy_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
+        end_time: Optional[datetime] = None,
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> List[CarbonEmission]:
         """
         查询碳排放数据
@@ -264,6 +265,7 @@ class EnergyService:
             energy_type=energy_type,
             start_time=start_time,
             end_time=end_time,
+            allowed_device_ids=allowed_device_ids,
         )
     
     @staticmethod
@@ -273,7 +275,8 @@ class EnergyService:
         energy_type: str,
         start_time: datetime,
         end_time: datetime,
-        period_type: str = "day"
+        period_type: str = "day",
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> Dict:
         """
         计算能源统计数据
@@ -296,6 +299,7 @@ class EnergyService:
                 energy_type=energy_type,
                 start_time=start_time,
                 end_time=end_time,
+                allowed_device_ids=allowed_device_ids,
             )
         )
     
@@ -304,7 +308,8 @@ class EnergyService:
         session: Session,
         start_time: datetime,
         end_time: datetime,
-        device_id: Optional[int] = None
+        device_id: Optional[int] = None,
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> Dict:
         """
         获取碳排放汇总
@@ -324,6 +329,7 @@ class EnergyService:
                 start_time=start_time,
                 end_time=end_time,
                 device_id=device_id,
+                allowed_device_ids=allowed_device_ids,
             )
         )
     

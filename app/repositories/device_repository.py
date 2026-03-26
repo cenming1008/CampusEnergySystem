@@ -10,9 +10,10 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from app.models.tables import Device, DeviceControlLog
+from app.repositories.base import BaseRepository
 
 
-class DeviceRepository:
+class DeviceRepository(BaseRepository):
     """设备表访问仓储。"""
 
     @staticmethod
@@ -42,10 +43,7 @@ class DeviceRepository:
 
     @staticmethod
     def save(session: Session, device: Device) -> Device:
-        session.add(device)
-        session.commit()
-        session.refresh(device)
-        return device
+        return DeviceRepository.save_model(session, device)
 
     @staticmethod
     def save_control_log(
@@ -53,13 +51,7 @@ class DeviceRepository:
         control_log: DeviceControlLog,
         commit: bool = True,
     ) -> DeviceControlLog:
-        session.add(control_log)
-        if commit:
-            session.commit()
-            session.refresh(control_log)
-        else:
-            session.flush()
-        return control_log
+        return DeviceRepository.save_model(session, control_log, commit=commit)
 
     @staticmethod
     def list_control_logs(
@@ -79,5 +71,4 @@ class DeviceRepository:
 
     @staticmethod
     def delete(session: Session, device: Device) -> None:
-        session.delete(device)
-        session.commit()
+        DeviceRepository.delete_model(session, device)

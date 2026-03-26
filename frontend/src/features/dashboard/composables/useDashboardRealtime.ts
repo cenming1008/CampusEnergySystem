@@ -13,12 +13,33 @@ interface TelemetryMessage {
   }
 }
 
+interface HistoryPoint {
+  timestamp?: string
+  flow_rate?: number | null
+}
+
+function updateTrendFromHistory(
+  energyTrendData: { times: string[]; values: number[] },
+  history: HistoryPoint[]
+) {
+  if (history.length === 0) {
+    energyTrendData.times = []
+    energyTrendData.values = []
+    return
+  }
+
+  const sortedHistory = [...history].reverse()
+  energyTrendData.times = sortedHistory.map((item) => item.timestamp?.substring(11, 19) || '')
+  energyTrendData.values = sortedHistory.map((item) => Math.abs(item.flow_rate || 0))
+}
+
 export function useDashboardRealtime(options: {
   currentDeviceId: Ref<number | undefined>
   deviceList: Ref<Device[]>
   latestMessage: Ref<TelemetryMessage | null>
+  pauseRealtime?: Ref<boolean>
 }) {
-  const { currentDeviceId, deviceList, latestMessage } = options
+  const { currentDeviceId, deviceList, latestMessage, pauseRealtime } = options
 
   const realTimeData = reactive({
     power: 0,
@@ -31,6 +52,11 @@ export function useDashboardRealtime(options: {
     times: [],
     values: []
   })
+  const loading = reactive({
+    device: false,
+    trend: false
+  })
+  let requestToken = 0
 
   const isStorageDevice = computed(() => {
     const device = deviceList.value.find((item) => item.id === currentDeviceId.value)
@@ -55,9 +81,18 @@ export function useDashboardRealtime(options: {
 
   const loadDeviceData = async () => {
     if (!currentDeviceId.value) return
+    const deviceId = currentDeviceId.value
+    const token = ++requestToken
+    loading.device = true
 
     try {
-      const analysis = await getAnalysis(currentDeviceId.value)
+      const [analysis, history] = await Promise.all([
+        getAnalysis(deviceId),
+        getHistory(deviceId, 100)
+      ])
+
+      if (token !== requestToken || currentDeviceId.value !== deviceId) return
+
       updateRealtimeMetrics({
         power: analysis.current_power || 0,
         energy: analysis.today_energy || 0,
@@ -65,9 +100,19 @@ export function useDashboardRealtime(options: {
         voltage: analysis.voltage || 0
       })
 
-      await loadEnergyTrend()
+      loading.trend = true
+      updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
     } catch (error) {
       console.error('加载设备数据失败:', error)
+      if (token === requestToken) {
+        energyTrendData.times = []
+        energyTrendData.values = []
+      }
+    } finally {
+      if (token === requestToken) {
+        loading.device = false
+        loading.trend = false
+      }
     }
   }
 
@@ -75,22 +120,18 @@ export function useDashboardRealtime(options: {
     if (!currentDeviceId.value) return
 
     try {
+      loading.trend = true
       const history = await getHistory(currentDeviceId.value, 100)
-
-      if (history && history.length > 0) {
-        const sortedHistory = [...history].reverse()
-        energyTrendData.times = sortedHistory.map((item: any) => item.timestamp?.substring(11, 19) || '')
-        energyTrendData.values = sortedHistory.map((item: any) => Math.abs(item.flow_rate || 0))
-      } else {
-        energyTrendData.times = []
-        energyTrendData.values = []
-      }
+      updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
     } catch (error) {
       console.error('加载负荷曲线失败:', error)
+    } finally {
+      loading.trend = false
     }
   }
 
   watch(latestMessage, (message) => {
+    if (pauseRealtime?.value) return
     if (message?.type !== 'telemetry_update' || !message.data) return
 
     if (message.data.device_id !== currentDeviceId.value) return
@@ -119,6 +160,7 @@ export function useDashboardRealtime(options: {
     displayPower,
     energyTrendData,
     isStorageDevice,
+    loading,
     realTimeData,
     storageStatus,
     loadDeviceData,

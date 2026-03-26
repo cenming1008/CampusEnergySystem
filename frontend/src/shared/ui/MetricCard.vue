@@ -12,24 +12,43 @@ defineProps<{
 </script>
 
 <template>
-  <div class="metric-card" :class="accent || 'cyan'">
-    <div class="metric-card__bg"></div>
+  <div
+    class="metric-card"
+    :class="accent || 'cyan'"
+  >
+    <div class="metric-card__bg" />
     <div class="metric-card__content">
-      <div class="metric-card__icon">{{ icon }}</div>
+      <div class="metric-card__icon">
+        {{ icon }}
+      </div>
       <div class="metric-card__info">
         <div class="metric-card__label">
           <span>{{ label }}</span>
-          <span v-if="badge" class="metric-card__badge">{{ badge }}</span>
+          <span
+            v-if="badge"
+            class="metric-card__badge"
+          >{{ badge }}</span>
         </div>
         <div class="metric-card__value">
           {{ value }}
           <small v-if="unit">{{ unit }}</small>
         </div>
-        <div v-if="meta" class="metric-card__meta">{{ meta }}</div>
+        <div
+          v-if="meta"
+          class="metric-card__meta"
+        >
+          {{ meta }}
+        </div>
       </div>
     </div>
-    <div v-if="progress !== undefined" class="metric-card__bar">
-      <div class="metric-card__bar-fill" :style="{ width: `${Math.max(0, Math.min(progress, 100))}%` }"></div>
+    <div
+      v-if="progress !== undefined"
+      class="metric-card__bar"
+    >
+      <div
+        class="metric-card__bar-fill"
+        :style="{ width: `${Math.max(0, Math.min(progress, 100))}%` }"
+      />
     </div>
   </div>
 </template>

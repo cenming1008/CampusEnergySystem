@@ -1,0 +1,73 @@
+name: backend-ci
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: |
+          PYTHONPYCACHEPREFIX=/tmp python -m compileall -q app tests scripts/python migrations
+
+      - name: Development config check
+        run: |
+          cp env.example .env
+          python scripts/python/check_config.py
+
+      - name: Production readiness check
+        run: |
+          python scripts/python/check_production_readiness.py --env-file env.prod.example
+
+      - name: Validate migrations
+        run: |
+          alembic upgrade head --sql >/tmp/alembic_upgrade.sql
+          test -s /tmp/alembic_upgrade.sql
+
+      - name: Run backend tests with coverage
+        run: |
+          python -m coverage run -m unittest discover -s tests -p 'test_*.py'
+          python -m coverage report --fail-under=50
+          python -m coverage xml
+
+      - name: Build backend image
+        run: |
+          docker build -t mineenergysystem-backend:ci .
+
+      - name: Validate production compose
+        run: |
+          docker compose -f docker-compose.prod.yml --env-file env.prod.example config >/tmp/mine_compose_config.out
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: mineenergysystem-backend:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      - name: Upload coverage xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-xml
+          path: coverage.xml

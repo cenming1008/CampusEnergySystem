@@ -8,10 +8,25 @@ defineProps<{
 </script>
 
 <template>
-  <div class="stat-tile" :class="tone || 'cyan'">
-    <div class="stat-tile__value" :class="{ 'stat-tile__value--compact': String(value).length > 8 }">{{ value }}</div>
-    <div class="stat-tile__label">{{ label }}</div>
-    <div v-if="caption" class="stat-tile__caption">{{ caption }}</div>
+  <div
+    class="stat-tile"
+    :class="tone || 'cyan'"
+  >
+    <div
+      class="stat-tile__value"
+      :class="{ 'stat-tile__value--compact': String(value).length > 8 }"
+    >
+      {{ value }}
+    </div>
+    <div class="stat-tile__label">
+      {{ label }}
+    </div>
+    <div
+      v-if="caption"
+      class="stat-tile__caption"
+    >
+      {{ caption }}
+    </div>
   </div>
 </template>
 

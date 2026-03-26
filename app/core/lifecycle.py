@@ -18,6 +18,7 @@ from app.core.redis import RedisClient
 from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.core.socket_manager import manager
+from app.core.startup_checks import validate_runtime_configuration
 from app.services.mqtt_worker import start_mqtt_background
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
@@ -46,6 +47,7 @@ async def startup() -> None:
     _event_loop = asyncio.get_running_loop()
 
     logger.info("🚀 应用启动中...")
+    validate_runtime_configuration(settings)
     init_db()
     runtime_state.mark_service("database", "healthy", "initialized")
     logger.info("✅ 数据库初始化完成")

@@ -10,14 +10,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
+from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN, get_current_user
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
 from app.application.energy_management import (
     get_energy_statistics_use_case,
     save_energy_data_use_case,
 )
+from app.core.access_control import ensure_device_access, get_allowed_device_ids
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
-from app.models.tables import EnergyData
+from app.models.tables import EnergyData, User
 from app.services.energy_service import EnergyService
 
 from .shared import EnergyDataCreate, EnergyStatisticsResponse, extract_optional_energy_fields
@@ -29,9 +32,11 @@ router = APIRouter()
 def save_energy_data(
     data: EnergyDataCreate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
 ):
     try:
-        return save_energy_data_use_case(
+        ensure_device_access(session, current_user, data.device_id)
+        result = save_energy_data_use_case(
             session=session,
             device_id=data.device_id,
             energy_type=data.energy_type,
@@ -40,6 +45,14 @@ def save_energy_data(
             timestamp=data.timestamp,
             **extract_optional_energy_fields(data),
         )
+        audit_log(
+            "energy.save_data",
+            current_user.username,
+            f"device:{data.device_id}",
+            energy_type=data.energy_type,
+            role=current_user.role,
+        )
+        return result
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
     except Exception as exc:
@@ -55,7 +68,9 @@ def get_energy_data(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     limit: int = Query(1000, ge=1, le=10000, description="返回条数限制"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    ensure_device_access(session, current_user, device_id)
     return EnergyService.get_energy_data(
         session=session,
         device_id=device_id,
@@ -74,7 +89,10 @@ def get_energy_statistics(
     device_id: Optional[int] = Query(None, description="设备ID，不传则系统级统计"),
     period_type: str = Query("day", description="统计周期: hour/day/month/year"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
     return get_energy_statistics_use_case(
         session=session,
         device_id=device_id,
@@ -82,6 +100,7 @@ def get_energy_statistics(
         start_time=start_time,
         end_time=end_time,
         period_type=period_type,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
     )
 
 

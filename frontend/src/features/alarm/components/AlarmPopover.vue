@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
 
+const router = useRouter()
 const { alarmCount, alarmList, clearAlarms } = useAlarmPolling()
 
 const formatTime = (timestamp: string) => {
@@ -45,8 +47,15 @@ const formatTime = (timestamp: string) => {
   >
     <template #reference>
       <div class="tool-item alarm-wrapper">
-        <el-badge :value="alarmCount" :hidden="alarmCount === 0" class="item">
-          <el-button circle :class="{ 'has-alarm': alarmCount > 0 }">
+        <el-badge
+          :value="alarmCount"
+          :hidden="alarmCount === 0"
+          class="item"
+        >
+          <el-button
+            circle
+            :class="{ 'has-alarm': alarmCount > 0 }"
+          >
             <el-icon><Bell /></el-icon>
           </el-button>
         </el-badge>
@@ -54,18 +63,50 @@ const formatTime = (timestamp: string) => {
     </template>
 
     <div class="alarm-list">
-      <div v-if="alarmList.length === 0" class="empty-alarm">
+      <div
+        v-if="alarmList.length === 0"
+        class="empty-alarm"
+      >
         系统运行正常
       </div>
-      <div v-else v-for="alarm in alarmList" :key="alarm.id" class="alarm-item">
-        <el-icon color="#ef4444"><Warning /></el-icon>
+      <div
+        v-for="alarm in alarmList"
+        v-else
+        :key="alarm.id"
+        class="alarm-item"
+      >
+        <el-icon color="#ef4444">
+          <Warning />
+        </el-icon>
         <div class="alarm-content">
-          <div class="msg">{{ alarm.message }}</div>
-          <div class="time">{{ formatTime(alarm.timestamp) }}</div>
+          <div class="msg">
+            {{ alarm.message }}
+          </div>
+          <div class="time">
+            {{ formatTime(alarm.timestamp) }}
+          </div>
         </div>
       </div>
-      <div v-if="alarmList.length > 0" class="alarm-footer">
-        <el-button type="primary" link size="small" @click="clearAlarms">全部清除</el-button>
+      <div
+        v-if="alarmList.length > 0"
+        class="alarm-footer"
+      >
+        <el-button
+          type="primary"
+          link
+          size="small"
+          @click="clearAlarms"
+        >
+          全部清除
+        </el-button>
+        <el-button
+          type="primary"
+          link
+          size="small"
+          @click="router.push('/alarms')"
+        >
+          查看全部
+        </el-button>
       </div>
     </div>
   </el-popover>

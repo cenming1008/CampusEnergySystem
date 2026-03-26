@@ -1,10 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ElNotification } from 'element-plus'
+import { useAuthStore } from '@/stores/useAuthStore'
+
+interface SocketTelemetryPayload {
+  device_id?: number
+  power?: number
+  current?: number
+  voltage?: number
+  timestamp?: string
+}
+
+export interface SocketMessage {
+  type?: string
+  data?: SocketTelemetryPayload
+}
 
 export const useSocketStore = defineStore('socket', () => {
   const isConnected = ref(false)
-  const latestMessage = ref<any>(null) // 存放最新收到的遥测数据
+  const latestMessage = ref<SocketMessage | null>(null) // 存放最新收到的遥测数据
   let ws: WebSocket | null = null
   let retryCount = 0
   let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -12,6 +26,12 @@ export const useSocketStore = defineStore('socket', () => {
   let useDirectConnection = false // 是否使用直接连接（绕过 Vite 代理）
 
   function connect() {
+    const authStore = useAuthStore()
+    if (!authStore.token) {
+      console.warn('⚠️ [WebSocket] 当前无 access token，跳过连接')
+      return
+    }
+
     // 检查是否已有连接且处于连接中或已连接状态
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
       console.log('⚠️ [WebSocket] 连接已存在，跳过重复连接')
@@ -37,7 +57,7 @@ export const useSocketStore = defineStore('socket', () => {
     // WebSocket 连接地址
     // 开发环境：优先通过 Vite 代理连接，失败则直接连接后端
     // 生产环境：直接连接后端
-    const isDev = (import.meta as any).env.DEV
+    const isDev = import.meta.env.DEV
     let wsUrl: string
     
     if (isDev) {
@@ -67,8 +87,11 @@ export const useSocketStore = defineStore('socket', () => {
       href: window.location.href
     })
     
+    const separator = wsUrl.includes('?') ? '&' : '?'
+    const authenticatedWsUrl = `${wsUrl}${separator}access_token=${encodeURIComponent(authStore.token)}`
+
     try {
-      ws = new WebSocket(wsUrl)
+      ws = new WebSocket(authenticatedWsUrl)
 
       ws.onopen = () => {
         console.log('✅ [WebSocket] 连接成功')
@@ -92,12 +115,12 @@ export const useSocketStore = defineStore('socket', () => {
 
       ws.onerror = (error) => {
         console.error('❌ [WebSocket] 连接错误:', error)
-        console.error('连接地址:', wsUrl)
+        console.error('连接地址:', authenticatedWsUrl)
         console.error('WebSocket 状态:', ws?.readyState)
         console.error('提示: 请确认后端服务运行在 http://localhost:8088')
         
         // 开发环境下，如果通过代理连接失败，尝试直接连接后端
-        const isDev = (import.meta as any).env.DEV
+        const isDev = import.meta.env.DEV
         if (isDev && retryCount === 0 && wsUrl.includes(window.location.host)) {
           console.warn('⚠️ [WebSocket] Vite 代理连接失败，将在重连时尝试直接连接后端')
         }
@@ -139,7 +162,7 @@ export const useSocketStore = defineStore('socket', () => {
         console.log(`   Code: ${closeCode}${closeCode === 1006 ? ' (异常关闭，通常表示连接失败)' : ''}`)
         console.log(`   Reason: ${closeReason}`)
         console.log(`   WasClean: ${wasClean}`)
-        console.log(`   连接地址: ${wsUrl}`)
+        console.log(`   连接地址: ${authenticatedWsUrl}`)
         
         // 常见错误代码说明
         if (closeCode === 1006) {
@@ -167,7 +190,7 @@ export const useSocketStore = defineStore('socket', () => {
           const delay = Math.min(3000 * retryCount, 10000) // 递增延迟，最多10秒
           
           // 开发环境下，如果代理连接失败，尝试直接连接后端
-          const isDev = (import.meta as any).env.DEV
+          const isDev = import.meta.env.DEV
           if (isDev && retryCount === 2 && !useDirectConnection) {
             console.warn('⚠️ [WebSocket] Vite 代理连接失败，切换到直接连接后端')
             useDirectConnection = true // 切换到直接连接

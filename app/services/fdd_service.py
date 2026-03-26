@@ -2,6 +2,8 @@
 故障诊断服务层
 封装故障诊断相关的业务逻辑
 """
+from __future__ import annotations
+
 from typing import List, Dict, Any, Tuple
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
@@ -61,8 +63,10 @@ class FDDService:
             "suggestions": suggestions
         }
 
-    @staticmethod
-    def get_fault_diagnosis_stats(session: Session) -> List[Dict[str, Any]]:
+    def get_fault_diagnosis_stats(
+        session: Session,
+        allowed_device_ids: set[int] | None = None,
+    ) -> List[Dict[str, Any]]:
         """
         获取所有设备的故障诊断统计信息
         
@@ -86,7 +90,12 @@ class FDDService:
         alarm_counts_rows = session.exec(alarm_counts_stmt).all()
         alarm_by_device = {row[0]: row[1] for row in alarm_counts_rows}
 
-        devices = session.exec(select(Device)).all()
+        devices_statement = select(Device)
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            devices_statement = devices_statement.where(Device.id.in_(allowed_device_ids))
+        devices = session.exec(devices_statement).all()
         results = []
         for device in devices:
             alarm_count = alarm_by_device.get(device.id, 0)

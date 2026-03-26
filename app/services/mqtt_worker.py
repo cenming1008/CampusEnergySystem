@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional
 import paho.mqtt.client as mqtt
 
 from app.core.logger import logger
+from app.core.notifications import notification_service
 from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.integrations.mqtt import process_payload
@@ -52,6 +53,13 @@ def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) 
     except Exception as e:
         runtime_state.mark_service("mqtt", "unhealthy", str(e))
         logger.error(f"MQTT connect failed: {e}")
+        notification_service.notify(
+            event_key="mqtt.connect_failed",
+            severity="critical",
+            title="MQTT connection failed",
+            message="MQTT 后台连接失败",
+            details={"broker": settings.mqtt_broker, "port": settings.mqtt_port, "error": str(e)},
+        )
         return False
 
 

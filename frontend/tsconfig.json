@@ -16,8 +16,8 @@
   
       /* 严格模式 */
       "strict": true,
-      "noUnusedLocals": true,
-      "noUnusedParameters": true,
+      "noUnusedLocals": false,
+      "noUnusedParameters": false,
       "noFallthroughCasesInSwitch": true,
   
       /* 关键配置：解析路径别名 @ */

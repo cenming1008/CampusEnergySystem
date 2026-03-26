@@ -10,17 +10,20 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
+from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN, get_current_user
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
 from app.application.device_reporting import (
     get_device_data_use_case,
     get_device_statistics_use_case,
     report_device_data_use_case,
 )
+from app.core.access_control import ensure_device_access
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.response import success_response
-from app.models.tables import EnergyData
 from app.core.settings import settings
+from app.models.tables import EnergyData, User
 
 from .shared import DeviceDataReportRequest
 
@@ -32,6 +35,7 @@ def report_device_data(
     device_id: int,
     req: DeviceDataReportRequest,
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
     _: None = Depends(
         limit_requests(
             bucket="device-report",
@@ -41,12 +45,20 @@ def report_device_data(
     ),
 ):
     try:
-        return report_device_data_use_case(
+        ensure_device_access(session, current_user, device_id)
+        result = report_device_data_use_case(
             session=session,
             device_id=device_id,
             data=req.model_dump(exclude_none=True),
             timestamp=req.timestamp,
         )
+        audit_log(
+            "device.report_data",
+            current_user.username,
+            f"device:{device_id}",
+            role=current_user.role,
+        )
+        return result
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
     except Exception as exc:
@@ -61,7 +73,9 @@ def get_device_data(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     limit: int = Query(1000, ge=1, le=10000, description="返回条数限制"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    ensure_device_access(session, current_user, device_id)
     return get_device_data_use_case(
         session=session,
         device_id=device_id,
@@ -78,7 +92,9 @@ def get_device_statistics(
     end_time: datetime = Query(..., description="结束时间"),
     period_type: str = Query("day", description="统计周期: hour/day/month/year"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    ensure_device_access(session, current_user, device_id)
     stats = get_device_statistics_use_case(
         session=session,
         device_id=device_id,

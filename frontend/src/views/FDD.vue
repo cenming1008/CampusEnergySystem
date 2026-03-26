@@ -1,19 +1,64 @@
 <script setup lang="ts">
-    import { ref, onMounted, onUnmounted } from 'vue'
-    import * as echarts from 'echarts'
-    import { getFDDStats, diagnoseDevice, type FDDReport, type FDDDiagnosis } from '@/api/fdd'
-    import { Refresh, View, Loading } from '@element-plus/icons-vue'
-    import { ElMessage } from 'element-plus'
+	    import { computed, ref, onMounted, onUnmounted } from 'vue'
+	    import { echarts } from '@/shared/lib/echarts'
+	    import { getFDDStats, diagnoseDevice, type FDDReport, type FDDDiagnosis } from '@/api/fdd'
+	    import { Refresh, Loading } from '@element-plus/icons-vue'
+	    import { ElMessage } from 'element-plus'
+	    import { useAuthStore } from '@/stores/useAuthStore'
+	    import { usePermissions } from '@/shared/composables/usePermissions'
+
+    interface ChartTooltipItem {
+      dataIndex: number
+    }
+
+    interface ChartBarColorParam {
+      value: number
+    }
+
+    interface ChartClickParam {
+      componentType?: string
+      seriesName?: string
+      dataIndex: number
+    }
+
+    const getErrorMessage = (error: unknown, fallback: string) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof error.response === 'object' &&
+        error.response !== null &&
+        'data' in error.response &&
+        typeof error.response.data === 'object' &&
+        error.response.data !== null &&
+        'detail' in error.response.data &&
+        typeof error.response.data.detail === 'string'
+      ) {
+        return error.response.data.detail
+      }
+
+      if (error instanceof Error && error.message) return error.message
+      return fallback
+    }
     
     const chartRef = ref<HTMLElement>()
     let myChart: echarts.ECharts | null = null
     const loading = ref(false)
-    const diagnosisLoading = ref(false)
+	    const diagnosisLoading = ref(false)
+	    const authStore = useAuthStore()
+	    const { hasScopedAccess } = usePermissions()
     
     // 设备详细诊断相关
     const showDiagnosisDialog = ref(false)
     const currentDiagnosis = ref<FDDDiagnosis | null>(null)
-    const deviceList = ref<FDDReport[]>([])
+	    const deviceList = ref<FDDReport[]>([])
+	    const visibleDeviceCount = computed(() => deviceList.value.length)
+	    const fddHint = computed(() => {
+	      if (!authStore.locationScope) {
+	        return '当前诊断面板展示的是当前账号可访问的全部设备健康情况。'
+	      }
+	      return `当前诊断面板已按位置范围 ${authStore.locationScope} 过滤，仅显示允许访问的设备。`
+	    })
     
     // --- 初始化图表 ---
     const initChart = async () => {
@@ -43,7 +88,7 @@
           tooltip: { 
             trigger: 'axis', 
             axisPointer: { type: 'shadow' },
-            formatter: (params: any) => {
+            formatter: (params: ChartTooltipItem[]) => {
               const dataIndex = params[0].dataIndex
               const device = data[dataIndex]
               return `${device.device_name}<br/>健康评分: ${device.health_score}分<br/>报警次数: ${device.alarm_count}次<br/>状态: ${getStatusText(device.status)}<br/><span style="color: #94a3b8; font-size: 12px;">点击查看详细诊断</span>`
@@ -70,7 +115,7 @@
               label: { show: true, position: 'right', color: '#fff' },
               itemStyle: { 
                 // 动态颜色：根据分数变色
-                color: (params: any) => {
+                color: (params: ChartBarColorParam) => {
                   const val = params.value
                   if (val > 80) return '#10b981' // 绿
                   if (val > 60) return '#f59e0b' // 黄
@@ -100,11 +145,11 @@
     }
     
     // --- 图表点击事件 ---
-    const handleChartClick = async (params: any) => {
+    const handleChartClick = (params: ChartClickParam) => {
       if (params.componentType === 'series' && params.seriesName === '健康评分') {
         const device = deviceList.value[params.dataIndex]
         if (device) {
-          await showDeviceDiagnosis(device.device_id)
+          void showDeviceDiagnosis(device.device_id)
         }
       }
     }
@@ -116,8 +161,8 @@
         const diagnosis = await diagnoseDevice(deviceId)
         currentDiagnosis.value = diagnosis
         showDiagnosisDialog.value = true
-      } catch (e: any) {
-        ElMessage.error(e?.response?.data?.detail || '获取设备诊断详情失败')
+      } catch (error) {
+        ElMessage.error(getErrorMessage(error, '获取设备诊断详情失败'))
       } finally {
         diagnosisLoading.value = false
       }
@@ -154,54 +199,105 @@
     })
     </script>
     
-    <template>
-      <div class="fdd-container">
-        <div class="header">
-          <div class="title-area">
-            <h2 class="title">设备健康度诊断 (FDD)</h2>
-            <p class="subtitle">基于报警频率的健康评分模型 - 点击图表查看设备详细诊断</p>
-          </div>
-          <el-button :icon="Refresh" circle @click="initChart" :loading="loading" />
+<template>
+  <div class="fdd-container">
+    <div class="header">
+      <div class="title-area">
+        <h2 class="title">
+          设备健康度诊断 (FDD)
+        </h2>
+        <p class="subtitle">
+          基于报警频率的健康评分模型 - 点击图表查看设备详细诊断
+        </p>
+        <div class="meta-row">
+          <el-tag
+            size="small"
+            effect="dark"
+            type="info"
+          >
+            当前设备 {{ visibleDeviceCount }} 台
+          </el-tag>
+          <el-tag
+            v-if="hasScopedAccess"
+            size="small"
+            effect="dark"
+            type="warning"
+          >
+            诊断范围受限
+          </el-tag>
         </div>
-    
-        <div class="chart-wrapper">
-          <div ref="chartRef" class="chart-box"></div>
-        </div>
-        
-        <!-- 设备详细诊断对话框 -->
-        <el-dialog
-          v-model="showDiagnosisDialog"
-          title="设备详细诊断"
-          width="600px"
-          :close-on-click-modal="false"
-        >
-          <div v-if="diagnosisLoading" class="loading-container">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <span>正在分析设备数据...</span>
-          </div>
-          <div v-else-if="currentDiagnosis" class="diagnosis-content">
-            <div class="device-info">
-              <h3>{{ currentDiagnosis.device_name }}</h3>
-              <div class="score-display">
-                <span class="score-label">健康分数：</span>
-                <span class="score-value" :style="{ color: getScoreColor(currentDiagnosis.health_score) }">
-                  {{ currentDiagnosis.health_score }} 分
-                </span>
-              </div>
-            </div>
-            
-            <div class="suggestions-section">
-              <h4>诊断建议：</h4>
-              <ul class="suggestions-list">
-                <li v-for="(suggestion, index) in currentDiagnosis.suggestions" :key="index">
-                  {{ suggestion }}
-                </li>
-              </ul>
-            </div>
-          </div>
-        </el-dialog>
       </div>
-    </template>
+      <el-button
+        :icon="Refresh"
+        circle
+        :loading="loading"
+        @click="initChart"
+      />
+    </div>
+
+    <el-alert
+      :title="fddHint"
+      :type="hasScopedAccess ? 'warning' : 'info'"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px;"
+    />
+	    
+    <div class="chart-wrapper">
+      <div
+        ref="chartRef"
+        class="chart-box"
+      />
+    </div>
+        
+    <!-- 设备详细诊断对话框 -->
+    <el-dialog
+      v-model="showDiagnosisDialog"
+      title="设备详细诊断"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div
+        v-if="diagnosisLoading"
+        class="loading-container"
+      >
+        <el-icon class="is-loading">
+          <Loading />
+        </el-icon>
+        <span>正在分析设备数据...</span>
+      </div>
+      <div
+        v-else-if="currentDiagnosis"
+        class="diagnosis-content"
+      >
+        <div class="device-info">
+          <h3>{{ currentDiagnosis.device_name }}</h3>
+          <div class="score-display">
+            <span class="score-label">健康分数：</span>
+            <span
+              class="score-value"
+              :style="{ color: getScoreColor(currentDiagnosis.health_score) }"
+            >
+              {{ currentDiagnosis.health_score }} 分
+            </span>
+          </div>
+        </div>
+            
+        <div class="suggestions-section">
+          <h4>诊断建议：</h4>
+          <ul class="suggestions-list">
+            <li
+              v-for="(suggestion, index) in currentDiagnosis.suggestions"
+              :key="index"
+            >
+              {{ suggestion }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </el-dialog>
+  </div>
+</template>
     
     <style scoped>
     .fdd-container {
@@ -224,7 +320,8 @@
     }
     
     .title { margin: 0; color: #fff; font-size: 18px; border-left: 4px solid var(--brand-color); padding-left: 10px; }
-    .subtitle { margin: 5px 0 0 14px; color: var(--text-secondary); font-size: 13px; }
+	    .subtitle { margin: 5px 0 0 14px; color: var(--text-secondary); font-size: 13px; }
+	    .meta-row { margin: 10px 0 0 14px; display: flex; gap: 8px; flex-wrap: wrap; }
     
     .chart-wrapper {
       flex: 1;

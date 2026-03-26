@@ -18,6 +18,12 @@ const router = createRouter({
       redirect: '/dashboard',
       children: [
         {
+          path: 'account/security',
+          name: 'AccountSecurity',
+          component: () => import('@/views/AccountSecurity.vue'),
+          meta: { title: '账户安全' }
+        },
+        {
           path: 'dashboard',
           name: 'Dashboard',
           component: () => import('@/views/Dashboard.vue'),
@@ -52,6 +58,12 @@ const router = createRouter({
           name: 'Groups',
           component: () => import('@/views/DeviceGroups.vue'),
           meta: { title: '设备分组' }
+        },
+        {
+          path: 'alarms',
+          name: 'Alarms',
+          component: () => import('@/views/AlarmCenter.vue'),
+          meta: { title: '告警中心' }
         },
         {
           path: 'energy',
@@ -93,18 +105,31 @@ const router = createRouter({
           path: 'settings',
           name: 'Settings',
           component: () => import('@/views/SystemSettings.vue'),
-          meta: { title: '系统设置' }
+          meta: { title: '系统设置', roles: ['admin'] }
+        },
+        {
+          path: 'users',
+          name: 'Users',
+          component: () => import('@/views/UserManagement.vue'),
+          meta: { title: '用户管理', roles: ['admin'] }
+        },
+        {
+          path: 'audit',
+          name: 'Audit',
+          component: () => import('@/views/AuditCenter.vue'),
+          meta: { title: '审计日志', roles: ['admin'] }
         }
       ]
     },
-    // 404 页面 - 所有未匹配的路径都重定向到首页
+    {
+      path: '/403',
+      name: 'Forbidden',
+      component: () => import('@/views/Forbidden.vue')
+    },
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      redirect: () => {
-        // 由路由守卫判断是否需要登录
-        return { path: '/' }
-      }
+      component: () => import('@/views/NotFound.vue')
     }
   ]
 })
@@ -124,7 +149,16 @@ router.beforeEach((to, _from, next) => {
     // 没登录，强制去登录页
     next({ name: 'Login' })
   } else {
-    // 已登录，放行
+    const routeRoles = to.meta.roles as string[] | undefined
+    const currentRole = authStore.role?.toLowerCase()
+    if (authStore.mustChangePassword && to.name !== 'AccountSecurity') {
+      next({ name: 'AccountSecurity' })
+      return
+    }
+    if (routeRoles?.length && (!currentRole || !routeRoles.includes(currentRole))) {
+      next({ name: 'Forbidden' })
+      return
+    }
     next()
   }
 })

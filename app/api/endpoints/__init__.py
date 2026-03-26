@@ -2,6 +2,7 @@
 API端点模块
 """
 from app.api.endpoints import (
+    audit,
     auth,
     devices,
     alarms,
@@ -13,6 +14,7 @@ from app.api.endpoints import (
     data_generator,
     energy,
     maintenance,
+    users,
     locations,
     device_groups,
     data_cleanup,
@@ -20,6 +22,7 @@ from app.api.endpoints import (
 )
 
 __all__ = [
+    "audit",
     "auth",
     "devices",
     "alarms",
@@ -31,9 +34,9 @@ __all__ = [
     "data_generator",
     "energy",
     "maintenance",
+    "users",
     "locations",
     "device_groups",
     "data_cleanup",
     "inspection",
 ]
-

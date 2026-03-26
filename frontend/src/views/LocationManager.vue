@@ -3,14 +3,18 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getLocations,
+  getRootLocations,
   getLocationTypes,
   getLocationTree,
   createLocation,
   updateLocation,
   deleteLocation,
+  getLocationDetail,
   getLocationDevices,
+  getChildLocations,
   assignDeviceToLocation,
   getLocationStatistics,
+  searchLocations,
   type Location,
   type LocationTreeNode,
   type LocationTypeInfo,
@@ -18,16 +22,23 @@ import {
   type LocationStatistics
 } from '@/api/location'
 import { getDevices, type Device } from '@/api/device'
+import { usePermissions } from '@/shared/composables/usePermissions'
 
 // --- 状态 ---
 const loading = ref(false)
 const locationList = ref<Location[]>([])
 const locationTree = ref<LocationTreeNode[]>([])
+const rootLocations = ref<Location[]>([])
 const typeList = ref<LocationTypeInfo[]>([])
 const deviceList = ref<Device[]>([])
 const selectedLocation = ref<Location | null>(null)
 const locationDevices = ref<Device[]>([])
 const locationStats = ref<LocationStatistics | null>(null)
+const childLocations = ref<Location[]>([])
+const searchKeyword = ref('')
+const searchResults = ref<Location[]>([])
+const rootsOnly = ref(false)
+const { canManageLocations, hasScopedAccess } = usePermissions()
 
 // 对话框状态
 const dialogVisible = ref(false)
@@ -79,13 +90,15 @@ const typeIcon = (type: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const [list, tree, types] = await Promise.all([
+    const [list, tree, types, roots] = await Promise.all([
       getLocations(),
       getLocationTree(),
-      getLocationTypes()
+      getLocationTypes(),
+      getRootLocations()
     ])
-    locationList.value = list
-    locationTree.value = tree.data || []
+    locationList.value = rootsOnly.value ? roots : list
+    locationTree.value = rootsOnly.value ? (tree.data || []).filter((item) => item.parent_id == null) : (tree.data || [])
+    rootLocations.value = roots
     typeList.value = types.data || []
   } catch (e) {
     console.error('加载位置数据失败:', e)
@@ -104,17 +117,39 @@ const loadDevices = async () => {
 }
 
 const handleNodeClick = async (data: LocationTreeNode) => {
-  selectedLocation.value = data
+  selectedLocation.value = await getLocationDetail(data.id)
   try {
-    const [devices, stats] = await Promise.all([
+    const [devices, stats, children] = await Promise.all([
       getLocationDevices(data.id),
-      getLocationStatistics(data.id)
+      getLocationStatistics(data.id),
+      getChildLocations(data.id)
     ])
     locationDevices.value = devices
     locationStats.value = stats.data || null
+    childLocations.value = children
   } catch (e) {
     console.error('加载位置详情失败:', e)
   }
+}
+
+const handleSearch = async () => {
+  if (!searchKeyword.value.trim()) {
+    searchResults.value = []
+    return
+  }
+  try {
+    searchResults.value = await searchLocations(searchKeyword.value.trim())
+  } catch (error) {
+    ElMessage.error('搜索位置失败')
+  }
+}
+
+const selectSearchResult = async (location: Location) => {
+  await handleNodeClick({
+    ...location,
+    children: []
+  })
+  searchResults.value = []
 }
 
 const openCreateDialog = (parentId?: number) => {
@@ -176,8 +211,8 @@ const handleDelete = async (location: Location) => {
     locationDevices.value = []
     locationStats.value = null
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') {
+  } catch (error) {
+    if (error !== 'cancel') {
       ElMessage.error('删除失败，可能存在子位置或关联设备')
     }
   }
@@ -189,7 +224,7 @@ const openAssignDialog = () => {
 }
 
 const handleAssignDevice = async () => {
-  if (!selectedDeviceId.value || !selectedLocation.value) {
+  if (selectedDeviceId.value == null || !selectedLocation.value) {
     ElMessage.warning('请选择设备')
     return
   }
@@ -215,8 +250,22 @@ onMounted(async () => {
 <template>
   <div class="location-page">
     <div class="page-header">
-      <h2>位置管理</h2>
-      <el-button type="primary" @click="openCreateDialog()">
+      <div>
+        <h2>位置管理</h2>
+        <el-tag
+          v-if="hasScopedAccess"
+          size="small"
+          type="warning"
+          effect="dark"
+        >
+          当前视图受位置范围限制
+        </el-tag>
+      </div>
+      <el-button
+        v-if="canManageLocations"
+        type="primary"
+        @click="openCreateDialog()"
+      >
         <el-icon><Plus /></el-icon>新建位置
       </el-button>
     </div>
@@ -226,9 +275,43 @@ onMounted(async () => {
       <div class="tree-panel">
         <div class="panel-header">
           <span>位置层级</span>
-          <el-button text size="small" @click="loadData">
-            <el-icon><Refresh /></el-icon>
-          </el-button>
+          <div class="panel-tools">
+            <el-switch
+              v-model="rootsOnly"
+              active-text="仅顶级"
+              @change="loadData"
+            />
+            <el-button
+              text
+              size="small"
+              @click="loadData"
+            >
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </div>
+        </div>
+        <div class="search-box">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索位置名称/编码"
+            clearable
+            @change="handleSearch"
+          />
+          <div
+            v-if="searchResults.length > 0"
+            class="search-results"
+          >
+            <button
+              v-for="item in searchResults"
+              :key="item.id"
+              class="search-result"
+              type="button"
+              @click="selectSearchResult(item)"
+            >
+              <span>{{ item.name }}</span>
+              <small>{{ typeLabel(item.location_type) }}</small>
+            </button>
+          </div>
         </div>
         <el-tree
           v-loading="loading"
@@ -243,14 +326,30 @@ onMounted(async () => {
             <span class="tree-node">
               <span class="node-icon">{{ typeIcon(data.location_type) }}</span>
               <span class="node-label">{{ node.label }}</span>
-              <span class="node-count" v-if="data.device_count">({{ data.device_count }})</span>
+              <span
+                v-if="data.device_count"
+                class="node-count"
+              >({{ data.device_count }})</span>
             </span>
           </template>
         </el-tree>
         
-        <div v-if="locationTree.length === 0 && !loading" class="empty-tree">
-          <el-empty description="暂无位置数据" :image-size="80">
-            <el-button type="primary" size="small" @click="openCreateDialog()">创建第一个位置</el-button>
+        <div
+          v-if="locationTree.length === 0 && !loading"
+          class="empty-tree"
+        >
+          <el-empty
+            description="暂无位置数据"
+            :image-size="80"
+          >
+            <el-button
+              v-if="canManageLocations"
+              type="primary"
+              size="small"
+              @click="openCreateDialog()"
+            >
+              创建第一个位置
+            </el-button>
           </el-empty>
         </div>
       </div>
@@ -264,16 +363,31 @@ onMounted(async () => {
               <div class="location-title">
                 <span class="icon">{{ typeIcon(selectedLocation.location_type) }}</span>
                 <span class="name">{{ selectedLocation.name }}</span>
-                <el-tag size="small">{{ typeLabel(selectedLocation.location_type) }}</el-tag>
+                <el-tag size="small">
+                  {{ typeLabel(selectedLocation.location_type) }}
+                </el-tag>
               </div>
-              <div class="actions">
-                <el-button text @click="openCreateDialog(selectedLocation.id)">
+              <div
+                v-if="canManageLocations"
+                class="actions"
+              >
+                <el-button
+                  text
+                  @click="openCreateDialog(selectedLocation.id)"
+                >
                   <el-icon><Plus /></el-icon>添加子位置
                 </el-button>
-                <el-button text @click="openEditDialog(selectedLocation)">
+                <el-button
+                  text
+                  @click="openEditDialog(selectedLocation)"
+                >
                   <el-icon><Edit /></el-icon>编辑
                 </el-button>
-                <el-button text type="danger" @click="handleDelete(selectedLocation)">
+                <el-button
+                  text
+                  type="danger"
+                  @click="handleDelete(selectedLocation)"
+                >
                   <el-icon><Delete /></el-icon>删除
                 </el-button>
               </div>
@@ -298,24 +412,62 @@ onMounted(async () => {
               </div>
             </div>
             
-            <div v-if="selectedLocation.description" class="description">
+            <div
+              v-if="selectedLocation.description"
+              class="description"
+            >
               {{ selectedLocation.description }}
+            </div>
+
+            <div
+              v-if="childLocations.length > 0"
+              class="child-section"
+            >
+              <div class="child-title">
+                下级位置
+              </div>
+              <div class="child-list">
+                <button
+                  v-for="child in childLocations"
+                  :key="child.id"
+                  class="child-chip"
+                  type="button"
+                  @click="selectSearchResult(child)"
+                >
+                  {{ child.name }}
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- 统计卡片 -->
-          <div class="stats-row" v-if="locationStats">
+          <div
+            v-if="locationStats"
+            class="stats-row"
+          >
             <div class="stat-item">
-              <div class="stat-value">{{ locationStats.total_devices }}</div>
-              <div class="stat-label">总设备数</div>
+              <div class="stat-value">
+                {{ locationStats.total_devices }}
+              </div>
+              <div class="stat-label">
+                总设备数
+              </div>
             </div>
             <div class="stat-item">
-              <div class="stat-value success">{{ locationStats.active_devices }}</div>
-              <div class="stat-label">在线设备</div>
+              <div class="stat-value success">
+                {{ locationStats.active_devices }}
+              </div>
+              <div class="stat-label">
+                在线设备
+              </div>
             </div>
             <div class="stat-item">
-              <div class="stat-value">{{ locationStats.sub_locations_count }}</div>
-              <div class="stat-label">子位置数</div>
+              <div class="stat-value">
+                {{ locationStats.sub_locations_count }}
+              </div>
+              <div class="stat-label">
+                子位置数
+              </div>
             </div>
           </div>
 
@@ -323,83 +475,198 @@ onMounted(async () => {
           <div class="device-list-card">
             <div class="card-header">
               <span>位置下设备</span>
-              <el-button type="primary" size="small" @click="openAssignDialog">
+              <el-button
+                v-if="canManageLocations"
+                type="primary"
+                size="small"
+                @click="openAssignDialog"
+              >
                 <el-icon><Plus /></el-icon>分配设备
               </el-button>
             </div>
             
-            <el-table :data="locationDevices" stripe max-height="300">
-              <el-table-column prop="id" label="ID" width="60" />
-              <el-table-column prop="name" label="设备名称" />
-              <el-table-column prop="energy_type" label="能源类型" width="100" />
-              <el-table-column prop="device_type" label="设备类型" width="100" />
-              <el-table-column label="状态" width="80">
+            <el-table
+              :data="locationDevices"
+              stripe
+              max-height="300"
+            >
+              <el-table-column
+                prop="id"
+                label="ID"
+                width="60"
+              />
+              <el-table-column
+                prop="name"
+                label="设备名称"
+              />
+              <el-table-column
+                prop="energy_type"
+                label="能源类型"
+                width="100"
+              />
+              <el-table-column
+                prop="device_type"
+                label="设备类型"
+                width="100"
+              />
+              <el-table-column
+                label="状态"
+                width="80"
+              >
                 <template #default="{ row }">
-                  <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+                  <el-tag
+                    :type="row.is_active ? 'success' : 'info'"
+                    size="small"
+                  >
                     {{ row.is_active ? '在线' : '离线' }}
                   </el-tag>
                 </template>
               </el-table-column>
             </el-table>
             
-            <el-empty v-if="locationDevices.length === 0" description="暂无设备" :image-size="60" />
+            <el-empty
+              v-if="locationDevices.length === 0"
+              description="暂无设备"
+              :image-size="60"
+            />
           </div>
         </template>
 
         <template v-else>
           <div class="empty-detail">
-            <el-empty description="请在左侧选择一个位置" :image-size="120" />
+            <el-empty
+              description="请在左侧选择一个位置"
+              :image-size="120"
+            />
           </div>
         </template>
       </div>
     </div>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
+    <el-dialog
+      v-if="canManageLocations"
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="500px"
+    >
       <el-form label-width="100px">
-        <el-form-item label="位置名称" required>
-          <el-input v-model="formData.name" placeholder="请输入位置名称" />
+        <el-form-item
+          label="位置名称"
+          required
+        >
+          <el-input
+            v-model="formData.name"
+            placeholder="请输入位置名称"
+          />
         </el-form-item>
-        <el-form-item label="位置类型" required>
-          <el-select v-model="formData.location_type" style="width: 100%">
-            <el-option v-for="t in typeList" :key="t.value" :label="t.label" :value="t.value">
+        <el-form-item
+          label="位置类型"
+          required
+        >
+          <el-select
+            v-model="formData.location_type"
+            style="width: 100%"
+            teleported
+            popper-class="app-select-popper"
+          >
+            <el-option
+              v-for="t in typeList"
+              :key="t.value"
+              :label="t.label"
+              :value="t.value"
+            >
               <span>{{ typeIcon(t.value) }} {{ t.label }}</span>
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="父级位置">
-          <el-select v-model="formData.parent_id" placeholder="无（顶级位置）" clearable style="width: 100%">
-            <el-option v-for="loc in locationList" :key="loc.id" :label="loc.name" :value="loc.id" />
+          <el-select
+            v-model="formData.parent_id"
+            placeholder="无（顶级位置）"
+            clearable
+            style="width: 100%"
+            teleported
+            popper-class="app-select-popper"
+          >
+            <el-option
+              v-for="loc in locationList"
+              :key="loc.id"
+              :label="loc.name"
+              :value="loc.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="位置编码">
-          <el-input v-model="formData.code" placeholder="请输入编码" />
+          <el-input
+            v-model="formData.code"
+            placeholder="请输入编码"
+          />
         </el-form-item>
         <el-form-item label="面积(m²)">
-          <el-input-number v-model="formData.area_sqm" :min="0" style="width: 100%" />
+          <el-input-number
+            v-model="formData.area_sqm"
+            :min="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input v-model="formData.manager" placeholder="请输入负责人" />
+          <el-input
+            v-model="formData.manager"
+            placeholder="请输入负责人"
+          />
         </el-form-item>
         <el-form-item label="联系方式">
-          <el-input v-model="formData.contact" placeholder="请输入联系方式" />
+          <el-input
+            v-model="formData.contact"
+            placeholder="请输入联系方式"
+          />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleSubmit"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
     <!-- 设备分配对话框 -->
-    <el-dialog v-model="assignDialogVisible" title="分配设备" width="400px">
+    <el-dialog
+      v-if="canManageLocations"
+      v-model="assignDialogVisible"
+      title="分配设备"
+      width="400px"
+    >
       <el-form label-width="80px">
         <el-form-item label="选择设备">
-          <el-select v-model="selectedDeviceId" placeholder="请选择设备" style="width: 100%" filterable>
-            <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id">
+          <el-select
+            v-model="selectedDeviceId"
+            placeholder="请选择设备"
+            style="width: 100%"
+            filterable
+            teleported
+            popper-class="app-select-popper"
+          >
+            <el-option
+              v-for="d in deviceList"
+              :key="d.id"
+              :label="d.name"
+              :value="d.id"
+            >
               <span>{{ d.name }}</span>
               <span style="color: #999; margin-left: 10px">{{ d.energy_type }}</span>
             </el-option>
@@ -407,8 +674,15 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="assignDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAssignDevice">确定</el-button>
+        <el-button @click="assignDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleAssignDevice"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -458,6 +732,36 @@ onMounted(async () => {
   margin-bottom: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-box {
+  margin-bottom: 12px;
+}
+
+.search-results {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.search-result {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.search-result small {
+  color: var(--text-secondary);
+  margin-left: 8px;
 }
 
 .tree-node {
@@ -546,6 +850,32 @@ onMounted(async () => {
   padding-top: 15px;
   border-top: 1px solid var(--border-color);
   color: var(--text-secondary);
+}
+
+.child-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.child-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.child-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.child-chip {
+  background: rgba(64, 158, 255, 0.1);
+  border: 1px solid rgba(64, 158, 255, 0.3);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 10px;
 }
 
 .stats-row {

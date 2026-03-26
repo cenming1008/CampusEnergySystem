@@ -18,6 +18,10 @@
 
 - [status.sh](/Users/todo/MineEnergySystem/scripts/shell/status.sh)：查看系统状态
 - [test_health.sh](/Users/todo/MineEnergySystem/scripts/shell/test_health.sh)：健康检查
+- [pilot_smoke_test.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_smoke_test.sh)：试点联调冒烟检查
+- [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)：试点前总检查并归档证据
+- [pilot_drill.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_drill.sh)：串联 readiness、容量基线和冒烟
+- [load_baseline.sh](/Users/todo/MineEnergySystem/scripts/shell/load_baseline.sh)：生成容量基线和验收摘要
 - [check_websocket.sh](/Users/todo/MineEnergySystem/scripts/shell/check_websocket.sh)：检查 WebSocket
 - [check_mac_env.sh](/Users/todo/MineEnergySystem/scripts/shell/check_mac_env.sh)：检查 macOS 开发环境
 
@@ -25,11 +29,13 @@
 
 - [backup.sh](/Users/todo/MineEnergySystem/scripts/shell/backup.sh)：备份数据库
 - [restore.sh](/Users/todo/MineEnergySystem/scripts/shell/restore.sh)：恢复数据库
+- [rollback_prod.sh](/Users/todo/MineEnergySystem/scripts/shell/rollback_prod.sh)：生产回滚入口
 - [cleanup_logs.sh](/Users/todo/MineEnergySystem/scripts/shell/cleanup_logs.sh)：清理日志
 - [cleanup_docker.sh](/Users/todo/MineEnergySystem/scripts/shell/cleanup_docker.sh)：清理 Docker 资源
 - [fix_venv.sh](/Users/todo/MineEnergySystem/scripts/shell/fix_venv.sh)：修复虚拟环境
 - [install_dependencies.sh](/Users/todo/MineEnergySystem/scripts/shell/install_dependencies.sh)：安装依赖
 - [deploy_prod.sh](/Users/todo/MineEnergySystem/scripts/shell/deploy_prod.sh)：生产部署
+- [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh)：发布前总检查
 - [uninstall_local_services.sh](/Users/todo/MineEnergySystem/scripts/shell/uninstall_local_services.sh)：卸载本机相关服务
 
 ## 最常用组合
@@ -45,6 +51,9 @@
 # 状态检查
 ./scripts/shell/status.sh
 ./scripts/shell/test_health.sh
+./scripts/shell/pilot_smoke_test.sh
+./scripts/shell/pilot_readiness.sh --env-file .env.prod
+./scripts/shell/pilot_drill.sh
 ```
 
 ## 使用建议

@@ -1,17 +1,57 @@
-import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
+import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/useAuthStore' // 稍后会创建这个 Store
 import { ElMessage } from 'element-plus'
+import router from '@/router'
+import type { AuthSession } from '@/api/auth'
 
 interface SilentAxiosConfig extends InternalAxiosRequestConfig {
   silent?: boolean
+  skipAuthRefresh?: boolean
+  _retry?: boolean
+  timeout?: number
 }
 
-// 创建 axios 实例
+const TIMEOUT_DEFAULT = 15_000
+const TIMEOUT_LONG = 60_000   // reports export, batch operations
+const TIMEOUT_TRAINING = 300_000 // LSTM training, hyperparameter search
+
 const service = axios.create({
-  baseURL: '', // 配合 vite.config.ts 的 proxy
-  timeout: 5000,
+  baseURL: '',
+  timeout: TIMEOUT_DEFAULT,
   headers: { 'Content-Type': 'application/json' }
 })
+
+export { TIMEOUT_LONG, TIMEOUT_TRAINING }
+
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken() {
+  const authStore = useAuthStore()
+  if (!authStore.refreshToken) {
+    return null
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = service
+      .post<{ refresh_token: string }, AuthSession>('/auth/refresh', { refresh_token: authStore.refreshToken }, {
+        silent: true,
+        skipAuthRefresh: true
+      })
+      .then((session) => {
+        authStore.updateTokens(session)
+        return session.access_token
+      })
+      .catch(() => {
+        authStore.logout()
+        return null
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
 
 // 🟢 请求拦截器
 service.interceptors.request.use(
@@ -23,7 +63,7 @@ service.interceptors.request.use(
     }
     return config
   },
-  (error: any) => {
+  (error: AxiosError) => {
     return Promise.reject(error)
   }
 )
@@ -34,7 +74,7 @@ service.interceptors.response.use(
     // 只要 HTTP 状态码是 2xx，就认为成功，直接返回数据部分
     return response.data
   },
-  (error: any) => {
+  async (error: AxiosError<{ detail?: string; message?: string }>) => {
     // 处理 HTTP 错误状态码
     const status = error.response?.status
     const msg =
@@ -44,17 +84,32 @@ service.interceptors.response.use(
       '网络请求失败'
 
     if (status === 401) {
-      // 401 可能是：Token 过期、Token 无效、未携带 Token、用户不存在等，统一提示并清除本地登录态
+      const authStore = useAuthStore()
+      const requestConfig = error.config as SilentAxiosConfig | undefined
+
+      if (authStore.refreshToken && requestConfig && !requestConfig.skipAuthRefresh && !requestConfig._retry) {
+        requestConfig._retry = true
+        const refreshedToken = await refreshAccessToken()
+        if (refreshedToken && requestConfig.headers) {
+          requestConfig.headers.Authorization = `Bearer ${refreshedToken}`
+          return service(requestConfig)
+        }
+      }
+
       const hint = typeof msg === 'string' && msg.toLowerCase().includes('not authenticated')
         ? '请先登录'
         : '登录已过期或无效，请重新登录'
       ElMessage.error(hint)
-      const authStore = useAuthStore()
       authStore.logout()
-      // 清除token后，通过修改URL触发路由守卫重新检查
-      // 避免使用reload，改用更优雅的路由跳转
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+      if (router.currentRoute.value.name !== 'Login') {
+        router.push({ name: 'Login' })
+      }
+    } else if (status === 403 && typeof msg === 'string' && msg.includes('首次登录后必须先修改密码')) {
+      const authStore = useAuthStore()
+      authStore.mustChangePassword = true
+      ElMessage.warning('请先完成密码修改后再继续使用系统')
+      if (router.currentRoute.value.name !== 'AccountSecurity') {
+        router.push({ name: 'AccountSecurity' })
       }
     } else {
       const requestConfig = error.config as SilentAxiosConfig | undefined

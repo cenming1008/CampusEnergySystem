@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { WrappedResponse, JsonObject } from '@/types/api'
 
 export interface DeviceArchive {
   id: number
@@ -80,7 +81,7 @@ export interface MonitorOverview {
   archive: DeviceArchive
   runtime_status: RuntimeStatus
   realtime: DeviceRealtime
-  ingestion_health: Record<string, any>
+  ingestion_health: JsonObject
   recent_alarms: DeviceAlarmRecord[]
   recent_control_logs: DeviceControlLog[]
 }
@@ -116,42 +117,47 @@ export interface MonitorQueryRange {
   hours?: number
 }
 
-interface WrappedResponse<T> {
-  success: boolean
-  message: string
-  data: T
-  code: string
-}
-
 export function getDeviceMonitorOverview(deviceId: number) {
-  return request.get<any, WrappedResponse<MonitorOverview>>(`/devices/${deviceId}/monitor/overview`)
+  return request
+    .get<never, WrappedResponse<MonitorOverview>>(`/devices/${deviceId}/monitor/overview`)
+    .then((response) => response.data)
 }
 
 export function getDeviceMonitorRealtime(deviceId: number) {
-  return request.get<any, WrappedResponse<DeviceRealtime>>(`/devices/${deviceId}/monitor/realtime`)
+  return request
+    .get<never, WrappedResponse<DeviceRealtime>>(`/devices/${deviceId}/monitor/realtime`)
+    .then((response) => response.data)
 }
 
 export function getDeviceMonitorTrend(deviceId: number, params?: MonitorQueryRange) {
-  return request.get<any, WrappedResponse<DeviceTrendResponse>>(`/devices/${deviceId}/monitor/trend`, { params })
+  return request
+    .get<never, WrappedResponse<DeviceTrendResponse>>(`/devices/${deviceId}/monitor/trend`, { params })
+    .then((response) => response.data)
 }
 
 export function getDeviceMonitorAlarms(deviceId: number, params?: MonitorQueryRange) {
-  return request.get<any, WrappedResponse<{ items: DeviceAlarmRecord[] }>>(
-    `/devices/${deviceId}/monitor/alarms`,
-    { params: { limit: 50, ...params } }
-  )
+  return request
+    .get<never, WrappedResponse<{ items: DeviceAlarmRecord[] }>>(
+      `/devices/${deviceId}/monitor/alarms`,
+      { params: { limit: 50, ...params } }
+    )
+    .then((response) => response.data)
 }
 
 export function getDeviceMonitorControlLogs(deviceId: number, params?: MonitorQueryRange) {
-  return request.get<any, WrappedResponse<{ items: DeviceControlLog[] }>>(
-    `/devices/${deviceId}/monitor/control-logs`,
-    { params: { limit: 50, ...params } }
-  )
+  return request
+    .get<never, WrappedResponse<{ items: DeviceControlLog[] }>>(
+      `/devices/${deviceId}/monitor/control-logs`,
+      { params: { limit: 50, ...params } }
+    )
+    .then((response) => response.data)
 }
 
 export function getDeviceMonitorStatusHistory(deviceId: number, params?: MonitorQueryRange) {
-  return request.get<any, WrappedResponse<{ items: DeviceStatusEvent[] }>>(
-    `/devices/${deviceId}/monitor/status-history`,
-    { params: { limit: 30, hours: 72, ...params } }
-  )
+  return request
+    .get<never, WrappedResponse<{ items: DeviceStatusEvent[] }>>(
+      `/devices/${deviceId}/monitor/status-history`,
+      { params: { limit: 30, hours: 72, ...params } }
+    )
+    .then((response) => response.data)
 }

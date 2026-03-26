@@ -10,15 +10,17 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
+from app.api.deps import MAINTAINER_OR_ADMIN
 from app.application.forecasting import (
     evaluate_prediction_accuracy_use_case,
     forecast_load_use_case,
     list_latest_predictions_use_case,
 )
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.logger import logger
 from app.core.response import success_response
-from app.models.tables import Prediction
+from app.models.tables import Prediction, User
 
 from .shared import (
     RENEWABLE_PREDICTION_TYPES,
@@ -35,6 +37,7 @@ def forecast_load(
     hours: int = Query(24, ge=1, le=168, description="预测时间范围（小时），1-168"),
     algorithm: Optional[str] = Query(None, description="预测算法：lstm, moving_average, linear_regression"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     try:
         payload = forecast_load_use_case(
@@ -43,6 +46,7 @@ def forecast_load(
             hours=hours,
             algorithm=algorithm,
         )
+        audit_log("forecast.load", current_user.username, "prediction:load", device_id=device_id, hours=hours, algorithm=algorithm)
         return success_response(data=payload, message=f"成功生成 {payload['count']} 个预测点")
     except HTTPException:
         raise
@@ -58,6 +62,7 @@ def forecast_renewable(
     hours: int = Query(24, ge=1, le=168, description="预测时间范围（小时）"),
     algorithm: Optional[str] = Query(None, description="预测算法"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     prediction_type = validate_prediction_type(prediction_type, RENEWABLE_PREDICTION_TYPES)
     try:
@@ -69,6 +74,7 @@ def forecast_renewable(
         )
         payload["prediction_type"] = prediction_type
         type_name = "光伏" if prediction_type == "solar" else "风电"
+        audit_log("forecast.renewable", current_user.username, f"prediction:{prediction_type}", device_id=device_id, hours=hours, algorithm=algorithm)
         return success_response(data=payload, message=f"成功生成 {type_name} {payload['count']} 个预测点")
     except HTTPException:
         raise

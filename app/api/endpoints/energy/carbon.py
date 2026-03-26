@@ -10,14 +10,16 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
+from app.api.deps import get_current_user
 from app.application.energy_management import (
     get_carbon_summary_use_case,
     list_carbon_emissions_use_case,
 )
+from app.core.access_control import ensure_device_access, get_allowed_device_ids
 from app.core.database import get_session
 from app.core.response import success_response
 from app.domain.energy_rules import CARBON_FACTORS, ENERGY_UNITS, calculate_manual_carbon
-from app.models.tables import CarbonEmission
+from app.models.tables import CarbonEmission, User
 
 from .shared import CarbonSummaryResponse
 
@@ -31,13 +33,17 @@ def get_carbon_emissions(
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
     return list_carbon_emissions_use_case(
         session=session,
         device_id=device_id,
         energy_type=energy_type,
         start_time=start_time,
         end_time=end_time,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
     )
 
 
@@ -47,12 +53,16 @@ def get_carbon_summary(
     end_time: datetime = Query(..., description="结束时间"),
     device_id: Optional[int] = Query(None, description="设备ID，不传则查询所有"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
     return get_carbon_summary_use_case(
         session=session,
         start_time=start_time,
         end_time=end_time,
         device_id=device_id,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
     )
 
 

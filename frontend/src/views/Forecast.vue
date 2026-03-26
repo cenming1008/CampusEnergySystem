@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
+import { echarts } from '@/shared/lib/echarts'
 import {
+  compareModelVersions,
   forecastLoad,
+  getForecastAccuracy,
+  getForecastHistory,
   forecastRenewable,
   getLatestForecast,
   trainLSTMModel,
@@ -11,11 +14,19 @@ import {
   getModelVersions,
   activateModelVersion,
   getSchedulerJobs,
+  hyperparameterSearch,
   type ForecastPoint,
+  type ForecastHistoryPoint,
+  type ForecastAccuracy,
+  type HyperparameterSearchResult,
   type ModelVersion,
-  type PredictionType
+  type PredictionType,
+  type VersionComparison,
 } from '@/api/forecast'
 import { getDevices, type Device } from '@/api/device'
+import { usePermissions } from '@/shared/composables/usePermissions'
+
+const { canManageForecast, canTrainModels } = usePermissions()
 
 // --- 状态 ---
 const loading = ref(false)
@@ -26,7 +37,38 @@ const algorithm = ref('')
 const deviceList = ref<Device[]>([])
 const predictions = ref<ForecastPoint[]>([])
 const modelVersions = ref<ModelVersion[]>([])
-const schedulerJobs = ref<any[]>([])
+const latestPredictions = ref<ForecastPoint[]>([])
+const historyPredictions = ref<ForecastHistoryPoint[]>([])
+const forecastAccuracy = ref<ForecastAccuracy | null>(null)
+const versionComparison = ref<VersionComparison | null>(null)
+const searchResult = ref<HyperparameterSearchResult | null>(null)
+const compareVersionA = ref('')
+const compareVersionB = ref('')
+const searchDays = ref(60)
+interface SchedulerJobView {
+  id: string
+  name: string
+  next_run_time: string | null
+  trigger: string
+}
+
+interface EvaluationResult {
+  mae: number
+  mape: number
+  rmse: number
+  test_samples: number
+}
+
+interface ChartTooltipParam {
+  axisValue: string
+  value: number
+  dataIndex: number
+}
+
+const schedulerJobs = ref<SchedulerJobView[]>([])
+const insightLoading = ref(false)
+const compareLoading = ref(false)
+const searchLoading = ref(false)
 
 // 训练状态
 const training = ref(false)
@@ -34,7 +76,7 @@ const trainDays = ref(60)
 const useMultivariate = ref(false)
 
 // 评估结果
-const evaluation = ref<any>(null)
+const evaluation = ref<EvaluationResult | null>(null)
 
 // 图表
 let forecastChart: echarts.ECharts | null = null
@@ -55,6 +97,11 @@ const algorithms = [
   { value: 'linear_regression', label: '线性回归' }
 ]
 
+function extractErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
+
 // --- 方法 ---
 const loadDevices = async () => {
   try {
@@ -68,6 +115,9 @@ const loadModelVersions = async () => {
   try {
     const res = await getModelVersions(predictionType.value, selectedDeviceId.value)
     modelVersions.value = res.versions || []
+    const active = modelVersions.value.filter((item) => item.is_active)
+    compareVersionA.value = active[0]?.version || modelVersions.value[0]?.version || ''
+    compareVersionB.value = modelVersions.value.find((item) => item.version !== compareVersionA.value)?.version || ''
   } catch (e) {
     console.error('加载模型版本失败:', e)
   }
@@ -99,8 +149,8 @@ const handleForecast = async () => {
     predictions.value = result.predictions || []
     renderChart()
     ElMessage.success(`预测完成，共 ${predictions.value.length} 个数据点`)
-  } catch (e: any) {
-    ElMessage.error(e.message || '预测失败')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '预测失败'))
   } finally {
     loading.value = false
   }
@@ -109,7 +159,7 @@ const handleForecast = async () => {
 const handleTrain = async () => {
   training.value = true
   try {
-    const result = await trainLSTMModel({
+    await trainLSTMModel({
       prediction_type: predictionType.value,
       device_id: selectedDeviceId.value,
       days: trainDays.value,
@@ -118,8 +168,8 @@ const handleTrain = async () => {
     })
     ElMessage.success('模型训练完成')
     loadModelVersions()
-  } catch (e: any) {
-    ElMessage.error(e.message || '训练失败')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '训练失败'))
   } finally {
     training.value = false
   }
@@ -131,8 +181,8 @@ const handleEvaluate = async () => {
     const result = await evaluateLSTMModel(predictionType.value, selectedDeviceId.value)
     evaluation.value = result
     ElMessage.success('评估完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '评估失败')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '评估失败'))
   } finally {
     loading.value = false
   }
@@ -145,6 +195,63 @@ const handleActivateVersion = async (version: ModelVersion) => {
     loadModelVersions()
   } catch (e) {
     ElMessage.error('激活失败')
+  }
+}
+
+const loadForecastInsights = async () => {
+  insightLoading.value = true
+  try {
+    const [latest, accuracy, history] = await Promise.all([
+      getLatestForecast(predictionType.value, selectedDeviceId.value, 12),
+      getForecastAccuracy(predictionType.value, selectedDeviceId.value, 7),
+      getForecastHistory(predictionType.value, {
+        device_id: selectedDeviceId.value,
+        limit: 20,
+      })
+    ])
+    latestPredictions.value = latest.predictions || []
+    forecastAccuracy.value = accuracy
+    historyPredictions.value = history.predictions || []
+  } catch (error) {
+    console.error('加载预测洞察失败', error)
+    latestPredictions.value = []
+    forecastAccuracy.value = null
+    historyPredictions.value = []
+  } finally {
+    insightLoading.value = false
+  }
+}
+
+const handleCompareVersions = async () => {
+  if (!compareVersionA.value || !compareVersionB.value || compareVersionA.value === compareVersionB.value) {
+    ElMessage.warning('请选择两个不同版本进行对比')
+    return
+  }
+  compareLoading.value = true
+  try {
+    versionComparison.value = await compareModelVersions(
+      predictionType.value,
+      compareVersionA.value,
+      compareVersionB.value,
+      selectedDeviceId.value
+    )
+    ElMessage.success('版本对比完成')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '版本对比失败'))
+  } finally {
+    compareLoading.value = false
+  }
+}
+
+const handleHyperparameterSearch = async () => {
+  searchLoading.value = true
+  try {
+    searchResult.value = await hyperparameterSearch(predictionType.value, selectedDeviceId.value, searchDays.value)
+    ElMessage.success(`超参数搜索完成，共测试 ${searchResult.value.total_tested} 组`)
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '超参数搜索失败'))
+  } finally {
+    searchLoading.value = false
   }
 }
 
@@ -174,7 +281,7 @@ const renderChart = () => {
       backgroundColor: 'rgba(0,0,0,0.8)',
       borderColor: '#00f2fe',
       textStyle: { color: '#fff' },
-      formatter: (params: any) => {
+      formatter: (params: ChartTooltipParam[]) => {
         const p = params[0]
         const conf = confidences[p.dataIndex]
         return `
@@ -244,8 +351,14 @@ const renderChart = () => {
 // --- 监听 ---
 watch(predictionType, () => {
   loadModelVersions()
+  loadForecastInsights()
   predictions.value = []
   evaluation.value = null
+})
+
+watch(selectedDeviceId, () => {
+  loadModelVersions()
+  loadForecastInsights()
 })
 
 // --- 生命周期 ---
@@ -253,6 +366,7 @@ onMounted(async () => {
   await loadDevices()
   await loadModelVersions()
   await loadSchedulerJobs()
+  await loadForecastInsights()
   initChart()
 })
 
@@ -266,8 +380,15 @@ onUnmounted(() => {
     <div class="page-header">
       <h2>负荷预测</h2>
       <div class="type-selector">
-        <el-radio-group v-model="predictionType" size="large">
-          <el-radio-button v-for="t in predictionTypes" :key="t.value" :value="t.value">
+        <el-radio-group
+          v-model="predictionType"
+          size="large"
+        >
+          <el-radio-button
+            v-for="t in predictionTypes"
+            :key="t.value"
+            :value="t.value"
+          >
             {{ t.icon }} {{ t.label }}
           </el-radio-button>
         </el-radio-group>
@@ -279,28 +400,77 @@ onUnmounted(() => {
       <div class="control-panel">
         <!-- 预测参数 -->
         <div class="panel-section">
-          <div class="section-title">预测参数</div>
+          <div class="section-title">
+            预测参数
+          </div>
           <el-form label-position="top">
             <el-form-item label="设备">
-              <el-select v-model="selectedDeviceId" placeholder="全部设备" clearable style="width: 100%">
-                <el-option v-for="d in deviceList" :key="d.id" :label="d.name" :value="d.id" />
+              <el-select
+                v-model="selectedDeviceId"
+                placeholder="全部设备"
+                clearable
+                style="width: 100%"
+                teleported
+                popper-class="forecast-select-popper"
+              >
+                <el-option
+                  v-for="d in deviceList"
+                  :key="d.id"
+                  :label="d.name"
+                  :value="d.id"
+                />
               </el-select>
             </el-form-item>
             <el-form-item label="预测时长">
-              <el-select v-model="forecastHours" style="width: 100%">
-                <el-option :value="12" label="12小时" />
-                <el-option :value="24" label="24小时" />
-                <el-option :value="48" label="48小时" />
-                <el-option :value="72" label="72小时" />
-                <el-option :value="168" label="7天" />
+              <el-select
+                v-model="forecastHours"
+                style="width: 100%"
+                teleported
+                popper-class="forecast-select-popper"
+              >
+                <el-option
+                  :value="12"
+                  label="12小时"
+                />
+                <el-option
+                  :value="24"
+                  label="24小时"
+                />
+                <el-option
+                  :value="48"
+                  label="48小时"
+                />
+                <el-option
+                  :value="72"
+                  label="72小时"
+                />
+                <el-option
+                  :value="168"
+                  label="7天"
+                />
               </el-select>
             </el-form-item>
             <el-form-item label="算法">
-              <el-select v-model="algorithm" style="width: 100%">
-                <el-option v-for="a in algorithms" :key="a.value" :label="a.label" :value="a.value" />
+              <el-select
+                v-model="algorithm"
+                style="width: 100%"
+                teleported
+                popper-class="forecast-select-popper"
+              >
+                <el-option
+                  v-for="a in algorithms"
+                  :key="a.value"
+                  :label="a.label"
+                  :value="a.value"
+                />
               </el-select>
             </el-form-item>
-            <el-button type="primary" @click="handleForecast" :loading="loading" style="width: 100%">
+            <el-button
+              type="primary"
+              :loading="loading"
+              style="width: 100%"
+              @click="handleForecast"
+            >
               开始预测
             </el-button>
           </el-form>
@@ -308,26 +478,50 @@ onUnmounted(() => {
 
         <!-- 模型训练 -->
         <div class="panel-section">
-          <div class="section-title">LSTM模型训练</div>
+          <div class="section-title">
+            LSTM模型训练
+          </div>
           <el-form label-position="top">
             <el-form-item label="训练天数">
-              <el-input-number v-model="trainDays" :min="30" :max="365" style="width: 100%" />
+              <el-input-number
+                v-model="trainDays"
+                :min="30"
+                :max="365"
+                style="width: 100%"
+              />
             </el-form-item>
             <el-form-item>
-              <el-checkbox v-model="useMultivariate">多变量预测</el-checkbox>
+              <el-checkbox v-model="useMultivariate">
+                多变量预测
+              </el-checkbox>
             </el-form-item>
-            <el-button type="warning" @click="handleTrain" :loading="training" style="width: 100%">
+            <el-button
+              type="warning"
+              :loading="training"
+              :disabled="!canTrainModels"
+              style="width: 100%"
+              @click="handleTrain"
+            >
               训练模型
             </el-button>
-            <el-button @click="handleEvaluate" :loading="loading" style="width: 100%; margin-top: 10px">
+            <el-button
+              :loading="loading"
+              style="width: 100%; margin-top: 10px"
+              @click="handleEvaluate"
+            >
               评估模型
             </el-button>
           </el-form>
         </div>
 
         <!-- 评估结果 -->
-        <div class="panel-section" v-if="evaluation">
-          <div class="section-title">模型评估</div>
+        <div
+          v-if="evaluation"
+          class="panel-section"
+        >
+          <div class="section-title">
+            模型评估
+          </div>
           <div class="eval-grid">
             <div class="eval-item">
               <label>MAE</label>
@@ -354,29 +548,58 @@ onUnmounted(() => {
         <div class="chart-card">
           <div class="chart-header">
             <span class="chart-title">预测曲线</span>
-            <span class="chart-info" v-if="predictions.length">
+            <span
+              v-if="predictions.length"
+              class="chart-info"
+            >
               共 {{ predictions.length }} 个预测点
             </span>
           </div>
-          <div class="chart-container" ref="chartRef"></div>
-          <el-empty v-if="predictions.length === 0" description="点击【开始预测】生成预测数据" :image-size="100" />
+          <div
+            ref="chartRef"
+            class="chart-container"
+          />
+          <el-empty
+            v-if="predictions.length === 0"
+            description="点击【开始预测】生成预测数据"
+            :image-size="100"
+          />
         </div>
 
         <!-- 预测数据表格 -->
-        <div class="data-card" v-if="predictions.length > 0">
-          <div class="card-header">预测数据</div>
-          <el-table :data="predictions.slice(0, 24)" stripe max-height="200" size="small">
-            <el-table-column label="时间" width="160">
+        <div
+          v-if="predictions.length > 0"
+          class="data-card"
+        >
+          <div class="card-header">
+            预测数据
+          </div>
+          <el-table
+            :data="predictions.slice(0, 24)"
+            stripe
+            max-height="200"
+            size="small"
+          >
+            <el-table-column
+              label="时间"
+              width="160"
+            >
               <template #default="{ row }">
                 {{ new Date(row.forecast_time).toLocaleString('zh-CN') }}
               </template>
             </el-table-column>
-            <el-table-column label="预测值 (kW)" width="120">
+            <el-table-column
+              label="预测值 (kW)"
+              width="120"
+            >
               <template #default="{ row }">
                 {{ row.predicted_value.toFixed(2) }}
               </template>
             </el-table-column>
-            <el-table-column label="置信度" width="100">
+            <el-table-column
+              label="置信度"
+              width="100"
+            >
               <template #default="{ row }">
                 <el-progress
                   :percentage="(row.confidence || 0.8) * 100"
@@ -393,7 +616,9 @@ onUnmounted(() => {
       <!-- 右侧模型管理 -->
       <div class="model-panel">
         <div class="panel-section">
-          <div class="section-title">模型版本</div>
+          <div class="section-title">
+            模型版本
+          </div>
           <div class="version-list">
             <div
               v-for="v in modelVersions"
@@ -404,38 +629,282 @@ onUnmounted(() => {
               <div class="version-info">
                 <div class="version-name">
                   {{ v.version }}
-                  <el-tag v-if="v.is_active" type="success" size="small">当前</el-tag>
+                  <el-tag
+                    v-if="v.is_active"
+                    type="success"
+                    size="small"
+                  >
+                    当前
+                  </el-tag>
                 </div>
                 <div class="version-meta">
                   创建于 {{ new Date(v.created_at).toLocaleDateString() }}
                 </div>
-                <div class="version-metrics" v-if="v.metrics">
+                <div
+                  v-if="v.metrics"
+                  class="version-metrics"
+                >
                   <span v-if="v.metrics.mae">MAE: {{ v.metrics.mae.toFixed(4) }}</span>
                   <span v-if="v.metrics.val_loss">Loss: {{ v.metrics.val_loss.toFixed(4) }}</span>
                 </div>
               </div>
               <el-button
                 v-if="!v.is_active"
-                text size="small"
+                text
+                size="small"
+                :disabled="!canManageForecast"
                 @click="handleActivateVersion(v)"
-              >激活</el-button>
+              >
+                激活
+              </el-button>
             </div>
-            <el-empty v-if="modelVersions.length === 0" description="暂无模型" :image-size="60" />
+            <el-empty
+              v-if="modelVersions.length === 0"
+              description="暂无模型"
+              :image-size="60"
+            />
           </div>
         </div>
 
         <div class="panel-section">
-          <div class="section-title">定时任务</div>
+          <div class="section-title">
+            在线准确率
+          </div>
+          <div
+            v-if="forecastAccuracy"
+            class="eval-grid"
+          >
+            <div class="eval-item">
+              <label>命中率</label>
+              <span>{{ (forecastAccuracy.accuracy_rate * 100).toFixed(1) }}%</span>
+            </div>
+            <div class="eval-item">
+              <label>匹配样本</label>
+              <span>{{ forecastAccuracy.matched_actuals }}/{{ forecastAccuracy.total_predictions }}</span>
+            </div>
+            <div class="eval-item">
+              <label>MAE</label>
+              <span>{{ Number(forecastAccuracy.mae || 0).toFixed(4) }}</span>
+            </div>
+            <div class="eval-item">
+              <label>RMSE</label>
+              <span>{{ Number(forecastAccuracy.rmse || 0).toFixed(4) }}</span>
+            </div>
+          </div>
+          <el-empty
+            v-else
+            :image-size="60"
+            description="暂无准确率数据"
+          />
+        </div>
+
+        <div class="panel-section">
+          <div class="section-title">
+            定时任务
+          </div>
           <div class="job-list">
-            <div v-for="job in schedulerJobs" :key="job.id" class="job-item">
-              <div class="job-name">{{ job.name }}</div>
-              <div class="job-next" v-if="job.next_run_time">
+            <div
+              v-for="job in schedulerJobs"
+              :key="job.id"
+              class="job-item"
+            >
+              <div class="job-name">
+                {{ job.name }}
+              </div>
+              <div
+                v-if="job.next_run_time"
+                class="job-next"
+              >
                 下次执行: {{ new Date(job.next_run_time).toLocaleString('zh-CN') }}
               </div>
             </div>
-            <el-empty v-if="schedulerJobs.length === 0" description="暂无任务" :image-size="40" />
+            <el-empty
+              v-if="schedulerJobs.length === 0"
+              description="暂无任务"
+              :image-size="40"
+            />
           </div>
         </div>
+
+        <div class="panel-section">
+          <div class="section-title">
+            版本对比
+          </div>
+          <el-form label-position="top">
+            <el-form-item label="版本 A">
+              <el-select
+                v-model="compareVersionA"
+                style="width: 100%"
+                placeholder="选择版本"
+                teleported
+                popper-class="forecast-select-popper"
+              >
+                <el-option
+                  v-for="version in modelVersions"
+                  :key="`a-${version.version}`"
+                  :label="version.version"
+                  :value="version.version"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="版本 B">
+              <el-select
+                v-model="compareVersionB"
+                style="width: 100%"
+                placeholder="选择版本"
+                teleported
+                popper-class="forecast-select-popper"
+              >
+                <el-option
+                  v-for="version in modelVersions"
+                  :key="`b-${version.version}`"
+                  :label="version.version"
+                  :value="version.version"
+                />
+              </el-select>
+            </el-form-item>
+            <el-button
+              :loading="compareLoading"
+              style="width: 100%"
+              @click="handleCompareVersions"
+            >
+              对比版本
+            </el-button>
+          </el-form>
+          <div
+            v-if="versionComparison"
+            class="compare-result"
+          >
+            <div class="compare-row">
+              <span>MAE 改善</span>
+              <strong>{{ Number(versionComparison.improvements.mae || 0).toFixed(4) }}</strong>
+            </div>
+            <div class="compare-row">
+              <span>MAPE 改善</span>
+              <strong>{{ Number(versionComparison.improvements.mape || 0).toFixed(4) }}</strong>
+            </div>
+            <div class="compare-row">
+              <span>RMSE 改善</span>
+              <strong>{{ Number(versionComparison.improvements.rmse || 0).toFixed(4) }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="canTrainModels"
+          class="panel-section"
+        >
+          <div class="section-title">
+            超参数搜索
+          </div>
+          <el-form label-position="top">
+            <el-form-item label="训练天数">
+              <el-input-number
+                v-model="searchDays"
+                :min="30"
+                :max="365"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-button
+              type="warning"
+              :loading="searchLoading"
+              style="width: 100%"
+              @click="handleHyperparameterSearch"
+            >
+              启动搜索
+            </el-button>
+          </el-form>
+          <div
+            v-if="searchResult"
+            class="search-summary"
+          >
+            <div class="compare-row">
+              <span>已测试组合</span>
+              <strong>{{ searchResult.total_tested }}</strong>
+            </div>
+            <div class="compare-row">
+              <span>最佳评分</span>
+              <strong>{{ Number(searchResult.best_score).toFixed(4) }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight-grid">
+      <div class="data-card">
+        <div class="card-header">
+          最新预测入库
+        </div>
+        <el-table
+          v-loading="insightLoading"
+          :data="latestPredictions"
+          size="small"
+          max-height="240"
+        >
+          <el-table-column
+            label="预测时间"
+            min-width="160"
+          >
+            <template #default="{ row }">
+              {{ new Date(row.forecast_time).toLocaleString('zh-CN') }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="预测值"
+            width="110"
+          >
+            <template #default="{ row }">
+              {{ row.predicted_value.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="置信度"
+            width="100"
+          >
+            <template #default="{ row }">
+              {{ ((row.confidence || 0) * 100).toFixed(0) }}%
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="data-card">
+        <div class="card-header">
+          历史预测记录
+        </div>
+        <el-table
+          v-loading="insightLoading"
+          :data="historyPredictions"
+          size="small"
+          max-height="240"
+        >
+          <el-table-column
+            label="创建时间"
+            min-width="160"
+          >
+            <template #default="{ row }">
+              {{ row.created_at ? new Date(row.created_at).toLocaleString('zh-CN') : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="预测值"
+            width="110"
+          >
+            <template #default="{ row }">
+              {{ row.predicted_value.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="实际值"
+            width="110"
+          >
+            <template #default="{ row }">
+              {{ row.actual_value == null ? '-' : Number(row.actual_value).toFixed(2) }}
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
     </div>
   </div>
@@ -462,7 +931,6 @@ onUnmounted(() => {
 }
 
 .main-content {
-  flex: 1;
   display: flex;
   gap: 20px;
   min-height: 0;
@@ -630,7 +1098,52 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.compare-result,
+.search-summary {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.compare-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.compare-row strong {
+  color: var(--text-primary);
+}
+
+@media (max-width: 1400px) {
+  .main-content {
+    flex-direction: column;
+  }
+
+  .control-panel,
+  .model-panel {
+    width: auto;
+  }
+
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 :deep(.el-form-item) {
   margin-bottom: 15px;
+}
+
+:global(.forecast-select-popper) {
+  z-index: 4000 !important;
 }
 </style>

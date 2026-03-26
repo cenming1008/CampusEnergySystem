@@ -28,6 +28,14 @@ body {
     overflow: hidden;
 }
 
+.el-select__popper.el-popper {
+    z-index: 4000 !important;
+}
+
+.app-select-popper {
+    z-index: 4000 !important;
+}
+
 /* ================= 侧边栏 (Sidebar) ================= */
 .sidebar {
     width: 240px;

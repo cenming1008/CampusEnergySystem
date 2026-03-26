@@ -5,15 +5,16 @@ MQTT 处理相关数据模型
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
 class TelemetryBroadcastData:
     device_id: int
-    voltage: float | None
-    current: float | None
-    power: float | None
-    energy: float | None
+    voltage: Optional[float]
+    current: Optional[float]
+    power: Optional[float]
+    energy: Optional[float]
     timestamp: str
 
     def to_dict(self) -> dict:

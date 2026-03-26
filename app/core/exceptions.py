@@ -44,6 +44,17 @@ class AuthenticationException(AppException):
         )
 
 
+class PermissionDeniedException(AppException):
+    """权限不足异常"""
+
+    def __init__(self, message: str = "权限不足"):
+        super().__init__(
+            message=message,
+            code="PERMISSION_DENIED",
+            status_code=403,
+        )
+
+
 class ValidationException(AppException):
     """数据验证失败异常"""
     
@@ -77,4 +88,3 @@ class ConflictException(AppException):
             status_code=409,
             details=details
         )
-

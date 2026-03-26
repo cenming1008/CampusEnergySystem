@@ -5,15 +5,37 @@
 from __future__ import annotations
 
 import threading
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, JobExecutionEvent
 from apscheduler.schedulers.background import BackgroundScheduler
 from typing import Optional
 from app.core.logger import logger
+from app.core.metrics import observe_scheduler_job
+from app.core.notifications import notification_service
 from app.core.runtime_state import runtime_state
 from app.services.scheduler_registry import register_default_jobs
 
 # 全局调度器实例
 _scheduler: Optional[BackgroundScheduler] = None
 _scheduler_lock = threading.Lock()
+
+
+def _scheduler_listener(event: JobExecutionEvent) -> None:
+    job_id = getattr(event, "job_id", "unknown")
+    if event.exception:
+        runtime_state.increment("scheduler_job_failures_total")
+        runtime_state.mark_service("scheduler", "degraded", f"job failed: {job_id}")
+        observe_scheduler_job(job_id, "failed")
+        logger.warning(f"定时任务执行失败: {job_id} - {event.exception}")
+        notification_service.notify(
+            event_key=f"scheduler:{job_id}",
+            severity="warning",
+            title=f"Scheduler job failed: {job_id}",
+            message="定时任务执行失败",
+            details={"job_id": job_id, "error": str(event.exception)},
+        )
+    else:
+        runtime_state.mark_service("scheduler", "healthy", f"job executed: {job_id}")
+        observe_scheduler_job(job_id, "success")
 
 
 def get_scheduler() -> Optional[BackgroundScheduler]:
@@ -32,6 +54,7 @@ def start_scheduler():
             return
         
         _scheduler = BackgroundScheduler()
+        _scheduler.add_listener(_scheduler_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
         register_default_jobs(_scheduler)
         

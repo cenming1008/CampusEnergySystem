@@ -1,0 +1,8 @@
+==> compileall
+PASS compileall
+==> config_check
+PASS config_check
+==> production_readiness
+PASS production_readiness
+==> migration_sql
+FAIL migration_sql

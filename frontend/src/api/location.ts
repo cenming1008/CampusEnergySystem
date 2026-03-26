@@ -1,4 +1,6 @@
 import request from '@/utils/request'
+import type { Device } from '@/api/device'
+import type { WrappedResponse } from '@/types/api'
 
 // 位置类型
 export type LocationType = 'building' | 'unit' | 'floor' | 'room' | 'workshop' | 'area' | 'zone'
@@ -65,61 +67,71 @@ export interface LocationStatistics {
   sub_locations_count: number
 }
 
+interface LocationTreeParams {
+  root_id?: number
+  max_depth?: number
+}
+
+interface LocationMutationResult {
+  success?: boolean
+  message?: string
+}
+
 // 获取位置列表
 export function getLocations(params?: {
   location_type?: string
   parent_id?: number
   is_active?: boolean
 }) {
-  return request.get<any, Location[]>('/locations/', { params })
+  return request.get<never, Location[]>('/locations/', { params })
 }
 
 // 获取位置类型列表
 export function getLocationTypes() {
-  return request.get<any, { code: number; data: LocationTypeInfo[] }>('/locations/types')
+  return request.get<never, WrappedResponse<LocationTypeInfo[]>>('/locations/types')
 }
 
 // 获取顶级位置
 export function getRootLocations() {
-  return request.get<any, Location[]>('/locations/roots')
+  return request.get<never, Location[]>('/locations/roots')
 }
 
 // 获取位置树
 export function getLocationTree(rootId?: number, maxDepth?: number) {
-  const params: any = {}
+  const params: LocationTreeParams = {}
   if (rootId) params.root_id = rootId
   if (maxDepth) params.max_depth = maxDepth
-  return request.get<any, { code: number; data: LocationTreeNode[] }>('/locations/tree', { params })
+  return request.get<never, WrappedResponse<LocationTreeNode[]>>('/locations/tree', { params })
 }
 
 // 搜索位置
 export function searchLocations(keyword: string) {
-  return request.get<any, Location[]>('/locations/search', { params: { keyword } })
+  return request.get<never, Location[]>('/locations/search', { params: { keyword } })
 }
 
 // 获取位置详情
 export function getLocationDetail(id: number) {
-  return request.get<any, Location>(`/locations/${id}`)
+  return request.get<never, Location>(`/locations/${id}`)
 }
 
 // 创建位置
 export function createLocation(data: LocationCreateRequest) {
-  return request.post<any, Location>('/locations/', data)
+  return request.post<LocationCreateRequest, Location>('/locations/', data)
 }
 
 // 更新位置
 export function updateLocation(id: number, data: LocationUpdateRequest) {
-  return request.put<any, Location>(`/locations/${id}`, data)
+  return request.put<LocationUpdateRequest, Location>(`/locations/${id}`, data)
 }
 
 // 删除位置
 export function deleteLocation(id: number, force: boolean = false) {
-  return request.delete<any, any>(`/locations/${id}`, { params: { force } })
+  return request.delete<never, LocationMutationResult>(`/locations/${id}`, { params: { force } })
 }
 
 // 获取子位置
 export function getChildLocations(id: number, recursive: boolean = false) {
-  return request.get<any, Location[]>(`/locations/${id}/children`, { params: { recursive } })
+  return request.get<never, Location[]>(`/locations/${id}/children`, { params: { recursive } })
 }
 
 // 获取位置下的设备
@@ -128,17 +140,17 @@ export function getLocationDevices(id: number, params?: {
   energy_type?: string
   is_active?: boolean
 }) {
-  return request.get<any, any[]>(`/locations/${id}/devices`, { params })
+  return request.get<never, Device[]>(`/locations/${id}/devices`, { params })
 }
 
 // 将设备分配到位置
 export function assignDeviceToLocation(locationId: number, deviceId: number) {
-  return request.post<any, any>(`/locations/${locationId}/devices`, { device_id: deviceId })
+  return request.post<{ device_id: number }, LocationMutationResult>(`/locations/${locationId}/devices`, { device_id: deviceId })
 }
 
 // 获取位置统计
 export function getLocationStatistics(id: number, recursive: boolean = true) {
-  return request.get<any, { code: number; data: LocationStatistics }>(`/locations/${id}/statistics`, {
+  return request.get<never, WrappedResponse<LocationStatistics>>(`/locations/${id}/statistics`, {
     params: { recursive }
   })
 }

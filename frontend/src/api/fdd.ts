@@ -19,10 +19,10 @@ export interface FDDDiagnosis {
 
 // 获取所有设备的故障诊断统计
 export function getFDDStats() {
-  return request.get<any, FDDReport[]>('/fdd/stats')
+  return request.get<never, FDDReport[]>('/fdd/stats')
 }
 
 // 诊断指定设备的健康状况
 export function diagnoseDevice(deviceId: number) {
-  return request.get<any, FDDDiagnosis>(`/fdd/diagnose/${deviceId}`)
+  return request.get<never, FDDDiagnosis>(`/fdd/diagnose/${deviceId}`)
 }

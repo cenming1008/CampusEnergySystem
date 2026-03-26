@@ -7,12 +7,26 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from app.api.deps import MAINTAINER_OR_ADMIN, get_current_user
+from app.core.access_control import ensure_device_access, get_allowed_device_ids
+from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
-from app.models.tables import DeviceMaintenance, MaintenanceType, MaintenanceStatus
+from app.models.tables import DeviceMaintenance, MaintenanceType, MaintenanceStatus, User
 from app.services.maintenance_service import MaintenanceService
 
 router = APIRouter()
+
+
+def _ensure_maintenance_access(
+    session: Session,
+    current_user: User,
+    maintenance_id: int,
+) -> DeviceMaintenance:
+    """校验当前用户是否可访问指定维护记录。"""
+    maintenance = MaintenanceService.get_maintenance_by_id(session, maintenance_id)
+    ensure_device_access(session, current_user, maintenance.device_id)
+    return maintenance
 
 
 # ==================== 请求/响应模型 ====================
@@ -69,7 +83,8 @@ def get_maintenance_list(
     end_date: Optional[datetime] = Query(None, description="结束日期"),
     limit: int = Query(50, ge=1, le=200, description="返回记录数限制"),
     offset: int = Query(0, ge=0, description="分页偏移量"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取维护记录列表
@@ -90,6 +105,7 @@ def get_maintenance_list(
         status=status,
         start_date=start_date,
         end_date=end_date,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
         limit=limit,
         offset=offset
     )
@@ -134,19 +150,22 @@ def get_maintenance_statuses():
 @router.get("/{maintenance_id}", response_model=DeviceMaintenance)
 def get_maintenance_detail(
     maintenance_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """获取维护记录详情（资源不存在时由全局异常处理器返回 404）"""
-    return MaintenanceService.get_maintenance_by_id(session, maintenance_id)
+    return _ensure_maintenance_access(session, current_user, maintenance_id)
 
 
 @router.post("/", response_model=DeviceMaintenance)
 def create_maintenance(
     request: MaintenanceCreateRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """创建维护记录（设备不存在等由全局异常处理器返回 404）"""
-    return MaintenanceService.create_maintenance(
+    ensure_device_access(session, current_user, request.device_id)
+    result = MaintenanceService.create_maintenance(
         session=session,
         device_id=request.device_id,
         maintenance_type=request.maintenance_type,
@@ -154,43 +173,61 @@ def create_maintenance(
         title=request.title,
         description=request.description,
         operator=request.operator,
-        created_by=request.created_by
+        created_by=request.created_by or current_user.username
     )
+    audit_log(
+        "maintenance.create",
+        current_user.username,
+        f"device:{request.device_id}",
+        maintenance_type=request.maintenance_type,
+        role=current_user.role,
+    )
+    return result
 
 
 @router.put("/{maintenance_id}", response_model=DeviceMaintenance)
 def update_maintenance(
     maintenance_id: int,
     request: MaintenanceUpdateRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """更新维护记录（资源不存在等由全局异常处理器处理）"""
+    _ensure_maintenance_access(session, current_user, maintenance_id)
     update_data = request.model_dump(exclude_unset=True)
-    return MaintenanceService.update_maintenance(
+    result = MaintenanceService.update_maintenance(
         session, maintenance_id, **update_data
     )
+    audit_log("maintenance.update", current_user.username, f"maintenance:{maintenance_id}", role=current_user.role)
+    return result
 
 
 @router.post("/{maintenance_id}/start", response_model=DeviceMaintenance)
 def start_maintenance(
     maintenance_id: int,
     request: MaintenanceStartRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """开始维护（将状态改为进行中，资源不存在等由全局异常处理器处理）"""
-    return MaintenanceService.start_maintenance(
-        session, maintenance_id, request.operator
+    _ensure_maintenance_access(session, current_user, maintenance_id)
+    result = MaintenanceService.start_maintenance(
+        session, maintenance_id, request.operator or current_user.username
     )
+    audit_log("maintenance.start", current_user.username, f"maintenance:{maintenance_id}", role=current_user.role)
+    return result
 
 
 @router.post("/{maintenance_id}/complete", response_model=DeviceMaintenance)
 def complete_maintenance(
     maintenance_id: int,
     request: MaintenanceCompleteRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """完成维护（资源不存在等由全局异常处理器处理）"""
-    return MaintenanceService.complete_maintenance(
+    _ensure_maintenance_access(session, current_user, maintenance_id)
+    result = MaintenanceService.complete_maintenance(
         session=session,
         maintenance_id=maintenance_id,
         result=request.result,
@@ -198,27 +235,36 @@ def complete_maintenance(
         parts_replaced=request.parts_replaced,
         next_maintenance_date=request.next_maintenance_date
     )
+    audit_log("maintenance.complete", current_user.username, f"maintenance:{maintenance_id}", role=current_user.role)
+    return result
 
 
 @router.post("/{maintenance_id}/cancel", response_model=DeviceMaintenance)
 def cancel_maintenance(
     maintenance_id: int,
     request: MaintenanceCancelRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """取消维护（资源不存在等由全局异常处理器处理）"""
-    return MaintenanceService.cancel_maintenance(
+    _ensure_maintenance_access(session, current_user, maintenance_id)
+    result = MaintenanceService.cancel_maintenance(
         session, maintenance_id, request.reason
     )
+    audit_log("maintenance.cancel", current_user.username, f"maintenance:{maintenance_id}", reason=request.reason, role=current_user.role)
+    return result
 
 
 @router.delete("/{maintenance_id}")
 def delete_maintenance(
     maintenance_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """删除维护记录（记录不存在时由全局异常处理器返回 404）"""
+    _ensure_maintenance_access(session, current_user, maintenance_id)
     MaintenanceService.delete_maintenance(session, maintenance_id)
+    audit_log("maintenance.delete", current_user.username, f"maintenance:{maintenance_id}", role=current_user.role)
     return success_response(message=f"维护记录 {maintenance_id} 已删除")
 
 
@@ -228,7 +274,8 @@ def delete_maintenance(
 def get_device_maintenance_history(
     device_id: int,
     limit: int = Query(10, ge=1, le=100, description="返回记录数"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取设备的维护历史记录
@@ -240,15 +287,20 @@ def get_device_maintenance_history(
     Returns:
         维护历史列表
     """
+    ensure_device_access(session, current_user, device_id)
     return MaintenanceService.get_device_maintenance_history(
-        session, device_id, limit
+        session,
+        device_id,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        limit=limit,
     )
 
 
 @router.get("/upcoming/list", response_model=List[DeviceMaintenance])
 def get_upcoming_maintenance(
     days: int = Query(7, ge=1, le=90, description="未来天数"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取即将到来的维护计划
@@ -259,12 +311,17 @@ def get_upcoming_maintenance(
     Returns:
         即将进行的维护列表
     """
-    return MaintenanceService.get_upcoming_maintenance(session, days)
+    return MaintenanceService.get_upcoming_maintenance(
+        session,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        days=days,
+    )
 
 
 @router.get("/overdue/list", response_model=List[DeviceMaintenance])
 def get_overdue_maintenance(
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取逾期未完成的维护计划
@@ -272,7 +329,10 @@ def get_overdue_maintenance(
     Returns:
         逾期维护列表
     """
-    return MaintenanceService.get_overdue_maintenance(session)
+    return MaintenanceService.get_overdue_maintenance(
+        session,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
+    )
 
 
 @router.get("/statistics/summary")
@@ -280,7 +340,8 @@ def get_maintenance_statistics(
     device_id: Optional[int] = Query(None, description="设备ID（不指定则统计所有设备）"),
     start_date: Optional[datetime] = Query(None, description="开始日期"),
     end_date: Optional[datetime] = Query(None, description="结束日期"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     获取维护统计信息
@@ -293,7 +354,13 @@ def get_maintenance_statistics(
     Returns:
         统计信息（总数、按状态/类型统计、成本统计、时长统计等）
     """
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
     stats = MaintenanceService.get_maintenance_statistics(
-        session, device_id, start_date, end_date
+        session,
+        device_id,
+        start_date,
+        end_date,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
     )
     return success_response(data=stats)

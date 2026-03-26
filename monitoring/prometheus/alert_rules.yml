@@ -1,0 +1,107 @@
+groups:
+  - name: mine_energy_backend
+    rules:
+      - alert: MineBackendDown
+        expr: up{job="mine-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MineEnergySystem backend is down"
+          description: "Prometheus cannot scrape the backend /metrics endpoint for more than 1 minute."
+
+      - alert: MineHighHttpErrorRate
+        expr: |
+          sum(rate(mine_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(mine_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MineEnergySystem HTTP 5xx rate is high"
+          description: "More than 5% of HTTP requests returned 5xx in the last 5 minutes."
+
+      - alert: MineHighHttpLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(mine_http_request_duration_seconds_bucket[5m])) by (le, path)
+          ) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MineEnergySystem HTTP p95 latency is high"
+          description: "HTTP p95 latency exceeded 1.5 seconds for at least 10 minutes."
+
+      - alert: MineMqttIngestionFailures
+        expr: increase(mine_mqtt_messages_total{status=~"failed|validation_failed"}[10m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MQTT ingestion failures are increasing"
+          description: "MQTT ingestion has produced more than 10 failed messages in 10 minutes."
+
+      - alert: MineSchedulerFailures
+        expr: increase(mine_scheduler_job_runs_total{outcome="failed"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduled job failures detected"
+          description: "At least one scheduler job has failed in the last 15 minutes."
+
+      - alert: MineRuntimeServiceUnhealthy
+        expr: mine_runtime_service_status < 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "A runtime dependency is unhealthy"
+          description: "One or more backend runtime services are reported unhealthy."
+
+  # Infrastructure alerts (activate after adding exporters)
+  # - name: mine_infrastructure
+  #   rules:
+  #     - alert: HostHighCpuUsage
+  #       expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+  #       for: 10m
+  #       labels:
+  #         severity: warning
+  #       annotations:
+  #         summary: "Host CPU usage above 85%"
+  #
+  #     - alert: HostHighMemoryUsage
+  #       expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+  #       for: 5m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: "Host memory usage above 90%"
+  #
+  #     - alert: HostDiskSpaceLow
+  #       expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+  #       for: 5m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: "Disk space below 10% on root partition"
+  #
+  #     - alert: PostgresConnectionPoolExhausted
+  #       expr: pg_stat_activity_count / pg_settings_max_connections > 0.85
+  #       for: 5m
+  #       labels:
+  #         severity: warning
+  #       annotations:
+  #         summary: "PostgreSQL connections above 85% capacity"
+  #
+  #     - alert: RedisMemoryNearLimit
+  #       expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+  #       for: 5m
+  #       labels:
+  #         severity: warning
+  #       annotations:
+  #         summary: "Redis memory usage above 90% of maxmemory"

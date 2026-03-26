@@ -14,6 +14,8 @@ from app.services.ingestion_health_service import IngestionHealthService
 from app.services.inspection_service import InspectionService
 from app.services.location_service import LocationService
 from app.services.maintenance_service import MaintenanceService
+from app.services.mqtt_reliability_service import MqttReliabilityService
+from app.services.user_service import UserService
 from app.services.scheduler_jobs import (
     auto_cleanup_data,
     auto_train_lstm_models,
@@ -54,6 +56,8 @@ try:
         "auto_update_forecasts",
         "LocationService",
         "MaintenanceService",
+        "MqttReliabilityService",
+        "UserService",
         "InspectionService",
         "process_payload",
         "process_payload_dict",
@@ -81,6 +85,8 @@ except ImportError:
         "auto_update_forecasts",
         "LocationService",
         "MaintenanceService",
+        "MqttReliabilityService",
+        "UserService",
         "InspectionService",
         "process_payload",
         "process_payload_dict",

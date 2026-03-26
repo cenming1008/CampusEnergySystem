@@ -5,12 +5,14 @@
 from datetime import datetime
 from typing import Dict, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlmodel import Session, select
 
+from app.api.deps import require_monitoring_access
 from app.core.database import get_session
 from app.core.redis import RedisClient
 from app.core.logger import logger
+from app.core.metrics import render_metrics
 from app.core.runtime_state import runtime_state
 
 router = APIRouter()
@@ -22,7 +24,10 @@ router = APIRouter()
     description="检查系统各组件（数据库、Redis、MQTT）的健康状态",
     response_description="返回系统健康状态"
 )
-async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any]:
+async def health_check(
+    _: None = Depends(require_monitoring_access),
+    session: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """
     系统健康检查端点
     
@@ -91,11 +96,21 @@ async def health_check(session: Session = Depends(get_session)) -> Dict[str, Any
 
 
 @router.get(
+    "/metrics",
+    summary="Prometheus 指标",
+    description="暴露 Prometheus 可抓取的运行指标"
+)
+async def metrics(_: None = Depends(require_monitoring_access)) -> Response:
+    payload, content_type = render_metrics()
+    return Response(content=payload, media_type=content_type)
+
+
+@router.get(
     "/health/live",
     summary="存活检查",
     description="简单的存活检查，用于 Kubernetes liveness probe"
 )
-async def liveness_check() -> Dict[str, str]:
+async def liveness_check(_: None = Depends(require_monitoring_access)) -> Dict[str, str]:
     """
     存活检查（Liveness Probe）
     
@@ -114,7 +129,10 @@ async def liveness_check() -> Dict[str, str]:
     description="就绪检查，用于 Kubernetes readiness probe",
     response_description="返回服务是否就绪"
 )
-async def readiness_check(session: Session = Depends(get_session)) -> Dict[str, Any]:
+async def readiness_check(
+    _: None = Depends(require_monitoring_access),
+    session: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """
     就绪检查（Readiness Probe）
     

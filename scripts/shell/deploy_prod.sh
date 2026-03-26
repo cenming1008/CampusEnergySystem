@@ -7,7 +7,7 @@
 # ./scripts/shell/deploy_prod.sh
 # ============================================
 
-set -e  # 遇到错误立即退出
+set -euo pipefail
 
 # 颜色输出
 RED='\033[0;31m'
@@ -31,18 +31,28 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# 2. 检查必要配置
-echo -e "${YELLOW}📋 检查配置...${NC}"
-source "$ENV_FILE"
+# 2. 收紧 .env.prod 文件权限
+chmod 600 "$ENV_FILE" 2>/dev/null || true
 
-if [ "$DB_PASSWORD" = "your-strong-database-password-change-me-min-16-chars" ]; then
+# 3. 检查必要配置
+echo -e "${YELLOW}📋 检查配置...${NC}"
+
+DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
+SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
+
+if [ "$DB_PASSWORD" = "your-strong-database-password-change-me-min-16-chars" ] || [ -z "$DB_PASSWORD" ]; then
     echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 DB_PASSWORD${NC}"
     exit 1
 fi
 
-if [ "$SECRET_KEY" = "your-super-secret-jwt-key-min-32-chars-change-me-immediately" ]; then
+if [ "$SECRET_KEY" = "your-super-secret-jwt-key-min-32-chars-change-me-immediately" ] || [ -z "$SECRET_KEY" ]; then
     echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 SECRET_KEY${NC}"
     exit 1
+fi
+
+ENV_MODE=$(stat -f '%A' "$ENV_FILE" 2>/dev/null || stat -c '%a' "$ENV_FILE" 2>/dev/null || echo "600")
+if [ "$ENV_MODE" != "600" ]; then
+    echo -e "${YELLOW}⚠️  提醒: $ENV_FILE 当前权限为 $ENV_MODE，建议收紧为 600${NC}"
 fi
 
 # 3. 拉取最新代码（如果使用Git）
@@ -53,19 +63,27 @@ fi
 
 # 4. 创建必要目录
 echo -e "${YELLOW}📁 创建目录...${NC}"
-mkdir -p logs backups pg_data mosquitto/{config,data,log}
+mkdir -p logs backups pg_data mosquitto/{config,data,log} nginx/{ssl,log}
 
-# 5. 构建镜像
-echo -e "${YELLOW}🔨 构建Docker镜像...${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache
+# 4.1 发布前检查
+echo -e "${YELLOW}🧪 执行发布前检查...${NC}"
+bash ./scripts/shell/release_readiness.sh
+python3 ./scripts/python/check_production_readiness.py --env-file "$ENV_FILE"
 
-# 6. 停止旧服务
-echo -e "${YELLOW}🛑 停止旧服务...${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
+# 4.2 部署前备份
+if docker ps --format '{{.Names}}' | grep -q "^mine_energy_db_prod$"; then
+    echo -e "${YELLOW}💾 创建部署前备份...${NC}"
+    bash ./scripts/shell/backup.sh --label pre_deploy
+fi
 
-# 7. 启动新服务
-echo -e "${YELLOW}▶️  启动服务...${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+# 5. 构建后端镜像
+echo -e "${YELLOW}🔨 构建后端镜像...${NC}"
+docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache backend
+
+# 6. 滚动更新（仅重建 backend 和 nginx，不停止基础设施服务）
+echo -e "${YELLOW}▶️  滚动更新 backend + nginx...${NC}"
+docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps --remove-orphans backend
+docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps nginx
 
 # 8. 等待服务就绪
 echo -e "${YELLOW}⏳ 等待服务启动（30秒）...${NC}"
@@ -90,6 +108,7 @@ done
 if [ $attempt -eq $max_attempts ]; then
     echo -e "${RED}❌ 健康检查失败，请查看日志:${NC}"
     echo "docker-compose -f $COMPOSE_FILE logs backend"
+    echo "如需回滚，可执行: bash ./scripts/shell/rollback_prod.sh backups/latest_pre_deploy.dump"
     exit 1
 fi
 

@@ -1,0 +1,68 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Frontend (not needed in backend image)
+frontend
+
+# Data directories
+pg_data
+pg_data_dev
+backups
+logs
+
+# Infrastructure configs (mounted at runtime)
+monitoring
+nginx
+mosquitto
+
+# Documentation
+docs
+*.md
+CHANGELOG*
+LICENSE
+
+# Development & testing
+tests
+coverage.xml
+.coverage
+test-results
+htmlcov
+.pytest_cache
+.mypy_cache
+
+# Scripts not needed at runtime
+scripts/shell
+
+# Environment files (secrets)
+.env
+.env.*
+env.example
+env.prod.example
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+venv
+.venv
+
+# IDE
+.vscode
+.cursor
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Models directory (large, mount separately if needed)
+models

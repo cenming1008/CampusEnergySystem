@@ -79,6 +79,33 @@ class InspectionResult(str, Enum):
     SERIOUS = "serious"           # 严重
 
 
+class UserRole(str, Enum):
+    """用户角色枚举"""
+
+    ADMIN = "admin"
+    OPERATOR = "operator"
+    MAINTAINER = "maintainer"
+    VIEWER = "viewer"
+
+
+class AuditOutcome(str, Enum):
+    """审计结果枚举。"""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    DENIED = "denied"
+
+
+class MqttIngestionStatus(str, Enum):
+    """MQTT 接入处理状态。"""
+
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    FAILED = "failed"
+    DUPLICATE = "duplicate"
+    DEAD_LETTER = "dead_letter"
+
+
 # ==================== 表模型 ====================
 
 
@@ -169,6 +196,44 @@ class DeviceIngestionHealth(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now, description="最后更新时间")
 
 
+class AuditEvent(SQLModel, table=True):
+    """安全与运维关键操作审计事件。"""
+
+    __tablename__ = "audit_event"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    action: str = Field(index=True, description="操作标识")
+    actor: str = Field(index=True, description="执行人")
+    target: str = Field(index=True, description="目标资源")
+    outcome: str = Field(default=AuditOutcome.SUCCESS, index=True, description="执行结果")
+    actor_role: Optional[str] = Field(default=None, index=True, description="执行人角色")
+    details: Optional[str] = Field(default=None, description="审计细节(JSON)")
+    created_at: datetime = Field(default_factory=datetime.now, index=True, description="记录时间")
+
+
+class MqttIngestionRecord(SQLModel, table=True):
+    """MQTT 消息接入台账，用于幂等、防重和失败留痕。"""
+
+    __tablename__ = "mqtt_ingestion_record"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    fingerprint: str = Field(index=True, unique=True, description="消息指纹")
+    payload_hash: str = Field(index=True, description="标准化 payload 哈希")
+    raw_payload: Optional[str] = Field(default=None, description="原始消息体")
+    device_id: int = Field(index=True, foreign_key="device.id", description="设备ID")
+    topic: Optional[str] = Field(default=None, index=True, description="消息主题")
+    telemetry_timestamp: Optional[datetime] = Field(default=None, index=True, description="设备时间戳")
+    received_at: datetime = Field(default_factory=datetime.now, index=True, description="首次接收时间")
+    last_seen_at: datetime = Field(default_factory=datetime.now, index=True, description="最近一次看到该消息的时间")
+    status: str = Field(default=MqttIngestionStatus.PROCESSING, index=True, description="处理状态")
+    error_reason: Optional[str] = Field(default=None, description="失败原因")
+    duplicate_count: int = Field(default=0, description="重复收到次数")
+    retry_count: int = Field(default=0, description="自动/人工累计重试次数")
+    next_retry_at: Optional[datetime] = Field(default=None, index=True, description="下一次允许重试时间")
+    replay_count: int = Field(default=0, description="人工重放次数")
+    last_replayed_at: Optional[datetime] = Field(default=None, index=True, description="最近一次重放时间")
+
+
 class EnergyData(SQLModel, table=True):
     """
     通用能源数据表（时序表）- 支持多种能源类型。
@@ -251,7 +316,15 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
+    role: str = Field(default=UserRole.ADMIN, index=True, description="用户角色")
+    location_scope: Optional[str] = Field(default=None, description="可访问位置ID列表，逗号分隔；为空表示不限制")
     is_active: bool = Field(default=True)
+    must_change_password: bool = Field(default=False, description="是否必须在下次登录后修改密码")
+    failed_login_attempts: int = Field(default=0, description="连续登录失败次数")
+    locked_until: Optional[datetime] = Field(default=None, index=True, description="账户锁定截止时间")
+    token_version: int = Field(default=0, description="令牌版本号，用于强制下线")
+    last_login_at: Optional[datetime] = Field(default=None, index=True, description="最近登录时间")
+    last_password_changed_at: Optional[datetime] = Field(default=None, description="最近密码修改时间")
 
 
 class CarbonEmission(SQLModel, table=True):

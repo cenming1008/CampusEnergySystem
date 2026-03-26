@@ -22,9 +22,11 @@ class TestLayerExports(unittest.TestCase):
     def test_repository_exports_key_repositories(self):
         self.assertTrue(hasattr(repositories, "DeviceRepository"))
         self.assertTrue(hasattr(repositories, "EnergyRepository"))
+        self.assertTrue(hasattr(repositories, "UserRepository"))
 
     def test_services_exports_key_services_and_helpers(self):
         self.assertTrue(hasattr(services, "DeviceService"))
+        self.assertTrue(hasattr(services, "UserService"))
         self.assertTrue(callable(services.process_payload))
         self.assertTrue(callable(services.auto_cleanup_data))
 
