@@ -84,8 +84,7 @@ async function handleDownload() {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     ElMessage.success('报表下载成功')
-  } catch (error) {
-    console.error(error)
+  } catch {
     ElMessage.error('报表下载失败，请稍后重试')
   } finally {
     downloading.value = false
@@ -93,8 +92,7 @@ async function handleDownload() {
 }
 
 onMounted(() => {
-  loadDevices().catch((error) => {
-    console.error(error)
+  loadDevices().catch(() => {
     ElMessage.warning('设备列表加载失败，仍可导出全量权限范围数据')
   })
 })

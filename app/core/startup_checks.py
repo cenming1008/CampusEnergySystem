@@ -5,8 +5,18 @@
 from __future__ import annotations
 
 import math
+import warnings
 
 from app.core.settings import DEFAULT_SECRET_KEY, Settings
+
+_BUSINESS_DEFAULTS = {
+    "peak_price": 1.25,
+    "flat_price": 0.80,
+    "valley_price": 0.40,
+    "fdd_rated_power": 1000.0,
+    "fdd_overload_ratio": 0.90,
+    "fdd_voltage_fluctuation_limit": 0.10,
+}
 
 
 def _shannon_entropy(s: str) -> float:
@@ -20,8 +30,25 @@ def _shannon_entropy(s: str) -> float:
     return -sum((c / length) * math.log2(c / length) for c in freq.values())
 
 
+def _check_business_defaults(settings: Settings) -> None:
+    """检测关键业务参数是否仍为开发默认值，发出警告。"""
+    unchanged: list[str] = []
+    for attr, default_val in _BUSINESS_DEFAULTS.items():
+        if getattr(settings, attr, None) == default_val:
+            unchanged.append(attr)
+
+    if unchanged:
+        warnings.warn(
+            f"以下业务参数仍为开发默认值，试点前请确认已按现场实际值配置: {', '.join(unchanged)}",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
 def validate_runtime_configuration(settings: Settings) -> None:
     """对高风险生产配置做硬性校验。"""
+    _check_business_defaults(settings)
+
     if not settings.strict_startup_checks:
         return
 
@@ -50,6 +77,10 @@ def validate_runtime_configuration(settings: Settings) -> None:
             problems.append("生产环境必须收紧 TRUSTED_HOSTS")
         if not settings.cors_origins or "*" in settings.cors_origins:
             problems.append("生产环境必须收紧 CORS_ORIGINS")
+        mqtt_username = getattr(settings, "mqtt_username", None)
+        mqtt_password = getattr(settings, "mqtt_password", None)
+        if not mqtt_username or not mqtt_password:
+            problems.append("生产环境必须配置 MQTT_USERNAME 和 MQTT_PASSWORD")
 
         if problems:
             raise RuntimeError("启动检查失败: " + "；".join(problems))

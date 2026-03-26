@@ -49,8 +49,8 @@ const handleLogin = async () => {
 
     ElMessage.success('登录成功，欢迎进入系统')
     router.push(res.must_change_password ? '/account/security' : '/')
-  } catch (error) {
-    console.error(error)
+  } catch {
+    // 登录失败由 axios 拦截器统一提示
   } finally {
     loading.value = false
   }

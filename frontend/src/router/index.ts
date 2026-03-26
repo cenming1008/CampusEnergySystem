@@ -138,16 +138,17 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   
-  // 1. 如果去的是登录页，直接放行
   if (to.name === 'Login') {
-    next()
+    if (authStore.token) {
+      next({ name: 'Dashboard' })
+    } else {
+      next()
+    }
     return
   }
 
-  // 2. 检查是否有 Token
   if (!authStore.token) {
-    // 没登录，强制去登录页
-    next({ name: 'Login' })
+    next({ name: 'Login', query: { redirect: to.fullPath } })
   } else {
     const routeRoles = to.meta.roles as string[] | undefined
     const currentRole = authStore.role?.toLowerCase()

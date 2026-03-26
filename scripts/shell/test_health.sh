@@ -22,7 +22,7 @@ if curl -s --connect-timeout 2 "$BACKEND_URL/docs" > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 后端服务正在运行${NC}"
 else
     echo -e "${RED}❌ 后端服务未运行，请先启动：${NC}"
-    echo "   cd /Users/todo/MineEnergySystem"
+    echo "   cd <项目根目录>"
     echo "   docker compose up -d"
     exit 1
 fi

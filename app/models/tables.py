@@ -316,7 +316,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
-    role: str = Field(default=UserRole.ADMIN, index=True, description="用户角色")
+    role: str = Field(default=UserRole.VIEWER, index=True, description="用户角色")
     location_scope: Optional[str] = Field(default=None, description="可访问位置ID列表，逗号分隔；为空表示不限制")
     is_active: bool = Field(default=True)
     must_change_password: bool = Field(default=False, description="是否必须在下次登录后修改密码")

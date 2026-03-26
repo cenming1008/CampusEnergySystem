@@ -72,7 +72,7 @@ echo "=========================================="
 echo "  Docker 服务状态"
 echo "=========================================="
 echo ""
-docker-compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml ps
 echo ""
 echo -e "${GREEN}✔${NC} 现在可以使用 Docker 中的服务了！"
 echo ""

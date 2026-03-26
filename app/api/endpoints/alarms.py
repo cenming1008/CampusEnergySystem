@@ -6,7 +6,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
-from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN
+from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN, get_current_user
+from app.core.access_control import get_allowed_device_ids
 from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
@@ -23,22 +24,18 @@ def get_alarms(
     resolved: Optional[bool] = Query(False, description="是否已解决，默认仅看未解决"),
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    获取未处理的报警列表
-    
-    Args:
-        limit: 返回的最大记录数，默认20条，最大100条
-        
-    Returns:
-        未解决的报警列表，按时间倒序排列（最新的在前）
+    获取未处理的报警列表（受 location_scope 约束）
     """
-    # 限制最大返回数量，防止性能问题
     if limit > 100:
         limit = 100
     if limit < 1:
         limit = 1
+
+    allowed_ids = get_allowed_device_ids(session, current_user)
     
     return AlarmService.list_alarms(
         session,
@@ -47,6 +44,7 @@ def get_alarms(
         start_time=start_time,
         end_time=end_time,
         limit=limit,
+        allowed_device_ids=allowed_ids,
     )
 
 

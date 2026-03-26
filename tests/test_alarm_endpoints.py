@@ -11,9 +11,20 @@ from app.api.endpoints import alarms
 class TestAlarmEndpoints(unittest.TestCase):
     def test_get_alarms_supports_history_filters(self):
         fake_alarm = SimpleNamespace(id=1, message="告警", device_id=1)
+        current_user = SimpleNamespace(role="admin")
         with patch.object(alarms.AlarmService, "list_alarms", return_value=[fake_alarm]) as mock_list:
-            result = alarms.get_alarms(limit=30, device_id=1, resolved=True, start_time=None, end_time=None, session=object())
+            with patch.object(alarms, "get_allowed_device_ids", return_value=None) as mock_allowed:
+                result = alarms.get_alarms(
+                    limit=30,
+                    device_id=1,
+                    resolved=True,
+                    start_time=None,
+                    end_time=None,
+                    session=object(),
+                    current_user=current_user,
+                )
 
+        mock_allowed.assert_called_once()
         mock_list.assert_called_once()
         self.assertEqual(result[0].id, 1)
 

@@ -186,8 +186,8 @@ const loadData = async () => {
     if (statsRes) {
       statistics.value = statsRes
     }
-  } catch (e) {
-    console.error('加载数据失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   } finally {
     loading.value = false
   }
@@ -269,8 +269,8 @@ const viewRoutePoints = async (route: InspectionRoute) => {
   selectedRoute.value = route
   try {
     points.value = await getRoutePoints(route.id!)
-  } catch (e) {
-    console.error(e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -458,8 +458,8 @@ const openExecuteDialog = async (task: InspectionTask) => {
     points.value = await getRoutePoints(task.route_id)
     currentRecords.value = await getTaskRecords(task.id!)
     executeDialogVisible.value = true
-  } catch (e) {
-    console.error(e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 

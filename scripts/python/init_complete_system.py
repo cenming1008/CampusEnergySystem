@@ -22,6 +22,10 @@ from app.core.logger import logger
 def create_admin():
     """创建管理员账户"""
     logger.info("👤 创建管理员账户...")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    if not admin_password:
+        logger.warning("  ⚠️ 未设置 ADMIN_PASSWORD 环境变量，使用临时密码（请尽快修改！）")
+        admin_password = "change-me-immediately-2026!"
     with Session(engine) as session:
         stmt = select(User).where(User.username == "admin")
         existing = session.exec(stmt).first()
@@ -31,12 +35,14 @@ def create_admin():
         
         admin = User(
             username="admin",
-            hashed_password=get_password_hash("123456"),
-            is_active=True
+            hashed_password=get_password_hash(admin_password),
+            role="admin",
+            is_active=True,
+            must_change_password=True,
         )
         session.add(admin)
         session.commit()
-        logger.info("  ✅ 管理员创建成功: admin / 123456")
+        logger.info("  ✅ 管理员创建成功（首次登录需改密）")
 
 
 def create_devices():
@@ -343,7 +349,7 @@ def main():
         logger.info("  1. 启动后端: python run.py")
         logger.info("  2. 启动模拟器: python scripts/python/simulator_unified.py")
         logger.info("  3. 启动前端: cd frontend && npm run dev")
-        logger.info("  4. 登录系统: admin / 123456")
+        logger.info("  4. 登录系统: admin / <ADMIN_PASSWORD 环境变量值>")
         logger.info("")
         
     except Exception as e:

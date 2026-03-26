@@ -102,9 +102,14 @@ export function useDashboardRealtime(options: {
 
       loading.trend = true
       updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
-    } catch (error) {
-      console.error('加载设备数据失败:', error)
+    } catch {
       if (token === requestToken) {
+        updateRealtimeMetrics({
+          power: 0,
+          energy: 0,
+          current: 0,
+          voltage: 0
+        })
         energyTrendData.times = []
         energyTrendData.values = []
       }
@@ -123,8 +128,8 @@ export function useDashboardRealtime(options: {
       loading.trend = true
       const history = await getHistory(currentDeviceId.value, 100)
       updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
-    } catch (error) {
-      console.error('加载负荷曲线失败:', error)
+    } catch {
+      // 负荷曲线加载失败
     } finally {
       loading.trend = false
     }

@@ -16,10 +16,10 @@ try:
     from lstm_forecast.service import LSTMForecastService
     from lstm_forecast.version_manager import ModelVersionService
     LSTM_AVAILABLE = True
-except ImportError as e:
+except Exception:
     LSTM_AVAILABLE = False
-    LSTMForecastService = None
-    ModelVersionService = None
+    LSTMForecastService = None  # type: ignore[assignment, misc]
+    ModelVersionService = None  # type: ignore[assignment, misc]
 
 __all__ = [
     "DataGenerator",

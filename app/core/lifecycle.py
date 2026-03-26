@@ -19,7 +19,8 @@ from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.core.socket_manager import manager
 from app.core.startup_checks import validate_runtime_configuration
-from app.services.mqtt_worker import start_mqtt_background
+from app.services.mqtt_publisher import stop_publisher as stop_mqtt_publisher
+from app.services.mqtt_worker import start_mqtt_background, stop_mqtt
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
 
@@ -66,7 +67,7 @@ async def startup() -> None:
     if mqtt_started:
         logger.info("✅ MQTT服务启动完成")
     else:
-        logger.warning("⚠️ MQTT服务启动失败")
+        logger.warning("⚠️ MQTT服务启动失败，后台重试线程已启动")
 
     try:
         start_scheduler()
@@ -78,7 +79,7 @@ async def startup() -> None:
 
 
 async def shutdown() -> None:
-    """应用关闭：停止调度器、关闭 Redis、清理引用。"""
+    """应用关闭：停止调度器、MQTT、Redis，清理引用。"""
     global _event_loop
     logger.info("🛑 应用关闭中...")
 
@@ -90,6 +91,18 @@ async def shutdown() -> None:
         logger.warning(f"⚠️ 定时任务调度器停止失败: {exc}")
 
     try:
+        stop_mqtt()
+        logger.info("✅ MQTT 订阅客户端已停止")
+    except Exception as exc:
+        logger.warning(f"⚠️ MQTT 订阅客户端停止失败: {exc}")
+
+    try:
+        stop_mqtt_publisher()
+        logger.info("✅ MQTT 发布客户端已停止")
+    except Exception as exc:
+        logger.warning(f"⚠️ MQTT 发布客户端停止失败: {exc}")
+
+    try:
         await RedisClient.close()
         runtime_state.mark_service("redis", "stopped", "closed")
         logger.info("✅ Redis连接已关闭")
@@ -97,7 +110,6 @@ async def shutdown() -> None:
         runtime_state.mark_service("redis", "unhealthy", str(exc))
         logger.warning(f"⚠️ Redis关闭失败: {exc}")
 
-    runtime_state.mark_service("mqtt", "stopped", "process shutdown")
     runtime_state.mark_service("database", "stopped", "process shutdown")
     _event_loop = None
 

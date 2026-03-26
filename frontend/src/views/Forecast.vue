@@ -106,8 +106,8 @@ function extractErrorMessage(error: unknown, fallback: string) {
 const loadDevices = async () => {
   try {
     deviceList.value = await getDevices()
-  } catch (e) {
-    console.error('加载设备失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -118,8 +118,8 @@ const loadModelVersions = async () => {
     const active = modelVersions.value.filter((item) => item.is_active)
     compareVersionA.value = active[0]?.version || modelVersions.value[0]?.version || ''
     compareVersionB.value = modelVersions.value.find((item) => item.version !== compareVersionA.value)?.version || ''
-  } catch (e) {
-    console.error('加载模型版本失败:', e)
+  } catch {
+    // 模型版本加载失败
   }
 }
 
@@ -127,8 +127,8 @@ const loadSchedulerJobs = async () => {
   try {
     const res = await getSchedulerJobs()
     schedulerJobs.value = res.jobs || []
-  } catch (e) {
-    console.error('加载定时任务失败:', e)
+  } catch {
+    // 定时任务加载失败
   }
 }
 
@@ -212,8 +212,7 @@ const loadForecastInsights = async () => {
     latestPredictions.value = latest.predictions || []
     forecastAccuracy.value = accuracy
     historyPredictions.value = history.predictions || []
-  } catch (error) {
-    console.error('加载预测洞察失败', error)
+  } catch {
     latestPredictions.value = []
     forecastAccuracy.value = null
     historyPredictions.value = []

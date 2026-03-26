@@ -4,7 +4,6 @@
 统一管理数据库、Redis、MQTT、JWT、CORS、日志、服务端口等配置。
 """
 import json
-import smtplib
 import warnings
 from typing import List, Optional
 
@@ -408,9 +407,9 @@ class Settings(BaseSettings):
         return parse_cors_origins_value(v)
 
     trusted_hosts: List[str] = Field(
-        default=["localhost", "127.0.0.1"],
+        default=["localhost", "127.0.0.1", "0.0.0.0"],
         env="TRUSTED_HOSTS",
-        description="允许访问的 Host 列表（JSON 数组或逗号分隔）"
+        description="允许访问的 Host 列表（JSON 数组或逗号分隔），生产环境应设为实际域名/IP"
     )
 
     force_https: bool = Field(

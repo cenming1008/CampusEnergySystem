@@ -178,8 +178,8 @@ const loadDeviceStats = async () => {
   try {
     const res = await request.get<never, DeviceStats>(`/data-generator/stats/${selectedDeviceForStats.value}`)
     dataStats.value = res
-  } catch (e) {
-    console.error('加载统计失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -187,21 +187,19 @@ const loadSystemStatus = async () => {
   try {
     const res = await request.get<never, SystemStatus>('/health')
     systemStatus.value = res
-  } catch (e) {
-    console.error('加载系统状态失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
 const loadMetrics = async () => {
   try {
-    const res = await fetch('/metrics', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`
-      }
+    const res = await request.get<never, string>('/metrics', {
+      responseType: 'text'
     })
-    metricsText.value = await res.text()
-  } catch (e) {
-    console.error('加载 metrics 失败:', e)
+    metricsText.value = res
+  } catch {
+    metricsText.value = ''
   }
 }
 
@@ -212,8 +210,8 @@ const loadIngestionRecords = async () => {
       params: { limit: 20 }
     })
     ingestionRecords.value = res.items || []
-  } catch (e) {
-    console.error('加载 MQTT 接入记录失败:', e)
+  } catch {
+    // MQTT 接入记录加载失败
   } finally {
     ingestionLoading.value = false
   }
@@ -232,8 +230,8 @@ const replayIngestionRecord = async (recordId: number) => {
 const loadDevices = async () => {
   try {
     deviceList.value = await getDevices()
-  } catch (e) {
-    console.error('加载设备失败:', e)
+  } catch {
+    // 设备列表加载失败
   }
 }
 
@@ -271,10 +269,6 @@ const handleCleanupData = async () => {
       if (result.alarm_data > 0) details.push(`报警记录: ${result.alarm_data} 条`)
       if (result.carbon_emission > 0) details.push(`碳排放记录: ${result.carbon_emission} 条`)
       
-      if (details.length > 0) {
-        console.log('清理详情:', details.join(', '))
-      }
-      
       // 重新加载统计信息
       await loadCleanupStats()
     } else {
@@ -292,8 +286,8 @@ const loadCleanupStats = async () => {
   try {
     const res = await getCleanupStats()
     cleanupStats.value = res
-  } catch (e) {
-    console.error('加载清理统计失败:', e)
+  } catch {
+    // 清理统计加载失败
   }
 }
 
@@ -354,10 +348,6 @@ const handleCleanupAllData = async () => {
       if (result.energy_data > 0) details.push(`时序数据: ${result.energy_data} 条`)
       if (result.alarm_data > 0) details.push(`报警记录: ${result.alarm_data} 条`)
       if (result.carbon_emission > 0) details.push(`碳排放记录: ${result.carbon_emission} 条`)
-      
-      if (details.length > 0) {
-        console.log('清除详情:', details.join(', '))
-      }
       
       // 重新加载统计信息
       await loadCleanupStats()

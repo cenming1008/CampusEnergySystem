@@ -9,7 +9,7 @@ WEBHOOK_URL="${ALERTMANAGER_WEBHOOK_URL:-}"
 
 looks_like_placeholder() {
     case "$1" in
-        *replace-with-real*|*example.com*|*hooks.example.com*|"")
+        *replace-with-real*|*example.com*|*hooks.example.com*|*hooks.invalid*|"")
             return 0
             ;;
         *)

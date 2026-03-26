@@ -57,8 +57,8 @@
         const res = await getDevices()
         // 按 ID 排序
         tableData.value = res.sort((a, b) => (a.id || 0) - (b.id || 0))
-      } catch (e) {
-        console.error(e)
+      } catch {
+        // 由 axios 拦截器统一提示
       } finally {
         loading.value = false
       }
@@ -102,8 +102,8 @@
             }
             dialogVisible.value = false
             fetchData() // 刷新列表
-          } catch (e) {
-            console.error(e)
+          } catch {
+            // 由 axios 拦截器统一提示
           } finally {
             formLoading.value = false
           }
@@ -128,8 +128,8 @@
             ElMessage.success('删除成功')
             fetchData()
           }
-        } catch (e) {
-          console.error(e)
+        } catch {
+          // 由 axios 拦截器统一提示
         }
       })
     }
@@ -181,8 +181,7 @@
         if (res.length) {
           deviceTypes.value = res
         }
-      } catch (e) {
-        console.error('获取设备类型失败:', e)
+      } catch {
         // 降级：使用默认类型
         deviceTypes.value = [
           { device_type: 'load', name_zh: '用电设备', icon: '⚡', category: 'load', energy_type: 'electricity', name_en: 'Load', unit: 'kW', default_capacity: 100, required_fields: [], optional_fields: [], color: '#FF9800' },

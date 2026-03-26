@@ -109,7 +109,8 @@ def remove_job(job_id: str):
         runtime_state.mark_service("scheduler", "healthy", f"job removed: {job_id}")
         logger.info(f"已移除任务: {job_id}")
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"移除任务失败: job_id={job_id}, err={exc}")
         runtime_state.increment("scheduler_job_failures_total")
         return False
 

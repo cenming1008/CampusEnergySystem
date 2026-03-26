@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.api.endpoint_utils import bad_request_from_value_error
-from app.api.deps import ADMIN_ONLY
+from app.api.deps import ADMIN_ONLY, get_current_user
+from app.core.access_control import ensure_device_access, get_allowed_device_ids
 from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.exceptions import ResourceNotFoundException, ValidationException
@@ -27,7 +28,9 @@ router = APIRouter()
 def get_device_ingestion_health(
     device_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    ensure_device_access(session, current_user, device_id)
     try:
         health = IngestionHealthService.get_device_health(session, device_id)
         return success_response(data=health)
@@ -38,8 +41,13 @@ def get_device_ingestion_health(
 @router.get("/ingestion-health/overview")
 def list_device_ingestion_health(
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    return success_response(data={"items": IngestionHealthService.list_device_health(session)})
+    items = IngestionHealthService.list_device_health(session)
+    allowed_device_ids = get_allowed_device_ids(session, current_user)
+    if allowed_device_ids is not None:
+        items = [item for item in items if item["device_id"] in allowed_device_ids]
+    return success_response(data={"items": items})
 
 
 @router.get("/ingestion-records")

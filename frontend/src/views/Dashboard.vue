@@ -352,7 +352,7 @@ const renderGauge = async (value: number) => {
 
 const renderMainChart = async () => {
   const { times, values } = energyTrendData
-  console.log('📊 渲染负荷曲线:', times.length, '个数据点')
+
   
   // 获取当前设备名称
   const deviceName = currentDevice.value?.name || '设备'

@@ -156,9 +156,7 @@ const loadEnergyTypes = async () => {
     if (energyTypes.value.length > 0 && !selectedEnergyType.value) {
       selectedEnergyType.value = energyTypes.value[0].value
     }
-    console.log('✅ 加载能源类型成功:', energyTypes.value.length, '种')
   } catch (e) {
-    console.error('❌ 加载能源类型失败:', e)
     ElMessage.error('加载能源类型失败')
     throw e
   }
@@ -168,8 +166,8 @@ const loadEnergyTypes = async () => {
 const loadDevices = async () => {
   try {
     deviceList.value = await getDevices()
-  } catch (e) {
-    console.error('加载设备列表失败', e)
+  } catch {
+    // 设备列表加载失败，由 axios 拦截器统一提示
   }
 }
 
@@ -178,8 +176,8 @@ const loadCarbonFactors = async () => {
   try {
     const res = await getCarbonFactors()
     carbonFactors.value = res.carbon_factors
-  } catch (e) {
-    console.error('加载碳排放因子失败', e)
+  } catch {
+    // 碳排放因子加载失败
   }
 }
 
@@ -189,11 +187,7 @@ const loadAllStatistics = async () => {
   try {
     const [startTime, endTime] = formatDateRange.value
     
-    console.log('🔄 开始加载统计数据:', { startTime, endTime, types: energyTypes.value.length })
-    
-    // 检查时间参数
     if (!startTime || !endTime) {
-      console.error('❌ 时间参数无效')
       ElMessage.error('时间参数无效')
       return
     }
@@ -201,17 +195,14 @@ const loadAllStatistics = async () => {
     // 为每个能源类型加载统计数据
     const promises = energyTypes.value.map(async (type) => {
       try {
-        console.log(`📊 请求 ${type.label} 统计...`)
         const stats = await getEnergyStatistics({
           energy_type: type.value,
           start_time: startTime,
           end_time: endTime,
           period_type: 'day'
         })
-        console.log(`✅ ${type.label} 统计成功:`, stats)
         return { type: type.value, stats }
-      } catch (e) {
-        console.error(`❌ 加载 ${type.label} 统计失败:`, e)
+      } catch {
         // 即使失败也返回默认值，不阻断其他请求
         return { 
           type: type.value, 
@@ -232,14 +223,11 @@ const loadAllStatistics = async () => {
       newStats[type] = stats
     })
     statistics.value = newStats
-    
-    console.log('✅ 所有统计数据加载完成:', newStats)
-    
+
     // 渲染对比图表
     renderComparisonChart()
     
   } catch (e) {
-    console.error('❌ 加载统计数据失败:', e)
     ElMessage.error('加载数据失败: ' + (e as Error).message)
   } finally {
     loading.value = false
@@ -251,37 +239,30 @@ const loadCarbonSummary = async () => {
   try {
     const [startTime, endTime] = formatDateRange.value
     
-    if (!startTime || !endTime) {
-      console.warn('⚠️ 碳排放查询缺少时间参数')
-      return
-    }
-    
-    console.log('🌱 加载碳排放数据...')
+    if (!startTime || !endTime) return
+
     carbonSummary.value = await getCarbonSummary({
       start_time: startTime,
       end_time: endTime
     })
-    console.log('✅ 碳排放数据加载成功:', carbonSummary.value)
     
     // 渲染碳排放图表
     renderCarbonChart()
-  } catch (e) {
-    console.error('❌ 加载碳排放数据失败:', e)
+  } catch {
+    // 碳排放数据加载失败
   }
 }
 
 // 刷新数据
 const refreshData = async () => {
-  console.log('🔄 刷新数据...')
   try {
     await Promise.all([
       loadAllStatistics(),
       loadCarbonSummary(),
       loadDetailData()
     ])
-    console.log('✅ 数据刷新完成')
-  } catch (e) {
-    console.error('❌ 数据刷新失败:', e)
+  } catch {
+    // 刷新时部分失败由各子函数处理
   }
 }
 
@@ -309,8 +290,7 @@ const loadDetailData = async () => {
       start_time: startTime,
       end_time: endTime
     })
-  } catch (error) {
-    console.error('加载能源明细失败', error)
+  } catch {
     ElMessage.error('加载能源明细失败')
   } finally {
     detailLoading.value = false
@@ -573,8 +553,7 @@ onMounted(async () => {
     
     // 渲染消耗趋势图
     renderConsumptionChart()
-  } catch (e) {
-    console.error('初始化失败:', e)
+  } catch {
     ElMessage.error('页面初始化失败，请刷新重试')
   }
 })

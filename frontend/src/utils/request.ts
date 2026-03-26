@@ -1,8 +1,10 @@
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { useAuthStore } from '@/stores/useAuthStore' // 稍后会创建这个 Store
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useSocketStore } from '@/stores/useSocketStore'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import type { AuthSession } from '@/api/auth'
+import { reportFrontendError } from '@/observability/errorReporting'
 
 interface SilentAxiosConfig extends InternalAxiosRequestConfig {
   silent?: boolean
@@ -42,6 +44,7 @@ async function refreshAccessToken() {
         return session.access_token
       })
       .catch(() => {
+        useSocketStore().disconnect()
         authStore.logout()
         return null
       })
@@ -100,6 +103,7 @@ service.interceptors.response.use(
         ? '请先登录'
         : '登录已过期或无效，请重新登录'
       ElMessage.error(hint)
+      useSocketStore().disconnect()
       authStore.logout()
       if (router.currentRoute.value.name !== 'Login') {
         router.push({ name: 'Login' })
@@ -117,6 +121,15 @@ service.interceptors.response.use(
         ElMessage.error(msg)
       }
     }
+
+    reportFrontendError({
+      category: 'http',
+      message: `${error.config?.method?.toUpperCase() ?? 'UNKNOWN'} ${error.config?.url ?? ''} → ${status ?? 'network_error'}: ${msg}`,
+      url: window.location.href,
+      route: window.location.pathname,
+      metadata: { status, method: error.config?.method, endpoint: error.config?.url },
+    })
+
     return Promise.reject(error)
   }
 )

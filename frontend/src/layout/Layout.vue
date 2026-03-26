@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useSocketStore } from '@/stores/useSocketStore'
 import { ElMessage } from 'element-plus'
 import { getCurrentUserApi, logoutApi } from '@/api/auth'
 
@@ -10,6 +11,7 @@ const AlarmPopover = defineAsyncComponent(() => import('@/features/alarm/compone
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const socketStore = useSocketStore()
 
 const roleLabelMap: Record<string, string> = {
   admin: '系统管理员',
@@ -39,6 +41,7 @@ const handleLogout = async () => {
   } catch (_error) {
     // Best-effort logout.
   }
+  socketStore.disconnect()
   authStore.logout()
   await router.push('/login')
   ElMessage.success('已退出系统')

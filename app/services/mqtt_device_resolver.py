@@ -101,7 +101,8 @@ def resolve_device_id(data: dict[str, Any], topic: Optional[str]) -> Optional[in
             with Session(engine) as session:
                 device = session.get(Device, device_id)
             return device_id if device else None
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"MQTT resolve_device_id failed: raw={data.get('device_id')!r}, err={exc}")
             return None
 
     device_code = extract_device_code(data, topic)

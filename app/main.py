@@ -80,6 +80,15 @@ async def request_observability_middleware(request: Request, call_next):
 
     try:
         response = await call_next(request)
+    except Exception:
+        duration_seconds = perf_counter() - started_at
+        observe_http_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            duration_seconds=duration_seconds,
+        )
+        raise
     finally:
         reset_audit_request_context(token)
 

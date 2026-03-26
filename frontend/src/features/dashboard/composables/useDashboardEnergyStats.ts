@@ -32,8 +32,8 @@ export function useDashboardEnergyStats() {
       results.forEach(({ type, stats }) => {
         energyStats[type] = stats
       })
-    } catch (error) {
-      console.error('加载能源统计失败:', error)
+    } catch {
+      // 能源统计加载失败
     }
   }
 

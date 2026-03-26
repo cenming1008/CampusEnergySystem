@@ -122,6 +122,7 @@ frontend/build/
 # pytest
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .tox/
 .hypothesis/
@@ -167,6 +168,7 @@ $RECYCLE.BIN/
 # ============================================
 mosquitto/data/
 mosquitto/log/
+mosquitto/config/passwd
 
 # ============================================
 # Redis 数据

@@ -4,9 +4,11 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { changeMyPasswordApi, logoutApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useSocketStore } from '@/stores/useSocketStore'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const socketStore = useSocketStore()
 const submitting = ref(false)
 
 const form = reactive({
@@ -43,6 +45,7 @@ const submitChange = async () => {
     } catch (_error) {
       // no-op
     }
+    socketStore.disconnect()
     authStore.logout()
     await router.push('/login')
   } finally {

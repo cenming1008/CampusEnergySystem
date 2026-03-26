@@ -33,14 +33,6 @@ export function loginApi(data: URLSearchParams) {
   })
 }
 
-export function refreshTokenApi(refresh_token: string) {
-  return request.post<{ refresh_token: string }, AuthSession>(
-    '/auth/refresh',
-    { refresh_token },
-    { silent: true, skipAuthRefresh: true }
-  )
-}
-
 export function logoutApi() {
   return request.post<Record<string, never>, { success: boolean; message: string; token_version: number }>(
     '/auth/logout',

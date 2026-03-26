@@ -56,7 +56,8 @@ def cleanup_data(
                 )
                 session.commit()
                 logger.info(f"使用 TimescaleDB drop_chunks 清理 energydata（{hours}小时前）")
-            except Exception:
+            except Exception as drop_exc:
+                logger.warning(f"drop_chunks 不可用，回退到 DELETE: {drop_exc}")
                 deleted_stmt = text(
                     """
                     WITH deleted AS (
@@ -117,7 +118,8 @@ def cleanup_data(
                 )
                 session.commit()
                 logger.info(f"使用 TimescaleDB drop_chunks 清理 carbon_emission（{hours}小时前）")
-            except Exception:
+            except Exception as drop_exc:
+                logger.warning(f"drop_chunks(carbon_emission) 不可用，回退到 DELETE: {drop_exc}")
                 deleted_stmt = text(
                     """
                     WITH deleted AS (

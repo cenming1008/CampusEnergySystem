@@ -26,6 +26,8 @@ except ImportError:
 
 BROKER = os.getenv("MQTT_BROKER", "localhost")
 PORT = int(os.getenv("MQTT_PORT", "1883"))
+USERNAME = os.getenv("MQTT_USERNAME", "mine_mqtt")
+PASSWORD = os.getenv("MQTT_PASSWORD", "mine_mqtt_secret_2026")
 TOPIC = os.getenv("MQTT_TOPIC", "mine/telemetry")
 
 
@@ -55,6 +57,8 @@ def send_one(
         payload["device_type"] = device_type
 
     client = mqtt.Client()
+    if USERNAME and PASSWORD:
+        client.username_pw_set(USERNAME, PASSWORD)
     try:
         client.connect(BROKER, PORT, 60)
         msg = json.dumps(payload)

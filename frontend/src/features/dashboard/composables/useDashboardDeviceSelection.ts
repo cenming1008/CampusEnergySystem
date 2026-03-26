@@ -31,8 +31,7 @@ export function useDashboardDeviceSelection() {
       }
 
       return devices
-    } catch (error) {
-      console.error('加载设备失败:', error)
+    } catch {
       return []
     }
   }

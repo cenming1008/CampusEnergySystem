@@ -8,7 +8,67 @@ const sessionPayload = {
   must_change_password: false,
 }
 
+async function stubWebSocket(page: Parameters<typeof test>[0]['page']) {
+  await page.addInitScript(() => {
+    class FakeWebSocket {
+      static CONNECTING = 0
+      static OPEN = 1
+      static CLOSING = 2
+      static CLOSED = 3
+
+      readyState = FakeWebSocket.OPEN
+      url: string
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+
+      constructor(url: string) {
+        this.url = url
+        setTimeout(() => {
+          this.onopen?.(new Event('open'))
+        }, 0)
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = FakeWebSocket.CLOSED
+        this.onclose?.(new CloseEvent('close', { code: 1000, reason: 'test-close' }))
+      }
+    }
+
+    Object.defineProperty(window, 'WebSocket', {
+      configurable: true,
+      writable: true,
+      value: FakeWebSocket,
+    })
+  })
+}
+
 async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
+  await page.route('**/users/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'ok',
+        code: 'SUCCESS',
+        data: {
+          id: 1,
+          username: 'admin',
+          role: 'admin',
+          location_scope: null,
+          is_active: true,
+          must_change_password: false,
+          failed_login_attempts: 0,
+          locked_until: null,
+        },
+      }),
+    })
+  })
+
   await page.route('**/devices/', async (route) => {
     await route.fulfill({
       status: 200,
@@ -28,6 +88,14 @@ async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
   })
 
   await page.route('**/alarms/active', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    })
+  })
+
+  await page.route('**/alarms/', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -57,6 +125,22 @@ async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
     })
   })
 
+  await page.route('**/analysis/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        device_id: 1,
+        is_active: true,
+        current_power: 64.2,
+        voltage: 220,
+        current: 8.6,
+        today_energy: 256.4,
+        today_cost: 128.2,
+      }),
+    })
+  })
+
   await page.route('**/reports/export_csv**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -66,26 +150,15 @@ async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
   })
 }
 
-test('login redirects to dashboard on success', async ({ page }) => {
-  await page.route('**/auth/login', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(sessionPayload),
-    })
-  })
-  await mockAuthenticatedApis(page)
-
-  await page.goto('/login')
-  await page.fill('#username', 'admin')
-  await page.fill('#password', 'StrongPassword!123')
-  await page.getByRole('button', { name: '建立连接' }).click()
-
-  await expect(page).toHaveURL(/\/dashboard$/)
-  await expect(page.getByText('驾驶舱首页', { exact: true })).toBeVisible()
+test('unauthenticated user is redirected to login when opening dashboard', async ({ page }) => {
+  await stubWebSocket(page)
+  await page.goto('/dashboard')
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('heading', { name: '访问终端' })).toBeVisible()
 })
 
 test('authenticated user can open report center and export csv', async ({ page }) => {
+  await stubWebSocket(page)
   await page.addInitScript(({ session }) => {
     window.localStorage.setItem('access_token', session.access_token)
     window.localStorage.setItem('refresh_token', session.refresh_token)

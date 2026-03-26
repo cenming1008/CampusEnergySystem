@@ -280,7 +280,6 @@ async function loadPage(showLoading: boolean = true) {
     overview.value = overviewRes
     await loadTrendAndTables()
   } catch (error) {
-    console.error(error)
     ElMessage.error('设备监控数据加载失败')
   } finally {
     loading.value = false
@@ -295,8 +294,8 @@ async function loadStatusHistory() {
       limit: 30,
     })
     statusHistory.value = response.items
-  } catch (error) {
-    console.error(error)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -318,8 +317,8 @@ async function refreshRealtime() {
     trend.value = trendRes
     await renderTrendChart()
     await loadStatusHistory()
-  } catch (error) {
-    console.error(error)
+  } catch {
+    // 由各子函数处理
   }
 }
 
@@ -328,8 +327,7 @@ async function handleRangeChange() {
   try {
     await loadTrendAndTables()
     await loadStatusHistory()
-  } catch (error) {
-    console.error(error)
+  } catch {
     ElMessage.error('筛选数据加载失败')
   }
 }
@@ -347,7 +345,6 @@ async function handleResolveAlarm(row: DeviceAlarmRecord) {
     await loadPage(false)
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    console.error(error)
     ElMessage.error('告警处理失败')
   } finally {
     alarmActionId.value = null
@@ -373,7 +370,6 @@ async function handleToggleDevice() {
     await loadPage(false)
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    console.error(error)
     ElMessage.error(nextActive ? '设备启动失败' : '设备停止失败')
   } finally {
     toggleSubmitting.value = false

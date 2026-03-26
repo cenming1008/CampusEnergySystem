@@ -37,8 +37,8 @@ function severityTagType(severity?: string) {
 async function loadDevices() {
   try {
     deviceList.value = await getDevices()
-  } catch (error) {
-    console.error('加载设备失败', error)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 

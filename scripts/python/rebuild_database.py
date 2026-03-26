@@ -15,6 +15,7 @@
     --demo-data: 创建演示数据
 """
 
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -92,10 +93,13 @@ def create_default_user():
             logger.info("  ℹ️  用户 'admin' 已存在，跳过创建")
             return
         
-        # 创建管理员用户
+        admin_password = os.environ.get("ADMIN_PASSWORD", "")
+        if not admin_password:
+            logger.warning("  ⚠️ 未设置 ADMIN_PASSWORD 环境变量，使用临时密码")
+            admin_password = "change-me-immediately-2026!"
         admin = User(
             username="admin",
-            hashed_password=get_password_hash("123456"),
+            hashed_password=get_password_hash(admin_password),
             is_active=True
         )
         
@@ -104,7 +108,7 @@ def create_default_user():
         
         logger.info("✅ 默认用户创建成功:")
         logger.info("  - 用户名: admin")
-        logger.info("  - 密码: 123456")
+        logger.info("  - 密码: <ADMIN_PASSWORD 环境变量值>")
         logger.info("  ⚠️  请在生产环境中修改密码！")
 
 
@@ -353,7 +357,7 @@ def main():
         logger.info("")
         logger.info("📋 后续步骤:")
         logger.info("  1. 访问 API 文档: http://localhost:8088/docs")
-        logger.info("  2. 使用 admin/123456 登录")
+        logger.info("  2. 使用 admin/<ADMIN_PASSWORD> 登录")
         logger.info("  3. 开始使用统一设备管理系统")
         logger.info("")
         logger.info("💡 提示:")

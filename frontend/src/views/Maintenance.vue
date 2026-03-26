@@ -137,8 +137,7 @@ const loadData = async () => {
     upcomingList.value = upcoming
     overdueList.value = overdue
     statistics.value = stats.data || null
-  } catch (e) {
-    console.error('加载维护数据失败:', e)
+  } catch {
     ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
@@ -155,8 +154,8 @@ const loadBaseData = async () => {
     deviceList.value = devices
     typeList.value = types.data || []
     statusList.value = statuses.data || []
-  } catch (e) {
-    console.error('加载基础数据失败:', e)
+  } catch {
+    // 基础数据加载失败
   }
 }
 

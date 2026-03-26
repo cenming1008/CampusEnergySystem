@@ -80,6 +80,9 @@ def normalize_device_report_payload(device_type: str, data: dict[str, Any]) -> D
     if "heat_flow" not in normalized and "heat_power" in normalized:
         normalized["heat_flow"] = normalized["heat_power"]
 
+    if "flow_rate" not in normalized and "cooling_power" in normalized:
+        normalized["flow_rate"] = normalized["cooling_power"]
+
     for field in config.required_fields:
         if field not in normalized or normalized[field] is None:
             raise ValueError(f"缺少必需字段: {field}")

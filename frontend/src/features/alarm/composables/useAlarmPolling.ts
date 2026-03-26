@@ -22,8 +22,7 @@ export function useAlarmPolling(options: UseAlarmPollingOptions = {}) {
       const alarms = await getAlarms()
       alarmList.value = alarms
       alarmCount.value = alarms.length
-    } catch (error) {
-      console.error('报警获取失败', error)
+    } catch {
       alarmList.value = []
       alarmCount.value = 0
     } finally {

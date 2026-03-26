@@ -18,4 +18,8 @@ echo "提示：按 Ctrl+C 停止模拟器"
 echo ""
 
 docker exec mine_backend bash -c \
-  "MQTT_BROKER=mqtt API_BASE=http://localhost:8088 python -u scripts/python/simulator_unified.py"
+  "MQTT_BROKER=mqtt API_BASE=http://localhost:8088 \
+   MQTT_USERNAME=\${MQTT_USERNAME:-mine_mqtt} \
+   MQTT_PASSWORD=\${MQTT_PASSWORD:-mine_mqtt_secret_2026} \
+   ADMIN_PASSWORD=\${ADMIN_PASSWORD:-} \
+   python -u scripts/python/simulator_unified.py"

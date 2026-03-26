@@ -100,8 +100,7 @@ const loadData = async () => {
     locationTree.value = rootsOnly.value ? (tree.data || []).filter((item) => item.parent_id == null) : (tree.data || [])
     rootLocations.value = roots
     typeList.value = types.data || []
-  } catch (e) {
-    console.error('加载位置数据失败:', e)
+  } catch {
     ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
@@ -111,8 +110,8 @@ const loadData = async () => {
 const loadDevices = async () => {
   try {
     deviceList.value = await getDevices()
-  } catch (e) {
-    console.error('加载设备失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -127,8 +126,8 @@ const handleNodeClick = async (data: LocationTreeNode) => {
     locationDevices.value = devices
     locationStats.value = stats.data || null
     childLocations.value = children
-  } catch (e) {
-    console.error('加载位置详情失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 

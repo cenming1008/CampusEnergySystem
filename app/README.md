@@ -1,5 +1,8 @@
 # 后端应用目录说明
 
+本文档描述当前后端代码目录、分层边界以及主要运行链路。  
+内容已按 2026-03-26 仓库状态更新，旧文档中已废弃的 `telemetry.py`、`data_processor.py` 等结构不再作为现状说明。
+
 ## 📁 目录结构
 
 ```
@@ -10,12 +13,14 @@ app/
 ├── api/                       # HTTP / WebSocket 接入层
 │   ├── deps.py                # 依赖注入（认证、数据库会话）
 │   ├── router_registry.py     # 公开路由与受保护路由集中注册
-│   ├── websocket.py           # WebSocket 端点（默认路径 /ws）
+│   ├── websocket.py           # WebSocket 端点（默认路径 /ws，支持 token 鉴权）
 │   ├── endpoint_utils.py      # 端点共用工具
 │   └── endpoints/             # 按业务拆分的路由模块（部分为子包聚合）
 │       ├── auth.py
+│       ├── audit.py
 │       ├── alarms.py
 │       ├── analysis.py
+│       ├── frontend_errors.py
 │       ├── fdd.py
 │       ├── reports.py
 │       ├── health.py          # 健康检查（公开）
@@ -24,6 +29,7 @@ app/
 │       ├── locations.py
 │       ├── device_groups.py
 │       ├── inspection.py
+│       ├── users.py
 │       ├── devices/           # 设备：管理、数据上报、接入健康
 │       ├── energy/            # 能源数据与碳相关
 │       ├── forecast/          # 预测与 LSTM
@@ -35,17 +41,27 @@ app/
 │   ├── error_handlers.py
 │   ├── exceptions.py
 │   ├── logger.py
+│   ├── metrics.py
 │   ├── redis.py
+│   ├── runtime_state.py
 │   ├── response.py
+│   ├── access_control.py
 │   ├── security.py
+│   ├── security_headers.py
 │   ├── settings.py
 │   ├── socket_manager.py      # WebSocket 连接与广播
+│   ├── startup_checks.py
+│   ├── audit.py
+│   ├── notifications.py
+│   ├── rate_limit.py
 │   └── device_registry.py
 │
 ├── application/               # 用例编排（薄层，组合领域与服务）
 │   ├── device_reporting.py
 │   ├── telemetry_ingestion.py # 单条遥测：落库、告警、健康状态、广播数据
 │   ├── energy_management.py
+│   ├── reporting.py
+│   ├── analysis.py
 │   └── forecasting.py
 │
 ├── domain/                    # 领域模型与规则（与框架无关的纯逻辑）
@@ -53,8 +69,10 @@ app/
 │   └── energy_rules.py
 │
 ├── repositories/              # 数据访问封装（按聚合根或表划分）
+│   ├── base.py
 │   ├── device_repository.py
-│   └── energy_repository.py
+│   ├── energy_repository.py
+│   └── user_repository.py
 │
 ├── integrations/              # 外部系统适配
 │   ├── mqtt/
@@ -99,7 +117,7 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 | 文件 | 说明 |
 |------|------|
 | `deps.py` | 依赖注入：数据库会话、当前登录用户等。 |
-| `router_registry.py` | 将公开路由与需认证路由批量挂到 `FastAPI` 应用。 |
+| `router_registry.py` | 将公开路由与需认证路由批量挂到 `FastAPI` 应用，并统一追加鉴权与首次改密约束。 |
 | `websocket.py` | WebSocket 连接接入与断开，配合 `socket_manager` 广播。 |
 | `endpoint_utils.py` | 端点复用：`ValueError`→400、统一记录异常日志。 |
 
@@ -108,8 +126,11 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 聚合 import 各业务子模块，供注册表等处统一引用。 |
-| `auth.py` | OAuth2 密码流登录，签发 JWT。 |
-| `health.py` | 系统健康检查（数据库、Redis 等，可返回 degraded）。 |
+| `auth.py` | 登录、刷新令牌、登出。 |
+| `health.py` | 健康检查、就绪检查、存活检查、Prometheus 指标。 |
+| `frontend_errors.py` | 接收前端运行时异常并计入观测指标。 |
+| `users.py` | 用户管理、自助改密、强制下线、锁定解除、权限范围调整。 |
+| `audit.py` | 审计事件查询、筛选与摘要。 |
 | `alarms.py` | 报警列表、确认与统计等。 |
 | `analysis.py` | 单设备数据分析（今日能耗/费用等）。 |
 | `fdd.py` | 全系统故障诊断统计与单设备诊断。 |
@@ -126,7 +147,7 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 |------|------|
 | `__init__.py` | 聚合 `management`、`data`、`health` 三个子路由。 |
 | `management.py` | 设备列表/详情/增删改、类型元数据、MQTT 控制指令下发。 |
-| `data.py` | HTTP 上报单设备测点数据、查询历史与统计（走上报用例）。 |
+| `data.py` | HTTP 上报单设备测点数据、查询历史与统计（走统一上报用例）。 |
 | `health.py` | 单设备与概览维度的 MQTT 接入健康状态。 |
 | `shared.py` | 设备创建/更新/上报等 Pydantic 模型。 |
 
@@ -174,12 +195,13 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 
 - 端点函数保留简洁 docstring
 - 使用类型注解
-- 通过 `Depends` 注入会话与用户
+- 通过 `Depends` 注入会话、用户、角色约束
 - 不在路由里堆业务规则
 
 **路由注册**：
 
 - 在 `router_registry.py` 的 `PUBLIC_ROUTERS` / `PROTECTED_ROUTERS` 中登记模块路由；`main.py` 只调用 `register_routers(app)` 与 `include_router(websocket_router)`。
+- 当前受保护路由会统一追加 `get_current_user` 与 `ensure_password_change_completed`。
 
 ---
 
@@ -209,6 +231,7 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 - 复杂查询可下沉到 `repositories/`
 - 使用 `logger` 记录关键路径
 - MQTT 后台线程入口在 `mqtt_worker.py`；消息解析与持久化的主逻辑在 `integrations/mqtt/processor.py`
+- 与正式投产相关的告警、审计、运行时指标、调度注册等能力也主要落在 service/core 层协作完成
 
 ---
 
@@ -216,13 +239,15 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 
 **职责**：
 
-- 数据库、Redis、配置、日志、安全、WebSocket 管理器、应用生命周期
+- 数据库、Redis、配置、日志、安全、WebSocket 管理器、应用生命周期、运行时指标、审计与通知
 
 **规范**：
 
 - 不写具体业务规则
 - 配置统一来自 `settings.py`
 - `lifecycle.py` 负责启动时 `init_db`、探测 Redis、启动 MQTT 后台与调度器，关闭时停止调度器并关闭 Redis
+- `metrics.py`、`runtime_state.py` 负责进程内运行状态与 Prometheus 指标暴露
+- `startup_checks.py` 用于启动前配置校验，配合生产 readiness 脚本使用
 
 ---
 

@@ -50,6 +50,20 @@ class MonitoringAccessTest(unittest.TestCase):
             mock_settings.monitoring_access_roles = ["admin", "maintainer"]
             require_monitoring_access(request=request, current_user=current_user)
 
+    def test_internal_or_jwt_rejects_public_client_behind_private_proxy(self):
+        request = SimpleNamespace(
+            headers={"x-forwarded-for": "8.8.8.8"},
+            client=SimpleNamespace(host="172.20.0.10"),
+        )
+        with patch("app.api.deps.settings") as mock_settings:
+            mock_settings.monitoring_access_mode = "internal_or_jwt"
+            mock_settings.monitoring_access_roles = ["admin", "maintainer"]
+            mock_settings.is_production = True
+            with self.assertRaises(HTTPException) as ctx:
+                require_monitoring_access(request=request, current_user=None)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

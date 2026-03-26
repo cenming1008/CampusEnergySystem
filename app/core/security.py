@@ -43,7 +43,9 @@ def verify_password(plain_password: Union[str, bytes], hashed_password: str) -> 
     try:
         secret = _truncate_bcrypt_secret(plain_password)
         return bool(pwd_context.verify(secret, hashed_password))
-    except Exception:
+    except Exception as exc:
+        from app.core.logger import logger
+        logger.warning(f"verify_password unexpected error: {type(exc).__name__}: {exc}")
         return False
 
 

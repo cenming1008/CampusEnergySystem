@@ -121,7 +121,7 @@ def hash_payload_string(payload_str: str) -> str:
 
 
 def parse_timestamp(data: dict[str, Any]) -> datetime:
-    """解析时间戳，缺失或非法时回退到当前时间。"""
+    """解析时间戳，缺失或非法时回退到当前时间。始终返回 naive datetime。"""
     timestamp = data.get("timestamp")
     if timestamp is None:
         return datetime.now()
@@ -131,7 +131,10 @@ def parse_timestamp(data: dict[str, Any]) -> datetime:
             normalized = timestamp.strip()
             if normalized.endswith("Z"):
                 normalized = normalized[:-1] + "+00:00"
-            return datetime.fromisoformat(normalized)
+            dt = datetime.fromisoformat(normalized)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(tz=None).replace(tzinfo=None)
+            return dt
 
         return datetime.fromtimestamp(parse_numeric(timestamp, "timestamp"), tz=timezone.utc).replace(tzinfo=None)
     except Exception:
@@ -184,6 +187,7 @@ def persist_device_data(device_id: int, data_dict: dict[str, Any], timestamp: da
             data=data_dict,
             timestamp=timestamp,
         )
+        session.commit()
         return result.broadcast_data
 
 

@@ -88,10 +88,14 @@ def get_optional_current_user(
 
 
 def get_client_ip(request: Request) -> str:
+    """提取客户端 IP。仅在请求来自内网/反代时信任第一个 X-Forwarded-For 值。"""
+    client_host = request.client.host if request.client else ""
     forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return request.client.host if request.client else ""
+    if forwarded_for and is_private_network_ip(client_host):
+        forwarded_host = forwarded_for.split(",")[0].strip()
+        if forwarded_host:
+            return forwarded_host
+    return client_host
 
 
 def is_private_network_ip(host: str) -> bool:

@@ -92,8 +92,7 @@ const loadData = async () => {
     groupList.value = groups
     typeList.value = types.data || []
     allStats.value = stats.data || []
-  } catch (e) {
-    console.error('加载分组数据失败:', e)
+  } catch {
     ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
@@ -103,8 +102,8 @@ const loadData = async () => {
 const loadDevices = async () => {
   try {
     deviceList.value = await getDevices()
-  } catch (e) {
-    console.error('加载设备失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 
@@ -124,8 +123,8 @@ const selectGroup = async (group: DeviceGroup) => {
     groupDevices.value = devices
     groupStats.value = stats.data || null
     exactGroupDeviceCount.value = count.data?.count || 0
-  } catch (e) {
-    console.error('加载分组详情失败:', e)
+  } catch {
+    // 由 axios 拦截器统一提示
   }
 }
 

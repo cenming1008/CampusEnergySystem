@@ -27,7 +27,11 @@ DEVICES_URL = f"{API_BASE}/devices/"
 
 # 管理员账号
 ADMIN_USER = "admin"
-ADMIN_PASS = "123456"
+ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "123456")
+
+# MQTT 认证（与 Mosquitto 配置一致）
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
 
 # 全局变量
 current_token = None
@@ -324,6 +328,8 @@ def start_simulation():
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message  # 绑定消息回调（远程控制）
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     
     try:
         print(f"🔌 正在连接 MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}...", flush=True)

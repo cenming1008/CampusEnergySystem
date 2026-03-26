@@ -22,11 +22,14 @@ from app.core.settings import DEFAULT_SECRET_KEY, settings
 
 
 PLACEHOLDER_MARKERS = (
+    "changethis",
     "change-me",
     "replace-with-real",
     "yourcompany",
     "yourcompany.com",
     "example.com",
+    "hooks.invalid",
+    ".invalid/",
     "your-password",
     "your-secret",
     "replace-with-real-key",
@@ -110,6 +113,9 @@ def main() -> int:
         problems.append("TRUSTED_HOSTS 未收紧")
     if not runtime_settings.cors_origins or "*" in runtime_settings.cors_origins:
         problems.append("CORS_ORIGINS 未收紧")
+
+    if not runtime_settings.mqtt_username or not runtime_settings.mqtt_password:
+        problems.append("MQTT_USERNAME / MQTT_PASSWORD 未配置（Mosquitto 已启用密码认证）")
 
     if runtime_settings.workers < 2:
         warnings.append(f"WORKERS={runtime_settings.workers}，生产建议至少 2")

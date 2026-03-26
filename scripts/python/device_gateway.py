@@ -25,6 +25,8 @@ import paho.mqtt.client as mqtt
 # MQTT 配置
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "mine_mqtt")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "mine_mqtt_secret_2026")
 MQTT_TOPIC = "mine/telemetry"
 
 # 设备配置文件路径（可选）：环境变量 > 项目根 config/gateway_devices.json > 代码内默认
@@ -204,8 +206,9 @@ def main():
     print("=" * 60)
     print()
 
-    # 连接 MQTT
     client = mqtt.Client()
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start()

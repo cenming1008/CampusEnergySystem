@@ -124,17 +124,17 @@ class ForecastAdapter:
             data_type=data_type
         )
         
-        # 保存到数据库
         from app.models.tables import EnergyData, EnergyType
         count = 0
         for timestamp, voltage, current, power, energy in data_points:
             device_data = EnergyData(
                 device_id=device_id,
                 timestamp=timestamp,
+                energy_type=EnergyType.ELECTRICITY if hasattr(EnergyType, "ELECTRICITY") else "electricity",
+                consumption=energy,
+                flow_rate=power,
                 voltage=voltage,
                 current=current,
-                power=power,
-                energy=energy
             )
             session.add(device_data)
             count += 1

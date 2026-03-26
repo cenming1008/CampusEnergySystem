@@ -135,8 +135,7 @@
         }
         
         myChart.setOption(option)
-      } catch(e) {
-        console.error(e)
+      } catch {
         ElMessage.error('获取诊断数据失败')
       } finally {
         myChart.hideLoading()

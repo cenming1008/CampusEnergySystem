@@ -14,6 +14,7 @@ from app.core.redis import RedisClient
 from app.core.logger import logger
 from app.core.metrics import render_metrics
 from app.core.runtime_state import runtime_state
+from app.core.settings import settings
 
 router = APIRouter()
 
@@ -43,7 +44,7 @@ async def health_check(
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "2.0.0",
+        "version": settings.app_version,
         "services": {
             "database": "unknown",
             "redis": "unknown",

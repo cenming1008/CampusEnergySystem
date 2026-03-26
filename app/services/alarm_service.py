@@ -55,8 +55,11 @@ class AlarmService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 100,
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> List[Alarm]:
         statement = select(Alarm)
+        if allowed_device_ids is not None:
+            statement = statement.where(Alarm.device_id.in_(allowed_device_ids))
         if device_id is not None:
             statement = statement.where(Alarm.device_id == device_id)
         if resolved is not None:

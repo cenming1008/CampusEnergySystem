@@ -25,13 +25,13 @@ fi
 
 # 停止服务
 echo -e "${YELLOW}➜${NC} 停止 Docker 服务..."
-docker-compose -f docker-compose.dev.yml stop
+docker compose -f docker-compose.dev.yml stop
 
 echo ""
 echo -e "${GREEN}✔${NC} Docker 服务已停止"
 echo ""
 echo -e "${YELLOW}提示：${NC}"
 echo "  • 数据已保存，下次启动时数据仍然存在"
-echo "  • 如需完全删除容器: docker-compose -f docker-compose.dev.yml down"
-echo "  • 如需删除数据卷: docker-compose -f docker-compose.dev.yml down -v"
+echo "  • 如需完全删除容器: docker compose -f docker-compose.dev.yml down"
+echo "  • 如需删除数据卷: docker compose -f docker-compose.dev.yml down -v"
 echo ""

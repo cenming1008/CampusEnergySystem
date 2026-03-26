@@ -1,13 +1,16 @@
 import request from '@/utils/request'
 
-// 历史数据模型（对应后端 EnergyData 表）
 export interface DeviceData {
   device_id: number
   timestamp: string
+  energy_type?: string
   voltage: number | null
   current: number | null
-  power: number | null  // 对应后端的 flow_rate（瞬时功率/流量）
-  energy: number  // 对应后端的 consumption（累计消耗量）
+  flow_rate: number | null
+  consumption: number
+  power_factor?: number | null
+  pressure?: number | null
+  temperature?: number | null
 }
 
 // 实时分析结果模型 (对应后端 /analysis 接口返回)

@@ -35,9 +35,14 @@ if [ ! -f "docker-compose.dev.yml" ]; then
     exit 1
 fi
 
+if [ ! -f "mosquitto/config/passwd" ]; then
+    echo -e "${YELLOW}➜${NC} 未发现 Mosquitto 密码文件，正在生成开发默认凭据..."
+    bash ./scripts/shell/setup_mqtt_auth.sh mine_mqtt mine_mqtt_secret_2026 --force
+fi
+
 # 启动 Docker 服务
 echo -e "${YELLOW}➜${NC} 启动 Docker 服务 (TimescaleDB, MQTT, Redis)..."
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # 等待服务启动
 echo ""
@@ -47,7 +52,7 @@ sleep 5
 # 检查服务状态
 echo ""
 echo -e "${YELLOW}➜${NC} 检查服务状态..."
-docker-compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml ps
 
 # 测试服务连接
 echo ""
@@ -92,8 +97,8 @@ echo ""
 echo -e "${YELLOW}下一步操作：${NC}"
 echo ""
 echo "1. 配置环境变量（如果还未配置）："
-echo "   cp env.example .env"
-echo "   # 然后修改 .env 文件中的连接地址为 localhost"
+echo "   cp env.local.example .env"
+echo "   # env.local.example 已预设 localhost 开发连接"
 echo ""
 echo "2. 启动 Backend（新终端）："
 echo "   source venv/bin/activate  # 激活虚拟环境"
@@ -109,8 +114,8 @@ echo "   Backend:  http://localhost:8088"
 echo "   API Docs: http://localhost:8088/docs"
 echo ""
 echo -e "${YELLOW}停止 Docker 服务：${NC}"
-echo "   docker-compose -f docker-compose.dev.yml stop"
+echo "   docker compose -f docker-compose.dev.yml stop"
 echo ""
 echo -e "${YELLOW}查看服务日志：${NC}"
-echo "   docker-compose -f docker-compose.dev.yml logs -f"
+echo "   docker compose -f docker-compose.dev.yml logs -f"
 echo ""

@@ -119,6 +119,8 @@ let textureLoader: THREE.TextureLoader
 // 场景对象
 let groundMesh: THREE.Mesh | null = null
 let sceneGenerator: SceneGeneratorLike | null = null
+let timeIntervalId: ReturnType<typeof setInterval> | null = null
+let dataRefreshIntervalId: ReturnType<typeof setInterval> | null = null
 
 // 动态对象（用于动画）
 const animatedObjects: Array<{
@@ -306,11 +308,9 @@ const initScene = async () => {
   loading.value = false
   animate()
 
-  // 更新时间
   updateTime()
-  setInterval(updateTime, 1000)
+  timeIntervalId = setInterval(updateTime, 1000)
 
-  // 启动数据刷新
   startDataRefresh()
 }
 
@@ -342,7 +342,7 @@ const loadEnvironment = async () => {
       continue
     }
   }
-  console.warn('HDR 环境加载失败，使用默认环境')
+  // HDR 环境加载失败，回退到默认环境
 }
 
 const createLights = () => {
@@ -562,8 +562,7 @@ const loadDevicesFromBackend = async () => {
     })
 
     await loadAllDeviceData()
-  } catch (e) {
-    console.error('加载设备失败:', e)
+  } catch {
     ElMessage.error('加载设备数据失败')
   }
 }
@@ -611,7 +610,7 @@ const loadAllDeviceData = async () => {
 }
 
 const startDataRefresh = () => {
-  setInterval(loadAllDeviceData, 30000)
+  dataRefreshIntervalId = setInterval(loadAllDeviceData, 30000)
 }
 
 // --- 动画循环 ---
@@ -698,15 +697,20 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (timeIntervalId) clearInterval(timeIntervalId)
+  if (dataRefreshIntervalId) clearInterval(dataRefreshIntervalId)
+
   window.removeEventListener('resize', onResize)
+  renderer?.domElement?.removeEventListener('click', onClick)
   if (animationId) cancelAnimationFrame(animationId)
 
   labelObjects.forEach(l => l.removeFromParent())
 
-  // 清理场景生成器
   sceneGenerator?.dispose?.()
   animatedObjects.length = 0
 
+  controls?.update?.()
+  if (controls && 'dispose' in controls) (controls as any).dispose()
   composer?.dispose()
   renderer?.dispose()
 })

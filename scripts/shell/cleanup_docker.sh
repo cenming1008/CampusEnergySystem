@@ -30,7 +30,7 @@ fi
 
 # 停止并删除容器（保留数据卷）
 echo "1️⃣ 停止并删除容器..."
-docker-compose down
+docker compose down
 
 echo "✅ 容器已删除"
 echo ""
@@ -72,5 +72,5 @@ echo "✅ 清理完成！"
 echo ""
 echo "💡 下一步："
 echo "   - 如需本地运行，请参考 Docker清理与本地运行指南.md"
-echo "   - 如需重新启动 Docker，运行：docker-compose up -d"
+echo "   - 如需重新启动 Docker，运行：docker compose up -d"
 echo ""

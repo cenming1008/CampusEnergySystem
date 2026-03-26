@@ -39,14 +39,26 @@ echo -e "${YELLOW}📋 检查配置...${NC}"
 
 DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
 SECRET_KEY=$(grep -E '^SECRET_KEY=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
+MQTT_PASSWORD=$(grep -E '^MQTT_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
+ALERTMANAGER_WEBHOOK_URL=$(grep -E '^ALERTMANAGER_WEBHOOK_URL=' "$ENV_FILE" | tail -1 | cut -d '=' -f2- || true)
 
-if [ "$DB_PASSWORD" = "your-strong-database-password-change-me-min-16-chars" ] || [ -z "$DB_PASSWORD" ]; then
+if [[ -z "$DB_PASSWORD" || "$DB_PASSWORD" == *"change-me"* || "$DB_PASSWORD" == *"ChangeThis"* ]]; then
     echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 DB_PASSWORD${NC}"
     exit 1
 fi
 
-if [ "$SECRET_KEY" = "your-super-secret-jwt-key-min-32-chars-change-me-immediately" ] || [ -z "$SECRET_KEY" ]; then
+if [[ -z "$SECRET_KEY" || "$SECRET_KEY" == *"change-me"* || "$SECRET_KEY" == *"ChangeThis"* ]]; then
     echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 SECRET_KEY${NC}"
+    exit 1
+fi
+
+if [[ -z "$MQTT_PASSWORD" || "$MQTT_PASSWORD" == *"change-me"* || "$MQTT_PASSWORD" == *"ChangeThis"* ]]; then
+    echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 MQTT_PASSWORD${NC}"
+    exit 1
+fi
+
+if [[ -n "$ALERTMANAGER_WEBHOOK_URL" && "$ALERTMANAGER_WEBHOOK_URL" == *".invalid"* ]]; then
+    echo -e "${RED}❌ 错误: 请修改 .env.prod 中的 ALERTMANAGER_WEBHOOK_URL${NC}"
     exit 1
 fi
 
@@ -78,12 +90,12 @@ fi
 
 # 5. 构建后端镜像
 echo -e "${YELLOW}🔨 构建后端镜像...${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache backend
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache backend
 
 # 6. 滚动更新（仅重建 backend 和 nginx，不停止基础设施服务）
 echo -e "${YELLOW}▶️  滚动更新 backend + nginx...${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps --remove-orphans backend
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps nginx
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps --remove-orphans backend
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps nginx
 
 # 8. 等待服务就绪
 echo -e "${YELLOW}⏳ 等待服务启动（30秒）...${NC}"
@@ -95,7 +107,7 @@ max_attempts=10
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -f -s http://localhost:8088/health > /dev/null 2>&1; then
+    if curl -f -s http://localhost/health/live > /dev/null 2>&1; then
         echo -e "${GREEN}✅ 服务健康检查通过${NC}"
         break
     fi
@@ -107,21 +119,21 @@ done
 
 if [ $attempt -eq $max_attempts ]; then
     echo -e "${RED}❌ 健康检查失败，请查看日志:${NC}"
-    echo "docker-compose -f $COMPOSE_FILE logs backend"
+    echo "docker compose -f $COMPOSE_FILE logs backend"
     echo "如需回滚，可执行: bash ./scripts/shell/rollback_prod.sh backups/latest_pre_deploy.dump"
     exit 1
 fi
 
 # 10. 显示服务状态
 echo -e "${GREEN}📊 服务状态:${NC}"
-docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
 echo ""
 echo -e "${GREEN}✅ 部署完成！${NC}"
 echo ""
 echo "访问地址:"
-echo "  - API文档: http://localhost:8088/docs"
-echo "  - 健康检查: http://localhost:8088/health"
+echo "  - API文档: https://localhost/docs"
+echo "  - 健康检查: http://localhost/health/live"
 echo ""
 echo "查看日志:"
-echo "  docker-compose -f $COMPOSE_FILE logs -f"
+echo "  docker compose -f $COMPOSE_FILE logs -f"

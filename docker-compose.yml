@@ -38,7 +38,7 @@ services:
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 | head -1 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u mine_mqtt -P mine_mqtt_secret_2026 -t '$$SYS/#' -C 1 -W 3 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -75,6 +75,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
+      - MQTT_USERNAME=mine_mqtt
+      - MQTT_PASSWORD=mine_mqtt_secret_2026
       - SECRET_KEY=mine-energy-system-secret-key-change-me-min-32-chars
       - DEBUG=False
       - LOG_LEVEL=INFO
