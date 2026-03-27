@@ -73,9 +73,9 @@ const viewMode = ref<'overview' | 'pit'>('overview')
 const assetBase = import.meta.env.BASE_URL
 const sceneScopeHint = computed(() => {
   if (!authStore.locationScope) {
-    return '当前数字孪生视图展示的是当前账号可访问的全部场景设备。'
+    return '当前园区总览展示的是当前账号可访问的全部场景设备。'
   }
-  return `当前数字孪生视图已按位置范围 ${authStore.locationScope} 过滤，仅显示授权设备与统计。`
+  return `当前园区总览已按位置范围 ${authStore.locationScope} 过滤，仅显示授权设备与统计。`
 })
 
 // 实时数据
@@ -273,7 +273,7 @@ const initScene = async () => {
   createLights()
   await loadEnvironment()
 
-  loadingText.value = '创建矿区地形...'
+  loadingText.value = '创建园区基础场景...'
   loadingProgress.value = 20
   await createGround()
 
@@ -486,9 +486,9 @@ const setupAnimations = () => {
 
 const addBuildingLabels = () => {
   const labels = [
-    { text: '露天矿区', pos: new THREE.Vector3(0, 20, -20), color: '#d1b68b' },
+    { text: '园区中庭', pos: new THREE.Vector3(0, 20, -20), color: '#d1b68b' },
     { text: '能源中心', pos: new THREE.Vector3(-60, 35, 40), color: '#33d17a' },
-    { text: '选矿车间', pos: new THREE.Vector3(50, 40, 20), color: '#ff7800' },
+    { text: '生产车间', pos: new THREE.Vector3(50, 40, 20), color: '#ff7800' },
     { text: '智能仓储', pos: new THREE.Vector3(50, 30, 90), color: '#9d7fbf' },
     { text: '综合办公楼', pos: new THREE.Vector3(-60, 45, -50), color: '#3584e4' },
     { text: '中控中心', pos: new THREE.Vector3(-10, 28, 0), color: '#e01b24' }
@@ -759,7 +759,7 @@ onUnmounted(() => {
             ⛏️
           </div>
           <div class="title-text">
-            <span class="main-title">矿区数字孪生监控平台</span>
+            <span class="main-title">园区总览与实时态势</span>
             <span class="sub-time">{{ currentTime }}</span>
           </div>
         </div>
@@ -838,7 +838,7 @@ onUnmounted(() => {
           @click="showOverview"
         >
           <span class="btn-icon">🏭</span>
-          <span class="btn-text">矿区全景</span>
+          <span class="btn-text">园区全景</span>
         </button>
         <button 
           class="control-btn" 
@@ -846,7 +846,7 @@ onUnmounted(() => {
           @click="focusPit"
         >
           <span class="btn-icon">⛏️</span>
-          <span class="btn-text">矿坑视角</span>
+          <span class="btn-text">区域聚焦</span>
         </button>
       </div>
     </div>

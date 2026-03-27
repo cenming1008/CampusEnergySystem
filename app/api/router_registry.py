@@ -12,6 +12,7 @@ from app.api.endpoints import (
     analysis,
     audit,
     auth,
+    campus,
     data_cleanup,
     data_generator,
     device_groups,
@@ -36,6 +37,7 @@ PUBLIC_ROUTERS = (
 )
 
 PROTECTED_ROUTERS = (
+    (campus.router, "/campus", ("园区 EMS",)),
     (devices.router, "/devices", ("设备管理",)),
     (alarms.router, "/alarms", ("报警管理",)),
     (analysis.router, "/analysis", ("数据分析",)),

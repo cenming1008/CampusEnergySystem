@@ -4,6 +4,7 @@ API端点模块
 from app.api.endpoints import (
     audit,
     auth,
+    campus,
     devices,
     alarms,
     analysis,
@@ -24,6 +25,7 @@ from app.api.endpoints import (
 __all__ = [
     "audit",
     "auth",
+    "campus",
     "devices",
     "alarms",
     "analysis",

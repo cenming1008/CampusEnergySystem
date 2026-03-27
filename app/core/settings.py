@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     
     # ==================== 应用基础配置 ====================
     app_name: str = Field(
-        default="煤矿综合能源管理系统",
+        default="园区综合能源管理系统",
         env="APP_NAME",
         description="应用名称"
     )

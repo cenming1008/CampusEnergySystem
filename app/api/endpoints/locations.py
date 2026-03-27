@@ -66,7 +66,7 @@ def get_locations(
     获取位置列表
     
     支持筛选条件：
-    - location_type: 位置类型（building/unit/floor/room/workshop/area/zone）
+    - location_type: 位置类型（park/campus/site/building/unit/floor/room/workshop/area/zone）
     - parent_id: 父级位置ID
     - is_active: 是否启用
     """
@@ -81,6 +81,9 @@ def get_locations(
 
 # 位置类型展示文案（与 models.tables.LocationType 一一对应）
 _LOCATION_TYPE_META = {
+    LocationType.PARK: ("园区", "最高层园区实体"),
+    LocationType.CAMPUS: ("园区组团", "园区/校区/厂区层级"),
+    LocationType.SITE: ("站点", "园区下的站点或项目点"),
     LocationType.BUILDING: ("楼栋", "建筑物整体"),
     LocationType.UNIT: ("单元", "楼栋内的单元"),
     LocationType.FLOOR: ("楼层", "单元内的楼层"),

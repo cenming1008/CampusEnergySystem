@@ -27,37 +27,37 @@ const router = createRouter({
           path: 'dashboard',
           name: 'Dashboard',
           component: () => import('@/views/Dashboard.vue'),
-          meta: { title: '驾驶舱首页' }
+          meta: { title: '首页驾驶舱' }
         },
         {
           path: 'mine-scene',
           name: 'MineScene',
           component: () => import('@/views/MineScene.vue'),
-          meta: { title: '矿区总览' }
+          meta: { title: '园区总览' }
         },
         {
           path: 'devices',
           name: 'Devices',
           component: () => import('@/views/DeviceManager.vue'),
-          meta: { title: '设备台账' }
+          meta: { title: '设备与表计' }
         },
         {
           path: 'devices/:id/monitor',
           name: 'DeviceMonitor',
           component: () => import('@/views/DeviceMonitor.vue'),
-          meta: { title: '设备监控' }
+          meta: { title: '实时监控' }
         },
         {
           path: 'locations',
           name: 'Locations',
           component: () => import('@/views/LocationManager.vue'),
-          meta: { title: '位置管理' }
+          meta: { title: '园区空间' }
         },
         {
           path: 'groups',
           name: 'Groups',
           component: () => import('@/views/DeviceGroups.vue'),
-          meta: { title: '设备分组' }
+          meta: { title: '子系统分组' }
         },
         {
           path: 'alarms',
@@ -69,19 +69,19 @@ const router = createRouter({
           path: 'energy',
           name: 'Energy',
           component: () => import('@/views/EnergyManagement.vue'),
-          meta: { title: '多能源管理' }
+          meta: { title: '区域/楼栋能耗' }
         },
         {
           path: 'forecast',
           name: 'Forecast',
           component: () => import('@/views/Forecast.vue'),
-          meta: { title: '负荷预测' }
+          meta: { title: '能耗分析' }
         },
         {
           path: 'fdd',
           name: 'FDD',
           component: () => import('@/views/FDD.vue'),
-          meta: { title: '故障诊断' }
+          meta: { title: '运行诊断' }
         },
         {
           path: 'maintenance',
@@ -99,7 +99,7 @@ const router = createRouter({
           path: 'report',
           name: 'Report',
           component: () => import('@/views/Report.vue'),
-          meta: { title: '报表导出' }
+          meta: { title: '数据报表' }
         },
         {
           path: 'settings',

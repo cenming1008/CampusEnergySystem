@@ -53,6 +53,9 @@ class MaintenanceStatus(str, Enum):
 
 class LocationType(str, Enum):
     """位置类型枚举"""
+    PARK = "park"           # 园区
+    CAMPUS = "campus"       # 园区/校区
+    SITE = "site"           # 站点/项目点
     BUILDING = "building"    # 楼栋
     UNIT = "unit"           # 单元
     FLOOR = "floor"         # 楼层

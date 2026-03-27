@@ -1,0 +1,546 @@
+"""
+园区 EMS 聚合服务。
+
+基于现有 Location / Device / EnergyData / Alarm 等底座模型，
+提供面向园区驾驶舱与园区空间主线的兼容聚合能力。
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Iterable, Optional
+
+from sqlmodel import Session, select
+
+from app.models.tables import Alarm, Device, EnergyData, Location
+
+
+SITE_LOCATION_TYPES = {"park", "campus", "site"}
+AREA_LOCATION_TYPES = {"area", "zone"}
+BUILDING_LOCATION_TYPES = {"building"}
+METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
+
+ENERGY_CATEGORY_LABELS = {
+    "electricity": "电",
+    "water": "水",
+    "gas": "气",
+    "cooling": "冷",
+    "heat": "热",
+    "steam": "蒸汽",
+}
+
+SUB_ITEM_LABELS = {
+    "load": "动力/普通负荷",
+    "solar": "光伏",
+    "wind": "风电",
+    "water_meter": "给排水计量",
+    "gas_meter": "燃气计量",
+    "heat_meter": "供热计量",
+    "cooling_meter": "供冷计量",
+    "storage": "储能",
+    "charger": "充电桩",
+}
+
+
+@dataclass
+class CampusContext:
+    locations_by_id: dict[int, Location]
+    devices: list[Device]
+    device_by_id: dict[int, Device]
+    relevant_location_ids: set[int]
+
+
+class CampusService:
+    """园区 EMS 聚合服务。"""
+
+    @staticmethod
+    def build_context(
+        session: Session,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> CampusContext:
+        locations = list(session.exec(select(Location)).all())
+        devices_statement = select(Device)
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return CampusContext(
+                    locations_by_id={location.id: location for location in locations if location.id is not None},
+                    devices=[],
+                    device_by_id={},
+                    relevant_location_ids=set(),
+                )
+            devices_statement = devices_statement.where(Device.id.in_(allowed_device_ids))
+
+        devices = list(session.exec(devices_statement).all())
+        locations_by_id = {location.id: location for location in locations if location.id is not None}
+        relevant_location_ids = CampusService._collect_relevant_location_ids(locations_by_id, devices)
+        return CampusContext(
+            locations_by_id=locations_by_id,
+            devices=devices,
+            device_by_id={device.id: device for device in devices if device.id is not None},
+            relevant_location_ids=relevant_location_ids,
+        )
+
+    @staticmethod
+    def normalize_time_window(
+        start_time: Optional[datetime],
+        end_time: Optional[datetime],
+        default_hours: int,
+    ) -> tuple[datetime, datetime]:
+        end = end_time or datetime.now()
+        start = start_time or (end - timedelta(hours=default_hours))
+        if start > end:
+            raise ValueError("start_time 不能晚于 end_time")
+        return start, end
+
+    @staticmethod
+    def get_campus_overview(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        context = CampusService.build_context(session, allowed_device_ids)
+        energy_rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        trend_rows = CampusService._list_energy_rows(
+            session,
+            end_time - timedelta(hours=24),
+            end_time,
+            allowed_device_ids,
+        )
+        alarm_rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
+
+        hierarchy_summary = CampusService._build_hierarchy_summary(context)
+        energy_category_summary = CampusService._build_energy_category_summary(energy_rows)
+        subitem_statistics = CampusService._build_subitem_statistics(energy_rows, context.device_by_id)
+        area_rankings = CampusService._build_location_rankings(
+            energy_rows, context, AREA_LOCATION_TYPES, top_n=5
+        )
+        building_rankings = CampusService._build_location_rankings(
+            energy_rows, context, BUILDING_LOCATION_TYPES, top_n=5
+        )
+        realtime_load_trend = CampusService._build_realtime_load_trend(trend_rows)
+        alarm_summary = CampusService._build_alarm_summary(alarm_rows, context)
+
+        latest_load = realtime_load_trend[-1]["total_load"] if realtime_load_trend else 0.0
+        total_consumption = sum(item["total_consumption"] for item in energy_category_summary)
+        total_carbon = sum(item["estimated_carbon"] for item in energy_category_summary)
+
+        return {
+            "campus_entities": CampusService._build_site_entities(context),
+            "hierarchy_summary": hierarchy_summary,
+            "analysis_summary": {
+                "time_window": {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                },
+                "total_consumption": round(total_consumption, 3),
+                "realtime_load": round(latest_load, 3),
+                "active_alarm_count": alarm_summary["unresolved_count"],
+                "device_count": hierarchy_summary["device_count"],
+                "meter_count": hierarchy_summary["meter_count"],
+                "building_count": hierarchy_summary["location_counts"]["building"],
+                "estimated_carbon": round(total_carbon, 3),
+            },
+            "energy_category_summary": energy_category_summary,
+            "subitem_statistics": subitem_statistics,
+            "location_rankings": {
+                "areas": area_rankings,
+                "buildings": building_rankings,
+            },
+            "realtime_load_trend": realtime_load_trend,
+            "alarm_summary": alarm_summary,
+        }
+
+    @staticmethod
+    def get_location_energy_statistics(
+        session: Session,
+        dimension: str,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        context = CampusService.build_context(session, allowed_device_ids)
+        target_types = AREA_LOCATION_TYPES if dimension == "area" else BUILDING_LOCATION_TYPES
+        rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        rankings = CampusService._build_location_rankings(rows, context, target_types, top_n=20)
+        return {
+            "dimension": dimension,
+            "time_window": {
+                "start_time": start_time,
+                "end_time": end_time,
+            },
+            "items": rankings,
+        }
+
+    @staticmethod
+    def get_energy_category_share(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        return {
+            "time_window": {"start_time": start_time, "end_time": end_time},
+            "items": CampusService._build_energy_category_summary(rows),
+        }
+
+    @staticmethod
+    def get_subitem_statistics(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        context = CampusService.build_context(session, allowed_device_ids)
+        rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        return {
+            "time_window": {"start_time": start_time, "end_time": end_time},
+            "items": CampusService._build_subitem_statistics(rows, context.device_by_id),
+        }
+
+    @staticmethod
+    def get_realtime_load_trend(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        return {
+            "time_window": {"start_time": start_time, "end_time": end_time},
+            "items": CampusService._build_realtime_load_trend(rows),
+        }
+
+    @staticmethod
+    def get_alarm_summary(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> dict:
+        context = CampusService.build_context(session, allowed_device_ids)
+        rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
+        summary = CampusService._build_alarm_summary(rows, context)
+        summary["time_window"] = {"start_time": start_time, "end_time": end_time}
+        return summary
+
+    @staticmethod
+    def _collect_relevant_location_ids(
+        locations_by_id: dict[int, Location],
+        devices: Iterable[Device],
+    ) -> set[int]:
+        relevant_location_ids: set[int] = set()
+        for device in devices:
+            location_id = device.location_id
+            while location_id is not None and location_id not in relevant_location_ids:
+                relevant_location_ids.add(location_id)
+                parent = locations_by_id.get(location_id)
+                location_id = parent.parent_id if parent else None
+        return relevant_location_ids
+
+    @staticmethod
+    def _list_energy_rows(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> list[EnergyData]:
+        statement = (
+            select(EnergyData)
+            .where(EnergyData.timestamp >= start_time)
+            .where(EnergyData.timestamp <= end_time)
+            .order_by(EnergyData.timestamp.asc())
+        )
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(EnergyData.device_id.in_(allowed_device_ids))
+        return list(session.exec(statement).all())
+
+    @staticmethod
+    def _list_alarm_rows(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> list[Alarm]:
+        statement = (
+            select(Alarm)
+            .where(Alarm.timestamp >= start_time)
+            .where(Alarm.timestamp <= end_time)
+            .order_by(Alarm.timestamp.desc())
+        )
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(Alarm.device_id.in_(allowed_device_ids))
+        return list(session.exec(statement).all())
+
+    @staticmethod
+    def _build_site_entities(context: CampusContext) -> list[dict]:
+        locations = [
+            location
+            for location_id, location in context.locations_by_id.items()
+            if not context.relevant_location_ids or location_id in context.relevant_location_ids
+        ]
+        site_entities = [
+            {
+                "id": location.id,
+                "name": location.name,
+                "code": location.code,
+                "location_type": location.location_type,
+                "full_path": location.full_path,
+            }
+            for location in locations
+            if location.location_type in SITE_LOCATION_TYPES
+        ]
+        if site_entities:
+            return site_entities
+
+        roots = [location for location in locations if location.parent_id is None]
+        return [
+            {
+                "id": location.id,
+                "name": location.name,
+                "code": location.code,
+                "location_type": "site",
+                "full_path": location.full_path,
+                "derived": True,
+            }
+            for location in roots
+        ]
+
+    @staticmethod
+    def _build_hierarchy_summary(context: CampusContext) -> dict:
+        location_counts = {
+            "park": 0,
+            "campus": 0,
+            "site": 0,
+            "area": 0,
+            "zone": 0,
+            "building": 0,
+        }
+        for location_id in context.relevant_location_ids:
+            location = context.locations_by_id.get(location_id)
+            if location and location.location_type in location_counts:
+                location_counts[location.location_type] += 1
+
+        device_count = len(context.devices)
+        active_device_count = sum(1 for device in context.devices if device.is_active)
+        meter_count = sum(1 for device in context.devices if CampusService._is_meter(device))
+        return {
+            "location_counts": location_counts,
+            "device_count": device_count,
+            "active_device_count": active_device_count,
+            "meter_count": meter_count,
+        }
+
+    @staticmethod
+    def _build_energy_category_summary(rows: list[EnergyData]) -> list[dict]:
+        totals: dict[str, dict[str, float]] = defaultdict(lambda: {"consumption": 0.0, "load": 0.0})
+        total_consumption = 0.0
+        row_count = max(len(rows), 1)
+        for row in rows:
+            item = totals[row.energy_type]
+            item["consumption"] += float(row.consumption or 0.0)
+            item["load"] += float(row.flow_rate or 0.0)
+            total_consumption += float(row.consumption or 0.0)
+
+        items = []
+        for energy_type, value in sorted(totals.items(), key=lambda item: item[1]["consumption"], reverse=True):
+            consumption = round(value["consumption"], 3)
+            ratio = round((consumption / total_consumption) if total_consumption else 0.0, 4)
+            items.append(
+                {
+                    "energy_category": energy_type,
+                    "label": ENERGY_CATEGORY_LABELS.get(energy_type, energy_type),
+                    "total_consumption": consumption,
+                    "avg_load": round(value["load"] / row_count, 3),
+                    "ratio": ratio,
+                    "estimated_carbon": round(consumption * 0.785, 3) if energy_type == "electricity" else 0.0,
+                }
+            )
+        return items
+
+    @staticmethod
+    def _build_subitem_statistics(rows: list[EnergyData], device_by_id: dict[int, Device]) -> list[dict]:
+        items: dict[str, dict] = defaultdict(
+            lambda: {"consumption": 0.0, "load": 0.0, "device_ids": set(), "energy_categories": set()}
+        )
+        for row in rows:
+            device = device_by_id.get(row.device_id)
+            if not device:
+                continue
+            sub_item = device.device_category or device.device_type or "device"
+            item = items[sub_item]
+            item["consumption"] += float(row.consumption or 0.0)
+            item["load"] += float(row.flow_rate or 0.0)
+            item["device_ids"].add(device.id)
+            item["energy_categories"].add(row.energy_type)
+
+        result = []
+        for sub_item, value in sorted(items.items(), key=lambda item: item[1]["consumption"], reverse=True):
+            device_count = max(len(value["device_ids"]), 1)
+            result.append(
+                {
+                    "sub_item": sub_item,
+                    "label": SUB_ITEM_LABELS.get(sub_item, sub_item),
+                    "total_consumption": round(float(value["consumption"]), 3),
+                    "avg_load": round(float(value["load"]) / device_count, 3),
+                    "device_count": len(value["device_ids"]),
+                    "energy_categories": sorted(value["energy_categories"]),
+                }
+            )
+        return result
+
+    @staticmethod
+    def _build_location_rankings(
+        rows: list[EnergyData],
+        context: CampusContext,
+        target_types: set[str],
+        top_n: int,
+    ) -> list[dict]:
+        row_count = max(len(rows), 1)
+        aggregates: dict[int, dict] = defaultdict(
+            lambda: {"consumption": 0.0, "load": 0.0, "energy_breakdown": defaultdict(float)}
+        )
+
+        for row in rows:
+            device = context.device_by_id.get(row.device_id)
+            if not device or device.location_id is None:
+                continue
+            target = CampusService._find_ancestor_location(
+                context.locations_by_id,
+                device.location_id,
+                target_types,
+            )
+            if not target:
+                continue
+            item = aggregates[target.id]
+            consumption = float(row.consumption or 0.0)
+            load = float(row.flow_rate or 0.0)
+            item["consumption"] += consumption
+            item["load"] += load
+            item["energy_breakdown"][row.energy_type] += consumption
+
+        ranked_items = []
+        for location_id, value in aggregates.items():
+            location = context.locations_by_id.get(location_id)
+            if not location:
+                continue
+            ranked_items.append(
+                {
+                    "location_id": location.id,
+                    "name": location.name,
+                    "location_type": location.location_type,
+                    "full_path": location.full_path,
+                    "total_consumption": round(float(value["consumption"]), 3),
+                    "avg_load": round(float(value["load"]) / row_count, 3),
+                    "energy_breakdown": {
+                        energy_type: round(amount, 3)
+                        for energy_type, amount in sorted(value["energy_breakdown"].items(), key=lambda item: item[1], reverse=True)
+                    },
+                }
+            )
+
+        ranked_items.sort(key=lambda item: item["total_consumption"], reverse=True)
+        return ranked_items[:top_n]
+
+    @staticmethod
+    def _build_realtime_load_trend(rows: list[EnergyData]) -> list[dict]:
+        buckets: dict[datetime, dict[str, float]] = defaultdict(lambda: {"load": 0.0, "consumption": 0.0})
+        for row in rows:
+            timestamp = row.timestamp
+            bucket = buckets[timestamp]
+            bucket["load"] += float(row.flow_rate or 0.0)
+            bucket["consumption"] += float(row.consumption or 0.0)
+
+        return [
+            {
+                "timestamp": timestamp,
+                "total_load": round(values["load"], 3),
+                "total_consumption": round(values["consumption"], 3),
+            }
+            for timestamp, values in sorted(buckets.items(), key=lambda item: item[0])
+        ]
+
+    @staticmethod
+    def _build_alarm_summary(rows: list[Alarm], context: CampusContext) -> dict:
+        by_severity: dict[str, int] = defaultdict(int)
+        by_location: dict[int, int] = defaultdict(int)
+
+        unresolved_count = 0
+        for alarm in rows:
+            by_severity[alarm.severity] += 1
+            if not alarm.is_resolved:
+                unresolved_count += 1
+            device = context.device_by_id.get(alarm.device_id)
+            if device and device.location_id is not None:
+                target = CampusService._find_ancestor_location(
+                    context.locations_by_id,
+                    device.location_id,
+                    AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
+                )
+                if target:
+                    by_location[target.id] += 1
+
+        top_locations = []
+        for location_id, count in sorted(by_location.items(), key=lambda item: item[1], reverse=True)[:5]:
+            location = context.locations_by_id.get(location_id)
+            if location:
+                top_locations.append(
+                    {
+                        "location_id": location.id,
+                        "name": location.name,
+                        "location_type": location.location_type,
+                        "alarm_count": count,
+                    }
+                )
+
+        latest = [
+            {
+                "id": alarm.id,
+                "device_id": alarm.device_id,
+                "message": alarm.message,
+                "severity": alarm.severity,
+                "category": alarm.category,
+                "timestamp": alarm.timestamp,
+                "is_resolved": alarm.is_resolved,
+            }
+            for alarm in rows[:10]
+        ]
+
+        return {
+            "total_count": len(rows),
+            "unresolved_count": unresolved_count,
+            "resolved_count": len(rows) - unresolved_count,
+            "by_severity": dict(sorted(by_severity.items())),
+            "top_locations": top_locations,
+            "latest": latest,
+        }
+
+    @staticmethod
+    def _find_ancestor_location(
+        locations_by_id: dict[int, Location],
+        location_id: int,
+        target_types: set[str],
+    ) -> Optional[Location]:
+        current_id = location_id
+        while current_id is not None:
+            location = locations_by_id.get(current_id)
+            if not location:
+                return None
+            if location.location_type in target_types:
+                return location
+            current_id = location.parent_id
+        return None
+
+    @staticmethod
+    def _is_meter(device: Device) -> bool:
+        if device.device_category in METER_DEVICE_CATEGORIES:
+            return True
+        text = f"{device.device_type or ''} {device.device_category or ''}".lower()
+        return "meter" in text

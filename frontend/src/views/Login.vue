@@ -71,23 +71,23 @@ const handleLogin = async () => {
         </div>
 
         <div class="hero-copy">
-          <h1>矿山运营 <span>卓越中心</span></h1>
+          <h1>园区能源 <span>驾驶中心</span></h1>
           <p>
-            通过一体化能源调度、设备健康监测和实时告警体系，支撑高风险工业现场的稳定运行与精细化管理。
+            面向园区场景统一汇聚电、水、气、冷、热数据，支撑分层计量、实时监控、告警联动与能耗分析。
           </p>
         </div>
 
         <div class="dashboard-grid">
           <article class="dashboard-card card-primary">
             <div class="card-head">
-              <span>能源调度</span>
+              <span>实时负荷</span>
               <el-icon><Lightning /></el-icon>
             </div>
 
             <div class="energy-body">
               <div class="metric-line">
                 <strong>1,248.5</strong>
-                <span>兆瓦 / 峰值负载</span>
+                <span>kW / 园区瞬时负荷</span>
               </div>
 
               <div class="energy-chart">
@@ -103,31 +103,31 @@ const handleLogin = async () => {
 
           <article class="dashboard-card card-alert">
             <div class="card-head">
-              <span>健康警报</span>
+              <span>告警联动</span>
               <el-icon><Warning /></el-icon>
             </div>
 
             <div class="alert-list">
               <div class="alert-item active">
-                <p>临界温度</p>
-                <span>7-G 区 04 号挖掘机</span>
+                <p>电表异常波动</p>
+                <span>A 区 2 号楼配电间</span>
               </div>
               <div class="alert-item">
-                <p>压力下降</p>
-                <span>B-12 传送带连接</span>
+                <p>冷站流量偏低</p>
+                <span>综合能源站 1 号回路</span>
               </div>
             </div>
           </article>
 
           <article class="dashboard-card card-fleet">
             <div class="card-head">
-              <span>车队负载</span>
+              <span>区域覆盖</span>
               <el-icon><Opportunity /></el-icon>
             </div>
 
             <div class="fleet-body">
               <strong>84%</strong>
-              <span>活跃产能</span>
+              <span>在线计量覆盖率</span>
             </div>
           </article>
 
@@ -136,8 +136,8 @@ const handleLogin = async () => {
               <span>92.4</span>
             </div>
             <div class="efficiency-copy">
-              <p>系统效率</p>
-              <span>检测到 1-5 区的最佳吞吐量。</span>
+              <p>综合能效</p>
+              <span>本周园区运行效率保持在目标区间。</span>
             </div>
           </article>
         </div>
@@ -149,7 +149,7 @@ const handleLogin = async () => {
         <div class="brand-mark">
           <el-icon><Lightning /></el-icon>
         </div>
-        <span>Kinetic Command</span>
+        <span>Park EMS</span>
       </div>
 
       <div class="auth-panel">
@@ -157,12 +157,12 @@ const handleLogin = async () => {
           <div class="brand-mark">
             <el-icon><Lightning /></el-icon>
           </div>
-          <span>Kinetic Command</span>
+          <span>Park EMS</span>
         </div>
 
         <div class="auth-copy">
-          <h2>访问终端</h2>
-          <p>仅限授权工业人员。安全访问会话。</p>
+          <h2>登录系统</h2>
+          <p>面向园区能源运营、运维和值班人员的统一工作台。</p>
         </div>
 
         <form
@@ -177,7 +177,7 @@ const handleLogin = async () => {
                 id="username"
                 v-model="loginForm.username"
                 autocomplete="username"
-                placeholder="输入操作员 ID"
+                placeholder="输入账号"
                 type="text"
               >
             </div>
@@ -190,7 +190,7 @@ const handleLogin = async () => {
                 class="forgot-link"
                 type="button"
               >
-                忘记了？
+                忘记密码？
               </button>
             </div>
 
@@ -217,14 +217,14 @@ const handleLogin = async () => {
             class="submit-btn"
             type="submit"
           >
-            <span>{{ loading ? '建立连接中...' : '建立连接' }}</span>
+            <span>{{ loading ? '登录中...' : '进入园区 EMS' }}</span>
             <el-icon class="submit-icon">
               <ArrowRight />
             </el-icon>
           </button>
 
           <div class="divider">
-            <span>二次验证</span>
+            <span>快捷登录</span>
           </div>
 
           <button
@@ -232,7 +232,7 @@ const handleLogin = async () => {
             type="button"
           >
             <el-icon><Key /></el-icon>
-            <span>使用智能卡登录</span>
+            <span>使用门禁卡登录</span>
           </button>
         </form>
 
@@ -241,11 +241,11 @@ const handleLogin = async () => {
             <span class="footer-indicator" />
             <span>V4.8.2-稳定版</span>
           </div>
-          <span>工业能源控制入口</span>
+          <span>园区综合能源管理入口</span>
         </div>
 
         <p class="panel-disclaimer">
-          © {{ currentYear }} 工业能源系统。保留所有权利。机密基础设施。未经授权的访问将受到严格监控，并依照相关行业规范进行处置。
+          © {{ currentYear }} 园区综合能源管理系统。保留所有权利。未经授权的访问将受到审计记录与安全策略管控。
         </p>
       </div>
 
@@ -253,7 +253,7 @@ const handleLogin = async () => {
     </main>
 
     <footer class="page-footer">
-      <span>© {{ currentYear }} Industrial Energy Systems. All rights reserved. Confidential Infrastructure.</span>
+      <span>© {{ currentYear }} Campus Energy Management System. All rights reserved.</span>
       <div class="footer-links">
         <a href="javascript:void(0)">安全策略</a>
         <a href="javascript:void(0)">操作条款</a>

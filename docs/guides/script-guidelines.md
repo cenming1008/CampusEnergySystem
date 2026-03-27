@@ -11,6 +11,7 @@
 1. `bin/`、`scripts/`、`frontend/package.json` 同时承载命令入口，边界容易混淆
 2. `scripts/python/` 与 `scripts/shell/` 中混有正式脚本、调试脚本、演示脚本和一次性验证脚本
 3. 文档中大量直接引用脚本，如果随意移动路径，容易打断现有使用方式
+4. 当前仓库已经存在 `scripts/archive/`，但归档口径还需要继续统一
 
 治理目标是：
 
@@ -298,10 +299,12 @@
 
 ## 7. 归档规则
 
-当前仓库还没有独立的 `scripts/archive/`，但后续若执行脚本收敛，建议按以下方式处理：
+当前仓库已经存在：
 
 - `scripts/archive/python/`
 - `scripts/archive/shell/`
+
+后续若继续执行脚本收敛，统一沿用这两个目录。
 
 归档触发条件：
 
@@ -316,7 +319,7 @@
 2. 再迁入 `scripts/archive/`
 3. 观察一个维护周期后，再决定是否永久删除
 
-在真正建立 `scripts/archive/` 前，不要随意删除仍在文档中出现的脚本。
+在真正完成文档入口下架前，不要随意删除仍在文档中出现的脚本。
 
 ---
 
@@ -353,7 +356,7 @@
 - `scripts/python/stress_test.py`
 - `scripts/shell/check_websocket.sh`
 - `scripts/shell/check_mac_env.sh`
-- `scripts/shell/start_frontend.sh`
+- `scripts/archive/shell/start_frontend.sh`
 
 ### 8.3 后续优先人工确认
 

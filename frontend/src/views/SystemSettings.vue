@@ -900,14 +900,14 @@ onMounted(async () => {
           <div class="section-card full-width">
             <div class="card-header">
               <el-icon><InfoFilled /></el-icon>
-              <span>关于 MINE EMS</span>
+              <span>关于园区 EMS</span>
             </div>
             <div class="card-body about-content">
               <div class="logo-section">
                 <div class="logo">
                   ⚡
                 </div>
-                <h3>MINE Energy Management System</h3>
+                <h3>Park Energy Management System</h3>
                 <p class="version">
                   Version 2.2.0
                 </p>
@@ -916,15 +916,14 @@ onMounted(async () => {
               <div class="feature-list">
                 <h4>系统功能</h4>
                 <ul>
-                  <li>🏠 驾驶舱首页 - 实时监控与数据概览</li>
-                  <li>📊 设备台账 - 设备全生命周期管理</li>
-                  <li>📍 位置管理 - 设备物理位置层级管理</li>
-                  <li>📁 设备分组 - 灵活的设备分组策略</li>
-                  <li>⚡ 多能源管理 - 电/水/气/热多能源统计</li>
-                  <li>📈 负荷预测 - 基于LSTM的智能预测</li>
+                  <li>🏠 首页驾驶舱 - 园区能耗、负荷与告警概览</li>
+                  <li>🏢 园区总览 - 园区空间、设备与子系统态势展示</li>
+                  <li>📊 设备与表计 - 设备全生命周期与计量对象管理</li>
+                  <li>⚡ 区域/楼栋能耗 - 园区分层能耗统计与分析</li>
+                  <li>📈 能耗分析 - 趋势、预测与能效研判</li>
                   <li>🔧 设备维护 - 维护计划与记录管理</li>
-                  <li>🩺 故障诊断 - 实时故障检测与告警</li>
-                  <li>📄 报表导出 - 灵活的数据导出功能</li>
+                  <li>🩺 运行诊断 - 实时诊断与异常联动</li>
+                  <li>📄 数据报表 - 灵活的数据导出功能</li>
                 </ul>
               </div>
               

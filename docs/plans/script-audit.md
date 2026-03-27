@@ -1,217 +1,240 @@
 # Script Audit
 
-## 审计范围与方法
+## 一、总体判断
 
-- 已阅读：`AGENTS.md`、`docs/plans/current-status.md`、`docs/plans/handoff.md`、`docs/guides/script-guidelines.md`
-- 已扫描：
-  - 根目录 `bin/*.sh`
-  - `scripts/shell/*.sh`
-  - `scripts/python/*.py`
-  - `frontend/package.json` 中全部 `scripts`
-  - 项目内 `README.md`、`docs/`、`scripts/README.md`、`scripts/QUICK_REFERENCE.md`、`scripts/SCRIPT_LIST.md`、`bin/README.md` 对脚本的引用
-- 结论原则：
-  - 优先判断“当前开发是否真的会用”
-  - 优先判断“是否仍匹配当前 compose / 目录 / 应用结构”
-  - 优先判断“它是正式入口、辅助工具，还是历史噪音”
-- 额外发现：
-  - 当前仓库没有根级 `Makefile`
-  - 当前脚本正式入口实际分散在 `frontend/package.json`、`bin/`、`scripts/shell/`、`scripts/python/`
-  - `scripts/shell/status.sh`、部分快捷脚本和若干调试脚本仍带有默认环境容器名假设，和 `docker-compose.dev.yml` / `docker-compose.prod.yml` 并不完全一致
+当前脚本体系不属于“完全失控”，也不是“已经规范可以完全放着不管”。更准确的判断是：结构已经成型，但文档和入口仍混乱。
 
-## 一、核心保留脚本
+优点比较明确。仓库已经自然形成了四层入口：
+- `frontend/package.json` 负责前端原生命令
+- `bin/` 负责少量快捷入口
+- `scripts/shell/` 负责仓库级 shell 工具
+- `scripts/python/` 负责 Python 管理、模拟、接入和调试工具
 
-### 1. 前端正式入口
+而且仓库里已经开始出现“降级归档”的意识，例如 `scripts/archive/python/rebuild_database.py` 和 `scripts/archive/shell/start_frontend.sh`，这说明项目不是没有治理，而是已经开始治理。
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `frontend/package.json#dev` | 启动前端开发服务器 | 当前前端正式入口；与 `frontend/` 结构一致；符合脚本规范；无一次性特征；建议保留。 |
-| `frontend/package.json#build` | 前端构建验证 | 当前构建正式入口；与 Vite 结构一致；被前端开发流程隐式依赖；建议保留。 |
-| `frontend/package.json#lint` | ESLint 检查 | 当前代码检查入口；与前端结构一致；无重复问题；建议保留。 |
-| `frontend/package.json#typecheck` | TypeScript 类型检查 | 当前前端验证入口；与 `vue-tsc` 配置一致；建议保留。 |
-| `frontend/package.json#test:unit` | 单元测试 | 当前前端测试入口；与 Vitest 结构一致；建议保留。 |
-| `frontend/package.json#test:unit:watch` | 单元测试 watch | 当前本地开发辅助入口；与前端结构一致；建议保留。 |
-| `frontend/package.json#test:e2e` | E2E 测试 | 当前 Playwright 入口；仍有明确用途；建议保留。 |
-| `frontend/package.json#preview` | 构建后预览 | 标准 Vite 辅助入口；虽然不是高频，但与当前结构一致；建议保留。 |
+主要问题也很集中：
+- 入口边界已经有规则，但文档没有完全跟上
+- `bin/` 与 `scripts/` 的关系说明大体正确，但仍存在双入口并存、推荐层级不够统一的问题
+- `scripts/python/` 里仍混杂正式工具、演示脚本、一次性接入调试脚本
+- 脚本清单和目录 README 的统计数字、覆盖范围、定位描述不一致
+- 前端脚本本身不乱，但缺少统一聚合校验入口，文档里也还有旧端口表述
 
-### 2. `bin/` 快捷入口
+综合判断：
+- 当前状态属于：结构已成型，但文档和入口仍混乱
+- 换成更直白的话，就是：已经“有体系”，但还没有“完全收口”
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `bin/fast_start.sh` | 日常快速启动默认 compose，并可选择顺带起前端 | 被 `README.md`、`bin/README.md` 作为日常入口引用；符合“高频快捷入口”定位；与当前结构大体一致，但依赖 GUI `open /Applications/Docker.app` 且仍包办前端启动；建议保留为快捷入口。 |
-| `bin/fast_start_dev.sh` | 开发模式快捷编排：中间件 Docker + 本地前后端 | 被 `bin/README.md` 直接引用；与 `scripts/shell/start_dev_env.sh` 和 `frontend/package.json` 配合关系清晰；仍有实际价值；建议保留。 |
-| `bin/run_simulator.sh` | 在容器内执行统一模拟器 | 被 `bin/README.md` 引用；与 `scripts/python/simulator_unified.py` 关系清晰；仍适合做快捷入口；建议保留。 |
+## 二、当前脚本结构梳理
 
-### 3. `scripts/shell/` 正式运维与交付入口
+### 1. 快捷入口层
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `scripts/shell/start.sh` | 启动默认 Docker 环境 | 被 `README.md`、`scripts/README.md`、新手文档广泛引用；仍是正式入口；与默认 compose 一致；建议保留。 |
-| `scripts/shell/start_dev_env.sh` | 启动开发环境中间件 | 被 `README.md`、新手文档、快捷脚本广泛引用；与 `docker-compose.dev.yml` 一致；建议保留。 |
-| `scripts/shell/stop.sh` | 停止默认 Docker 环境 | 与 `start.sh` 成对；仍是正式入口；建议保留。 |
-| `scripts/shell/stop_dev_env.sh` | 停止开发环境中间件 | 与 `start_dev_env.sh` 成对；仍有明确用途；建议保留。 |
-| `scripts/shell/status.sh` | 查看默认环境状态 | 被速查文档高频引用；仍有明确用途；但只覆盖默认 compose，未覆盖 dev/prod 环境；建议保留并后续校正。 |
-| `scripts/shell/test_health.sh` | 调用健康检查接口 | 被 README、故障排查和脚本文档引用；与后端 `/health*` 结构一致；建议保留。 |
-| `scripts/shell/backup.sh` | 数据库备份 | 被 README、工业上线文档、数据库文档引用；与当前容器命名兼容默认 prod/dev 检测；建议保留。 |
-| `scripts/shell/restore.sh` | 数据库恢复 | 被 README、数据库文档、上线清单引用；与当前备份链路一致；建议保留。 |
-| `scripts/shell/restore_drill.sh` | 备份恢复演练并生成记录 | 仍与 `backup.sh`/`restore.sh` 结构一致；具备真实运维价值，但当前主入口引用较弱；建议保留。 |
-| `scripts/shell/release_readiness.sh` | 发布前总检查 | 被 `README.md`、`deploy_prod.sh`、上线清单引用；与当前测试、生产 compose、告警模板一致；建议保留。 |
-| `scripts/shell/deploy_prod.sh` | 生产部署流程 | 被 README 和部署文档引用；仍是正式部署入口；与 `docker-compose.prod.yml` 一致；建议保留。 |
-| `scripts/shell/rollback_prod.sh` | 生产回滚 | 与 `backup.sh`/`restore.sh`/`.env.prod` 链路一致；仍有明确运维价值；建议保留。 |
-| `scripts/shell/load_baseline.sh` | 生成容量基线 | 与 `stress_test.py`、`evaluate_capacity_baseline.py`、试点流程脚本一致；被 README 和脚本文档引用；建议保留。 |
-| `scripts/shell/pilot_smoke_test.sh` | 试点冒烟验收 | 当前试点验收正式入口之一；与现有健康检查和认证接口一致；建议保留。 |
-| `scripts/shell/pilot_readiness.sh` | 试点前 readiness 与证据归档 | 与当前检查链路一致；仍被脚本文档和验收材料使用；建议保留。 |
-| `scripts/shell/pilot_drill.sh` | 串联 readiness / baseline / smoke | 与当前试点链路一致；仍有明确用途；建议保留。 |
-| `scripts/shell/render_alertmanager_config.sh` | 生成 Alertmanager 配置 | 与生产告警配置链路一致；被 `release_readiness.sh` 间接依赖；建议保留。 |
-| `scripts/shell/setup_mqtt_auth.sh` | 生成 Mosquitto 密码文件 | 被 `start_dev_env.sh` 直接依赖；与当前 dev compose 一致；建议保留。 |
+`bin/` 当前承担的是“给人直接敲的短命令”职责，定位基本合理。
 
-### 4. `scripts/python/` 正式工具入口
+现有 3 个脚本：
+- `fast_start.sh`
+- `fast_start_dev.sh`
+- `run_simulator.sh`
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `scripts/python/create_admin.py` | 创建管理员账号 | 被 README、部署文档广泛引用；与当前用户模型和密码强度约束一致；建议保留。 |
-| `scripts/python/init_complete_system.py` | 初始化开发/演示数据 | 被新手与启动文档广泛引用；仍匹配当前开发体验；建议保留。 |
-| `scripts/python/check_config.py` | 检查运行配置 | 被 `release_readiness.sh`、`pilot_readiness.sh` 和文档引用；仍与当前 settings 结构一致；建议保留。 |
-| `scripts/python/check_production_readiness.py` | 检查生产配置护栏 | 被 README、部署脚本、上线清单引用；仍匹配当前生产配置结构；建议保留。 |
-| `scripts/python/simulator_unified.py` | 统一设备模拟器 | 被 README、新手文档、`bin/run_simulator.sh` 高强度引用；仍是当前开发与演示核心工具；建议保留。 |
-| `scripts/python/device_gateway.py` | 真实设备接入网关参考实现 | 被架构、功能、配置文档广泛引用；仍与当前 MQTT 接入模式一致；建议保留。 |
-| `scripts/python/stress_test.py` | HTTP 压测工具 | 与 `load_baseline.sh`、部署流程一致；当前仍有正式用途；建议保留。 |
-| `scripts/python/evaluate_capacity_baseline.py` | 容量基线判定 | 被 `load_baseline.sh` 调用；与当前试点验收流程一致；建议保留。 |
-| `scripts/python/send_test_alert.py` | 发送测试告警 | 与当前通知服务、试点验收材料一致；仍有明确用途；建议保留。 |
-| `scripts/python/replay_mqtt_failures.py` | 重放 MQTT 失败/死信记录 | 与当前 `mqtt_reliability` 代码结构一致；README 已引用；建议保留。 |
-| `scripts/python/generate_prod_secrets.py` | 生成生产密钥片段 | 与 `.env.prod` 流程一致；虽然引用不多，但仍有明确运维价值；建议保留。 |
-| `scripts/python/mqtt_send_test.py` | 发送 MQTT 测试消息 | 被试点验收、设备接入调试场景引用；与当前 MQTT 主题和认证结构一致；建议保留。 |
+从数量上看，`bin/` 仍然是精简的，没有膨胀成第二套正式实现层。这一点是好的。
 
-## 二、建议合并的脚本
+但问题在于，`bin/README.md` 虽然把自己定义为“快捷入口层”，文档中仍把它和 `scripts/` 讲成两套都可直接推荐的入口，导致使用者不容易判断：
+- `./bin/fast_start.sh` 是“日常快捷入口”
+- 还是 `./scripts/shell/start.sh` 才是更正式的事实来源
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `scripts/shell/start_frontend.sh` | 启动前端并自动安装依赖、处理端口 | 仍能工作，但与 `frontend/package.json#dev` 重复；脚本规范也要求前端原生命令留在 `frontend/package.json`；建议将“如何启动前端”收敛回前端 README 与 `npm run dev`，此脚本后续并入文档或快捷入口。 |
-| `scripts/shell/restart_backend.sh` | 重启后端容器 | 只有一层 `docker compose restart backend` 包装；当前脚本价值低于文档命令；与当前结构一致但重复度高；建议并入运维文档或 `status.sh` 提示。 |
-| `scripts/shell/rebuild_backend.sh` | 重建后端容器 | 只有一层 `docker compose build/up` 包装；和文档命令重复；建议并入运维文档。 |
-| `scripts/shell/install_dependencies.sh` | 创建 venv 并安装依赖 | 内容有价值，但更像 onboarding 流程而不是长期独立入口；与 README / 新手文档主题重复；建议合并进开发环境安装文档。 |
-| `scripts/shell/check_websocket.sh` | WebSocket 诊断 | 有一定排查价值，但与 `test_health.sh`、故障排查文档主题重叠；且默认端口和默认 compose 假设较强；建议并入故障排查指南。 |
-| `scripts/shell/check_mac_env.sh` | macOS 环境检查 | 只适用于单平台，本身是 onboarding 辅助；仍有价值，但不宜作为长期通用入口；建议并入新手文档的 macOS 节。 |
-| `scripts/python/generate_training_data.py` | 生成训练数据 | 功能仍有价值，但应并入 `lstm_forecast` 或预测功能工作流文档，不宜在脚本入口层单独突出；建议合并说明文档。 |
-| `scripts/python/mqtt_subscriber_template.py` | MQTT 订阅模板骨架 | 更像示例片段，不像正式工具；与接入文档主题重叠；建议改为文档示例或 `docs/examples/`。 |
+结论：
+- `bin/` 作为快捷层是合理的
+- 但文档上还没有把“快捷入口”和“正式实现入口”的优先级讲透
 
-## 三、建议归档的脚本
+### 2. 完整工具层
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `scripts/python/demo_unified_system.py` | 历史统一系统演示 | 与当前代码仍大体可对齐，但明显属于演示性质；不是当前开发或运维正式入口；与 `init_complete_system.py`、功能文档存在主题重叠；建议归档。 |
-| `scripts/python/demo_device_group.py` | 设备分组演示 | 仍对应现有能力，但主要服务于历史功能展示；不适合作为当前入口；建议归档。 |
-| `scripts/python/demo_location.py` | 位置管理演示 | 与当前能力相关，但属于历史演示脚本；建议归档。 |
-| `scripts/python/demo_maintenance.py` | 维护管理演示 | 与当前能力相关，但属于历史演示脚本；建议归档。 |
-| `scripts/python/test_http_device.py` | HTTP 设备单次调试 | 仍与 `device_gateway.py` 调试场景一致，但属于接入期一次性调试工具，不应继续在主脚本入口占高权重；建议归档到接入调试工具区。 |
-| `scripts/python/test_modbus_tcp.py` | Modbus TCP 调试 | 同上，保留历史与接入价值，但不应作为主入口；建议归档。 |
-| `scripts/python/test_serial_port.py` | 串口调试 | 同上，建议归档。 |
-| `scripts/python/serial_device_sim.py` | 串口设备模拟 | 明显是联调演示脚本；与当前主开发流程关系弱；建议归档。 |
-| `scripts/python/serial_gateway_demo.py` | 串口网关演示 | 明显是历史调试/演示脚本；建议归档。 |
-| `scripts/python/serial_pair_demo.py` | 虚拟串口对演示 | 更偏学习/演示工具；对当前主开发帮助有限；建议归档。 |
-| `scripts/shell/cleanup_logs.sh` | 清理本地日志 | 有一定维护价值，但当前主日志链路更多依赖 Docker / 观测栈；引用弱；适合作为历史辅助脚本归档。 |
-| `scripts/shell/uninstall_local_services.sh` | 停止本机 brew 服务 | 强平台相关且针对早期“本地服务切 Docker”场景；当前已非主流程；建议归档。 |
+#### `scripts/shell/`
 
-## 四、删除候选脚本
+这一层定位本来应该最清楚：仓库级 shell 正式工具层。
 
-| 脚本 | 用途 | 判断 |
-|------|------|------|
-| `scripts/python/rebuild_database.py` | 直接删表重建数据库 | 明显带有“全新系统/历史重构期”痕迹；绕过 Alembic 与当前迁移流程；风险高、与当前生产护栏不一致；仍被少量旧文档引用，但不应继续保留为可见入口；建议删除候选，处理前先人工确认无人依赖。 |
-| `scripts/shell/fix_venv.sh` | 删除并重建虚拟环境 | 强机器本地化、破坏性较强；未见 README/当前流程正式引用；与 `install_dependencies.sh` 和手工 `python -m venv` 重复；建议删除候选。 |
-| `scripts/shell/cleanup_docker.sh` | 交互式删除容器/卷/镜像 | 破坏性强、与当前更规范的 `docker compose down` 和运维文档重复；还引用历史“Docker清理与本地运行指南”语境；建议删除候选，若保留也应至少先移出主清单。 |
+实际目录里共有 27 个 shell 脚本，包括：
+- 启停类：`start.sh`、`start_dev_env.sh`、`stop.sh`、`stop_dev_env.sh`
+- 检查类：`status.sh`、`test_health.sh`、`pilot_*`、`load_baseline.sh`
+- 维护部署类：`backup.sh`、`restore.sh`、`rollback_prod.sh`、`deploy_prod.sh`、`release_readiness.sh`
+- 辅助类：`check_websocket.sh`、`check_mac_env.sh`、`install_dependencies.sh`
+- 清理/本地修复类：`cleanup_*`、`fix_venv.sh`、`uninstall_local_services.sh`
+- 但还包含 `restore_drill.sh`、`render_alertmanager_config.sh`、`setup_mqtt_auth.sh` 这类清单文档并未完整覆盖的脚本
 
-## 五、建议收敛后的正式入口
+定位不算混乱，但“正式入口”和“辅助脚本”还没有被文档严格区分。
 
-- 前端入口：
-  - `frontend/package.json#dev`
-  - `frontend/package.json#build`
-  - `frontend/package.json#lint`
-  - `frontend/package.json#typecheck`
-  - `frontend/package.json#test:unit`
-  - `frontend/package.json#test:e2e`
-- 快捷入口：
-  - `bin/fast_start.sh`
-  - `bin/fast_start_dev.sh`
-  - `bin/run_simulator.sh`
-- Shell 正式入口：
-  - `scripts/shell/start.sh`
-  - `scripts/shell/start_dev_env.sh`
-  - `scripts/shell/stop.sh`
-  - `scripts/shell/stop_dev_env.sh`
-  - `scripts/shell/status.sh`
-  - `scripts/shell/test_health.sh`
-  - `scripts/shell/backup.sh`
-  - `scripts/shell/restore.sh`
-  - `scripts/shell/release_readiness.sh`
-  - `scripts/shell/deploy_prod.sh`
-  - `scripts/shell/rollback_prod.sh`
-  - `scripts/shell/load_baseline.sh`
-  - `scripts/shell/pilot_smoke_test.sh`
-  - `scripts/shell/pilot_readiness.sh`
-  - `scripts/shell/pilot_drill.sh`
-- Python 正式入口：
-  - `scripts/python/create_admin.py`
-  - `scripts/python/init_complete_system.py`
-  - `scripts/python/check_config.py`
-  - `scripts/python/check_production_readiness.py`
-  - `scripts/python/simulator_unified.py`
-  - `scripts/python/device_gateway.py`
-  - `scripts/python/stress_test.py`
-  - `scripts/python/evaluate_capacity_baseline.py`
-  - `scripts/python/send_test_alert.py`
-  - `scripts/python/replay_mqtt_failures.py`
-  - `scripts/python/generate_prod_secrets.py`
-  - `scripts/python/mqtt_send_test.py`
+#### `scripts/python/`
 
-## 六、目录收敛建议
+这一层问题更明显。实际目录里共有 24 个 Python 脚本，混杂了 4 类内容：
+- 正式工具：`create_admin.py`、`init_complete_system.py`、`check_config.py`、`check_production_readiness.py`
+- 运行工具：`simulator_unified.py`、`device_gateway.py`
+- 运维/验证工具：`stress_test.py`、`evaluate_capacity_baseline.py`、`send_test_alert.py`、`replay_mqtt_failures.py`
+- 历史演示 / 接入调试 / 学习型脚本：`demo_*`、`test_*`、`serial_*`、`mqtt_subscriber_template.py`
 
-- 应继续留在 `frontend/package.json` 的：
-  - 前端开发、构建、lint、typecheck、单测、E2E
-- 应继续留在 `bin/` 的：
-  - 高频快捷入口，仅保留 `fast_start.sh`、`fast_start_dev.sh`、`run_simulator.sh`
-- 应继续留在 `scripts/shell/` 的：
-  - 启停、状态、备份恢复、发布、试点验收、环境生成类正式脚本
-- 应继续留在 `scripts/python/` 的：
-  - 管理员创建、数据初始化、模拟器、网关、配置检查、压测、基线判定、通知和重放类正式工具
-- 建议迁出主入口、转文档或示例的：
-  - `start_frontend.sh`
-  - `restart_backend.sh`
-  - `rebuild_backend.sh`
-  - `check_websocket.sh`
-  - `check_mac_env.sh`
-  - `mqtt_subscriber_template.py`
-  - `generate_training_data.py`
-- 建议进入归档区的：
-  - 全部 `demo_*.py`
-  - 串口演示与单次接入调试脚本
-  - `cleanup_logs.sh`
-  - `uninstall_local_services.sh`
+这说明 `scripts/python/` 还不是一个纯粹的“正式工具层”，而是“正式工具 + 接入调试 + 历史演示”的混合层。
 
-## 七、需要前端线程处理的事项
+#### `archive/`
 
-- 校正 `scripts/shell/start_frontend.sh` 的角色定位：
-  - 决定是否停止维护该脚本，统一回到 `cd frontend && npm run dev`
-- 核对 `README.md`、新手文档、前端文档中对前端启动方式的表述：
-  - 避免同时把 `start_frontend.sh` 和 `frontend/package.json#dev` 都当正式入口
-- 校对 `bin/fast_start.sh`、`bin/fast_start_dev.sh` 与当前 Vite 端口说明是否完全一致
+`scripts/archive/` 已经开始承担“降级区”职责，这是积极信号。
 
-## 八、需要后端线程处理的事项
+当前已有：
+- `scripts/archive/python/rebuild_database.py`
+- `scripts/archive/shell/start_frontend.sh`
 
-- 校正 `scripts/shell/status.sh`：
-  - 当前只覆盖默认 compose 容器名，未统一覆盖 dev/prod 环境
-- 复核 `scripts/shell/test_health.sh`、`pilot_*`、`release_readiness.sh`：
-  - 确认接口路径、返回结构、生产检查项仍与当前后端一致
-- 评估 `scripts/python/rebuild_database.py`：
-  - 当前已引入 Alembic，需确认该脚本是否彻底失效并可以转删除候选
-- 评估 `scripts/python/replay_mqtt_failures.py`、`send_test_alert.py`：
-  - 确认与当前可靠性与通知服务仍保持兼容
+但目前 archive 还只是个开始，不是完整策略。很多明显更适合归档的脚本仍然暴露在正式目录中，例如：
+- `demo_*.py`
+- `serial_*.py`
+- `test_http_device.py`
+- `test_modbus_tcp.py`
+- `test_serial_port.py`
 
-## 九、最小整理方案
+结论：
+- `scripts/shell/` 和 `scripts/python/` 的大方向是清楚的
+- 但“正式 / 辅助 / 历史”边界还没有真正落实到目录和文档层
 
-1. 先修索引，不删脚本：
-   - 在 `scripts/README.md`、`scripts/SCRIPT_LIST.md`、`scripts/QUICK_REFERENCE.md` 中明确“正式入口 / 示例 / 历史工具”三级定位
-2. 再收敛重复入口：
-   - 把 `start_frontend.sh`、`restart_backend.sh`、`rebuild_backend.sh` 从“主入口”降级为文档命令或并入其他脚本说明
-3. 最后再处理归档与删除候选：
-   - 先归档 `demo_*`、串口演示、单次接入调试脚本
-   - 再人工确认 `rebuild_database.py`、`fix_venv.sh`、`cleanup_docker.sh` 是否还有隐性使用者
+### 3. 前端脚本入口
+
+`frontend/package.json` 当前本身是清晰的。
+
+已有脚本：
+- `dev`
+- `build`
+- `lint`
+- `typecheck`
+- `preview`
+- `test:unit`
+- `test:unit:watch`
+- `test:e2e`
+
+这组脚本没有明显的命名混乱，也没有塞入仓库级运维命令，说明前端入口层比仓库级脚本层更干净。
+
+但仍有两个问题：
+- 缺少一个统一聚合检查入口，例如 `check`
+- 文档层对前端入口的表述还没完全收敛，仓库里仍能看到 `5173` 的旧端口叙事，而当前前端实际运行习惯已经更多指向 `3000`
+
+结论：
+- `frontend/package.json` 本身清晰
+- 缺的是一个统一校验入口，以及文档层的统一口径
+
+## 三、发现的问题
+
+- `bin/README.md` 对 `bin/` 的定位是“快捷入口层”，这个定位本身正确，但它仍把 `scripts/` 描述成“完整工具集（31 个脚本）”。当前实际数量已经明显不止这个数字，说明定位文本和事实没有同步。文件：[bin/README.md](/Users/todo/MineEnergySystem/bin/README.md)
+
+- `scripts/README.md` 写的是“Shell 正式脚本 21 个、Python 脚本 21 个、已归档 2 个”，但实际目录下分别有 27 个 shell 脚本、24 个 python 脚本、2 个 archive 脚本。说明统计口径已经不一致，而且没有解释哪些脚本被排除在“正式脚本”计数之外。文件：[scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)
+
+- `scripts/SCRIPT_LIST.md` 并没有覆盖全部实际脚本。例如实际存在的 `restore_drill.sh`、`render_alertmanager_config.sh`、`setup_mqtt_auth.sh` 没被列入清单；实际存在的 `check_production_readiness.py` 也没有进 Python 清单。这意味着“完整脚本清单”并不完整。文件：[scripts/SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
+
+- `scripts/shell/README.md` 和 `scripts/SCRIPT_LIST.md` 都把 `restart_backend.sh`、`rebuild_backend.sh` 继续作为一层独立脚本入口暴露，但这两个脚本本质上只是 `docker compose` 命令包装，是否值得继续作为正式入口并没有在文档中说明清楚。文件：[scripts/shell/README.md](/Users/todo/MineEnergySystem/scripts/shell/README.md)
+
+- `scripts/python/README.md` 仍把 `demo_*`、`serial_*`、`test_*` 和正式工具并列展示，虽然分类有分组，但从入口感知上仍然是“一整层都可直接使用”的感觉，没有明显的降级提示。文件：[scripts/python/README.md](/Users/todo/MineEnergySystem/scripts/python/README.md)
+
+- `archive/` 已经出现，但归档策略没有彻底落地。`start_frontend.sh` 和 `rebuild_database.py` 已归档，说明项目已经知道要做降级；但很多同样应降级的历史演示和单次调试脚本还留在正式目录里，边界不一致。目录：[scripts/archive](/Users/todo/MineEnergySystem/scripts/archive)
+
+- `README.md` 以及多份新手文档仍在使用 `5173` 的旧前端端口叙事，例如 [README.md](/Users/todo/MineEnergySystem/README.md) 里仍有 `http://localhost:5173` 和 `CORS_ORIGINS=["http://localhost:5173", ...]` 相关表述。这会让脚本入口、文档入口、实际前端运行口径不一致。
+
+- `frontend/package.json` 已经有 `lint`、`typecheck`、`test:unit`、`test:e2e`，但没有一个统一的 `check` 或类似聚合命令，导致“前端检查入口”仍然分散在多条命令上。文件：[frontend/package.json](/Users/todo/MineEnergySystem/frontend/package.json)
+
+- `bin/` 与 `scripts/shell/` 的关系虽然基本正确，但 `README.md`、`bin/README.md`、`scripts/README.md` 三者对“日常推荐入口”“完整入口”“事实来源”的层级感还不够统一，容易形成双入口并存。文件：[README.md](/Users/todo/MineEnergySystem/README.md)、[bin/README.md](/Users/todo/MineEnergySystem/bin/README.md)、[scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)
+
+- 当前脚本体系已经出现“正式入口”“快捷入口”“归档脚本”三个概念，但没有形成统一、可执行的清单边界。换句话说，规范方向已经存在，落地不彻底。文件：[scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)、[scripts/SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
+
+## 四、问题分级
+
+### P1：必须尽快处理
+
+- `scripts/SCRIPT_LIST.md` 不是完整清单，已经失去“事实来源”资格。清单缺失 `restore_drill.sh`、`render_alertmanager_config.sh`、`setup_mqtt_auth.sh`、`check_production_readiness.py` 等实际脚本，优先级最高。
+- `scripts/README.md`、`bin/README.md` 的统计数字与实际目录不一致，属于高可见度误导。
+- `README.md` 和新手文档仍存在 `5173` 旧端口叙事，影响启动入口和联调口径统一。
+
+### P2：建议近期处理
+
+- `scripts/python/` 中正式工具、演示脚本、一次性调试脚本混杂，目录边界还不够清楚。
+- `bin/` 与 `scripts/shell/` 的优先级说明不够统一，存在双入口并存感。
+- `restart_backend.sh`、`rebuild_backend.sh` 这类轻包装脚本是否仍值得作为正式入口，需要明确口径。
+- 归档策略未彻底执行，已有 archive 但还没有把一批明显历史脚本降级出去。
+
+### P3：可以后续优化
+
+- 前端 scripts 缺少统一 `check` 聚合命令。
+- `scripts/python/README.md`、`scripts/shell/README.md` 的分类还可以更细，比如明确标出“正式入口”“辅助调试”“历史兼容”。
+- `scripts/CHANGELOG.md`、归档文档里仍有旧脚本和旧端口表述，但这些不属于第一批必须收口的高风险入口。
+
+## 五、建议的规范化方向
+
+### 1. 入口收口
+
+- 把 `bin/` 明确为“快捷入口层”，只保留极少数高频命令
+- 把 `scripts/` 明确为“正式实现层”
+- 在主文档里明确：
+  - 日常快速启动看 `bin/`
+  - 正式实现和完整能力看 `scripts/`
+
+### 2. 文档统一
+
+- 先把 `scripts/SCRIPT_LIST.md` 修成真正的事实来源
+- 再让 `README.md`、`bin/README.md`、`scripts/README.md`、子目录 README 全部引用同一套统计和分类口径
+- 同步修正旧端口、旧推荐命令、旧路径
+
+### 3. 脚本分类优化
+
+- `scripts/shell/` 内部建议区分：
+  - 正式入口
+  - 运维辅助
+  - 本地环境修复/清理
+- `scripts/python/` 内部建议区分：
+  - 正式工具
+  - 演示脚本
+  - 接入调试脚本
+  - 历史脚本
+
+### 4. 归档策略
+
+- 继续使用 `scripts/archive/`
+- 下一批最适合降级的目标是：
+  - `demo_*.py`
+  - `serial_*.py`
+  - `test_http_device.py`
+  - `test_modbus_tcp.py`
+  - `test_serial_port.py`
+- 先降级文档入口，再决定是否移动文件
+
+### 5. 前端 scripts 优化
+
+- 保持前端原生命令都在 `frontend/package.json`
+- 增加一个统一检查入口，例如 `check`
+- 文档统一只推荐：
+  - `npm run dev`
+  - `npm run build`
+  - `npm run check`
+  - `npm run test:e2e`
+
+### 6. 后续新增脚本的准入规则
+
+- 新脚本先判断属于哪一层：
+  - 前端原生命令：进 `frontend/package.json`
+  - 仓库级正式实现：进 `scripts/`
+  - 高频快捷入口：少量进入 `bin/`
+  - 一次性任务：优先写 `docs/plans/`，必要时再临时放脚本
+- 若不是长期维护对象，不要直接暴露在正式清单里
+
+## 六、建议的最终目标结构
+
+- `bin/` 只保留极少数快捷入口
+- `scripts/` 作为唯一正式实现层
+- `scripts/archive/` 作为历史降级区
+- `frontend/package.json` 提供前端统一检查入口
+- `scripts/SCRIPT_LIST.md` 成为唯一脚本事实来源
+- `README.md`、`bin/README.md`、`scripts/README.md`、子目录 README 全部引用同一套脚本分层口径
+
+更具体地说，理想状态应该是：
+- 用户要“快速跑起来”，看 `bin/`
+- 用户要“正式执行某项能力”，看 `scripts/`
+- 用户要“了解全量脚本”，只看 `scripts/SCRIPT_LIST.md`
+- 用户要“追历史”，看 `scripts/archive/`
+
+## 七、执行建议
+
+1. 先统一 `README.md` 和新手文档中的旧路径、旧端口、旧入口表述。
+2. 再修 `scripts/SCRIPT_LIST.md`，让它成为真实完整的脚本事实来源。
+3. 再统一 `bin/README.md`、`scripts/README.md`、`scripts/shell/README.md`、`scripts/python/README.md` 的统计数字和分类口径。
+4. 再收口 `bin/` 与 `scripts/` 的边界，把“快捷入口”和“正式实现层”写清楚。
+5. 再处理 `scripts/python/` 里的演示脚本、接入调试脚本和 archive 策略。
+6. 最后补前端统一检查入口，例如 `check`，把前端脚本入口也收口完成。
 

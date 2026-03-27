@@ -423,7 +423,7 @@ python run.py
 cd frontend
 npm run dev
 
-# 前端访问地址：http://localhost:5173
+# 前端访问地址：http://localhost:3000
 ```
 
 #### 开发环境配置说明
@@ -921,7 +921,7 @@ npm run dev
 
 #### 3. 访问应用
 
-- 前端: http://localhost:5173
+- 前端: http://localhost:3000
 - 后端 API: http://localhost:8088/docs
 
 ### LSTM预测功能开发
@@ -1385,7 +1385,7 @@ LOG_LEVEL=INFO
 LOG_RETENTION_DAYS=7
 
 # CORS 配置
-CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 ```
 
 **生成强密钥**:

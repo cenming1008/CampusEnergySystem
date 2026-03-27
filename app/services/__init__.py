@@ -4,6 +4,7 @@
 from app.services import data_cleanup_service, ingestion_health_service
 from app.services.alarm_service import AlarmService
 from app.services.analysis_service import AnalysisService
+from app.services.campus_service import CampusService
 from app.services.data_cleanup_service import cleanup_old_data, get_data_statistics
 from app.services.device_group_service import DeviceGroupService
 from app.services.device_monitor_service import DeviceMonitorService
@@ -43,6 +44,7 @@ try:
         "DeviceMonitorService",
         "AlarmService",
         "AnalysisService",
+        "CampusService",
         "data_cleanup_service",
         "cleanup_old_data",
         "get_data_statistics",
@@ -72,6 +74,7 @@ except ImportError:
         "DeviceMonitorService",
         "AlarmService",
         "AnalysisService",
+        "CampusService",
         "data_cleanup_service",
         "cleanup_old_data",
         "get_data_statistics",

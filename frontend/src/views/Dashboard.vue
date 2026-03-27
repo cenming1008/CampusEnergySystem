@@ -26,7 +26,7 @@ const { hasScopedAccess } = usePermissions()
 const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
 const { currentDevice, currentDeviceId, deviceList, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
-const { energyStats, todayEnergy, loadEnergyStats } = useDashboardEnergyStats()
+const { energyStats, todayEnergy, monthlyEnergy, loadEnergyStats } = useDashboardEnergyStats()
 const {
   displayCurrent,
   displayEnergy,
@@ -61,9 +61,9 @@ const onlineRate = computed(() => {
 
 const overviewCards = computed(() => [
   {
-    label: '设备总数',
+    label: '园区设备',
     value: overview.value.totalDevices,
-    caption: '接入矿区能源网络',
+    caption: '已接入设备与表计',
     tone: 'cyan' as const
   },
   {
@@ -73,7 +73,13 @@ const overviewCards = computed(() => [
     tone: 'green' as const
   },
   {
-    label: '告警数',
+    label: '覆盖区域',
+    value: regionRankings.value.length,
+    caption: regionRankings.value.length ? '已形成区域能耗视图' : '待补充区域映射',
+    tone: 'blue' as const
+  },
+  {
+    label: '活动告警',
     value: overview.value.alarmCount,
     caption: overview.value.alarmCount ? '待处理异常需复核' : '当前无未处理告警',
     tone: 'red' as const
@@ -129,17 +135,17 @@ const hasEnergyDistributionData = computed(() => [
 
 const shiftLabel = computed(() => {
   const hour = new Date().getHours()
-  if (hour >= 8 && hour < 16) return '白班'
-  if (hour >= 16 && hour < 24) return '中班'
-  return '夜班'
+  if (hour >= 8 && hour < 18) return '白天时段'
+  if (hour >= 18 && hour < 23) return '晚间时段'
+  return '夜间时段'
 })
 
 const runtimeTone = computed(() => isConnected.value ? 'green' as const : 'red' as const)
 const dashboardScopeHint = computed(() => {
   if (!authStore.locationScope) {
-    return '当前驾驶舱展示的是当前账号可访问的全部设备汇总。'
+    return '当前驾驶舱展示的是当前账号可访问的全部园区设备与能耗汇总。'
   }
-  return `当前驾驶舱已按位置范围 ${authStore.locationScope} 过滤，统计结果不代表全矿全量数据。`
+  return `当前驾驶舱已按位置范围 ${authStore.locationScope} 过滤，统计结果不代表全部园区全量数据。`
 })
 
 const selectedDeviceSummary = computed(() => ({
@@ -234,16 +240,22 @@ const selectedDeviceAlarmItems = computed(() => {
 
 const scadaStatusCards = computed(() => [
   {
-    label: '总负荷',
-    value: `${displayPower.value.toFixed(1)} kW`,
-    meta: `峰值 ${peakLoad.value.toFixed(1)} kW`,
+    label: '今日总能耗',
+    value: `${todayEnergy.value.toFixed(1)} kWh`,
+    meta: '覆盖电/水/气/冷/热',
     tone: 'cyan'
   },
   {
-    label: '今日能耗',
-    value: `${todayEnergy.value.toFixed(1)} kWh`,
-    meta: '系统累计',
+    label: '本月总能耗',
+    value: `${monthlyEnergy.value.toFixed(1)} kWh`,
+    meta: '按自然月累计',
     tone: 'purple'
+  },
+  {
+    label: '实时负荷',
+    value: `${displayPower.value.toFixed(1)} kW`,
+    meta: `峰值 ${peakLoad.value.toFixed(1)} kW`,
+    tone: 'blue'
   },
   {
     label: '在线设备',
@@ -260,7 +272,7 @@ const scadaStatusCards = computed(() => [
   {
     label: '通讯状态',
     value: isConnected.value ? '正常' : '中断',
-    meta: `当前班次 ${shiftLabel.value}`,
+    meta: `当前时段 ${shiftLabel.value}`,
     tone: runtimeTone.value
   }
 ])
@@ -530,8 +542,8 @@ watch(currentDeviceId, (deviceId, previousId) => {
             </svg>
           </div>
           <div class="title-text">
-            <h1>煤矿综合能源管理系统</h1>
-            <span>Mine Integrated Energy Management System</span>
+            <h1>园区综合能源管理系统</h1>
+            <span>Campus Energy Management System</span>
           </div>
         </div>
       </div>
@@ -545,7 +557,7 @@ watch(currentDeviceId, (deviceId, previousId) => {
             {{ currentDate }}
           </div>
           <div class="time-meta">
-            当前班次：{{ shiftLabel }} · 数据轮询 10s
+            当前时段：{{ shiftLabel }} · 数据轮询 10s
           </div>
         </div>
       </div>
@@ -582,8 +594,8 @@ watch(currentDeviceId, (deviceId, previousId) => {
         />
         <div class="card">
           <div class="card-header">
-            <span class="card-title">运行总览</span>
-            <span class="card-subtitle">System Status</span>
+            <span class="card-title">园区总览卡片</span>
+            <span class="card-subtitle">Campus Overview</span>
           </div>
           <div class="card-body">
             <div class="stat-grid stat-grid--compact">
@@ -601,8 +613,8 @@ watch(currentDeviceId, (deviceId, previousId) => {
 
         <div class="card flex-1">
           <div class="card-header">
-            <span class="card-title">告警队列</span>
-            <span class="card-subtitle">Alarm Queue</span>
+            <span class="card-title">告警概览</span>
+            <span class="card-subtitle">Alarm Overview</span>
           </div>
           <div class="card-body">
             <div
@@ -634,15 +646,15 @@ watch(currentDeviceId, (deviceId, previousId) => {
               v-else
               class="device-empty"
             >
-              当前没有未处理告警，系统运行稳定。
+              当前没有未处理告警，园区运行稳定。
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <span class="card-title">能源占比</span>
-            <span class="card-subtitle">Distribution</span>
+            <span class="card-title">能源介质占比</span>
+            <span class="card-subtitle">Energy Mix</span>
           </div>
           <div class="card-body">
             <div
@@ -678,8 +690,8 @@ watch(currentDeviceId, (deviceId, previousId) => {
 
         <div class="card chart-card chart-card--primary">
           <div class="card-header">
-            <span class="card-title">负荷趋势联动</span>
-            <span class="card-subtitle">Trend Analysis</span>
+            <span class="card-title">园区负荷趋势</span>
+            <span class="card-subtitle">Load Trend</span>
           </div>
           <div class="card-body chart-card__body">
             <div class="trend-summary">
@@ -702,13 +714,13 @@ watch(currentDeviceId, (deviceId, previousId) => {
         <div class="device-section">
           <div class="card device-focus-card">
             <div class="card-header">
-              <span class="card-title">联动控制台</span>
-              <span class="card-subtitle">Selected Device Console</span>
+              <span class="card-title">重点设备卡片</span>
+              <span class="card-subtitle">Key Device Console</span>
             </div>
             <div class="card-body">
               <div class="focus-strip">
                 <div class="focus-copy">
-                  <span class="focus-eyebrow">当前控制点</span>
+                  <span class="focus-eyebrow">当前监测对象</span>
                   <h2>{{ selectedDeviceSummary.name }}</h2>
                   <div class="focus-meta">
                     <span>{{ selectedDeviceSummary.type }}</span>
@@ -732,9 +744,9 @@ watch(currentDeviceId, (deviceId, previousId) => {
                 <div class="card gauge-card">
                   <div class="card-header gauge-card__header">
                     <div>
-                      <span class="card-title">实时设备面板</span>
+                      <span class="card-title">实时监测面板</span>
                       <div class="gauge-card__caption">
-                        选择设备后，状态灯、趋势和监测值联动刷新
+                        选择设备后，状态灯、趋势和监测值将同步刷新
                       </div>
                     </div>
                     <el-tag
@@ -849,7 +861,7 @@ watch(currentDeviceId, (deviceId, previousId) => {
                       v-else
                       class="device-empty"
                     >
-                      当前选中设备没有活动告警，趋势面板将优先显示实时负荷变化。
+                      当前选中对象没有活动告警，趋势面板将优先显示实时负荷变化。
                     </div>
                   </div>
                 </div>
@@ -905,14 +917,14 @@ watch(currentDeviceId, (deviceId, previousId) => {
               v-else
               class="device-empty"
             >
-              暂无设备数据接入
+              暂无设备或表计数据接入
             </div>
           </div>
         </div>
 
         <div class="card flex-1">
           <div class="card-header">
-            <span class="card-title">区域负荷排行</span>
+            <span class="card-title">各区域能耗排行</span>
             <span class="card-subtitle">Regional Ranking</span>
           </div>
           <div class="card-body">

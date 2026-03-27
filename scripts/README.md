@@ -1,6 +1,6 @@
 # scripts 目录说明
 
-`scripts/` 是项目的“完整工具集”，和 [bin/](/Users/todo/MineEnergySystem/bin/README.md) 的快捷入口不同，这里放的是更细分、更适合运维、初始化、接入调试和排查的脚本。
+`scripts/` 是项目的“正式实现层 + 完整工具集”。和 [bin/](/Users/todo/MineEnergySystem/bin/README.md) 的快捷入口不同，这里放的是仓库级正式脚本、调试工具和已降级历史脚本。
 
 ## 目录职责
 
@@ -12,30 +12,40 @@
 
 ## 当前规模
 
-- Shell 正式脚本：21 个
-- Python 脚本：21 个
+- Shell 脚本：27 个
+- Python 脚本：24 个
 - 已归档脚本：2 个
+
+以上数量以 [SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md) 为事实来源。
 
 ## 推荐使用方式
 
-### 1. 先看快速参考
+### 1. 日常执行先看快捷参考
 
 - [QUICK_REFERENCE.md](/Users/todo/MineEnergySystem/scripts/QUICK_REFERENCE.md)
 
 适合“我现在要做一件事，直接给我命令”。
 
-### 2. 再看完整清单
+### 2. 需要确认事实来源时看完整清单
 
 - [SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
 
 适合“我想知道这个目录里到底都有什么，不重复地看一遍”。
 
-### 3. 需要细节时看子目录文档
+### 3. 需要按职责查看时看子目录文档
 
 - [shell/README.md](/Users/todo/MineEnergySystem/scripts/shell/README.md)
 - [python/README.md](/Users/todo/MineEnergySystem/scripts/python/README.md)
 
-## 最常用脚本
+## 入口优先级
+
+1. 日常快速启动：优先看 `bin/`
+2. 正式执行某项仓库级能力：优先看 `scripts/`
+3. 想确认“当前到底有哪些脚本”：只看 `SCRIPT_LIST.md`
+
+---
+
+## 最常用正式脚本
 
 ### Shell
 
@@ -62,7 +72,7 @@
 ### 服务管理
 
 - 启动/停止：`start.sh`、`stop.sh`、`start_dev_env.sh`、`stop_dev_env.sh`
-- 局部操作：`restart_backend.sh`、`rebuild_backend.sh`
+- 局部包装：`restart_backend.sh`、`rebuild_backend.sh`
 
 ### 前端开发入口
 
@@ -127,7 +137,7 @@
 
 ## 与 bin 的关系
 
-`bin/` 是最常用命令的短入口，`scripts/` 是完整工具集。
+`bin/` 是最常用命令的短入口，`scripts/` 是正式实现层。
 
 例如：
 
@@ -140,4 +150,5 @@
 
 - 不移动现有脚本路径，避免打断文档和使用习惯
 - 新脚本先补进 `SCRIPT_LIST.md`
+- 先判断脚本属于正式入口、调试脚本还是历史脚本，再决定是否进入 README 第一层入口
 - 生成文件不留在目录里，比如 `__pycache__`、`.DS_Store`

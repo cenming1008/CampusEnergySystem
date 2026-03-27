@@ -39,7 +39,7 @@ def should_apply_global_rate_limit(path: str) -> bool:
 
 app = FastAPI(
     title=settings.app_name,
-    description="基于 FastAPI + TimescaleDB + MQTT 的工业级能源管理系统",
+    description="基于 FastAPI + TimescaleDB + MQTT 的园区综合能源管理平台",
     version=settings.app_version,
     lifespan=lifespan,
 )

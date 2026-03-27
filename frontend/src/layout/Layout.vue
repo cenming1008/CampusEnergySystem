@@ -15,14 +15,14 @@ const socketStore = useSocketStore()
 
 const roleLabelMap: Record<string, string> = {
   admin: '系统管理员',
-  operator: '在线操作员',
-  maintainer: '运维工程师',
-  viewer: '只读观察员',
+  operator: '能源运营人员',
+  maintainer: '设备运维人员',
+  viewer: '园区观察员',
 }
 
 const visibleSystemMenu = computed(() => authStore.role === 'admin')
 const roleLabel = computed(() => roleLabelMap[authStore.role || 'viewer'] || authStore.role || '未识别角色')
-const scopeLabel = computed(() => authStore.locationScope ? `位置范围: ${authStore.locationScope}` : '全域可见')
+const scopeLabel = computed(() => authStore.locationScope ? `可见范围: ${authStore.locationScope}` : '园区全域可见')
 
 onMounted(async () => {
   if (!authStore.token) return
@@ -68,7 +68,7 @@ const handleSettingsClick = async () => {
         >
           <Odometer />
         </el-icon>
-        <span class="logo-text">MINE EMS</span>
+        <span class="logo-text">PARK EMS</span>
       </div>
     
       <el-menu
@@ -79,56 +79,44 @@ const handleSettingsClick = async () => {
         active-text-color="#fff"
         router
       >
-        <div class="menu-header">
-          概览
-        </div>
+        <div class="menu-header">园区主线</div>
         <el-menu-item index="/dashboard">
           <el-icon><DataLine /></el-icon>
-          <span>驾驶舱首页</span>
+          <span>首页驾驶舱</span>
         </el-menu-item>
         <el-menu-item index="/mine-scene">
           <el-icon><OfficeBuilding /></el-icon>
-          <span>矿区总览</span>
+          <span>园区总览</span>
         </el-menu-item>
-            
-        <div class="menu-header">
-          设备管理
-        </div>
+        <el-menu-item index="/energy">
+          <el-icon><Lightning /></el-icon>
+          <span>区域/楼栋能耗</span>
+        </el-menu-item>
         <el-menu-item index="/devices">
           <el-icon><Cpu /></el-icon>
-          <span>设备台账</span>
-        </el-menu-item>
-        <el-menu-item index="/locations">
-          <el-icon><Location /></el-icon>
-          <span>位置管理</span>
-        </el-menu-item>
-        <el-menu-item index="/groups">
-          <el-icon><Folder /></el-icon>
-          <span>设备分组</span>
+          <span>设备与表计</span>
         </el-menu-item>
         <el-menu-item index="/alarms">
           <el-icon><Bell /></el-icon>
           <span>告警中心</span>
         </el-menu-item>
-            
-        <div class="menu-header">
-          能源管理
-        </div>
-        <el-menu-item index="/energy">
-          <el-icon><Lightning /></el-icon>
-          <span>多能源管理</span>
-        </el-menu-item>
         <el-menu-item index="/forecast">
           <el-icon><TrendCharts /></el-icon>
-          <span>负荷预测</span>
+          <span>能耗分析</span>
         </el-menu-item>
-    
-        <div class="menu-header">
-          运维中心
-        </div>
+
+        <div class="menu-header">运行与运维</div>
+        <el-menu-item index="/locations">
+          <el-icon><Location /></el-icon>
+          <span>园区空间</span>
+        </el-menu-item>
+        <el-menu-item index="/groups">
+          <el-icon><Folder /></el-icon>
+          <span>子系统分组</span>
+        </el-menu-item>
         <el-menu-item index="/fdd">
           <el-icon><FirstAidKit /></el-icon>
-          <span>故障诊断</span>
+          <span>实时监测</span>
         </el-menu-item>
         <el-menu-item index="/maintenance">
           <el-icon><Tools /></el-icon>
@@ -136,11 +124,11 @@ const handleSettingsClick = async () => {
         </el-menu-item>
         <el-menu-item index="/inspection">
           <el-icon><Compass /></el-icon>
-          <span>巡检运维</span>
+          <span>巡检计划</span>
         </el-menu-item>
         <el-menu-item index="/report">
           <el-icon><Files /></el-icon>
-          <span>报表导出</span>
+          <span>数据报表</span>
         </el-menu-item>
             
         <div class="menu-header">
@@ -152,9 +140,7 @@ const handleSettingsClick = async () => {
         </el-menu-item>
 
         <template v-if="visibleSystemMenu">
-          <div class="menu-header">
-            系统
-          </div>
+          <div class="menu-header">系统设置</div>
           <el-menu-item index="/settings">
             <el-icon><Setting /></el-icon>
             <span>系统设置</span>
@@ -200,7 +186,7 @@ const handleSettingsClick = async () => {
     <el-container>
       <el-header class="top-header">
         <div class="breadcrumb">
-          <span>当前位置 / {{ route.meta.title || '系统' }}</span>
+          <span>当前页面 / {{ route.meta.title || '系统设置' }}</span>
         </div>
     
         <div class="header-tools">

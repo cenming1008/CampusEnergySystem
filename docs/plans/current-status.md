@@ -1,93 +1,115 @@
 # Current Status
 
 ## 当前总目标
-- 完成 MineEnergySystem 脚本体系审计
-- 明确正式入口、可合并脚本、历史脚本和删除候选
-- 在不直接删除脚本的前提下，为后续脚本收敛提供最小方案
+- 评估当前项目从“煤矿综合能源管理系统”迁移为“园区综合能源管理系统 / 智慧园区 EMS”的可行性
+- 梳理哪些能力可以直接复用，哪些只是命名与叙事需要迁移
+- 为前端线程和后端线程输出可直接执行的最小迁移任务
 
 ---
 
 ## 当前阶段
 - [x] 分析中
-- [x] 前端处理中
-- [x] 后端处理中
-- [x] 已完成审计输出
+- [x] 前端迁移中
+- [x] 后端迁移中
+- [x] 已输出迁移分析
 
 ---
 
 ## 本次目标
-- 整理后端相关 shell / python / 运维脚本
-- 优先区分正式脚本、临时脚本和历史脚本
-- 收敛与当前后端运行方式不一致的脚本入口
-- 更新 `current-status.md` / `handoff.md`
+- 将后端主线业务对象从煤矿叙事迁移到园区 EMS 语境
+- 在不推翻现有模型的前提下，补齐园区 / 区域 / 楼栋 / 能源介质 / 分项 / 告警聚合接口
+- 保留旧接口兼容，优先新增园区聚合层，并更新 `current-status.md` / `handoff.md`
 
 ## 发现的问题
-- `scripts/shell/status.sh` 原先只覆盖默认 compose 的容器名，不能识别 `docker-compose.dev.yml` 与 `docker-compose.prod.yml`。
-- `scripts/python/rebuild_database.py` 仍采用 `SQLModel.metadata.drop_all/create_all` 的历史重建方式，和当前 Alembic 迁移链路冲突，不应继续作为正式入口。
-- `scripts/README.md`、`scripts/SCRIPT_LIST.md`、`scripts/python/README.md`、`scripts/QUICK_REFERENCE.md` 与新手文档仍把 `rebuild_database.py` 暴露为可直接使用的日常命令，容易误导。
+- 后端底座模型已可复用，但缺少一个明确面向“园区 / 区域 / 楼栋 / 能源介质 / 分项 / 告警”的聚合接口层。
+- `LocationType` 已有 `building/area/zone`，但还没有 `park/campus/site` 这些园区主线对象表达。
+- 旧接口 `/energy/*`、`/locations/*`、`/analysis/{device_id}` 仍偏底座能力，前端若直接拼装，会继续缺少稳定的园区驾驶舱口径。
+- 默认应用名仍是“煤矿综合能源管理系统”，会把 OpenAPI 与系统默认描述拉回旧叙事。
 
 ## 最近结论
 ### 探索线程
-- 已完成脚本全量盘点，并输出 `docs/plans/script-audit.md`。
-- 已按“核心保留 / 可合并 / 应归档 / 删除候选”完成分类。
-- 已确认当前仓库没有根级 `Makefile`，本轮无需新增或整理后端 Make 入口。
+- 当前项目迁移到园区 EMS 的可行性高。
+- 迁移成本整体偏中低，更像“保留底座、迁移叙事”，不是推倒重写。
+- 前端绝大部分业务页面、后端绝大部分对象和接口、部署链路、监控链路、权限链路都可以直接复用。
+- 真正需要优先迁移的是：
+  - 项目名称与主文案
+  - 首页与导航主线
+  - 园区 / 区域 / 楼栋聚合表达
+  - 煤矿数字孪生模块的主线降级
 
-### 规范线程
-- `docs/guides/script-guidelines.md` 可继续作为脚本治理规范基础。
-- 后续脚本收敛不应直接删除文件，应先改索引和入口层级。
+### 前端线程
+- 可以直接复用设备、位置、告警、能耗、巡检、维护、报表、系统设置等主页面。
+- 首页、登录页、`MineScene`、菜单与品牌文案是迁移优先级最高的区域。
+- 本轮已完成主入口迁移：
+  - `Layout.vue` / `router/index.ts` 已切到园区 EMS 菜单与页面标题
+  - `Dashboard.vue` 已改为园区能源驾驶舱表达
+  - `Login.vue` 已改成园区 EMS 品牌登录页
+  - `MineScene.vue` 已降级为“园区总览与实时态势”表达
+  - `SystemSettings.vue` 已同步改成园区 EMS 产品说明
 
 ### 后端线程
-- 已将历史脚本 `scripts/python/rebuild_database.py` 迁入 `scripts/archive/python/rebuild_database.py`，从正式入口降级。
-- 已更新 `scripts/README.md`、`scripts/SCRIPT_LIST.md`、`scripts/python/README.md`、`scripts/QUICK_REFERENCE.md`，不再把数据库重建当作正式后端流程。
-- 已将 `docs/01-新手入门/本地开发环境配置.md` 的数据库操作示例改为 Alembic 迁移 + 初始化脚本。
-- 已重写 `scripts/shell/status.sh`，支持 `auto|default|dev|prod` 环境识别，并分别展示对应容器与健康检查。
+- 可以直接复用位置、设备、能耗、告警、碳排放、维护、巡检、预测、审计、权限、接入健康等底座能力。
+- 已完成本轮最小迁移：
+  - `LocationType` 新增 `park/campus/site`，位置主线对象可直接表达园区层级
+  - 新增 `/campus/*` 聚合接口，服务园区总览、区域/楼栋统计、能源介质占比、分项统计、实时负荷趋势、告警汇总
+  - 保留旧 `/energy/*`、`/locations/*`、`/analysis/{device_id}` 接口兼容
+  - 默认 `app_name` 与 FastAPI 描述已切换为园区 EMS 语境
+
+---
+
+## 当前阻塞点
+- `README.md`、功能文档、部署文档和脚本说明中的煤矿语义仍然较多，后续如果只改页面不改文档，会继续造成认知撕裂。
+- `MineScene` 相关 3D 能力短期不一定删除，但若仍保留在主导航，会持续把产品认知拉回矿区方向。
+- 若后端后续不补园区 / 区域 / 楼栋聚合接口，前端即使完成文案迁移，也很难真正形成园区 EMS 主线体验。
 
 ---
 
 ## 当前待办
 
 ### 探索线程
-- [x] 全量扫描脚本文件与入口
-- [x] 核对 README / docs / scripts 文档引用
-- [x] 输出脚本审计报告
+- [x] 输出园区 EMS 迁移分析文档
+- [x] 给出前后端最小迁移任务
 - [x] 更新 `current-status.md` / `handoff.md`
 
 ### 前端线程
-- [x] 判断 `scripts/shell/start_frontend.sh` 是否停止维护，并统一回到 `frontend/package.json#dev`
-- [x] 校对 `bin/fast_start.sh` / `bin/fast_start_dev.sh` 中前端端口和启动提示是否与当前 Vite 配置一致
-- [x] 若收敛前端启动入口，同步修正文档中对前端启动方式的描述
+- [x] 将首页改造成园区能源驾驶舱
+- [x] 将“矿区总览”降级或改造为“园区总览”
+- [x] 统一菜单、登录页、系统标题和页面文案的园区 EMS 语境
 
 ### 后端线程
-- [x] 校正 `scripts/shell/status.sh` 对 dev / default / prod 三套 compose 环境的识别逻辑
-- [x] 复核 `release_readiness.sh`、`pilot_*`、`test_health.sh` 与当前接口/配置是否完全一致
-- [x] 评估 `scripts/python/rebuild_database.py` 是否彻底失效并应转删除候选
-- [x] 复核 `replay_mqtt_failures.py`、`send_test_alert.py` 与当前后端服务兼容性
+- [x] 保留现有模型底座，优先补园区 / 区域 / 楼栋聚合接口
+- [x] 审视默认配置和对象描述中的煤矿语义，逐步切换到园区 EMS 语境
+- [x] 不扩大煤矿专属兼容能力的影响面
 
 ---
 
 ## 修改文件
-- scripts/archive/python/rebuild_database.py
-- scripts/shell/status.sh
-- scripts/README.md
-- scripts/SCRIPT_LIST.md
-- scripts/python/README.md
-- scripts/QUICK_REFERENCE.md
-- docs/01-新手入门/本地开发环境配置.md
+- app/models/tables.py
+- app/core/settings.py
+- app/main.py
+- app/api/endpoints/__init__.py
+- app/api/endpoints/locations.py
+- app/api/endpoints/campus.py
+- app/api/router_registry.py
+- app/services/__init__.py
+- app/services/campus_service.py
+- tests/test_campus_endpoints.py
+- tests/test_location_types.py
 - docs/plans/current-status.md
 - docs/plans/handoff.md
 
 ---
 
 ## 验证结果
-- 已核对 `app/api/endpoints/health.py`、`app/api/endpoints/auth.py`、`app/api/endpoints/audit.py`，确认 `test_health.sh`、`pilot_smoke_test.sh`、`release_readiness.sh` 所依赖的 `/health*`、`/auth/login`、`/audit/events` 接口仍存在。
-- 已核对 `app/core/notifications.py` 与 `app/services/mqtt_reliability_service.py`，确认 `send_test_alert.py`、`replay_mqtt_failures.py` 仍匹配当前后端能力。
-- 已核对 `migrations/`、`docker-compose*.yml` 与后端配置，确认 Alembic 已是当前数据库结构维护主链路。
-- 已执行 `bash -n scripts/shell/status.sh`，Shell 语法通过。
-- 已执行 `python3 -m compileall -q scripts/python scripts/archive/python`，Python 脚本编译通过。
+- 已阅读 `docs/guides/product-positioning.md`、`docs/guides/backend-guidelines.md`、`docs/plans/park-ems-migration-analysis.md`。
+- 已执行 `python3 -m compileall -q app tests`，编译通过。
+- 已执行 `./venv/bin/python -m unittest tests.test_campus_endpoints tests.test_location_types tests.test_layer_exports`，测试通过。
+- 已执行 `./venv/bin/python -c "import app.main; print('ok')"`，主应用导入通过。
+- 本轮新增园区聚合接口，未删除旧接口，未推翻数据库结构。
 
 ---
 
 ## 剩余风险
-- `README.md`、`scripts/CHANGELOG.md` 与部分归档文档仍保留 `rebuild_database.py` 历史表述，本轮未继续扩散到全部历史材料。
-- `status.sh` 已补环境识别，但尚未在真实运行中的 default/dev/prod 三套环境里逐一做在线验证。
-- `scripts/archive/python/rebuild_database.py` 仍保留在仓库供历史排查；若后续确认完全无人依赖，可再转删除候选。
+- `CampusService` 当前是兼容型聚合层，区域/楼栋统计和分项统计主要依赖现有 `Location` 祖先链、`Device.device_category` 与 `EnergyData` 汇总，后续若要更精细口径，仍建议补专门的分项模型或统计表。
+- MQTT topic、数据库名、指标前缀等深层历史命名本轮未改，避免影响既有运行链路。
+- `park/campus/site` 已加入位置类型，但现有存量数据不会自动迁移为这些类型，前端若要展示真实园区层级，还需要配合新增或整理位置数据。

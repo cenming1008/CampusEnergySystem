@@ -2,7 +2,7 @@
 
 `bin/` 是这个项目的“快捷入口层”。
 
-它的用途不是承载完整实现，而是把最常用的几个动作收成短命令，方便日常启动和演示。真正更完整、更细分的脚本都放在 [`scripts/`](../scripts/README.md)。
+它的用途不是承载完整实现，而是把最常用的几个动作收成短命令，方便日常启动和演示。真正的正式实现统一放在 [`scripts/`](../scripts/README.md)。
 
 ## 目录职责
 
@@ -21,7 +21,8 @@
 ## 推荐理解
 
 - `bin/` 适合“我现在就想把系统跑起来”
-- `scripts/` 适合“我需要更细的控制、排查或单独执行某一部分”
+- `scripts/` 适合“我需要正式执行某项能力、做排查或单独执行某一部分”
+- 当 `bin/` 与 `scripts/` 同时能完成某件事时，以 `scripts/` 中的实现为事实来源，以 `bin/` 为快捷壳
 
 ## 常用命令
 
@@ -118,10 +119,10 @@ docker compose up -d --build
 ```
 MineEnergySystem/
 ├── bin/                    # 🚀 常用快捷脚本（本目录，3 个）
-│   ├── fast_start.sh      # 日常快速启动（与 scripts/shell/start.sh 用途接近，本脚本更快捷）
+│   ├── fast_start.sh      # 日常快速启动（包装正式实现，偏快捷）
 │   ├── fast_start_dev.sh  # 开发模式快捷启动
 │   └── run_simulator.sh   # 在容器内运行 scripts/python/simulator_unified.py
-├── scripts/               # 🔧 完整工具集（31 个脚本，见 scripts/SCRIPT_LIST.md）
+├── scripts/               # 🔧 正式实现层与完整工具集（见 scripts/SCRIPT_LIST.md）
 │   ├── shell/            # Shell 脚本（启动、停止、测试等）
 │   └── python/           # Python 脚本（模拟器、工具等）
 └── docs/                  # 📚 文档中心
@@ -139,7 +140,8 @@ MineEnergySystem/
 - ✅ **易用**：简单明了，开箱即用
 
 **scripts/ 目录定位**：
-- ✅ **完整**：包含所有功能脚本
+- ✅ **正式**：作为仓库级脚本的事实来源
+- ✅ **完整**：包含正式脚本、调试脚本与已归档脚本
 - ✅ **专业**：详细的检查和提示
 - ✅ **灵活**：各种场景的工具
 

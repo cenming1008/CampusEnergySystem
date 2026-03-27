@@ -1,6 +1,12 @@
 # python 脚本说明
 
-`scripts/python/` 主要放初始化、演示、模拟器、网关和协议调试脚本。
+`scripts/python/` 主要放仓库级 Python 工具。当前目录同时包含正式工具、调试脚本和演示脚本，因此阅读时要区分“正式入口”和“辅助脚本”。
+
+## 使用优先级
+
+- 正式入口：初始化、配置检查、模拟器、网关、生产检查
+- 辅助入口：演示脚本、协议调试脚本、串口联调脚本
+- 历史脚本：进入 `scripts/archive/python/`
 
 ## 当前脚本
 
@@ -14,12 +20,16 @@
 - [generate_prod_secrets.py](/Users/todo/MineEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
 - [send_test_alert.py](/Users/todo/MineEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 
+这些脚本优先视为正式入口。
+
 ### 演示脚本
 
 - [demo_unified_system.py](/Users/todo/MineEnergySystem/scripts/python/demo_unified_system.py)：整套系统演示
 - [demo_device_group.py](/Users/todo/MineEnergySystem/scripts/python/demo_device_group.py)：设备分组演示
 - [demo_location.py](/Users/todo/MineEnergySystem/scripts/python/demo_location.py)：位置管理演示
 - [demo_maintenance.py](/Users/todo/MineEnergySystem/scripts/python/demo_maintenance.py)：维护管理演示
+
+这些脚本保留，但不应作为主 README 的第一层入口。
 
 ### 模拟、网关与训练
 
@@ -36,11 +46,15 @@
 - [test_modbus_tcp.py](/Users/todo/MineEnergySystem/scripts/python/test_modbus_tcp.py)：测试 Modbus TCP 设备
 - [test_serial_port.py](/Users/todo/MineEnergySystem/scripts/python/test_serial_port.py)：测试串口
 
+这些脚本优先视为联调/验证工具，而不是长期正式入口。
+
 ### 串口演示
 
 - [serial_device_sim.py](/Users/todo/MineEnergySystem/scripts/python/serial_device_sim.py)：串口设备模拟
 - [serial_gateway_demo.py](/Users/todo/MineEnergySystem/scripts/python/serial_gateway_demo.py)：串口网关演示
 - [serial_pair_demo.py](/Users/todo/MineEnergySystem/scripts/python/serial_pair_demo.py)：串口联调演示
+
+这些脚本更接近专项演示和接入调试，后续若继续收敛，优先从文档入口降级。
 
 ## 最常用组合
 

@@ -1,6 +1,12 @@
 # shell 脚本说明
 
-`scripts/shell/` 主要放系统运维和服务管理脚本。
+`scripts/shell/` 主要放仓库级 shell 正式实现。当前目录中既有正式入口，也有辅助检查和轻包装脚本，推荐按职责理解。
+
+## 使用优先级
+
+- 正式入口：启动、停止、状态、健康检查、备份恢复、部署发布
+- 辅助入口：局部重启、WebSocket 检查、环境检查、清理类脚本
+- 历史脚本：进入 `scripts/archive/shell/`
 
 ## 当前脚本
 
@@ -13,6 +19,8 @@
 - [restart_backend.sh](/Users/todo/MineEnergySystem/scripts/shell/restart_backend.sh)：重启后端容器
 - [rebuild_backend.sh](/Users/todo/MineEnergySystem/scripts/shell/rebuild_backend.sh)：重建后端容器
 
+其中 `restart_backend.sh`、`rebuild_backend.sh` 更接近局部包装命令，不应高于 `start.sh`、`status.sh` 这类正式入口。
+
 ### 状态检查
 
 - [status.sh](/Users/todo/MineEnergySystem/scripts/shell/status.sh)：查看系统状态
@@ -23,6 +31,7 @@
 - [load_baseline.sh](/Users/todo/MineEnergySystem/scripts/shell/load_baseline.sh)：生成容量基线和验收摘要
 - [check_websocket.sh](/Users/todo/MineEnergySystem/scripts/shell/check_websocket.sh)：检查 WebSocket
 - [check_mac_env.sh](/Users/todo/MineEnergySystem/scripts/shell/check_mac_env.sh)：检查 macOS 开发环境
+- [restore_drill.sh](/Users/todo/MineEnergySystem/scripts/shell/restore_drill.sh)：执行恢复演练
 
 ### 维护与部署
 
@@ -35,6 +44,8 @@
 - [install_dependencies.sh](/Users/todo/MineEnergySystem/scripts/shell/install_dependencies.sh)：安装依赖
 - [deploy_prod.sh](/Users/todo/MineEnergySystem/scripts/shell/deploy_prod.sh)：生产部署
 - [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh)：发布前总检查
+- [render_alertmanager_config.sh](/Users/todo/MineEnergySystem/scripts/shell/render_alertmanager_config.sh)：渲染 Alertmanager 配置
+- [setup_mqtt_auth.sh](/Users/todo/MineEnergySystem/scripts/shell/setup_mqtt_auth.sh)：配置 MQTT 认证
 - [uninstall_local_services.sh](/Users/todo/MineEnergySystem/scripts/shell/uninstall_local_services.sh)：卸载本机相关服务
 
 ## 最常用组合
