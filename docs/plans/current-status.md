@@ -16,6 +16,7 @@
 ---
 
 ## 本次目标
+- 统一用户可见站点名、默认应用名与入口命名，继续从“煤矿综合能源管理系统”收敛到“园区综合能源管理系统 / Campus EMS”
 - 将后端主线业务对象从煤矿叙事迁移到园区 EMS 语境
 - 在不推翻现有模型的前提下，补齐园区 / 区域 / 楼栋 / 能源介质 / 分项 / 告警聚合接口
 - 保留旧接口兼容，优先新增园区聚合层，并更新 `current-status.md` / `handoff.md`
@@ -39,12 +40,12 @@
 
 ### 前端线程
 - 可以直接复用设备、位置、告警、能耗、巡检、维护、报表、系统设置等主页面。
-- 首页、登录页、`MineScene`、菜单与品牌文案是迁移优先级最高的区域。
+- 首页、登录页、`CampusScene`、菜单与品牌文案是迁移优先级最高的区域。
 - 本轮已完成主入口迁移：
   - `Layout.vue` / `router/index.ts` 已切到园区 EMS 菜单与页面标题
   - `Dashboard.vue` 已改为园区能源驾驶舱表达
   - `Login.vue` 已改成园区 EMS 品牌登录页
-  - `MineScene.vue` 已降级为“园区总览与实时态势”表达
+  - `CampusScene.vue` 已承接“园区总览与实时态势”表达
   - `SystemSettings.vue` 已同步改成园区 EMS 产品说明
 
 ### 后端线程
@@ -59,7 +60,7 @@
 
 ## 当前阻塞点
 - `README.md`、功能文档、部署文档和脚本说明中的煤矿语义仍然较多，后续如果只改页面不改文档，会继续造成认知撕裂。
-- `MineScene` 相关 3D 能力短期不一定删除，但若仍保留在主导航，会持续把产品认知拉回矿区方向。
+- 历史 `MineScene` 相关 3D 能力短期不一定删除，但若继续以煤矿命名暴露在主导航，会持续把产品认知拉回矿区方向。
 - 若后端后续不补园区 / 区域 / 楼栋聚合接口，前端即使完成文案迁移，也很难真正形成园区 EMS 主线体验。
 
 ---
@@ -84,6 +85,21 @@
 ---
 
 ## 修改文件
+- frontend/index.html
+- frontend/src/router/index.ts
+- frontend/src/layout/Layout.vue
+- frontend/src/views/CampusScene.vue
+- env.example
+- env.local.example
+- env.prod.example
+- README.md
+- app/__init__.py
+- app/api/README.md
+- monitoring/grafana/provisioning/dashboards/dashboards.yml
+- monitoring/grafana/dashboards/campus_overview.json
+- monitoring/grafana/dashboards/api_reliability.json
+- monitoring/grafana/dashboards/logs_overview.json
+- monitoring/grafana/dashboards/mqtt_observability.json
 - app/models/tables.py
 - app/core/settings.py
 - app/main.py
@@ -101,6 +117,7 @@
 ---
 
 ## 验证结果
+- 已收敛本轮命名范围：优先修改用户可见站点名、默认应用名、路由 URL 与低风险仪表盘文件名，暂未动数据库名、MQTT topic、监控指标前缀等兼容层。
 - 已阅读 `docs/guides/product-positioning.md`、`docs/guides/backend-guidelines.md`、`docs/plans/park-ems-migration-analysis.md`。
 - 已执行 `python3 -m compileall -q app tests`，编译通过。
 - 已执行 `./venv/bin/python -m unittest tests.test_campus_endpoints tests.test_location_types tests.test_layer_exports`，测试通过。

@@ -55,6 +55,6 @@
   "tags": ["mine", "api", "reliability"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
-  "title": "MineEnergySystem API Reliability",
+  "title": "Campus Energy System API Reliability",
   "version": 1
 }

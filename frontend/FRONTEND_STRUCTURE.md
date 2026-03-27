@@ -122,7 +122,7 @@ frontend/
 |------|-----------|------|
 | **Login.vue** | /login | 登录页 |
 | **Dashboard.vue** | /dashboard | 驾驶舱首页 |
-| **MineScene.vue** | /mine-scene | 矿区总览（3D 场景） |
+| **CampusScene.vue** | /campus-overview | 园区总览（3D 场景） |
 | **DeviceManager.vue** | /devices | 设备台账 |
 | **LocationManager.vue** | /locations | 位置管理 |
 | **DeviceGroups.vue** | /groups | 设备分组 |
@@ -148,7 +148,7 @@ frontend/
 | 菜单/路由 | 页面组件 | 主要 API 模块 |
 |-----------|----------|----------------|
 | 驾驶舱首页 | Dashboard.vue | alarm、telemetry、device 等 |
-| 矿区总览 | MineScene.vue | device、alarm、three 特效 |
+| 园区总览 | CampusScene.vue | device、alarm、three 特效 |
 | 设备台账 | DeviceManager.vue | device |
 | 位置管理 | LocationManager.vue | location |
 | 设备分组 | DeviceGroups.vue | deviceGroup、device |

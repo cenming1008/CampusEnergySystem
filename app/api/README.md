@@ -1,4 +1,4 @@
-# MineEnergySystem API 层说明
+# CampusEnergySystem API 层说明
 
 本文档描述当前 `app/api/` 的职责边界、路由注册方式、鉴权约定以及各业务模块的入口分组。  
 它聚焦“现在的实现结构”，不试图逐条复制 OpenAPI 细节；接口字段与示例请以运行中的 `/docs` 为准。

@@ -30,9 +30,9 @@ const router = createRouter({
           meta: { title: '首页驾驶舱' }
         },
         {
-          path: 'mine-scene',
-          name: 'MineScene',
-          component: () => import('@/views/MineScene.vue'),
+          path: 'campus-overview',
+          name: 'CampusOverview',
+          component: () => import('@/views/CampusScene.vue'),
           meta: { title: '园区总览' }
         },
         {

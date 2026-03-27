@@ -33,6 +33,6 @@
   "tags": ["mine", "logs", "loki"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "MineEnergySystem Logs Overview",
+  "title": "Campus Energy System Logs Overview",
   "version": 1
 }

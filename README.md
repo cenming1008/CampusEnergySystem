@@ -1,4 +1,4 @@
-# 煤矿综合能源管理系统（MineEnergySystem）
+# 园区综合能源管理系统（CampusEnergySystem）
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-2.0-009688.svg)](https://fastapi.tiangolo.com)
 [![Vue3](https://img.shields.io/badge/Vue-3.x-4FC08D.svg)](https://vuejs.org)
@@ -54,7 +54,7 @@ cd MineEnergySystem
 
 ## 🎯 项目简介
 
-**煤矿综合能源管理系统**是一套面向工业场景的现代化能源监控和管理解决方案，适用于煤矿、工厂、园区等场景：
+**园区综合能源管理系统**是一套面向园区场景的现代化能源监控和管理解决方案，适用于产业园区、校园、医院园区、商业综合体等场景：
 
 ### 核心功能
 
@@ -227,7 +227,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d prometheus 
 - Prometheus 抓取配置: [prometheus.yml](/Users/todo/MineEnergySystem/monitoring/prometheus/prometheus.yml)
 - 告警规则: [alert_rules.yml](/Users/todo/MineEnergySystem/monitoring/prometheus/alert_rules.yml)
 - Grafana 数据源预置: [prometheus datasource](/Users/todo/MineEnergySystem/monitoring/grafana/provisioning/datasources/prometheus.yml)
-- Grafana 仪表盘模板: [mine_overview.json](/Users/todo/MineEnergySystem/monitoring/grafana/dashboards/mine_overview.json)
+- Grafana 仪表盘模板: [campus_overview.json](/Users/todo/MineEnergySystem/monitoring/grafana/dashboards/campus_overview.json)
 
 ## 🔒 反向代理与 HTTPS
 

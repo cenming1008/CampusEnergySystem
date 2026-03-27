@@ -43,7 +43,7 @@ frontend/
 │   │
 │   ├── utils/request.ts    # Axios 封装与 Token 注入
 │   ├── views/              # 页面（13 个，与路由一一对应）
-│   │   ├── Login.vue, Dashboard.vue, MineScene.vue
+│   │   ├── Login.vue, Dashboard.vue, CampusScene.vue
 │   │   ├── DeviceManager.vue, LocationManager.vue, DeviceGroups.vue
 │   │   ├── EnergyManagement.vue, Forecast.vue, FDD.vue
 │   │   ├── Maintenance.vue, Inspection.vue, Report.vue

@@ -1,7 +1,7 @@
 # 3D 模型资源说明
 
-本目录**用于存放**矿区能源管理系统 3D 场景所需的模型文件。  
-**当前仓库中未包含任何 .glb 模型文件**，矿区总览页面由代码程序化生成几何体（见 `src/three/mine/MineSceneGenerator.ts`），因此观感偏「方块化」。若要使用真实 3D 建模图，需自行准备模型并放入本目录。
+本目录**用于存放**园区能源管理系统 3D 场景所需的模型文件。  
+**当前仓库中未包含任何 .glb 模型文件**，园区总览页面由代码程序化生成几何体（见 `src/three/mine/MineSceneGenerator.ts`），因此观感偏「方块化」。若要使用真实 3D 建模图，需自行准备模型并放入本目录。
 
 📌 **如何获取与接入矿区/工业 3D 模型**：见 [矿区总览 3D 资源说明](../../../docs/02-功能使用/矿区总览3D资源说明.md)（推荐渠道、格式要求、接入方式）。
 
@@ -9,7 +9,7 @@
 
 ## 📦 建议放置的模型（可选）
 
-按需准备并放入本目录后，在 `MineScene.vue` 或 `MineSceneGenerator` 中用 GLTFLoader 加载即可。
+按需准备并放入本目录后，在 `CampusScene.vue` 或 `MineSceneGenerator` 中用 GLTFLoader 加载即可。
 
 ### 环境模型
 
@@ -72,7 +72,7 @@ gltfLoader.load('/model/mine_env.glb', (gltf) => {
 ## 🔄 更新说明
 
 - 当前未包含实际模型文件；上述列表为**建议命名与用途**。  
-- 添加模型后，需在 `MineScene.vue` 或 `MineSceneGenerator` 中编写加载逻辑，详见 [矿区总览 3D 资源说明](../../../docs/02-功能使用/矿区总览3D资源说明.md)。
+- 添加模型后，需在 `CampusScene.vue` 或 `MineSceneGenerator` 中编写加载逻辑，详见 [矿区总览 3D 资源说明](../../../docs/02-功能使用/矿区总览3D资源说明.md)。
 
 ## 📐 模型规格建议
 

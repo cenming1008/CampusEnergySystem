@@ -449,7 +449,7 @@ class Settings(BaseSettings):
     )
 
     alerting_project_name: str = Field(
-        default="MineEnergySystem",
+        default="CampusEnergySystem",
         env="ALERTING_PROJECT_NAME",
         description="告警通知中的项目名"
     )

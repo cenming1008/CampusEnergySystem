@@ -24,19 +24,21 @@
   - `router/index.ts`
   - `Dashboard.vue`
   - `Login.vue`
-  - `MineScene.vue`
-- `MineScene` 和 `three/mine/` 更像历史煤矿数字孪生底座，不适合作为园区 EMS 主导航入口
+  - `CampusScene.vue`
+- `CampusScene.vue` 和 `three/mine/` 的组合更像历史煤矿数字孪生底座之上的兼容改造，不适合继续用煤矿命名作为园区 EMS 主导航入口
 - 本轮已完成的前端改动：
   - 菜单与路由标题已切换为园区 EMS 主线
   - 首页已改成“园区能源驾驶舱”表达
   - 登录页品牌已改成园区 EMS
-  - `MineScene.vue` 已改成“园区总览与实时态势”表达
+  - `CampusScene.vue` 已改成“园区总览与实时态势”表达
   - 系统设置页“关于系统”已同步调整产品描述
+  - 园区总览入口 URL 已从 `/mine-scene` 切到 `/campus-overview`
+  - 浏览器标题与默认应用示例名已统一为“园区综合能源管理系统 / Campus EMS”
 
 ### 建议处理方式
 - 前端第一批迁移已完成，后续可继续补：
   - 更精确的园区 / 区域 / 楼栋首页聚合数据
-  - `MineScene` 的真实园区空间建模
+  - `CampusScene` 的真实园区空间建模
   - 文档层的产品表述统一
 
 ---

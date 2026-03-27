@@ -7,7 +7,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "MineEnergySystem backend is down"
+          summary: "CampusEnergySystem backend is down"
           description: "Prometheus cannot scrape the backend /metrics endpoint for more than 1 minute."
 
       - alert: MineHighHttpErrorRate
@@ -20,7 +20,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "MineEnergySystem HTTP 5xx rate is high"
+          summary: "CampusEnergySystem HTTP 5xx rate is high"
           description: "More than 5% of HTTP requests returned 5xx in the last 5 minutes."
 
       - alert: MineHighHttpLatencyP95
@@ -33,7 +33,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "MineEnergySystem HTTP p95 latency is high"
+          summary: "CampusEnergySystem HTTP p95 latency is high"
           description: "HTTP p95 latency exceeded 1.5 seconds for at least 10 minutes."
 
       - alert: MineMqttIngestionFailures

@@ -44,6 +44,6 @@
   "tags": ["mine", "mqtt", "observability"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
-  "title": "MineEnergySystem MQTT Observability",
+  "title": "Campus Energy System MQTT Observability",
   "version": 1
 }

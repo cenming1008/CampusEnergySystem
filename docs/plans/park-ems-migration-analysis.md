@@ -144,7 +144,7 @@
 
 ### 不适合园区 EMS 主线的页面或模块
 
-- [frontend/src/views/MineScene.vue](/Users/todo/MineEnergySystem/frontend/src/views/MineScene.vue)
+- [frontend/src/views/CampusScene.vue](/Users/todo/MineEnergySystem/frontend/src/views/CampusScene.vue)
 - [frontend/src/three/mine/MineSceneGenerator.ts](/Users/todo/MineEnergySystem/frontend/src/three/mine/MineSceneGenerator.ts)
 - [docs/02-功能使用/矿区总览3D资源说明.md](/Users/todo/MineEnergySystem/docs/02-功能使用/矿区总览3D资源说明.md)
 
@@ -325,4 +325,3 @@
 - 再换主入口
 - 再补园区主线聚合
 - 最后处理历史命名清理
-
