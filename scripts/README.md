@@ -6,13 +6,15 @@
 
 - `shell/`：启动、停止、检查、备份、恢复、清理、部署
 - `python/`：系统初始化、演示数据、模拟器、网关、协议调试、压力测试
+- `archive/`：已从正式入口降级的历史脚本
 - `QUICK_REFERENCE.md`：常用命令速查
 - `SCRIPT_LIST.md`：完整脚本清单
 
 ## 当前规模
 
-- Shell 脚本：22 个
-- Python 脚本：22 个
+- Shell 正式脚本：21 个
+- Python 脚本：21 个
+- 已归档脚本：2 个
 
 ## 推荐使用方式
 
@@ -39,7 +41,6 @@
 
 - [start.sh](/Users/todo/MineEnergySystem/scripts/shell/start.sh)：启动整套 Docker 服务
 - [start_dev_env.sh](/Users/todo/MineEnergySystem/scripts/shell/start_dev_env.sh)：启动开发环境中间件
-- [start_frontend.sh](/Users/todo/MineEnergySystem/scripts/shell/start_frontend.sh)：启动前端开发服务器
 - [status.sh](/Users/todo/MineEnergySystem/scripts/shell/status.sh)：查看系统状态
 - [test_health.sh](/Users/todo/MineEnergySystem/scripts/shell/test_health.sh)：健康检查
 - [pilot_smoke_test.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_smoke_test.sh)：试点联调冒烟检查
@@ -61,7 +62,14 @@
 ### 服务管理
 
 - 启动/停止：`start.sh`、`stop.sh`、`start_dev_env.sh`、`stop_dev_env.sh`
-- 局部操作：`restart_backend.sh`、`rebuild_backend.sh`、`start_frontend.sh`
+- 局部操作：`restart_backend.sh`、`rebuild_backend.sh`
+
+### 前端开发入口
+
+- 正式入口：`cd frontend && npm run dev`
+- 构建验证：`cd frontend && npm run build`
+- 代码检查：`cd frontend && npm run lint`
+- 预览构建：`cd frontend && npm run preview`
 
 ### 状态与排查
 
@@ -84,7 +92,11 @@
 - `cleanup_docker.sh`
 - `fix_venv.sh`
 - `install_dependencies.sh`
-- `rebuild_database.py`
+
+### 已归档/历史脚本
+
+- `archive/python/rebuild_database.py`
+- `archive/shell/start_frontend.sh`
 
 ### 初始化与演示
 

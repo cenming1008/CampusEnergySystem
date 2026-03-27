@@ -7,7 +7,7 @@
 ⚠️  警告：此脚本会删除所有数据！仅用于全新系统或开发环境。
 
 执行方式:
-    python scripts/python/rebuild_database.py
+    python scripts/archive/python/rebuild_database.py
 
 参数:
     --confirm: 确认执行（必需，防止误操作）
@@ -307,9 +307,9 @@ def main():
         logger.error("❌ 必须使用 --confirm 参数确认执行")
         logger.error("⚠️  此操作会删除所有数据！")
         logger.error("\n执行命令:")
-        logger.error("  python scripts/python/rebuild_database.py --confirm")
+        logger.error("  python scripts/archive/python/rebuild_database.py --confirm")
         logger.error("\n如需创建演示数据:")
-        logger.error("  python scripts/python/rebuild_database.py --confirm --demo-data")
+        logger.error("  python scripts/archive/python/rebuild_database.py --confirm --demo-data")
         return
     
     logger.info("=" * 60)

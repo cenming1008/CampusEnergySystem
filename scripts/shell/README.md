@@ -12,7 +12,6 @@
 - [stop_dev_env.sh](/Users/todo/MineEnergySystem/scripts/shell/stop_dev_env.sh)：停止开发环境中间件
 - [restart_backend.sh](/Users/todo/MineEnergySystem/scripts/shell/restart_backend.sh)：重启后端容器
 - [rebuild_backend.sh](/Users/todo/MineEnergySystem/scripts/shell/rebuild_backend.sh)：重建后端容器
-- [start_frontend.sh](/Users/todo/MineEnergySystem/scripts/shell/start_frontend.sh)：启动前端开发服务器
 
 ### 状态检查
 
@@ -46,7 +45,7 @@
 
 # 开发模式
 ./scripts/shell/start_dev_env.sh
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 
 # 状态检查
 ./scripts/shell/status.sh

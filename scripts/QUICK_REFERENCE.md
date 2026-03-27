@@ -31,7 +31,7 @@ python scripts/python/init_complete_system.py
 ./scripts/shell/status.sh
 
 # 5️⃣ 启动前端
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 ```
 
 ### 开发环境启动
@@ -44,7 +44,7 @@ python scripts/python/init_complete_system.py
 python run.py
 
 # 3️⃣ 启动前端
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 
 # 4️⃣ 模拟设备数据
 python scripts/python/simulator_unified.py
@@ -61,7 +61,7 @@ python scripts/python/simulator_unified.py
 ./scripts/shell/start_dev_env.sh
 
 # 启动前端（在另一个终端）
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 
 # 运行后端（在另一个终端）
 python run.py
@@ -109,7 +109,7 @@ python scripts/python/simulator_unified.py
 ./scripts/shell/start_dev_env.sh
 
 # 启动前端
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 ```
 
 ### 停止服务
@@ -175,10 +175,10 @@ ls -lh backups/
 ### 重置数据
 
 ```bash
-# ⚠️ 重建数据库（删除所有数据）
-python scripts/python/rebuild_database.py
+# 执行数据库迁移
+python -m alembic upgrade head
 
-# 重新初始化
+# 重新初始化演示/开发数据
 python scripts/python/init_complete_system.py
 ```
 
@@ -380,7 +380,7 @@ git pull
 ```bash
 ./scripts/shell/start.sh && \
 python scripts/python/init_complete_system.py && \
-./scripts/shell/start_frontend.sh
+(cd frontend && npm run dev)
 ```
 
 ### 开发环境（开发者）
@@ -393,7 +393,7 @@ python scripts/python/init_complete_system.py && \
 python run.py
 
 # 终端3：启动前端
-./scripts/shell/start_frontend.sh
+cd frontend && npm run dev
 
 # 终端4：模拟数据（可选）
 python scripts/python/simulator_unified.py
@@ -439,7 +439,7 @@ alias mes='cd /path/to/MineEnergySystem'
 alias mes-start='./scripts/shell/start_dev_env.sh'
 alias mes-status='./scripts/shell/status.sh'
 alias mes-backend='python run.py'
-alias mes-frontend='./scripts/shell/start_frontend.sh'
+alias mes-frontend='cd /path/to/MineEnergySystem/frontend && npm run dev'
 alias mes-simulator='python scripts/python/simulator_unified.py'
 ```
 

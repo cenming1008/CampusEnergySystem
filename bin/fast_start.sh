@@ -1,7 +1,7 @@
 #!/bin/bash
 # 快速启动脚本 - 使用缓存的镜像，不重新构建
 # 适合日常开发使用
-# 启动：Docker 服务（db/redis/mqtt/backend）+ 前端开发服务器
+# 启动：Docker 服务（db/redis/mqtt/backend），可选顺带启动前端开发服务器
 
 set -e
 
@@ -63,7 +63,7 @@ echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}📚 访问地址：${NC}"
 echo -e "   ${GREEN}后端 API 文档:${NC} http://localhost:8088/docs"
-echo -e "   ${GREEN}前端界面:${NC}     http://localhost:3000"
+echo -e "   ${GREEN}前端界面:${NC}     http://localhost:3000 (默认，若占用会顺延)"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 # 仅在有交互式终端时询问是否启动前端
@@ -75,14 +75,15 @@ else
     REPLY="n"
 fi
 if [[ $REPLY =~ ^[Yy]$ ]]; then
+    mkdir -p logs
     echo -e "${GREEN}正在启动前端...${NC}"
-    echo -e "${YELLOW}（前端将在后台运行，日志见下方）${NC}"
+    echo -e "${YELLOW}（统一复用 frontend/package.json#dev，日志: logs/frontend_fast_start.log）${NC}"
     echo ""
-    ./scripts/shell/start_frontend.sh &
+    (cd frontend && npm run dev) > logs/frontend_fast_start.log 2>&1 &
     sleep 2
     echo ""
-    echo -e "${GREEN}✅ 前端已启动，访问 http://localhost:3000${NC}"
+    echo -e "${GREEN}✅ 前端已启动，默认访问 http://localhost:3000${NC}"
 else
-    echo -e "${YELLOW}如需启动前端，请在新终端执行: ./scripts/shell/start_frontend.sh${NC}"
+    echo -e "${YELLOW}如需启动前端，请在新终端执行: cd frontend && npm run dev${NC}"
 fi
 echo ""

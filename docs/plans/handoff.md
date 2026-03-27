@@ -2,18 +2,19 @@
 
 ## 探索 -> 前端
 ### 任务
-- 决定 `scripts/shell/start_frontend.sh` 是否继续维护
-- 如果要收敛前端启动入口，统一以 `frontend/package.json#dev` 为正式入口
-- 校对 `bin/fast_start.sh`、`bin/fast_start_dev.sh` 中前端启动与端口提示
+- 已完成：停止把 `scripts/shell/start_frontend.sh` 作为正式入口维护
+- 已完成：前端启动统一回到 `frontend/package.json#dev`
+- 已完成：`bin/fast_start.sh`、`bin/fast_start_dev.sh` 前端提示已按当前 Vite 配置校对
 
 ### 已知信息
 - 当前脚本规范要求：前端原生命令优先留在 `frontend/package.json`
-- `scripts/shell/start_frontend.sh` 仍有内容价值，但和 `npm run dev` 明显重复
-- `README.md`、`scripts/QUICK_REFERENCE.md`、部分新手文档仍同时提到脚本启动和 package script 启动
+- `scripts/shell/start_frontend.sh` 已迁入 `scripts/archive/shell/start_frontend.sh`
+- `bin/fast_start.sh` 已改为直接执行 `(cd frontend && npm run dev)`
+- 当前 `frontend/vite.config.ts` 默认端口为 `3000`，但根级 `README.md` 与部分开发文档仍写 `5173`
 
 ### 建议处理方式
-- 先改文档入口层级，再决定是否保留包装脚本
-- 若保留 `start_frontend.sh`，应把它明确降级为“辅助包装脚本”，不要继续和 `npm run dev` 并列为正式入口
+- 前端脚本层已完成收敛，后续优先补根级 README 与开发文档中的前端端口和命令表述
+- 若确认无人依赖归档脚本，可再评估是否彻底删除 `scripts/archive/shell/start_frontend.sh`
 
 ---
 
@@ -35,14 +36,15 @@
 
 ## 前端 -> 后端
 ### 当前建议
-- 若前端最终收敛到 `frontend/package.json#dev`，后端需要同步确认快捷脚本中的联动提示是否仍合理
-- 若 `bin/fast_start_dev.sh` 继续保留，后端本地启动与健康检查逻辑需要继续可用
+- 本轮无需后端改代码
+- 后续若后端同步更新本地联调文档，请统一采用前端默认地址 `http://localhost:3000`
 
 ---
 
 ## 后端 -> 前端
 ### 当前建议
-- 若后端调整 `status.sh`、`test_health.sh` 或试点脚本的环境识别逻辑，前端无需改业务代码，但需要同步修正文档中的启动与排查命令
+- 本轮仅整理后端脚本与后端文档入口，未改接口契约，前端无需联调
+- 若前端后续补根级 README 或排查文档，可沿用新的 `status.sh [auto|default|dev|prod]` 用法与 `python -m alembic upgrade head` 叙事
 
 ---
 

@@ -14,7 +14,6 @@
 | `stop_dev_env.sh` | 停止开发环境中间件。 |
 | `restart_backend.sh` | 只重启后端容器。 |
 | `rebuild_backend.sh` | 重建并重启后端容器。 |
-| `start_frontend.sh` | 启动前端 Vite 开发服务器。 |
 
 ### 状态检查
 
@@ -50,10 +49,11 @@
 |------|------|
 | `init_complete_system.py` | 初始化完整演示/开发系统数据。 |
 | `create_admin.py` | 创建管理员账号。 |
-| `rebuild_database.py` | 重建数据库，危险操作。 |
 | `check_config.py` | 检查环境配置和连接状态。 |
 | `send_test_alert.py` | 发送测试告警验证通知通道。 |
 | `evaluate_capacity_baseline.py` | 校验压测结果是否达到试点阈值。 |
+| `replay_mqtt_failures.py` | 重放 MQTT 失败/死信记录。 |
+| `generate_prod_secrets.py` | 生成生产环境密钥片段。 |
 
 ### 演示脚本
 
@@ -91,12 +91,20 @@
 | `serial_gateway_demo.py` | 串口网关演示。 |
 | `serial_pair_demo.py` | 串口配对/联调演示。 |
 
+## 已归档脚本
+
+| 脚本 | 作用 |
+|------|------|
+| `archive/shell/start_frontend.sh` | 旧前端启动包装脚本，已从正式入口降级，统一改用 `cd frontend && npm run dev`。 |
+| `archive/python/rebuild_database.py` | 历史数据库重建脚本，已从正式入口降级，当前应优先使用 Alembic 迁移与初始化脚本。 |
+
 ## 统计
 
 | 类型 | 数量 |
 |------|------|
-| Shell | 22 |
-| Python | 22 |
+| Shell | 21 |
+| Python | 21 |
+| Archive | 2 |
 | 合计 | 44 |
 
 ## 与 bin 的关系

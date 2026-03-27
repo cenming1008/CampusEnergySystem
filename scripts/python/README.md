@@ -8,9 +8,11 @@
 
 - [init_complete_system.py](/Users/todo/MineEnergySystem/scripts/python/init_complete_system.py)：初始化完整系统数据
 - [create_admin.py](/Users/todo/MineEnergySystem/scripts/python/create_admin.py)：创建管理员
-- [rebuild_database.py](/Users/todo/MineEnergySystem/scripts/python/rebuild_database.py)：重建数据库
 - [check_config.py](/Users/todo/MineEnergySystem/scripts/python/check_config.py)：检查配置
 - [evaluate_capacity_baseline.py](/Users/todo/MineEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
+- [replay_mqtt_failures.py](/Users/todo/MineEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
+- [generate_prod_secrets.py](/Users/todo/MineEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
+- [send_test_alert.py](/Users/todo/MineEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 
 ### 演示脚本
 
@@ -62,6 +64,7 @@ python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/heal
 ## 使用建议
 
 - 改真实设备接入时，优先配 [config/gateway_devices.json](/Users/todo/MineEnergySystem/config/gateway_devices.json)
-- 运行危险脚本前先确认数据是否需要备份，比如 `rebuild_database.py`
+- 当前数据库结构应优先通过 `python -m alembic upgrade head` 维护，不再把重建数据库当正式流程
+- 历史脚本 [archive/python/rebuild_database.py](/Users/todo/MineEnergySystem/scripts/archive/python/rebuild_database.py) 已降级归档，仅供历史排查参考
 - 详细总览见 [scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)
 - 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
