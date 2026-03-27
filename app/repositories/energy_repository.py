@@ -101,6 +101,7 @@ class EnergyRepository(BaseRepository):
         energy_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        limit: int = 100,
         allowed_device_ids: Optional[set[int]] = None,
     ) -> list[CarbonEmission]:
         statement = select(CarbonEmission)
@@ -116,7 +117,7 @@ class EnergyRepository(BaseRepository):
             statement = statement.where(CarbonEmission.timestamp >= start_time)
         if end_time:
             statement = statement.where(CarbonEmission.timestamp <= end_time)
-        statement = statement.order_by(CarbonEmission.timestamp.desc())
+        statement = statement.order_by(CarbonEmission.timestamp.desc()).limit(limit)
         return list(session.exec(statement).all())
 
     @staticmethod
@@ -139,6 +140,37 @@ class EnergyRepository(BaseRepository):
             if not allowed_device_ids:
                 return []
             statement = statement.where(EnergyData.device_id.in_(allowed_device_ids))
+        return list(session.exec(statement).all())
+
+    @staticmethod
+    def summarize_energy_statistics_by_type(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        device_id: Optional[int] = None,
+        allowed_device_ids: Optional[set[int]] = None,
+        energy_types: Optional[list[str]] = None,
+    ) -> list[tuple[str, float, float, float, float, int]]:
+        statement = select(
+            EnergyData.energy_type,
+            func.sum(EnergyData.consumption).label("total_consumption"),
+            func.avg(EnergyData.consumption).label("avg_consumption"),
+            func.avg(EnergyData.flow_rate).label("avg_flow_rate"),
+            func.max(EnergyData.flow_rate).label("peak_flow_rate"),
+            func.count().label("data_count"),
+        ).where(
+            EnergyData.timestamp >= start_time,
+            EnergyData.timestamp <= end_time,
+        )
+        if device_id:
+            statement = statement.where(EnergyData.device_id == device_id)
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return []
+            statement = statement.where(EnergyData.device_id.in_(allowed_device_ids))
+        if energy_types:
+            statement = statement.where(EnergyData.energy_type.in_(energy_types))
+        statement = statement.group_by(EnergyData.energy_type)
         return list(session.exec(statement).all())
 
     @staticmethod

@@ -45,6 +45,23 @@ class EnergyStatisticsResponse(BaseModel):
     data_count: int
 
 
+class EnergyOverviewResponse(BaseModel):
+    """多能源管理聚合响应。"""
+
+    statistics: dict
+    carbon_summary: CarbonSummaryResponse
+
+
+ENERGY_TYPE_OPTIONS = [
+    {"value": "electricity", "label": "电力", "unit": "kWh"},
+    {"value": "water", "label": "水", "unit": "m³"},
+    {"value": "gas", "label": "燃气", "unit": "m³"},
+    {"value": "heat", "label": "热力", "unit": "GJ"},
+    {"value": "cooling", "label": "冷气", "unit": "kWh"},
+    {"value": "steam", "label": "蒸汽", "unit": "t"},
+]
+
+
 ENERGY_DATA_OPTIONAL_FIELDS = (
     "voltage",
     "current",

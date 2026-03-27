@@ -7,12 +7,20 @@ const router = useRouter()
 <template>
   <div class="forbidden-container">
     <div class="forbidden-content">
-      <div class="error-code">403</div>
-      <div class="error-title">无访问权限</div>
+      <div class="error-code">
+        403
+      </div>
+      <div class="error-title">
+        无访问权限
+      </div>
       <div class="error-description">
         您的角色无权访问该页面，如需权限请联系管理员
       </div>
-      <el-button type="primary" size="large" @click="router.push('/')">
+      <el-button
+        type="primary"
+        size="large"
+        @click="router.push('/')"
+      >
         返回首页
       </el-button>
     </div>

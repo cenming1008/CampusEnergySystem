@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { ref, reactive, onMounted, computed } from 'vue'
+    import { ref, reactive, onMounted, computed, unref } from 'vue'
 	    import { useRouter } from 'vue-router'
 	    import { usePermissions } from '@/shared/composables/usePermissions'
     import { 
@@ -14,6 +14,8 @@
     const loading = ref(false)
 	    const router = useRouter()
 	    const { canManageDevices, canControlDevices, hasScopedAccess } = usePermissions()
+    const canManageDevicesValue = computed(() => Boolean(unref(canManageDevices)))
+    const canControlDevicesValue = computed(() => Boolean(unref(canControlDevices)))
     const tableData = ref<Device[]>([])
     const dialogVisible = ref(false)
     const dialogTitle = ref('新增设备')
@@ -65,8 +67,12 @@
     }
     
     // --- 2. 新增 / 编辑 ---
-    const openDialog = (row?: Device) => {
-      if (row) {
+    const openDialog = (row?: Device | null) => {
+      if (!canManageDevicesValue.value) {
+        ElMessage.warning('当前账号无权新增或编辑设备')
+        return
+      }
+      if (row && typeof row === 'object' && 'name' in row) {
         dialogTitle.value = '编辑设备'
         // 复制数据到表单 (注意深拷贝或 Object.assign)
         Object.assign(formData, row)
@@ -222,10 +228,10 @@
           @click="fetchData"
         />
         <el-button
-          v-if="canManageDevices"
+          v-if="canManageDevicesValue"
           type="primary"
           :icon="Plus"
-          @click="openDialog(undefined)"
+          @click="openDialog()"
         >
           新增设备
         </el-button>
@@ -293,7 +299,7 @@
             active-text="运行中"
             inactive-text="已停机"
             style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
-            :disabled="!canControlDevices"
+            :disabled="!canControlDevicesValue"
             :before-change="() => handleStatusChange(!row.is_active, row)"
           />
         </template>
@@ -317,7 +323,7 @@
       </el-table-column>
 
       <el-table-column
-        v-if="canManageDevices"
+        v-if="canManageDevicesValue"
         label="操作"
         width="180"
         fixed="right"
@@ -348,6 +354,7 @@
       :title="dialogTitle"
       width="500px"
       class="custom-dialog"
+      append-to-body
     >
       <el-form
         ref="formRef"
@@ -444,6 +451,8 @@
       min-height: 85vh;
       width: 100%;
       box-sizing: border-box;
+      position: relative;
+      overflow: visible;
     }
     
     .toolbar {
@@ -451,8 +460,26 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
+      position: relative;
+      z-index: 20;
+      pointer-events: auto;
+    }
+    .left,
+    .right {
+      position: relative;
+      z-index: 21;
+    }
+    .right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
     }
     .page-title { margin: 0; font-size: 18px; border-left: 4px solid var(--brand-color); padding-left: 10px; color: #fff; }
+    .custom-table {
+      position: relative;
+      z-index: 1;
+    }
     
     /* 表格内样式微调 */
     .device-name-cell {
@@ -469,5 +496,9 @@
     }
     :deep(.el-table--enable-row-hover .el-table__body tr:hover > td) {
       background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+    :deep(.el-table__fixed),
+    :deep(.el-table__fixed-right) {
+      z-index: 2;
     }
     </style>

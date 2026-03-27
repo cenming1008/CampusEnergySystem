@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 
 export function usePermissions() {
   const authStore = useAuthStore()
-  const currentRole = computed(() => authStore.role || 'viewer')
+  const currentRole = computed(() => (authStore.role || 'viewer').toLowerCase().trim())
 
   return {
     currentRole,

@@ -88,7 +88,7 @@ describe('AccountSecurity view', () => {
 
     await vm.submitChange()
 
-    expect(warningMock).toHaveBeenCalledWith('新密码至少需要 12 位')
+    expect(warningMock).toHaveBeenCalledWith('新密码至少需要 6 位')
     expect(changeMyPasswordApiMock).not.toHaveBeenCalled()
   })
 

@@ -23,7 +23,13 @@ from app.core.response import success_response
 from app.models.tables import EnergyData, User
 from app.services.energy_service import EnergyService
 
-from .shared import EnergyDataCreate, EnergyStatisticsResponse, extract_optional_energy_fields
+from .shared import (
+    ENERGY_TYPE_OPTIONS,
+    EnergyDataCreate,
+    EnergyOverviewResponse,
+    EnergyStatisticsResponse,
+    extract_optional_energy_fields,
+)
 
 router = APIRouter()
 
@@ -104,18 +110,45 @@ def get_energy_statistics(
     )
 
 
+@router.get("/overview", response_model=EnergyOverviewResponse)
+def get_energy_overview(
+    start_time: datetime = Query(..., description="开始时间"),
+    end_time: datetime = Query(..., description="结束时间"),
+    device_id: Optional[int] = Query(None, description="设备ID，不传则系统级统计"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
+    allowed_device_ids = get_allowed_device_ids(session, current_user)
+    energy_types = [item["value"] for item in ENERGY_TYPE_OPTIONS]
+    return {
+        "statistics": EnergyService.get_statistics_by_type(
+            session=session,
+            start_time=start_time,
+            end_time=end_time,
+            device_id=device_id,
+            energy_types=energy_types,
+            allowed_device_ids=allowed_device_ids,
+        ),
+        "carbon_summary": EnergyService.get_carbon_summary(
+            session=session,
+            start_time=start_time,
+            end_time=end_time,
+            device_id=device_id,
+            allowed_device_ids=allowed_device_ids,
+        ),
+    }
+
+
 @router.get("/types", response_model=dict)
 def get_energy_types():
     from app.models.tables import DeviceCategory, EnergyType
 
     return {
         "energy_types": [
-            {"value": EnergyType.ELECTRICITY, "label": "电力", "unit": "kWh"},
-            {"value": EnergyType.WATER, "label": "水", "unit": "m³"},
-            {"value": EnergyType.GAS, "label": "燃气", "unit": "m³"},
-            {"value": EnergyType.HEAT, "label": "热力", "unit": "GJ"},
-            {"value": EnergyType.COOLING, "label": "冷气", "unit": "kWh"},
-            {"value": EnergyType.STEAM, "label": "蒸汽", "unit": "t"},
+            {"value": EnergyType(option["value"]), "label": option["label"], "unit": option["unit"]}
+            for option in ENERGY_TYPE_OPTIONS
         ],
         "device_categories": [
             {"value": DeviceCategory.LOAD, "label": "用电设备"},

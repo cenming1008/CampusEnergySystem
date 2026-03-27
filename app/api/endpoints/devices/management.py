@@ -19,7 +19,7 @@ from app.core.response import success_response
 from app.core.settings import settings
 from app.models.tables import Device, User
 from app.services.device_service import DeviceService
-from app.services.mqtt_publisher import publish_control_command
+from app.services.mqtt_publisher import publish_control_command_async
 
 from .shared import DeviceCreateRequest, DeviceUpdateRequest
 
@@ -159,7 +159,7 @@ def toggle_device_status(
         reason=reason,
         command_source="api",
     )
-    publish_control_command(device.id, "start" if active else "stop")
+    publish_control_command_async(device.id, "start" if active else "stop")
     audit_log(
         "device.toggle",
         current_user.username,

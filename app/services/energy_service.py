@@ -247,6 +247,7 @@ class EnergyService:
         energy_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        limit: int = 100,
         allowed_device_ids: Optional[set[int]] = None,
     ) -> List[CarbonEmission]:
         """
@@ -265,6 +266,7 @@ class EnergyService:
             energy_type=energy_type,
             start_time=start_time,
             end_time=end_time,
+            limit=limit,
             allowed_device_ids=allowed_device_ids,
         )
     
@@ -302,6 +304,41 @@ class EnergyService:
                 allowed_device_ids=allowed_device_ids,
             )
         )
+
+    @staticmethod
+    def get_statistics_by_type(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        energy_types: list[str],
+        device_id: Optional[int] = None,
+        allowed_device_ids: Optional[set[int]] = None,
+    ) -> Dict[str, Dict]:
+        defaults = {
+            "total_consumption": 0.0,
+            "avg_consumption": 0.0,
+            "avg_flow_rate": 0.0,
+            "peak_flow_rate": 0.0,
+            "data_count": 0,
+        }
+        results = {energy_type: dict(defaults) for energy_type in energy_types}
+        rows = EnergyRepository.summarize_energy_statistics_by_type(
+            session,
+            start_time=start_time,
+            end_time=end_time,
+            device_id=device_id,
+            allowed_device_ids=allowed_device_ids,
+            energy_types=energy_types,
+        )
+        for energy_type, total, avg_consumption, avg_flow_rate, peak_flow_rate, data_count in rows:
+            results[str(energy_type)] = {
+                "total_consumption": float(total or 0),
+                "avg_consumption": float(avg_consumption or 0),
+                "avg_flow_rate": float(avg_flow_rate or 0),
+                "peak_flow_rate": float(peak_flow_rate or 0),
+                "data_count": int(data_count or 0),
+            }
+        return results
     
     @staticmethod
     def get_carbon_summary(

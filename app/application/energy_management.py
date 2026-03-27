@@ -78,6 +78,7 @@ def list_carbon_emissions_use_case(
     energy_type: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    limit: int = 100,
     allowed_device_ids: Optional[set[int]] = None,
 ) -> list[CarbonEmission]:
     """统一碳排放查询入口。"""
@@ -87,5 +88,6 @@ def list_carbon_emissions_use_case(
         energy_type=energy_type,
         start_time=start_time,
         end_time=end_time,
+        limit=limit,
         allowed_device_ids=allowed_device_ids,
     )

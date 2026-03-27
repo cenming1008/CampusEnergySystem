@@ -46,19 +46,37 @@ def _get_publisher() -> mqtt.Client:
         return c
 
 
-def publish_control_command(device_id: int, action: str) -> bool:
-    """发送反向控制指令给设备（成功返回 True）。"""
+def _publish_control_command_sync(device_id: int, action: str, wait_timeout: float = 5.0) -> bool:
+    """同步发送控制指令，并等待 MQTT publish ack。"""
     try:
         pub = _get_publisher()
         topic = f"mine/control/{device_id}"
         payload = json.dumps({"command": action, "device_id": device_id})
         info = pub.publish(topic, payload, qos=1)
-        info.wait_for_publish(timeout=5)
+        info.wait_for_publish(timeout=wait_timeout)
         logger.info(f"MQTT control published: device_id={device_id} action={action}")
         return True
     except Exception as e:
         logger.warning(f"MQTT control publish failed: device_id={device_id} action={action} err={e}")
         return False
+
+
+def publish_control_command(device_id: int, action: str) -> bool:
+    """发送反向控制指令给设备（成功返回 True）。"""
+    return _publish_control_command_sync(device_id, action)
+
+
+def publish_control_command_async(device_id: int, action: str) -> None:
+    """后台异步发送控制指令，避免阻塞 API 返回。"""
+
+    def _worker() -> None:
+        _publish_control_command_sync(device_id, action)
+
+    threading.Thread(
+        target=_worker,
+        daemon=True,
+        name=f"mqtt-publish-{device_id}-{action}",
+    ).start()
 
 
 def stop_publisher() -> None:

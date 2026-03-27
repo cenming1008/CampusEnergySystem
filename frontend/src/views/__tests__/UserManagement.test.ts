@@ -170,7 +170,7 @@ describe('UserManagement view', () => {
     expect(getUsersMock).toHaveBeenCalledTimes(2)
   })
 
-  it('warns when admin password reset is shorter than 12 chars', async () => {
+  it('warns when admin password reset is shorter than 6 chars', async () => {
     getUsersMock.mockResolvedValue([])
     const wrapper = mountView()
     await flushAsync()
@@ -185,7 +185,7 @@ describe('UserManagement view', () => {
 
     await vm.handleChangePassword()
 
-    expect(warningMock).toHaveBeenCalledWith('新密码至少 12 位')
+    expect(warningMock).toHaveBeenCalledWith('新密码至少 6 位')
     expect(changeUserPasswordMock).not.toHaveBeenCalled()
   })
 

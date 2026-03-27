@@ -22,8 +22,8 @@ const submitChange = async () => {
     ElMessage.warning('请完整填写当前密码和新密码')
     return
   }
-  if (form.new_password.length < 12) {
-    ElMessage.warning('新密码至少需要 12 位')
+  if (form.new_password.length < 6) {
+    ElMessage.warning('新密码至少需要 6 位')
     return
   }
   if (form.new_password !== form.confirm_password) {

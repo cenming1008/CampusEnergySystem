@@ -32,6 +32,7 @@ def get_carbon_emissions(
     energy_type: Optional[str] = Query(None, description="能源类型"),
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
+    limit: int = Query(100, ge=1, le=1000, description="返回条数限制"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -43,6 +44,7 @@ def get_carbon_emissions(
         energy_type=energy_type,
         start_time=start_time,
         end_time=end_time,
+        limit=limit,
         allowed_device_ids=get_allowed_device_ids(session, current_user),
     )
 

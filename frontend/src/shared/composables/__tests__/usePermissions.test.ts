@@ -51,6 +51,15 @@ describe('usePermissions', () => {
     expect(perms.canTrainModels.value).toBe(false)
   })
 
+  it('normalizes role casing before evaluating permissions', () => {
+    const auth = useAuthStore()
+    auth.role = 'MAINTAINER'
+
+    const perms = usePermissions()
+    expect(perms.currentRole.value).toBe('maintainer')
+    expect(perms.canManageDevices.value).toBe(true)
+  })
+
   it('viewer has read-only access', () => {
     const auth = useAuthStore()
     auth.role = 'viewer'

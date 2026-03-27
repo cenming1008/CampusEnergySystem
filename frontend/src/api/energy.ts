@@ -66,6 +66,11 @@ export interface EnergyStatistics {
   data_count: number
 }
 
+export interface EnergyOverview {
+  statistics: Record<string, EnergyStatistics>
+  carbon_summary: CarbonSummary
+}
+
 // 能源类型信息
 export interface EnergyTypeInfo {
   value: string
@@ -131,6 +136,14 @@ export function getEnergyStatistics(params: {
   return request.get<never, EnergyStatistics>('/energy/statistics', { params })
 }
 
+export function getEnergyOverview(params: {
+  start_time: string
+  end_time: string
+  device_id?: number
+}) {
+  return request.get<never, EnergyOverview>('/energy/overview', { params })
+}
+
 /**
  * 获取碳排放数据
  */
@@ -139,6 +152,7 @@ export function getCarbonEmissions(params: {
   energy_type?: string
   start_time?: string
   end_time?: string
+  limit?: number
 }) {
   return request.get<never, CarbonEmission[]>('/energy/carbon/emissions', { params })
 }

@@ -112,8 +112,8 @@ const handleForceReset = async (row: UserRecord, mustChange: boolean) => {
 
 const handleChangePassword = async () => {
   if (!targetPasswordUser.value) return
-  if (passwordForm.new_password.trim().length < 12) {
-    ElMessage.warning('新密码至少 12 位')
+  if (passwordForm.new_password.trim().length < 6) {
+    ElMessage.warning('新密码至少 6 位')
     return
   }
 
@@ -357,7 +357,7 @@ onMounted(loadUsers)
             v-model="passwordForm.new_password"
             type="password"
             show-password
-            placeholder="至少 12 位"
+            placeholder="至少 6 位"
           />
         </el-form-item>
       </el-form>

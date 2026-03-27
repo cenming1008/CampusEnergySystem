@@ -303,12 +303,12 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 ## 📚 相关文档
 
-- [快速启动指南](./docs/01-新手入门/快速启动指南.md)
-- [本地开发环境配置](./docs/01-新手入门/本地开发环境配置.md)
-- [Docker 脚本说明](./docs/03-开发与部署/DOCKER_SCRIPTS.md)
-- [数据清理功能](./数据清理功能说明.md)
-- [备份脚本](./scripts/shell/backup.sh)
-- [恢复脚本](./scripts/shell/restore.sh)
+- [快速启动指南](../01-新手入门/快速启动指南.md)
+- [本地开发环境配置](../01-新手入门/本地开发环境配置.md)
+- [Docker 脚本说明](./DOCKER_SCRIPTS.md)
+- [数据清理与保留策略](../02-功能使用/数据清理与保留策略.md)
+- [备份脚本](../../scripts/shell/backup.sh)
+- [恢复脚本](../../scripts/shell/restore.sh)
 
 ## 🔗 外部资源
 

@@ -33,7 +33,7 @@ class UserResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
-    password: str = Field(..., min_length=12, max_length=128)
+    password: str = Field(..., min_length=6, max_length=128)
     role: str = Field(default=UserRole.VIEWER)
     location_scope: Optional[str] = Field(default=None, description="逗号分隔的位置ID范围")
     is_active: bool = True
@@ -52,7 +52,7 @@ class UpdateUserLocationScopeRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    new_password: str = Field(..., min_length=12, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=128)
 
 
 class ForcePasswordResetRequest(BaseModel):
@@ -61,7 +61,7 @@ class ForcePasswordResetRequest(BaseModel):
 
 class ChangeOwnPasswordRequest(BaseModel):
     current_password: str = Field(..., min_length=1, max_length=128)
-    new_password: str = Field(..., min_length=12, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=128)
 
 
 @router.get("/me")

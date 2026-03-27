@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
 from jose import jwt
 from passlib.context import CryptContext
 
+from app.core.exceptions import ValidationException
 from app.core.settings import settings
 
 pwd_context = CryptContext(
@@ -58,20 +59,14 @@ def get_password_hash(password: Union[str, bytes]) -> str:
 
 
 def validate_password_strength(password: Union[str, bytes]) -> str:
-    """校验密码复杂度。"""
+    """校验密码强度。当前仅要求至少 6 位。"""
     if isinstance(password, bytes):
         password_text = password.decode("utf-8", errors="ignore")
     else:
         password_text = password
 
-    if len(password_text) < 12:
-        raise ValueError("密码长度至少 12 位")
-    if password_text.lower() == password_text or password_text.upper() == password_text:
-        raise ValueError("密码必须同时包含大小写字母")
-    if not any(ch.isdigit() for ch in password_text):
-        raise ValueError("密码必须包含数字")
-    if not any(not ch.isalnum() for ch in password_text):
-        raise ValueError("密码必须包含特殊字符")
+    if len(password_text) < 6:
+        raise ValidationException("密码长度至少 6 位")
     return password_text
 
 

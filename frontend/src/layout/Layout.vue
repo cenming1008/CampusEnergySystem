@@ -46,6 +46,12 @@ const handleLogout = async () => {
   await router.push('/login')
   ElMessage.success('已退出系统')
 }
+
+const handleSettingsClick = async () => {
+  const targetRoute = visibleSystemMenu.value ? { name: 'Settings' } : { name: 'AccountSecurity' }
+  if (route.name === targetRoute.name) return
+  await router.push(targetRoute)
+}
 </script>
 
 <template>
@@ -203,6 +209,7 @@ const handleLogout = async () => {
           <el-button
             circle
             class="tool-item"
+            @click="handleSettingsClick"
           >
             <el-icon><Setting /></el-icon>
           </el-button>

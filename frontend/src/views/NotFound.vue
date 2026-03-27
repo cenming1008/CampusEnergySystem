@@ -7,12 +7,20 @@ const router = useRouter()
 <template>
   <div class="not-found-container">
     <div class="not-found-content">
-      <div class="error-code">404</div>
-      <div class="error-title">页面未找到</div>
+      <div class="error-code">
+        404
+      </div>
+      <div class="error-title">
+        页面未找到
+      </div>
       <div class="error-description">
         您访问的页面不存在或已被移除
       </div>
-      <el-button type="primary" size="large" @click="router.push('/')">
+      <el-button
+        type="primary"
+        size="large"
+        @click="router.push('/')"
+      >
         返回首页
       </el-button>
     </div>

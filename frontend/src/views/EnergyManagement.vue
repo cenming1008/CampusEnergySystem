@@ -6,7 +6,7 @@ import {
   getCarbonEmissions,
   getEnergyTypes, 
   getEnergyData,
-  getEnergyStatistics, 
+  getEnergyOverview,
   getCarbonSummary,
   getCarbonFactors,
   calculateCarbon,
@@ -68,6 +68,7 @@ const carbonChartRef = ref<HTMLElement | null>(null)
 let consumptionChart: echarts.ECharts | null = null
 let comparisonChart: echarts.ECharts | null = null
 let carbonChart: echarts.ECharts | null = null
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 // 碳排放计算器
 const carbonCalculator = ref({
@@ -181,8 +182,8 @@ const loadCarbonFactors = async () => {
   }
 }
 
-// 加载所有能源类型的统计数据
-const loadAllStatistics = async () => {
+// 加载聚合总览数据
+const loadOverview = async () => {
   loading.value = true
   try {
     const [startTime, endTime] = formatDateRange.value
@@ -192,41 +193,17 @@ const loadAllStatistics = async () => {
       return
     }
     
-    // 为每个能源类型加载统计数据
-    const promises = energyTypes.value.map(async (type) => {
-      try {
-        const stats = await getEnergyStatistics({
-          energy_type: type.value,
-          start_time: startTime,
-          end_time: endTime,
-          period_type: 'day'
-        })
-        return { type: type.value, stats }
-      } catch {
-        // 即使失败也返回默认值，不阻断其他请求
-        return { 
-          type: type.value, 
-          stats: {
-            total_consumption: 0,
-            avg_consumption: 0,
-            avg_flow_rate: 0,
-            peak_flow_rate: 0,
-            data_count: 0
-          } 
-        }
-      }
+    const overview = await getEnergyOverview({
+      start_time: startTime,
+      end_time: endTime,
+      device_id: detailDeviceId.value,
     })
-    
-    const results = await Promise.all(promises)
-    const newStats: { [key: string]: EnergyStatistics } = {}
-    results.forEach(({ type, stats }) => {
-      newStats[type] = stats
-    })
-    statistics.value = newStats
 
-    // 渲染对比图表
+    statistics.value = overview.statistics
+    carbonSummary.value = overview.carbon_summary
+
     renderComparisonChart()
-    
+    renderCarbonChart()
   } catch (e) {
     ElMessage.error('加载数据失败: ' + (e as Error).message)
   } finally {
@@ -234,31 +211,11 @@ const loadAllStatistics = async () => {
   }
 }
 
-// 加载碳排放汇总
-const loadCarbonSummary = async () => {
-  try {
-    const [startTime, endTime] = formatDateRange.value
-    
-    if (!startTime || !endTime) return
-
-    carbonSummary.value = await getCarbonSummary({
-      start_time: startTime,
-      end_time: endTime
-    })
-    
-    // 渲染碳排放图表
-    renderCarbonChart()
-  } catch {
-    // 碳排放数据加载失败
-  }
-}
-
 // 刷新数据
 const refreshData = async () => {
   try {
     await Promise.all([
-      loadAllStatistics(),
-      loadCarbonSummary(),
+      loadOverview(),
       loadDetailData()
     ])
   } catch {
@@ -270,25 +227,28 @@ const loadDetailData = async () => {
   const [startTime, endTime] = formatDateRange.value
   if (!startTime || !endTime) return
 
+  if (!detailDeviceId.value) {
+    energyDetails.value = []
+    carbonDetails.value = []
+    return
+  }
+
   detailLoading.value = true
   try {
-    if (detailDeviceId.value) {
-      energyDetails.value = await getEnergyData({
-        device_id: detailDeviceId.value,
-        energy_type: selectedEnergyType.value,
-        start_time: startTime,
-        end_time: endTime,
-        limit: 50
-      })
-    } else {
-      energyDetails.value = []
-    }
+    energyDetails.value = await getEnergyData({
+      device_id: detailDeviceId.value,
+      energy_type: selectedEnergyType.value,
+      start_time: startTime,
+      end_time: endTime,
+      limit: 50
+    })
 
     carbonDetails.value = await getCarbonEmissions({
       device_id: detailDeviceId.value,
       energy_type: selectedEnergyType.value,
       start_time: startTime,
-      end_time: endTime
+      end_time: endTime,
+      limit: 100
     })
   } catch {
     ElMessage.error('加载能源明细失败')
@@ -566,7 +526,12 @@ watch(selectedEnergyType, () => {
 
 // 监听日期范围变化
 watch(dateRange, () => {
-  refreshData()
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+  }
+  refreshTimer = setTimeout(() => {
+    refreshData()
+  }, 250)
 })
 
 watch(detailDeviceId, () => {

@@ -6,18 +6,23 @@
 from typing import Any, Generic, Optional, TypeVar
 from pydantic import BaseModel
 
+try:
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover - Pydantic v1 fallback
+    ConfigDict = None  # type: ignore[assignment]
+
 DataT = TypeVar("DataT")
 
 
 class ApiResponse(BaseModel, Generic[DataT]):
     """标准API响应格式（OpenAPI/文档用）"""
+    if ConfigDict is not None:
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
     success: bool = True
     message: str = "操作成功"
     data: Optional[DataT] = None
     code: str = "SUCCESS"
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ErrorResponse(BaseModel):
@@ -30,14 +35,14 @@ class ErrorResponse(BaseModel):
 
 class PaginatedResponse(BaseModel, Generic[DataT]):
     """分页响应格式（OpenAPI/文档用）"""
+    if ConfigDict is not None:
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
     success: bool = True
     data: list[DataT]
     total: int
     page: int
     page_size: int
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 def success_response(data: Any = None, message: str = "操作成功") -> dict:
@@ -62,4 +67,3 @@ def error_response(
         "code": code,
         "details": details
     }
-

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getLocations,
@@ -23,6 +23,8 @@ import {
 } from '@/api/location'
 import { getDevices, type Device } from '@/api/device'
 import { usePermissions } from '@/shared/composables/usePermissions'
+import { useCrudDialog } from '@/shared/composables/useCrudDialog'
+import { useCrudSubmit } from '@/shared/composables/useCrudSubmit'
 
 // --- 状态 ---
 const loading = ref(false)
@@ -41,10 +43,6 @@ const rootsOnly = ref(false)
 const { canManageLocations, hasScopedAccess } = usePermissions()
 
 // 对话框状态
-const dialogVisible = ref(false)
-const dialogType = ref<'create' | 'edit'>('create')
-const dialogTitle = computed(() => dialogType.value === 'create' ? '新建位置' : '编辑位置')
-
 // 设备分配对话框
 const assignDialogVisible = ref(false)
 const selectedDeviceId = ref<number | null>(null)
@@ -151,8 +149,7 @@ const selectSearchResult = async (location: Location) => {
   searchResults.value = []
 }
 
-const openCreateDialog = (parentId?: number) => {
-  dialogType.value = 'create'
+const resetLocationForm = (parentId?: number) => {
   formData.id = undefined
   formData.name = ''
   formData.location_type = 'building'
@@ -162,11 +159,9 @@ const openCreateDialog = (parentId?: number) => {
   formData.area_sqm = undefined
   formData.manager = ''
   formData.contact = ''
-  dialogVisible.value = true
 }
 
-const openEditDialog = (location: Location) => {
-  dialogType.value = 'edit'
+const fillLocationForm = (location: Location) => {
   formData.id = location.id
   formData.name = location.name
   formData.location_type = location.location_type
@@ -176,8 +171,36 @@ const openEditDialog = (location: Location) => {
   formData.area_sqm = location.area_sqm
   formData.manager = location.manager || ''
   formData.contact = location.contact || ''
-  dialogVisible.value = true
 }
+
+const {
+  dialogVisible,
+  dialogType,
+  dialogTitle,
+  openCreateDialog,
+  openEditDialog
+} = useCrudDialog<Location, [number?]>({
+  createTitle: '新建位置',
+  editTitle: '编辑位置',
+  resetForm: resetLocationForm,
+  fillForm: fillLocationForm
+})
+
+const { submit: submitLocationForm } = useCrudSubmit({
+  dialogType,
+  dialogVisible,
+  createAction: async () => {
+    await createLocation(formData)
+    ElMessage.success('创建成功')
+  },
+  updateAction: async () => {
+    await updateLocation(formData.id!, formData)
+    ElMessage.success('更新成功')
+  },
+  onSuccess: () => {
+    loadData()
+  }
+})
 
 const handleSubmit = async () => {
   if (!formData.name) {
@@ -185,15 +208,7 @@ const handleSubmit = async () => {
     return
   }
   try {
-    if (dialogType.value === 'create') {
-      await createLocation(formData)
-      ElMessage.success('创建成功')
-    } else {
-      await updateLocation(formData.id!, formData)
-      ElMessage.success('更新成功')
-    }
-    dialogVisible.value = false
-    loadData()
+    await submitLocationForm()
   } catch (e) {
     ElMessage.error('操作失败')
   }

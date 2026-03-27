@@ -24,6 +24,8 @@ import {
 } from '@/api/deviceGroup'
 import { getDevices, type Device } from '@/api/device'
 import { usePermissions } from '@/shared/composables/usePermissions'
+import { useCrudDialog } from '@/shared/composables/useCrudDialog'
+import { useCrudSubmit } from '@/shared/composables/useCrudSubmit'
 
 // --- 状态 ---
 const loading = ref(false)
@@ -39,10 +41,6 @@ const searchKeyword = ref('')
 const { canManageGroups, hasScopedAccess } = usePermissions()
 
 // 对话框状态
-const dialogVisible = ref(false)
-const dialogType = ref<'create' | 'edit'>('create')
-const dialogTitle = computed(() => dialogType.value === 'create' ? '新建分组' : '编辑分组')
-
 // 添加设备对话框
 const addDeviceDialogVisible = ref(false)
 const selectedDeviceIds = ref<number[]>([])
@@ -132,8 +130,7 @@ const handleSearch = () => {
   loadData()
 }
 
-const openCreateDialog = () => {
-  dialogType.value = 'create'
+const resetGroupForm = () => {
   formData.id = undefined
   formData.name = ''
   formData.code = ''
@@ -142,11 +139,9 @@ const openCreateDialog = () => {
   formData.parent_id = undefined
   formData.manager = ''
   formData.contact = ''
-  dialogVisible.value = true
 }
 
-const openEditDialog = (group: DeviceGroup) => {
-  dialogType.value = 'edit'
+const fillGroupForm = (group: DeviceGroup) => {
   formData.id = group.id
   formData.name = group.name
   formData.code = group.code || ''
@@ -155,8 +150,36 @@ const openEditDialog = (group: DeviceGroup) => {
   formData.parent_id = group.parent_id
   formData.manager = group.manager || ''
   formData.contact = group.contact || ''
-  dialogVisible.value = true
 }
+
+const {
+  dialogVisible,
+  dialogType,
+  dialogTitle,
+  openCreateDialog,
+  openEditDialog
+} = useCrudDialog<DeviceGroup>({
+  createTitle: '新建分组',
+  editTitle: '编辑分组',
+  resetForm: resetGroupForm,
+  fillForm: fillGroupForm
+})
+
+const { submit: submitGroupForm } = useCrudSubmit({
+  dialogType,
+  dialogVisible,
+  createAction: async () => {
+    await createGroup(formData)
+    ElMessage.success('创建成功')
+  },
+  updateAction: async () => {
+    await updateGroup(formData.id!, formData)
+    ElMessage.success('更新成功')
+  },
+  onSuccess: () => {
+    loadData()
+  }
+})
 
 const handleSubmit = async () => {
   if (!formData.name) {
@@ -164,15 +187,7 @@ const handleSubmit = async () => {
     return
   }
   try {
-    if (dialogType.value === 'create') {
-      await createGroup(formData)
-      ElMessage.success('创建成功')
-    } else {
-      await updateGroup(formData.id!, formData)
-      ElMessage.success('更新成功')
-    }
-    dialogVisible.value = false
-    loadData()
+    await submitGroupForm()
   } catch (e) {
     ElMessage.error('操作失败')
   }

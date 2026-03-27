@@ -11,6 +11,7 @@ const {
   getDeviceTypesMock,
   successMock,
   errorMock,
+  warningMock,
   confirmMock,
   routerPushMock,
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   getDeviceTypesMock: vi.fn(),
   successMock: vi.fn(),
   errorMock: vi.fn(),
+  warningMock: vi.fn(),
   confirmMock: vi.fn(),
   routerPushMock: vi.fn(),
 }))
@@ -56,6 +58,7 @@ vi.mock('element-plus', async () => {
     {
       success: successMock,
       error: errorMock,
+      warning: warningMock,
     }
   )
 
@@ -84,6 +87,9 @@ function mountView() {
         'el-table-column': true,
         'el-tag': true,
       },
+      directives: {
+        loading: () => undefined,
+      },
     },
   })
 }
@@ -103,6 +109,7 @@ describe('DeviceManager view', () => {
     getDeviceTypesMock.mockReset()
     successMock.mockReset()
     errorMock.mockReset()
+    warningMock.mockReset()
     confirmMock.mockReset()
     routerPushMock.mockReset()
   })
