@@ -48,6 +48,11 @@ export interface CarbonEmission {
 // 碳排放汇总
 export interface CarbonSummary {
   total_carbon: number
+  boundary?: string
+  calculation_method?: string
+  is_accounting_grade?: boolean
+  note?: string
+  summary_basis?: string
   by_energy_type: {
     [key: string]: {
       carbon_emission: number       // 修正：与后端字段名一致
@@ -64,11 +69,21 @@ export interface EnergyStatistics {
   avg_flow_rate: number
   peak_flow_rate: number
   data_count: number
+  consumption_unit?: string
+  flow_unit?: string
+  consumption_semantics?: string
+  consumption_stat_basis?: string
+  flow_semantics?: string
+  flow_stat_basis?: string
+  meter_reset_suspected?: boolean
 }
 
 export interface EnergyOverview {
   statistics: Record<string, EnergyStatistics>
   carbon_summary: CarbonSummary
+  overview_boundary?: string
+  unit_rule?: string
+  cross_energy_mix_allowed?: boolean
 }
 
 // 能源类型信息
@@ -76,12 +91,18 @@ export interface EnergyTypeInfo {
   value: string
   label: string
   unit: string
+  flow_unit?: string
+  consumption_semantics?: string
+  flow_semantics?: string
+  carbon_scope?: string
 }
 
 // 碳排放因子
 export interface CarbonFactor {
   factor: number
   unit: string
+  scope?: number
+  note?: string
 }
 
 export interface CarbonCalculationResult {

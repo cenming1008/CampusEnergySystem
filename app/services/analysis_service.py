@@ -6,7 +6,7 @@ from datetime import datetime, time
 from typing import Dict, Any, Optional
 from sqlmodel import Session
 
-from app.domain.energy_rules import get_electricity_price
+from app.domain.energy_rules import calculate_energy_cost, get_energy_semantics
 from app.models.tables import EnergyData
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.energy_repository import EnergyRepository
@@ -21,33 +21,42 @@ class AnalysisService:
         # 获取设备状态
         device = DeviceRepository.get_by_id(session, device_id)
         is_active = device.is_active if device else False
-        
+        energy_type = device.energy_type if device else "electricity"
+        semantics = get_energy_semantics(energy_type)
+
         # 获取最新数据
-        latest = AnalysisService._get_latest_data(session, device_id)
+        latest = AnalysisService._get_latest_data(session, device_id, energy_type)
         if not latest:
-            return AnalysisService._empty_analysis(is_active)
-        
-        # 计算今日能耗（使用峰谷平电价）
-        today_kwh, today_cost = AnalysisService._calculate_today_consumption(
-            session, device_id, latest
+            return AnalysisService._empty_analysis(is_active, energy_type, semantics)
+
+        # 计算当日消耗与费用
+        today_consumption, today_cost = AnalysisService._calculate_today_consumption(
+            session, device_id, energy_type, latest
         )
-        
+
         return {
             "is_active": is_active,
+            "energy_type": energy_type,
+            "semantics": semantics,
             "latest": latest,
-            "today_energy": today_kwh,
+            "today_consumption": today_consumption,
             "today_cost": today_cost,
         }
-    
+
     @staticmethod
-    def _get_latest_data(session: Session, device_id: int) -> Optional[EnergyData]:
+    def _get_latest_data(
+        session: Session,
+        device_id: int,
+        energy_type: Optional[str] = None,
+    ) -> Optional[EnergyData]:
         """获取设备最新数据"""
-        return EnergyRepository.get_latest_energy_data(session, device_id)
+        return EnergyRepository.get_latest_energy_data(session, device_id, energy_type=energy_type)
     
     @staticmethod
     def _calculate_today_consumption(
         session: Session,
         device_id: int,
+        energy_type: str,
         latest: EnergyData
     ) -> tuple[float, float]:
         """
@@ -63,23 +72,23 @@ class AnalysisService:
             session=session,
             device_id=device_id,
             start_time=today_start,
+            energy_type=energy_type,
         )
         
-        today_kwh = (latest.consumption - first_today.consumption) if first_today else 0
-        
-        # 使用当前时段的电价（简化计算）
-        # 更精确的方法：可以按小时查询能耗，分时段计算费用
-        current_price = get_electricity_price(now.hour)
-        today_cost = today_kwh * current_price
-        
-        return today_kwh, today_cost
-    
+        today_value = (latest.consumption - first_today.consumption) if first_today else 0
+        today_value = max(today_value, 0)
+        today_cost = calculate_energy_cost(energy_type, today_value, now)
+
+        return today_value, today_cost
+
     @staticmethod
-    def _empty_analysis(is_active: bool) -> Dict[str, Any]:
+    def _empty_analysis(is_active: bool, energy_type: str, semantics: Dict[str, Any]) -> Dict[str, Any]:
         """返回空数据分析结果"""
         return {
             "is_active": is_active,
+            "energy_type": energy_type,
+            "semantics": semantics,
             "latest": None,
-            "today_energy": 0,
+            "today_consumption": 0,
             "today_cost": 0,
         }

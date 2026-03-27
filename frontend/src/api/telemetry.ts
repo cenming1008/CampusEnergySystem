@@ -23,6 +23,15 @@ export interface DeviceAnalysis {
   current: number
   today_energy: number
   today_cost: number
+  energy_type?: string
+  energy_label?: string
+  current_value?: number
+  current_value_label?: string
+  current_value_unit?: string
+  today_consumption?: number
+  today_consumption_unit?: string
+  today_consumption_semantics?: string
+  electrical_fields_applicable?: boolean
 }
 
 function unwrapResponse<T>(payload: T | WrappedResponse<T>): T {
@@ -56,6 +65,15 @@ function normalizeAnalysis(payload: Partial<DeviceAnalysis>): DeviceAnalysis {
     current: Number(payload.current || 0),
     today_energy: Number(payload.today_energy || 0),
     today_cost: Number(payload.today_cost || 0),
+    energy_type: payload.energy_type,
+    energy_label: payload.energy_label,
+    current_value: payload.current_value == null ? undefined : Number(payload.current_value),
+    current_value_label: payload.current_value_label,
+    current_value_unit: payload.current_value_unit,
+    today_consumption: payload.today_consumption == null ? undefined : Number(payload.today_consumption),
+    today_consumption_unit: payload.today_consumption_unit,
+    today_consumption_semantics: payload.today_consumption_semantics,
+    electrical_fields_applicable: payload.electrical_fields_applicable,
   }
 }
 

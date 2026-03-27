@@ -75,10 +75,11 @@ def get_carbon_factors():
             energy_type: {
                 "factor": factor,
                 "unit": f"kg CO2/{ENERGY_UNITS.get(energy_type, '')}",
+                "boundary": "display_estimate",
             }
             for energy_type, factor in CARBON_FACTORS.items()
         },
-        "description": "碳排放因子参考国家标准，实际使用时可根据地区调整",
+        "description": "当前因子用于展示级估算与趋势试算，不作为正式碳核算结论。",
     }
 
 
@@ -86,6 +87,5 @@ def get_carbon_factors():
 def calculate_carbon_manual(
     energy_type: str = Query(..., description="能源类型"),
     consumption: float = Query(..., description="消耗量"),
-    session: Session = Depends(get_session),
 ):
     return success_response(data=calculate_manual_carbon(energy_type, consumption))

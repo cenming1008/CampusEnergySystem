@@ -131,6 +131,9 @@ def get_energy_overview(
             energy_types=energy_types,
             allowed_device_ids=allowed_device_ids,
         ),
+        "overview_boundary": "multi_energy_first_batch",
+        "unit_rule": "累计量按时段首末差值统计；瞬时量按样本均值和峰值统计；不同能源不直接混算。",
+        "cross_energy_mix_allowed": False,
         "carbon_summary": EnergyService.get_carbon_summary(
             session=session,
             start_time=start_time,
@@ -147,7 +150,13 @@ def get_energy_types():
 
     return {
         "energy_types": [
-            {"value": EnergyType(option["value"]), "label": option["label"], "unit": option["unit"]}
+            {
+                "value": EnergyType(option["value"]),
+                "label": option["label"],
+                "unit": option["unit"],
+                "flow_unit": option["flow_unit"],
+                **EnergyService.get_energy_semantics(option["value"]),
+            }
             for option in ENERGY_TYPE_OPTIONS
         ],
         "device_categories": [

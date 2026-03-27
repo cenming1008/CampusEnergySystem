@@ -150,16 +150,28 @@ class TestApplicationUseCases(unittest.TestCase):
         current_user = SimpleNamespace(username="viewer", role="viewer")
         mock_analyze_device.return_value = {
             "is_active": True,
+            "energy_type": "gas",
+            "semantics": {
+                "label": "气",
+                "flow_label": "实时流量",
+                "flow_unit": "m³/h",
+                "supports_electrical_quality": False,
+                "consumption_label": "累计气量",
+                "consumption_unit": "m³",
+                "consumption_stat_basis": "period_delta_from_cumulative_reading",
+            },
             "latest": SimpleNamespace(flow_rate=4.567, voltage=219.95, current=10.127),
-            "today_energy": 9.812,
+            "today_consumption": 9.812,
             "today_cost": 5.436,
         }
 
         result = analyze_device_use_case(session=session, current_user=current_user, device_id=7)
 
         self.assertEqual(result["device_id"], 7)
+        self.assertEqual(result["energy_type"], "gas")
         self.assertEqual(result["today_energy"], 9.81)
         self.assertEqual(result["current_power"], 4.57)
+        self.assertEqual(result["today_consumption_unit"], "m³")
         mock_ensure_access.assert_called_once_with(session, current_user, 7)
         mock_analyze_device.assert_called_once_with(session, 7)
 
@@ -209,6 +221,59 @@ class TestApplicationUseCases(unittest.TestCase):
         self.assertEqual(payload.filename, "energy_detail_20260327.csv")
         self.assertIn("设备名称", payload.content)
         self.assertIn("一号设备", payload.content)
+
+    @patch("app.application.reporting.EnergyService.get_carbon_summary")
+    @patch("app.application.reporting.EnergyService.get_statistics_by_type")
+    @patch("app.application.reporting.get_allowed_device_ids", return_value=None)
+    @patch("app.application.reporting.EnergyService.list_energy_type_catalog")
+    def test_build_report_csv_export_use_case_supports_multi_energy_summary(
+        self,
+        mock_catalog,
+        mock_allowed_ids,
+        mock_statistics,
+        mock_carbon_summary,
+    ):
+        session = MagicMock()
+        mock_catalog.return_value = [
+            {"energy_type": "electricity"},
+            {"energy_type": "heat"},
+        ]
+        mock_statistics.return_value = {
+            "electricity": {
+                "total_consumption": 10.5,
+                "avg_flow_rate": 4.0,
+                "peak_flow_rate": 6.2,
+                "data_count": 3,
+                "consumption_unit": "kWh",
+                "flow_unit": "kW",
+            },
+            "heat": {
+                "total_consumption": 0.0,
+                "avg_flow_rate": 0.0,
+                "peak_flow_rate": 0.0,
+                "data_count": 0,
+                "consumption_unit": "GJ",
+                "flow_unit": "GJ/h",
+            },
+        }
+        mock_carbon_summary.return_value = {
+            "boundary": "display_estimate",
+            "by_energy_type": {
+                "electricity": {"carbon_emission": 6.13, "boundary": "display_estimate"},
+            },
+        }
+
+        payload = build_report_csv_export_use_case(
+            session=session,
+            current_user=None,
+            report_type="multi_energy_summary",
+            start_time=datetime(2026, 3, 1),
+            end_time=datetime(2026, 3, 2),
+        )
+
+        self.assertIn("能源类型", payload.content)
+        self.assertIn("电", payload.content)
+        self.assertIn("display_estimate", payload.content)
 
     @patch("app.application.energy_management.EnergyService.save_energy_data")
     def test_save_energy_data_use_case_delegates_to_energy_service(self, mock_save_energy_data):

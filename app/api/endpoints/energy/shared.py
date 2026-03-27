@@ -33,6 +33,11 @@ class CarbonSummaryResponse(BaseModel):
 
     total_carbon: float
     by_energy_type: dict
+    boundary: Optional[str] = None
+    calculation_method: Optional[str] = None
+    is_accounting_grade: Optional[bool] = None
+    note: Optional[str] = None
+    summary_basis: Optional[str] = None
 
 
 class EnergyStatisticsResponse(BaseModel):
@@ -43,6 +48,13 @@ class EnergyStatisticsResponse(BaseModel):
     avg_flow_rate: float
     peak_flow_rate: float
     data_count: int
+    consumption_unit: Optional[str] = None
+    flow_unit: Optional[str] = None
+    consumption_semantics: Optional[str] = None
+    consumption_stat_basis: Optional[str] = None
+    flow_semantics: Optional[str] = None
+    flow_stat_basis: Optional[str] = None
+    meter_reset_suspected: Optional[bool] = None
 
 
 class EnergyOverviewResponse(BaseModel):
@@ -50,15 +62,18 @@ class EnergyOverviewResponse(BaseModel):
 
     statistics: dict
     carbon_summary: CarbonSummaryResponse
+    overview_boundary: Optional[str] = None
+    unit_rule: Optional[str] = None
+    cross_energy_mix_allowed: Optional[bool] = None
 
 
 ENERGY_TYPE_OPTIONS = [
-    {"value": "electricity", "label": "电力", "unit": "kWh"},
-    {"value": "water", "label": "水", "unit": "m³"},
-    {"value": "gas", "label": "燃气", "unit": "m³"},
-    {"value": "heat", "label": "热力", "unit": "GJ"},
-    {"value": "cooling", "label": "冷气", "unit": "kWh"},
-    {"value": "steam", "label": "蒸汽", "unit": "t"},
+    {"value": "electricity", "label": "电力", "unit": "kWh", "flow_unit": "kW"},
+    {"value": "water", "label": "水", "unit": "m³", "flow_unit": "m³/h"},
+    {"value": "gas", "label": "燃气", "unit": "m³", "flow_unit": "m³/h"},
+    {"value": "heat", "label": "热力", "unit": "GJ", "flow_unit": "GJ/h"},
+    {"value": "cooling", "label": "冷气", "unit": "kWh", "flow_unit": "kW"},
+    {"value": "steam", "label": "蒸汽", "unit": "t", "flow_unit": "t/h"},
 ]
 
 

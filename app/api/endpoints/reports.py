@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/export_csv")
 def export_csv(
-    report_type: str = Query("energy_detail", description="报表类型: energy_detail/alarm_history/carbon_emission"),
+    report_type: str = Query("energy_detail", description="报表类型: energy_detail/alarm_history/carbon_emission/multi_energy_summary"),
     device_id: Optional[int] = Query(None, description="设备ID"),
     energy_type: Optional[str] = Query(None, description="能源类型"),
     resolved: Optional[bool] = Query(None, description="仅报警报表使用"),

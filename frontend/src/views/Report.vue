@@ -30,6 +30,7 @@ const reportTypeOptions: Array<{ label: string; value: ReportType; description: 
   { label: '能耗明细', value: 'energy_detail', description: '导出设备逐条能耗与遥测记录' },
   { label: '报警历史', value: 'alarm_history', description: '导出报警产生、恢复与处理记录' },
   { label: '碳排放', value: 'carbon_emission', description: '导出碳排放与能耗记录' },
+  { label: '多能源汇总', value: 'multi_energy_summary', description: '导出分能源周期消耗、瞬时统计与展示级碳排估算' },
 ]
 
 const energyTypeOptions = [

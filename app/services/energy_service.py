@@ -8,13 +8,16 @@ from app.core.logger import logger
 
 from app.domain.energy_rules import (
     CARBON_FACTORS as DOMAIN_CARBON_FACTORS,
+    ENERGY_DISPLAY_LABELS as DOMAIN_ENERGY_DISPLAY_LABELS,
     ENERGY_PRICES as DOMAIN_ENERGY_PRICES,
     ENERGY_UNITS as DOMAIN_ENERGY_UNITS,
     build_carbon_fields,
     calculate_energy_cost as calculate_energy_cost_rule,
     get_electricity_price as get_electricity_price_rule,
+    get_energy_semantics,
     summarize_carbon_by_energy_type,
     summarize_energy_statistics,
+    summarize_multi_energy_statistics,
 )
 from app.models.tables import (
     Device, EnergyData, CarbonEmission, EnergyStatistics,
@@ -56,9 +59,24 @@ class EnergyService:
     
     # 能源单位映射
     ENERGY_UNITS = DOMAIN_ENERGY_UNITS
+
+    ENERGY_LABELS = DOMAIN_ENERGY_DISPLAY_LABELS
     
     # 能源价格（元/单位）- 可根据实际情况调整
     ENERGY_PRICES = DOMAIN_ENERGY_PRICES
+
+    @staticmethod
+    def get_energy_semantics(energy_type: str) -> Dict:
+        """返回第一批多能源业务语义。"""
+        return dict(get_energy_semantics(energy_type))
+
+    @staticmethod
+    def list_energy_type_catalog() -> list[Dict]:
+        """返回多能源类型与第一批语义说明。"""
+        return [
+            EnergyService.get_energy_semantics(energy_type.value)
+            for energy_type in EnergyType
+        ]
     
     @staticmethod
     def get_electricity_price(hour: int) -> float:
@@ -294,16 +312,32 @@ class EnergyService:
         Returns:
             统计结果字典
         """
-        return summarize_energy_statistics(
-            EnergyRepository.list_energy_statistics_rows(
-                session,
-                device_id=device_id,
-                energy_type=energy_type,
-                start_time=start_time,
-                end_time=end_time,
-                allowed_device_ids=allowed_device_ids,
-            )
+        rows = EnergyRepository.list_energy_statistics_rows(
+            session,
+            device_id=device_id,
+            energy_type=energy_type,
+            start_time=start_time,
+            end_time=end_time,
+            allowed_device_ids=allowed_device_ids,
         )
+        if rows:
+            return summarize_energy_statistics(rows)
+
+        semantics = EnergyService.get_energy_semantics(energy_type)
+        return {
+            "total_consumption": 0.0,
+            "avg_consumption": 0.0,
+            "avg_flow_rate": 0.0,
+            "peak_flow_rate": 0.0,
+            "data_count": 0,
+            "consumption_unit": semantics["consumption_unit"],
+            "flow_unit": semantics["flow_unit"],
+            "consumption_semantics": semantics["consumption_semantics"],
+            "consumption_stat_basis": semantics["consumption_stat_basis"],
+            "flow_semantics": semantics["flow_semantics"],
+            "flow_stat_basis": semantics["flow_stat_basis"],
+            "meter_reset_suspected": False,
+        }
 
     @staticmethod
     def get_statistics_by_type(
@@ -314,30 +348,34 @@ class EnergyService:
         device_id: Optional[int] = None,
         allowed_device_ids: Optional[set[int]] = None,
     ) -> Dict[str, Dict]:
-        defaults = {
-            "total_consumption": 0.0,
-            "avg_consumption": 0.0,
-            "avg_flow_rate": 0.0,
-            "peak_flow_rate": 0.0,
-            "data_count": 0,
-        }
-        results = {energy_type: dict(defaults) for energy_type in energy_types}
-        rows = EnergyRepository.summarize_energy_statistics_by_type(
-            session,
-            start_time=start_time,
-            end_time=end_time,
-            device_id=device_id,
-            allowed_device_ids=allowed_device_ids,
-            energy_types=energy_types,
-        )
-        for energy_type, total, avg_consumption, avg_flow_rate, peak_flow_rate, data_count in rows:
-            results[str(energy_type)] = {
-                "total_consumption": float(total or 0),
-                "avg_consumption": float(avg_consumption or 0),
-                "avg_flow_rate": float(avg_flow_rate or 0),
-                "peak_flow_rate": float(peak_flow_rate or 0),
-                "data_count": int(data_count or 0),
-            }
+        results = {}
+        for energy_type in energy_types:
+            rows = EnergyRepository.list_energy_statistics_rows(
+                session,
+                device_id=device_id,
+                energy_type=energy_type,
+                start_time=start_time,
+                end_time=end_time,
+                allowed_device_ids=allowed_device_ids,
+            )
+            if rows:
+                results[energy_type] = summarize_energy_statistics(rows)
+            else:
+                semantics = EnergyService.get_energy_semantics(energy_type)
+                results[energy_type] = {
+                    "total_consumption": 0.0,
+                    "avg_consumption": 0.0,
+                    "avg_flow_rate": 0.0,
+                    "peak_flow_rate": 0.0,
+                    "data_count": 0,
+                    "consumption_unit": semantics["consumption_unit"],
+                    "flow_unit": semantics["flow_unit"],
+                    "consumption_semantics": semantics["consumption_semantics"],
+                    "consumption_stat_basis": semantics["consumption_stat_basis"],
+                    "flow_semantics": semantics["flow_semantics"],
+                    "flow_stat_basis": semantics["flow_stat_basis"],
+                    "meter_reset_suspected": False,
+                }
         return results
     
     @staticmethod
@@ -360,15 +398,30 @@ class EnergyService:
         Returns:
             碳排放汇总字典
         """
-        return summarize_carbon_by_energy_type(
-            EnergyRepository.summarize_carbon_rows(
+        rows = []
+        for energy_type in EnergyType:
+            samples = EnergyRepository.list_energy_statistics_rows(
                 session,
+                device_id=device_id,
+                energy_type=energy_type.value,
                 start_time=start_time,
                 end_time=end_time,
-                device_id=device_id,
                 allowed_device_ids=allowed_device_ids,
             )
-        )
+            stats = summarize_multi_energy_statistics(samples).get(energy_type.value)
+            if not stats or not stats["data_count"]:
+                continue
+            rows.append(
+                (
+                    energy_type.value,
+                    stats["total_consumption"] * EnergyService.CARBON_FACTORS.get(energy_type, 0),
+                    stats["total_consumption"],
+                )
+            )
+
+        summary = summarize_carbon_by_energy_type(rows)
+        summary["summary_basis"] = "energy_period_delta"
+        return summary
     
     @staticmethod
     def save_statistics(

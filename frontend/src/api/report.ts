@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export type ReportType = 'energy_detail' | 'alarm_history' | 'carbon_emission'
+export type ReportType = 'energy_detail' | 'alarm_history' | 'carbon_emission' | 'multi_energy_summary'
 
 export interface ReportDownloadParams {
   report_type: ReportType

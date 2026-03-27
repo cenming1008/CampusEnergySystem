@@ -90,6 +90,37 @@ class ReportIntegrationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("通讯中断", response.text)
 
+    def test_multi_energy_summary_export_csv(self):
+        fake_user = SimpleNamespace(username="admin", role=UserRole.ADMIN)
+        self.app.dependency_overrides[reports.get_session] = lambda: object()
+        self.app.dependency_overrides[reports.get_current_user] = lambda: fake_user
+        self.app.dependency_overrides[reports.limit_requests(
+            bucket="report-export",
+            max_calls=reports.settings.report_export_rate_limit_count,
+            window_seconds=reports.settings.report_export_rate_limit_window_seconds,
+        )] = lambda: None
+
+        with patch.object(
+            reports,
+            "build_report_csv_export_use_case",
+            return_value=SimpleNamespace(
+                filename="multi_energy_summary_20260326.csv",
+                content="能源类型,周期消耗,累计单位\n电,12.3,kWh\n",
+            ),
+        ):
+            response = self.client.get(
+                "/reports/export_csv",
+                params={
+                    "report_type": "multi_energy_summary",
+                    "start_time": "2026-03-26T00:00:00",
+                    "end_time": "2026-03-26T23:59:59",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("能源类型", response.text)
+        self.assertIn("电", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()
