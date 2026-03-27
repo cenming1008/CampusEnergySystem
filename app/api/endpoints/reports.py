@@ -1,5 +1,3 @@
-import csv
-import io
 from datetime import datetime
 from typing import Optional
 
@@ -8,21 +6,13 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from app.api.deps import get_current_user
-from app.application.reporting import (
-    list_alarm_report_rows_use_case,
-    list_carbon_report_rows_use_case,
-    list_energy_report_rows_use_case,
-)
+from app.application.reporting import build_report_csv_export_use_case
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.settings import settings
 from app.models.tables import User
 
 router = APIRouter()
-
-
-def _safe_filename_date(value: Optional[datetime]) -> str:
-    return value.strftime("%Y%m%d") if value else datetime.now().strftime("%Y%m%d")
 
 
 @router.get("/export_csv")
@@ -45,89 +35,24 @@ def export_csv(
     ),
 ):
     """导出设备历史数据为CSV文件"""
-    report_type = report_type.strip().lower()
-    output = io.StringIO()
-    writer = csv.writer(output)
-
-    if report_type == "energy_detail":
-        writer.writerow([
-            "时间", "设备ID", "设备名称", "能源类型",
-            "电压(V)", "电流(A)", "功率/流量", "累计消耗"
-        ])
-        results = list_energy_report_rows_use_case(
+    try:
+        payload = build_report_csv_export_use_case(
             session=session,
             current_user=current_user,
+            report_type=report_type,
             device_id=device_id,
             energy_type=energy_type,
-            start_time=start_time,
-            end_time=end_time,
-            limit=limit,
-        )
-        for data, device_name in results:
-            writer.writerow([
-                data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                data.device_id,
-                device_name,
-                data.energy_type,
-                data.voltage,
-                data.current,
-                data.flow_rate,
-                data.consumption,
-            ])
-    elif report_type == "alarm_history":
-        writer.writerow([
-            "时间", "设备ID", "设备名称", "严重级别", "是否已恢复", "消息", "恢复人", "恢复时间"
-        ])
-        results = list_alarm_report_rows_use_case(
-            session=session,
-            current_user=current_user,
-            device_id=device_id,
             resolved=resolved,
             start_time=start_time,
             end_time=end_time,
             limit=limit,
         )
-        for alarm, device_name in results:
-            writer.writerow([
-                alarm.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                alarm.device_id,
-                device_name,
-                alarm.severity,
-                "是" if alarm.is_resolved else "否",
-                alarm.message,
-                alarm.resolved_by or "",
-                alarm.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if alarm.resolved_at else "",
-            ])
-    elif report_type == "carbon_emission":
-        writer.writerow([
-            "时间", "设备ID", "设备名称", "能源类型", "能耗", "碳排放"
-        ])
-        results = list_carbon_report_rows_use_case(
-            session=session,
-            current_user=current_user,
-            device_id=device_id,
-            energy_type=energy_type,
-            start_time=start_time,
-            end_time=end_time,
-            limit=limit,
-        )
-        for data, device_name in results:
-            writer.writerow([
-                data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                data.device_id,
-                device_name,
-                data.energy_type,
-                data.energy_consumption,
-                data.carbon_emission,
-            ])
-    else:
-        raise HTTPException(status_code=400, detail=f"不支持的报表类型: {report_type}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    output.seek(0)
-    date_label = _safe_filename_date(end_time or start_time)
     response = StreamingResponse(
-        iter([output.getvalue()]),
+        iter([payload.content]),
         media_type="text/csv"
     )
-    response.headers["Content-Disposition"] = f"attachment; filename={report_type}_{date_label}.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={payload.filename}"
     return response

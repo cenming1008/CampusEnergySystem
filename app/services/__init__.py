@@ -16,6 +16,7 @@ from app.services.inspection_service import InspectionService
 from app.services.location_service import LocationService
 from app.services.maintenance_service import MaintenanceService
 from app.services.mqtt_reliability_service import MqttReliabilityService
+from app.services.report_service import ReportService
 from app.services.user_service import UserService
 from app.services.scheduler_jobs import (
     auto_cleanup_data,
@@ -59,6 +60,7 @@ try:
         "LocationService",
         "MaintenanceService",
         "MqttReliabilityService",
+        "ReportService",
         "UserService",
         "InspectionService",
         "process_payload",
@@ -89,6 +91,7 @@ except ImportError:
         "LocationService",
         "MaintenanceService",
         "MqttReliabilityService",
+        "ReportService",
         "UserService",
         "InspectionService",
         "process_payload",

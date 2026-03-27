@@ -28,10 +28,16 @@ from app.application.telemetry_ingestion import (
     ingest_telemetry_use_case,
 )
 from app.application.reporting import list_energy_report_rows_use_case
+from app.application.reporting import (
+    build_report_csv_export_use_case,
+    list_alarm_report_rows_use_case,
+    list_carbon_report_rows_use_case,
+)
 
 __all__ = [
     "TelemetryIngestionResult",
     "analyze_device_use_case",
+    "build_report_csv_export_use_case",
     "evaluate_lstm_model_use_case",
     "evaluate_prediction_accuracy_use_case",
     "forecast_load_use_case",
@@ -42,6 +48,8 @@ __all__ = [
     "get_forecast_adapter",
     "ingest_telemetry_use_case",
     "list_energy_report_rows_use_case",
+    "list_alarm_report_rows_use_case",
+    "list_carbon_report_rows_use_case",
     "list_carbon_emissions_use_case",
     "list_latest_predictions_use_case",
     "report_device_data_use_case",

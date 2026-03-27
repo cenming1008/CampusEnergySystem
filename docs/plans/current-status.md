@@ -1,132 +1,128 @@
 # Current Status
 
 ## 当前总目标
-- 评估当前项目从“煤矿综合能源管理系统”迁移为“园区综合能源管理系统 / 智慧园区 EMS”的可行性
-- 梳理哪些能力可以直接复用，哪些只是命名与叙事需要迁移
-- 为前端线程和后端线程输出可直接执行的最小迁移任务
+- 推进 application 层收敛，让主业务路径真正统一走 application use case
+- 明确本轮是主路径收敛，不是全系统重构
+- 为后端线程和前端线程输出可直接执行、可联调、可回滚的实施计划
 
 ---
 
 ## 当前阶段
 - [x] 分析中
-- [x] 前端迁移中
-- [x] 后端迁移中
-- [x] 已输出迁移分析
+- [x] 探索完成
+- [x] 规范已落地
+- [x] 后端已实施
+- [x] 前端已完成依赖审计
 
 ---
 
 ## 本次目标
-- 统一用户可见站点名、默认应用名与入口命名，继续从“煤矿综合能源管理系统”收敛到“园区综合能源管理系统 / Campus EMS”
-- 将后端主线业务对象从煤矿叙事迁移到园区 EMS 语境
-- 在不推翻现有模型的前提下，补齐园区 / 区域 / 楼栋 / 能源介质 / 分项 / 告警聚合接口
-- 保留旧接口兼容，优先新增园区聚合层，并更新 `current-status.md` / `handoff.md`
+- 只聚焦 `devices/data`、`analysis`、`reports` 三条主路径
+- 以 application use case 收口主流程，而不是继续让 endpoint 或 service 承担总编排
+- 在保持接口兼容前提下完成最小有效收敛，并同步更新 `current-status.md` / `handoff.md`
 
 ## 发现的问题
-- 后端底座模型已可复用，但缺少一个明确面向“园区 / 区域 / 楼栋 / 能源介质 / 分项 / 告警”的聚合接口层。
-- `LocationType` 已有 `building/area/zone`，但还没有 `park/campus/site` 这些园区主线对象表达。
-- 旧接口 `/energy/*`、`/locations/*`、`/analysis/{device_id}` 仍偏底座能力，前端若直接拼装，会继续缺少稳定的园区驾驶舱口径。
-- 默认应用名仍是“煤矿综合能源管理系统”，会把 OpenAPI 与系统默认描述拉回旧叙事。
+- [app/api/endpoints/devices/data.py](/Users/todo/MineEnergySystem/app/api/endpoints/devices/data.py) 中 `report_device_data`、`get_device_data`、`get_device_statistics` 仍在 endpoint 直接承担权限前置、审计或响应包装。
+- [app/api/endpoints/analysis.py](/Users/todo/MineEnergySystem/app/api/endpoints/analysis.py) `analyze_device` 仍在 endpoint 做访问控制，application 尚未成为真正入口。
+- [app/api/endpoints/reports.py](/Users/todo/MineEnergySystem/app/api/endpoints/reports.py) `export_csv` 仍在 endpoint 直接做报表分发、表头定义和 CSV 装配。
+- [app/application/device_reporting.py](/Users/todo/MineEnergySystem/app/application/device_reporting.py) 与 [app/application/analysis.py](/Users/todo/MineEnergySystem/app/application/analysis.py) 仍以透传为主。
+- [app/services/device_service.py](/Users/todo/MineEnergySystem/app/services/device_service.py) `report_device_data`、[app/services/energy_service.py](/Users/todo/MineEnergySystem/app/services/energy_service.py) `save_energy_data`、[app/services/analysis_service.py](/Users/todo/MineEnergySystem/app/services/analysis_service.py) `analyze_device` 存在用例级编排或接口级 DTO 装配上浮。
 
 ## 最近结论
 ### 探索线程
-- 当前项目迁移到园区 EMS 的可行性高。
-- 迁移成本整体偏中低，更像“保留底座、迁移叙事”，不是推倒重写。
-- 前端绝大部分业务页面、后端绝大部分对象和接口、部署链路、监控链路、权限链路都可以直接复用。
-- 真正需要优先迁移的是：
-  - 项目名称与主文案
-  - 首页与导航主线
-  - 园区 / 区域 / 楼栋聚合表达
-  - 煤矿数字孪生模块的主线降级
+- 当前问题不是“没有 application 目录”，而是“application use case 过薄、endpoint 过重、service 职责上浮”。
+- 第一批只应收敛三条主路径：`devices/data`、`analysis`、`reports`。
 
-### 前端线程
-- 可以直接复用设备、位置、告警、能耗、巡检、维护、报表、系统设置等主页面。
-- 首页、登录页、`CampusScene`、菜单与品牌文案是迁移优先级最高的区域。
-- 本轮已完成主入口迁移：
-  - `Layout.vue` / `router/index.ts` 已切到园区 EMS 菜单与页面标题
-  - `Dashboard.vue` 已改为园区能源驾驶舱表达
-  - `Login.vue` 已改成园区 EMS 品牌登录页
-  - `CampusScene.vue` 已承接“园区总览与实时态势”表达
-  - `SystemSettings.vue` 已同步改成园区 EMS 产品说明
+### 规范线程
+- 已新增 [PLAN-20260327-application-layer-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-application-layer-convergence.md)。
+- 已将后端实施边界、前端联调边界和回滚原则写回 `current-status.md` / `handoff.md`，后续线程可直接按计划执行。
 
 ### 后端线程
-- 可以直接复用位置、设备、能耗、告警、碳排放、维护、巡检、预测、审计、权限、接入健康等底座能力。
-- 已完成本轮最小迁移：
-  - `LocationType` 新增 `park/campus/site`，位置主线对象可直接表达园区层级
-  - 新增 `/campus/*` 聚合接口，服务园区总览、区域/楼栋统计、能源介质占比、分项统计、实时负荷趋势、告警汇总
-  - 保留旧 `/energy/*`、`/locations/*`、`/analysis/{device_id}` 接口兼容
-  - 默认 `app_name` 与 FastAPI 描述已切换为园区 EMS 语境
+- 已按计划完成三条主路径的第一批 application 收敛：
+  - `devices/data`：endpoint 不再直接做访问控制和审计，application 接管权限前置、payload 编排、审计收口。
+  - `analysis`：endpoint 不再直接做设备访问前置，application 接管访问校验与响应 DTO 装配。
+  - `reports`：endpoint 不再直接做 `report_type` 分发和 CSV 主体装配，application 接管报表分发与导出 payload 组装。
+- 已新增 [app/services/report_service.py](/Users/todo/MineEnergySystem/app/services/report_service.py) 作为稳定查询服务，避免 application 直接承载 ORM 报表查询细节。
+- 已保持接口路径、请求参数、主要返回字段和 CSV 主要结构兼容；本轮没有做数据库 schema 变更。
 
 ---
 
 ## 当前阻塞点
-- `README.md`、功能文档、部署文档和脚本说明中的煤矿语义仍然较多，后续如果只改页面不改文档，会继续造成认知撕裂。
-- 历史 `MineScene` 相关 3D 能力短期不一定删除，但若继续以煤矿命名暴露在主导航，会持续把产品认知拉回矿区方向。
-- 若后端后续不补园区 / 区域 / 楼栋聚合接口，前端即使完成文案迁移，也很难真正形成园区 EMS 主线体验。
+- 探索线程已给出函数级证据，当前无分析阻塞。
+- 当前唯一需要控制的是范围：若后端实施时扩散到三条主路径之外，就会偏离本轮目标。
 
 ---
 
 ## 当前待办
 
-### 探索线程
-- [x] 输出园区 EMS 迁移分析文档
-- [x] 给出前后端最小迁移任务
-- [x] 更新 `current-status.md` / `handoff.md`
-
-### 前端线程
-- [x] 将首页改造成园区能源驾驶舱
-- [x] 将“矿区总览”降级或改造为“园区总览”
-- [x] 统一菜单、登录页、系统标题和页面文案的园区 EMS 语境
+### 规范线程
+- [x] 产出正式计划文档
+- [x] 回写 `current-status.md` / `handoff.md`
+- [x] 将后端 / 前端执行边界写清楚
+- [ ] 等待后端线程按计划实施后回写进度
 
 ### 后端线程
-- [x] 保留现有模型底座，优先补园区 / 区域 / 楼栋聚合接口
-- [x] 审视默认配置和对象描述中的煤矿语义，逐步切换到园区 EMS 语境
-- [x] 不扩大煤矿专属兼容能力的影响面
+- [x] 只在 `devices/data`、`analysis`、`reports` 三条主路径内实施 application 收敛
+- [x] 让 endpoint 只保留 HTTP 适配，application 接管编排，service 回收越界职责
+- [x] 补充或更新与三条主路径直接相关的测试
+- [x] 实施后回写计划进度、验证结果与剩余风险
+
+### 前端线程
+- [x] 仅为 `devices/data`、`analysis`、`reports` 相关接口变化做联调准备与最小适配
+- [x] 默认保持现有页面结构，不提前做页面重构
+- [x] 若发现返回字段变化，先核对 `handoff.md`，不自行扩张为前端改版任务
 
 ---
 
 ## 修改文件
-- frontend/index.html
-- frontend/src/router/index.ts
-- frontend/src/layout/Layout.vue
-- frontend/src/views/CampusScene.vue
-- env.example
-- env.local.example
-- env.prod.example
-- README.md
-- app/__init__.py
-- app/api/README.md
-- monitoring/grafana/provisioning/dashboards/dashboards.yml
-- monitoring/grafana/dashboards/campus_overview.json
-- monitoring/grafana/dashboards/api_reliability.json
-- monitoring/grafana/dashboards/logs_overview.json
-- monitoring/grafana/dashboards/mqtt_observability.json
-- app/models/tables.py
-- app/core/settings.py
-- app/main.py
-- app/api/endpoints/__init__.py
-- app/api/endpoints/locations.py
-- app/api/endpoints/campus.py
-- app/api/router_registry.py
+- frontend/src/api/telemetry.ts
+- frontend/src/api/report.ts
+- frontend/src/views/Report.vue
+- app/application/__init__.py
+- app/application/device_reporting.py
+- app/application/analysis.py
+- app/application/reporting.py
+- app/api/endpoints/devices/data.py
+- app/api/endpoints/analysis.py
+- app/api/endpoints/reports.py
+- app/services/analysis_service.py
+- app/services/report_service.py
 - app/services/__init__.py
-- app/services/campus_service.py
-- tests/test_campus_endpoints.py
-- tests/test_location_types.py
+- tests/test_application_use_cases.py
+- tests/test_reports_integration.py
+- tests/test_endpoint_application_convergence.py
 - docs/plans/current-status.md
 - docs/plans/handoff.md
 
 ---
 
 ## 验证结果
-- 已收敛本轮命名范围：优先修改用户可见站点名、默认应用名、路由 URL 与低风险仪表盘文件名，暂未动数据库名、MQTT topic、监控指标前缀等兼容层。
-- 已阅读 `docs/guides/product-positioning.md`、`docs/guides/backend-guidelines.md`、`docs/plans/park-ems-migration-analysis.md`。
+- 已阅读规范入口：`docs/guides/README.md`、`docs/guides/文档体系规范.md`、`docs/guides/变更计划规范.md`、`docs/guides/backend-guidelines.md`、`docs/plans/README.md`、`docs/plans/TEMPLATE.md`。
+- 已阅读协作文档：`docs/plans/current-status.md`、`docs/plans/handoff.md`。
+- 已核对探索线程写回的函数级证据，并复核 `devices/data`、`analysis`、`reports` 当前实现。
 - 已执行 `python3 -m compileall -q app tests`，编译通过。
-- 已执行 `./venv/bin/python -m unittest tests.test_campus_endpoints tests.test_location_types tests.test_layer_exports`，测试通过。
+- 已执行 `./venv/bin/python -m unittest tests.test_application_use_cases tests.test_reports_integration tests.test_layer_exports tests.test_endpoint_application_convergence`，21 个测试通过。
 - 已执行 `./venv/bin/python -c "import app.main; print('ok')"`，主应用导入通过。
-- 本轮新增园区聚合接口，未删除旧接口，未推翻数据库结构。
+- 目标 endpoint 最小可用性已通过单测验证：
+  - `devices/data` endpoint 只委托 application
+  - `analysis` endpoint 只委托 application
+  - `reports/export_csv` 通过集成测试验证导出行为仍可用
+- 前端已完成三条主路径依赖审计：
+  - `devices/data` / `analysis`：`frontend/src/api/telemetry.ts`、`frontend/src/features/dashboard/composables/useDashboardRealtime.ts`、`frontend/src/views/CampusScene.vue`
+  - `reports`：`frontend/src/api/report.ts`、`frontend/src/views/Report.vue`
+- 已做最小前端适配：
+  - `telemetry.ts` 增加 wrapped / unwrapped 返回兼容与数值字段归一化
+  - `report.ts` / `Report.vue` 增加与后端文件命名规则更接近的导出文件名兜底
+- 已执行 `cd frontend && npm run build`，构建通过
 
 ---
 
 ## 剩余风险
-- `CampusService` 当前是兼容型聚合层，区域/楼栋统计和分项统计主要依赖现有 `Location` 祖先链、`Device.device_category` 与 `EnergyData` 汇总，后续若要更精细口径，仍建议补专门的分项模型或统计表。
-- MQTT topic、数据库名、指标前缀等深层历史命名本轮未改，避免影响既有运行链路。
-- `park/campus/site` 已加入位置类型，但现有存量数据不会自动迁移为这些类型，前端若要展示真实园区层级，还需要配合新增或整理位置数据。
+- 若后端线程把本轮任务理解成“全项目分层重构”，范围会失控。
+- 若前端线程提前按猜测调整字段或页面，会放大联调成本。
+- 若实施后不回写计划和 handoff，后续线程容易再次回到各自理解的状态。
+- `DeviceService.report_device_data` 这一旧 helper 仍保留在 service 中作为兼容能力，但主路径已不再通过它编排；若后续要继续收敛，可在下一轮逐步降级其直接使用面。
+- `reports` 主路径已收口到 application，但报表行查询仍分散在 `ReportService` 与 `EnergyRepository` 两层，属于当前计划允许的最小兼容方案，不在本轮继续下探 repository 重构。
+- 前端当前没有直接调用 `POST /devices/{device_id}/data` 或 `GET /devices/{device_id}/statistics`；真正受影响的是把 `GET /devices/{device_id}/data` 当历史趋势源的页面，以及直接消费 `/analysis/{device_id}` 原始字段的页面。
+- `Dashboard.vue` 与 `CampusScene.vue` 仍在前端自行拼区域排行、在线状态和总负荷口径；这类页面如果后续要切到稳定驾驶舱口径，仍需后端补 application 层统一聚合接口。
+- `Report.vue` 仍依赖浏览器按 blob 下载成功来判断导出成功，且当前 axios 拦截器不暴露 `Content-Disposition`；若后端后续调整下载头或流式错误语义，需要再做一轮前端联调确认。

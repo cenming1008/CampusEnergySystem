@@ -23,34 +23,57 @@ from app.application.forecasting import (
     train_lstm_model_use_case,
 )
 from app.application.reporting import list_energy_report_rows_use_case
+from app.application.reporting import build_report_csv_export_use_case
 from app.application.telemetry_ingestion import ingest_telemetry_use_case
 
 
 class TestApplicationUseCases(unittest.TestCase):
-    @patch("app.application.device_reporting.DeviceService.report_device_data")
-    def test_report_device_data_use_case_delegates_to_device_service(self, mock_report_device_data):
+    @patch("app.application.device_reporting.audit_log")
+    @patch("app.application.device_reporting.EnergyService.save_energy_data")
+    @patch("app.application.device_reporting.normalize_device_report_payload")
+    @patch("app.application.device_reporting.ensure_device_access")
+    def test_report_device_data_use_case_orchestrates_access_audit_and_energy_save(
+        self,
+        mock_ensure_access,
+        mock_normalize_payload,
+        mock_save_energy_data,
+        mock_audit_log,
+    ):
         session = MagicMock()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        mock_ensure_access.return_value = SimpleNamespace(device_type="load", energy_type="electricity")
+        mock_normalize_payload.return_value = SimpleNamespace(
+            consumption=1.2,
+            flow_rate=0.8,
+            optional_fields={"voltage": 220.0},
+        )
         fake_record = SimpleNamespace(device_id=1)
-        mock_report_device_data.return_value = fake_record
+        mock_save_energy_data.return_value = fake_record
 
         result = report_device_data_use_case(
             session=session,
+            current_user=current_user,
             device_id=1,
             data={"consumption": 1.2, "power": 0.8},
             timestamp=datetime(2026, 3, 24, 12, 0, 0),
         )
 
         self.assertIs(result, fake_record)
-        mock_report_device_data.assert_called_once()
+        mock_ensure_access.assert_called_once_with(session, current_user, 1)
+        mock_save_energy_data.assert_called_once()
+        mock_audit_log.assert_called_once()
 
     @patch("app.application.device_reporting.DeviceService.get_device_data")
-    def test_get_device_data_use_case_delegates_to_device_service(self, mock_get_device_data):
+    @patch("app.application.device_reporting.ensure_device_access")
+    def test_get_device_data_use_case_checks_access_then_reads_service(self, mock_ensure_access, mock_get_device_data):
         session = MagicMock()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
         fake_rows = [SimpleNamespace(device_id=1)]
         mock_get_device_data.return_value = fake_rows
 
         result = get_device_data_use_case(
             session=session,
+            current_user=current_user,
             device_id=1,
             start_time=datetime(2026, 3, 24, 0, 0, 0),
             end_time=datetime(2026, 3, 24, 23, 59, 59),
@@ -58,15 +81,23 @@ class TestApplicationUseCases(unittest.TestCase):
         )
 
         self.assertEqual(result, fake_rows)
+        mock_ensure_access.assert_called_once_with(session, current_user, 1)
         mock_get_device_data.assert_called_once()
 
     @patch("app.application.device_reporting.DeviceService.get_device_statistics")
-    def test_get_device_statistics_use_case_delegates_to_device_service(self, mock_get_device_statistics):
+    @patch("app.application.device_reporting.ensure_device_access")
+    def test_get_device_statistics_use_case_checks_access_then_reads_service(
+        self,
+        mock_ensure_access,
+        mock_get_device_statistics,
+    ):
         session = MagicMock()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
         mock_get_device_statistics.return_value = {"total_consumption": 42}
 
         result = get_device_statistics_use_case(
             session=session,
+            current_user=current_user,
             device_id=1,
             start_time=datetime(2026, 3, 24, 0, 0, 0),
             end_time=datetime(2026, 3, 24, 23, 59, 59),
@@ -74,6 +105,7 @@ class TestApplicationUseCases(unittest.TestCase):
         )
 
         self.assertEqual(result["total_consumption"], 42)
+        mock_ensure_access.assert_called_once_with(session, current_user, 1)
         mock_get_device_statistics.assert_called_once()
 
     @patch("app.application.telemetry_ingestion.IngestionHealthService.mark_ingestion_success")
@@ -112,24 +144,71 @@ class TestApplicationUseCases(unittest.TestCase):
         mock_mark_ingestion_success.assert_called_once()
 
     @patch("app.application.analysis.AnalysisService.analyze_device")
-    def test_analyze_device_use_case_delegates_to_analysis_service(self, mock_analyze_device):
+    @patch("app.application.analysis.ensure_device_access")
+    def test_analyze_device_use_case_builds_response_in_application(self, mock_ensure_access, mock_analyze_device):
         session = MagicMock()
-        mock_analyze_device.return_value = {"device_id": 7, "today_energy": 9.8}
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        mock_analyze_device.return_value = {
+            "is_active": True,
+            "latest": SimpleNamespace(flow_rate=4.567, voltage=219.95, current=10.127),
+            "today_energy": 9.812,
+            "today_cost": 5.436,
+        }
 
-        result = analyze_device_use_case(session=session, device_id=7)
+        result = analyze_device_use_case(session=session, current_user=current_user, device_id=7)
 
-        self.assertEqual(result["today_energy"], 9.8)
+        self.assertEqual(result["device_id"], 7)
+        self.assertEqual(result["today_energy"], 9.81)
+        self.assertEqual(result["current_power"], 4.57)
+        mock_ensure_access.assert_called_once_with(session, current_user, 7)
         mock_analyze_device.assert_called_once_with(session, 7)
 
-    @patch("app.application.reporting.EnergyRepository.list_energy_report_rows")
-    def test_list_energy_report_rows_use_case_delegates_to_repository(self, mock_list_rows):
+    @patch("app.application.reporting.ReportService.list_energy_report_rows")
+    def test_list_energy_report_rows_use_case_delegates_to_report_service(self, mock_list_rows):
         session = MagicMock()
         mock_list_rows.return_value = [(SimpleNamespace(device_id=1), "Device A")]
 
         result = list_energy_report_rows_use_case(session=session, limit=123)
 
         self.assertEqual(len(result), 1)
-        mock_list_rows.assert_called_once_with(session=session, limit=123)
+        mock_list_rows.assert_called_once_with(
+            session=session,
+            current_user=None,
+            device_id=None,
+            energy_type=None,
+            start_time=None,
+            end_time=None,
+            limit=123,
+        )
+
+    @patch("app.application.reporting.list_energy_report_rows_use_case")
+    def test_build_report_csv_export_use_case_builds_csv_payload(self, mock_list_energy_rows):
+        session = MagicMock()
+        mock_list_energy_rows.return_value = [
+            (
+                SimpleNamespace(
+                    timestamp=SimpleNamespace(strftime=lambda fmt: "2026-03-26 10:00:00"),
+                    device_id=1,
+                    energy_type="electricity",
+                    voltage=380.0,
+                    current=10.0,
+                    flow_rate=5.5,
+                    consumption=12.3,
+                ),
+                "一号设备",
+            )
+        ]
+
+        payload = build_report_csv_export_use_case(
+            session=session,
+            current_user=None,
+            report_type="energy_detail",
+            limit=10,
+        )
+
+        self.assertEqual(payload.filename, "energy_detail_20260327.csv")
+        self.assertIn("设备名称", payload.content)
+        self.assertIn("一号设备", payload.content)
 
     @patch("app.application.energy_management.EnergyService.save_energy_data")
     def test_save_energy_data_use_case_delegates_to_energy_service(self, mock_save_energy_data):

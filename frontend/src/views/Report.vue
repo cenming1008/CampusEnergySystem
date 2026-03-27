@@ -4,7 +4,7 @@ import { Download, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 import { getDevices, type Device } from '@/api/device'
-import { downloadReport, type ReportType } from '@/api/report'
+import { buildReportDownloadName, downloadReport, type ReportType } from '@/api/report'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePermissions } from '@/shared/composables/usePermissions'
 
@@ -77,7 +77,7 @@ async function handleDownload() {
     link.href = url
     link.setAttribute(
       'download',
-      `${filters.value.report_type}_${new Date().toISOString().slice(0, 10)}.csv`
+      buildReportDownloadName(filters.value)
     )
     document.body.appendChild(link)
     link.click()

@@ -4,13 +4,42 @@
 
 from __future__ import annotations
 
+import csv
+import io
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
-from app.models.tables import Alarm, CarbonEmission, Device, User
-from app.repositories.energy_repository import EnergyRepository
+from app.models.tables import User
+from app.services.report_service import ReportService
+
+
+@dataclass
+class CsvExportPayload:
+    filename: str
+    content: str
+
+
+REPORT_DEFINITIONS = {
+    "energy_detail": {
+        "headers": ["时间", "设备ID", "设备名称", "能源类型", "电压(V)", "电流(A)", "功率/流量", "累计消耗"],
+        "rows_loader": "energy",
+    },
+    "alarm_history": {
+        "headers": ["时间", "设备ID", "设备名称", "严重级别", "是否已恢复", "消息", "恢复人", "恢复时间"],
+        "rows_loader": "alarm",
+    },
+    "carbon_emission": {
+        "headers": ["时间", "设备ID", "设备名称", "能源类型", "能耗", "碳排放"],
+        "rows_loader": "carbon",
+    },
+}
+
+
+def _safe_filename_date(value: Optional[datetime]) -> str:
+    return value.strftime("%Y%m%d") if value else datetime.now().strftime("%Y%m%d")
 
 
 def list_energy_report_rows_use_case(
@@ -23,18 +52,15 @@ def list_energy_report_rows_use_case(
     limit: int = 1000,
 ):
     """统一报表导出数据读取入口。"""
-    query_kwargs = {"session": session, "limit": limit}
-    if current_user is not None:
-        query_kwargs["current_user"] = current_user
-    if device_id is not None:
-        query_kwargs["device_id"] = device_id
-    if energy_type is not None:
-        query_kwargs["energy_type"] = energy_type
-    if start_time is not None:
-        query_kwargs["start_time"] = start_time
-    if end_time is not None:
-        query_kwargs["end_time"] = end_time
-    return EnergyRepository.list_energy_report_rows(**query_kwargs)
+    return ReportService.list_energy_report_rows(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
+        energy_type=energy_type,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
 
 
 def list_alarm_report_rows_use_case(
@@ -46,22 +72,15 @@ def list_alarm_report_rows_use_case(
     end_time: Optional[datetime] = None,
     limit: int = 1000,
 ) -> list[tuple[Alarm, Optional[str]]]:
-    statement = select(Alarm, Device.name).join(Device, Device.id == Alarm.device_id).order_by(Alarm.timestamp.desc()).limit(limit)
-    if current_user is not None:
-        allowed_location_ids = EnergyRepository.resolve_allowed_location_ids(current_user)
-        if allowed_location_ids is not None:
-            if not allowed_location_ids:
-                return []
-            statement = statement.where(Device.location_id.in_(allowed_location_ids))
-    if device_id:
-        statement = statement.where(Alarm.device_id == device_id)
-    if resolved is not None:
-        statement = statement.where(Alarm.is_resolved == resolved)
-    if start_time:
-        statement = statement.where(Alarm.timestamp >= start_time)
-    if end_time:
-        statement = statement.where(Alarm.timestamp <= end_time)
-    return list(session.exec(statement).all())
+    return ReportService.list_alarm_report_rows(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
+        resolved=resolved,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
 
 
 def list_carbon_report_rows_use_case(
@@ -73,24 +92,100 @@ def list_carbon_report_rows_use_case(
     end_time: Optional[datetime] = None,
     limit: int = 1000,
 ) -> list[tuple[CarbonEmission, Optional[str]]]:
-    statement = (
-        select(CarbonEmission, Device.name)
-        .join(Device, Device.id == CarbonEmission.device_id)
-        .order_by(CarbonEmission.timestamp.desc())
-        .limit(limit)
+    return ReportService.list_carbon_report_rows(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
+        energy_type=energy_type,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
     )
-    if current_user is not None:
-        allowed_location_ids = EnergyRepository.resolve_allowed_location_ids(current_user)
-        if allowed_location_ids is not None:
-            if not allowed_location_ids:
-                return []
-            statement = statement.where(Device.location_id.in_(allowed_location_ids))
-    if device_id:
-        statement = statement.where(CarbonEmission.device_id == device_id)
-    if energy_type:
-        statement = statement.where(CarbonEmission.energy_type == energy_type)
-    if start_time:
-        statement = statement.where(CarbonEmission.timestamp >= start_time)
-    if end_time:
-        statement = statement.where(CarbonEmission.timestamp <= end_time)
-    return list(session.exec(statement).all())
+
+
+def build_report_csv_export_use_case(
+    session: Session,
+    current_user: Optional[User],
+    report_type: str,
+    device_id: Optional[int] = None,
+    energy_type: Optional[str] = None,
+    resolved: Optional[bool] = None,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    limit: int = 1000,
+) -> CsvExportPayload:
+    normalized_report_type = report_type.strip().lower()
+    report_definition = REPORT_DEFINITIONS.get(normalized_report_type)
+    if report_definition is None:
+        raise ValueError(f"不支持的报表类型: {report_type}")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(report_definition["headers"])
+
+    if report_definition["rows_loader"] == "energy":
+        rows = list_energy_report_rows_use_case(
+            session=session,
+            current_user=current_user,
+            device_id=device_id,
+            energy_type=energy_type,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        for data, device_name in rows:
+            writer.writerow([
+                data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                data.device_id,
+                device_name,
+                data.energy_type,
+                data.voltage,
+                data.current,
+                data.flow_rate,
+                data.consumption,
+            ])
+    elif report_definition["rows_loader"] == "alarm":
+        rows = list_alarm_report_rows_use_case(
+            session=session,
+            current_user=current_user,
+            device_id=device_id,
+            resolved=resolved,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        for alarm, device_name in rows:
+            writer.writerow([
+                alarm.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                alarm.device_id,
+                device_name,
+                alarm.severity,
+                "是" if alarm.is_resolved else "否",
+                alarm.message,
+                alarm.resolved_by or "",
+                alarm.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if alarm.resolved_at else "",
+            ])
+    else:
+        rows = list_carbon_report_rows_use_case(
+            session=session,
+            current_user=current_user,
+            device_id=device_id,
+            energy_type=energy_type,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        for data, device_name in rows:
+            writer.writerow([
+                data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                data.device_id,
+                device_name,
+                data.energy_type,
+                data.energy_consumption,
+                data.carbon_emission,
+            ])
+
+    return CsvExportPayload(
+        filename=f"{normalized_report_type}_{_safe_filename_date(end_time or start_time)}.csv",
+        content=output.getvalue(),
+    )

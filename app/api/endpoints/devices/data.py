@@ -17,8 +17,6 @@ from app.application.device_reporting import (
     get_device_statistics_use_case,
     report_device_data_use_case,
 )
-from app.core.access_control import ensure_device_access
-from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.response import success_response
@@ -45,18 +43,12 @@ def report_device_data(
     ),
 ):
     try:
-        ensure_device_access(session, current_user, device_id)
         result = report_device_data_use_case(
             session=session,
+            current_user=current_user,
             device_id=device_id,
             data=req.model_dump(exclude_none=True),
             timestamp=req.timestamp,
-        )
-        audit_log(
-            "device.report_data",
-            current_user.username,
-            f"device:{device_id}",
-            role=current_user.role,
         )
         return result
     except ValueError as exc:
@@ -75,9 +67,9 @@ def get_device_data(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    ensure_device_access(session, current_user, device_id)
     return get_device_data_use_case(
         session=session,
+        current_user=current_user,
         device_id=device_id,
         start_time=start_time,
         end_time=end_time,
@@ -94,9 +86,9 @@ def get_device_statistics(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    ensure_device_access(session, current_user, device_id)
     stats = get_device_statistics_use_case(
         session=session,
+        current_user=current_user,
         device_id=device_id,
         start_time=start_time,
         end_time=end_time,

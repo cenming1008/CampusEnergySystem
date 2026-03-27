@@ -45,7 +45,11 @@ class ReportIntegrationTest(unittest.TestCase):
             window_seconds=reports.settings.report_export_rate_limit_window_seconds,
         )] = lambda: None
 
-        with patch.object(reports, "list_energy_report_rows_use_case", return_value=fake_rows):
+        with patch.object(
+            reports,
+            "build_report_csv_export_use_case",
+            return_value=SimpleNamespace(filename="energy_detail_20260326.csv", content="时间,设备ID,设备名称\n2026-03-26 10:00:00,1,一号设备\n"),
+        ):
             response = self.client.get("/reports/export_csv", params={"report_type": "energy_detail"})
 
         self.assertEqual(response.status_code, 200)
@@ -76,7 +80,11 @@ class ReportIntegrationTest(unittest.TestCase):
             window_seconds=reports.settings.report_export_rate_limit_window_seconds,
         )] = lambda: None
 
-        with patch.object(reports, "list_alarm_report_rows_use_case", return_value=fake_rows):
+        with patch.object(
+            reports,
+            "build_report_csv_export_use_case",
+            return_value=SimpleNamespace(filename="alarm_history_20260326.csv", content="时间,设备ID,设备名称,严重级别,是否已恢复,消息\n2026-03-26 10:00:00,2,二号设备,critical,否,通讯中断\n"),
+        ):
             response = self.client.get("/reports/export_csv", params={"report_type": "alarm_history"})
 
         self.assertEqual(response.status_code, 200)

@@ -12,6 +12,15 @@ export interface ReportDownloadParams {
   limit?: number
 }
 
+function resolveReportDateSegment(params: ReportDownloadParams) {
+  const raw = params.end_time || params.start_time || new Date().toISOString()
+  return raw.slice(0, 10).replaceAll('-', '')
+}
+
+export function buildReportDownloadName(params: ReportDownloadParams) {
+  return `${params.report_type}_${resolveReportDateSegment(params)}.csv`
+}
+
 export function downloadReport(params: ReportDownloadParams) {
   return request.get<never, Blob>('/reports/export_csv', {
     params,
