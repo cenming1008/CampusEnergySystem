@@ -30,9 +30,14 @@
 
 - `docs/02-功能使用/统一设备管理指南.md` 写“内置 11 种设备类型”，代码注册表实际为 10 种。
 - 用户输入中的 `frontend/src/views/DeviceManagement.vue` 在仓库中不存在，实际文件为 `frontend/src/views/DeviceManager.vue`。
-- 当前 `current-status.md`、`handoff.md` 顶部规范块仍主要围绕 2026-03-27 的多能源主题，本轮需要以本 PLAN 为准，定点覆盖设备分类与对象分层建模相关的规范块。
+- 此前 `current-status.md`、`handoff.md` 主区曾混有 2026-03-27 多能源主题残留，本轮已按本 PLAN 收敛为设备分类与对象分层建模主主题。
 - `device_registry` 中已声明的 `irradiance`、`wind_speed`、`soc`、`charging_status` 等字段，并未被当前 payload schema、规范化逻辑和落库模型完整承接，存在“注册表定义”和“实际承载能力”不一致。
 - 前端当前仍主要通过 `device_type / device_category / energy_type` 以及 `EnergyData` 宽表字段推断对象语义，尚未形成独立的计量对象 / 点位对象消费模型。
+
+本 PLAN 直接吸收上述两类问题，作为本轮必须持续核对的执行前提：
+
+- `device_registry` 不等于真实承载能力；凡是注册表已声明、但 schema / payload / model 未承接的字段，必须在本轮按“补齐承接”或“明确仅为预留定义”二选一收敛，不能继续模糊存在。
+- 前端当前仍以旧标签和宽表字段猜对象语义；本轮后端和规范输出必须以“兼容新增字段 + 边界说明”为主，不能默认前端已经具备独立对象层消费能力。
 
 ---
 
@@ -114,6 +119,33 @@
 - 全量 meter / point / relation schema 体系
 - 驾驶舱页面大改版
 
+### 4.4 本轮必须显式约束的关键问题
+
+#### A. `device_registry` 与真实承接链路不一致
+
+- 当前注册表已声明的部分字段，不能直接视为系统已完整支持。
+- 本轮必须持续核对以下链路是否一致：
+  - `device_registry`
+  - 请求 schema
+  - payload 规范化
+  - 落库模型
+  - 对外接口说明
+- 若某字段仍未被完整承接，必须明确标注为“预留定义”或“兼容未落库”，不能继续留在模糊状态。
+
+#### B. 前端仍以旧标签和宽表字段猜对象语义
+
+- 当前前端仍主要依赖：
+  - `device_type`
+  - `device_category`
+  - `energy_type`
+  - `EnergyData` 宽表字段是否有值
+- 这说明当前页面还不能把旧字段当作完整对象模型。
+- 本轮后端和规范输出必须优先提供：
+  - 兼容新增对象语义字段
+  - 公共层 / 专属层 / 兼容层说明
+  - 宽表空值与“本对象无此语义字段”的边界说明
+- 本轮前端只允许按这些说明做最小联调，不允许反向把旧猜测逻辑写回规范。
+
 ---
 
 ## 5. 实施步骤
@@ -142,6 +174,7 @@
 - 对 `EnergyData` 中可空专属字段做第一批公共层 / 专属层 / 兼容层语义治理。
 - 校正 `device_registry`、请求 schema、payload 规范化、落库模型之间的能力不一致。
 - 对设备 API、能耗 API 的对象语义补齐说明字段或兼容字段策略，但不做大规模路径重命名。
+- 对注册表已声明但未完整承接的字段，明确是补齐链路还是保留为预留定义。
 
 独立验收：
 - `Device` / `EnergyData` / `device_registry` 的第一批语义约束已落地。
@@ -156,6 +189,7 @@
 - `frontend/src/api/device.ts`、`frontend/src/api/energy.ts` 优先补齐对象语义、计量语义、兼容字段说明。
 - `frontend/src/views/DeviceManager.vue`、`frontend/src/views/EnergyManagement.vue` 只做最小消费适配，不调整整体页面结构。
 - 前端优先消费“兼容新增字段”或“语义说明字段”，不要假设后端已经完成完整 meter / point 对象建模。
+- 前端联调时不得继续以旧标签或宽表空值直接替代对象边界判断。
 
 独立验收：
 - 前端已完成最小联调准备或最小适配。
@@ -232,6 +266,8 @@
 - [ ] 前端线程已完成最小联调准备或最小适配。
 - [ ] `Device` / `EnergyData` / 相关接口的第一批语义说明已补齐，并通过测试或静态核对。
 - [ ] 已明确哪些字段属于公共层、哪些字段属于专属层、哪些字段本轮只保留兼容不扩张。
+- [ ] 已明确 `device_registry` 中预留字段与真实 schema / payload / model 承接能力的对应关系。
+- [ ] 已明确前端不得再通过 `device_type / device_category / energy_type / EnergyData` 宽表字段猜完整对象语义。
 - [ ] `current-status.md`、`handoff.md`、正式 PLAN 三者内容一致。
 - [ ] 已明确记录剩余风险与未纳入本轮的事项。
 
@@ -244,6 +280,7 @@
 - 2026-03-28：后端第一批已实施，已完成 `Device`、`EnergyData`、`device_registry`、设备 / 能源接口的第一批语义收敛，并保持接口兼容。
 - 2026-03-28：前端已完成依赖审计与最小适配，范围控制在 `device.ts`、`energy.ts`、`DeviceManager.vue`、`EnergyManagement.vue`。
 - 2026-03-28：验收已执行；前端 API 类型层对第一批对象语义兼容字段的承接已完成，当前正式 PLAN 已与 `current-status.md`、`handoff.md` 和实际实现状态对齐。下一步应交由验收线程复核三者一致性，并决定是否正式收口。
+- 2026-03-28：规范 / 验收已完成 `docs/plans/` 主区收敛；`current-status.md` 与 `handoff.md` 已回到当前态入口与当前交接入口角色，本 PLAN 当前可独立承担执行依据。
 
 ---
 
