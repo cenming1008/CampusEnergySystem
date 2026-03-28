@@ -22,6 +22,12 @@ OPTIONAL_REPORT_FIELDS = (
     "quality_index",
 )
 
+ENERGY_DATA_PUBLIC_FIELDS = (
+    "consumption",
+    "flow_rate",
+    "timestamp",
+)
+
 
 @dataclass(frozen=True)
 class DeviceReportPayload:
@@ -69,16 +75,48 @@ def build_device_create_fields(
     }
 
 
+def describe_device_type_semantics(device_type: str) -> dict[str, Any]:
+    """返回设备类型的第一批对象语义。"""
+    config = get_device_type_config(device_type)
+    return config.to_semantic_dict()
+
+
+def describe_energy_data_fields(device_type: str) -> dict[str, Any]:
+    """返回当前设备类型对应的 EnergyData 公共层 / 专属层语义。"""
+    config = get_device_type_config(device_type)
+    return {
+        "device_type": config.device_type,
+        "energy_type": config.energy_type.value,
+        "public_fields": list(ENERGY_DATA_PUBLIC_FIELDS),
+        "specialized_fields": list(config.specialized_fields),
+        "required_fields": list(config.required_fields),
+        "optional_fields": list(config.optional_fields),
+        "compatible_aliases": dict(config.compatible_aliases),
+        "null_field_rule": "nullable_specialized_field_means_not_applicable_or_not_reported",
+        "point_kind": config.point_kind,
+        "measurement_subject": config.measurement_subject,
+        "consumption_unit": config.consumption_unit,
+        "flow_unit": config.flow_unit,
+    }
+
+
 def normalize_device_report_payload(device_type: str, data: dict[str, Any]) -> DeviceReportPayload:
     """将设备上报数据规范化成统一入库结构。"""
     config = get_device_type_config(device_type)
     normalized = dict(data)
+
+    for source_field, target_field in config.compatible_aliases.items():
+        if target_field not in normalized and source_field in normalized:
+            normalized[target_field] = normalized[source_field]
 
     if "flow_rate" not in normalized and "power" in normalized:
         normalized["flow_rate"] = normalized["power"]
 
     if "heat_flow" not in normalized and "heat_power" in normalized:
         normalized["heat_flow"] = normalized["heat_power"]
+
+    if "flow_rate" not in normalized and "heat_flow" in normalized:
+        normalized["flow_rate"] = normalized["heat_flow"]
 
     if "flow_rate" not in normalized and "cooling_power" in normalized:
         normalized["flow_rate"] = normalized["cooling_power"]

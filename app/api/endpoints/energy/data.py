@@ -134,6 +134,11 @@ def get_energy_overview(
         "overview_boundary": "multi_energy_first_batch",
         "unit_rule": "累计量按时段首末差值统计；瞬时量按样本均值和峰值统计；不同能源不直接混算。",
         "cross_energy_mix_allowed": False,
+        "field_boundary_rule": "consumption/flow_rate 属于公共层；其余 nullable 字段属于专属扩展层，不保证所有能源对象都适用。",
+        "energy_profiles": {
+            energy_type: EnergyService.get_energy_type_profile(energy_type)
+            for energy_type in energy_types
+        },
         "carbon_summary": EnergyService.get_carbon_summary(
             session=session,
             start_time=start_time,
@@ -155,7 +160,7 @@ def get_energy_types():
                 "label": option["label"],
                 "unit": option["unit"],
                 "flow_unit": option["flow_unit"],
-                **EnergyService.get_energy_semantics(option["value"]),
+                **EnergyService.get_energy_type_profile(option["value"]),
             }
             for option in ENERGY_TYPE_OPTIONS
         ],
@@ -170,4 +175,5 @@ def get_energy_types():
             {"value": DeviceCategory.STORAGE, "label": "储能设备"},
             {"value": DeviceCategory.CHARGER, "label": "充电桩"},
         ],
+        "device_object_boundary": "Device 仍是统一对象；meter/point 语义本轮通过 device_type registry 和接口元信息兼容表达。",
     }

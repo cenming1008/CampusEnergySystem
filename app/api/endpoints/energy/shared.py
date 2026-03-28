@@ -55,6 +55,11 @@ class EnergyStatisticsResponse(BaseModel):
     flow_semantics: Optional[str] = None
     flow_stat_basis: Optional[str] = None
     meter_reset_suspected: Optional[bool] = None
+    data_object_kind: Optional[str] = None
+    point_kind: Optional[str] = None
+    public_fields: Optional[list[str]] = None
+    specialized_fields: Optional[list[str]] = None
+    null_field_rule: Optional[str] = None
 
 
 class EnergyOverviewResponse(BaseModel):
@@ -65,6 +70,8 @@ class EnergyOverviewResponse(BaseModel):
     overview_boundary: Optional[str] = None
     unit_rule: Optional[str] = None
     cross_energy_mix_allowed: Optional[bool] = None
+    field_boundary_rule: Optional[str] = None
+    energy_profiles: Optional[dict] = None
 
 
 ENERGY_TYPE_OPTIONS = [

@@ -156,7 +156,14 @@ class Location(SQLModel, table=True):
 
 
 class Device(SQLModel, table=True):
-    """设备表"""
+    """设备表。
+
+    第一批对象边界仍使用统一 Device 表，
+    通过 `device_type / device_category / energy_type` 组合兼容表达：
+    - device_type: 具体设备或表计类型
+    - device_category: 面向业务筛选的类别标签
+    - energy_type: 关联的能源类别
+    """
 
     __tablename__ = "device"
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -178,7 +185,7 @@ class Device(SQLModel, table=True):
     is_active: bool = Field(default=True, description="是否启用")
     description: Optional[str] = Field(default=None, description="设备描述")
     rated_capacity: Optional[float] = Field(default=None, description="额定容量/流量")
-    unit: Optional[str] = Field(default=None, description="单位（kW/m³/m³等）")
+    unit: Optional[str] = Field(default=None, description="兼容旧字段：额定容量或主要瞬时量单位，不直接等同于累计量单位")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -257,22 +264,22 @@ class EnergyData(SQLModel, table=True):
     energy_type: str = Field(index=True, description="能源类型")
     
     # 通用字段
-    consumption: float = Field(description="累计消耗量（电表读数/累计值，单位：kWh/m³/GJ）")
-    flow_rate: Optional[float] = Field(default=None, description="瞬时流量/功率（瞬时值，单位：kW/m³/h/GJ/h）")
+    consumption: float = Field(description="公共层字段：累计量/表计读数/累计值")
+    flow_rate: Optional[float] = Field(default=None, description="公共层字段：瞬时量（功率/流量/负荷）")
     
-    # 电力专用字段
+    # 电力专用字段（非电对象为 nullable，不代表同义字段）
     voltage: Optional[float] = Field(default=None, description="电压(V)")
     current: Optional[float] = Field(default=None, description="电流(A)")
     power_factor: Optional[float] = Field(default=None, description="功率因数")
     
-    # 水/气专用字段
+    # 水/气/蒸汽常用扩展字段
     pressure: Optional[float] = Field(default=None, description="压力(MPa/kPa)")
     temperature: Optional[float] = Field(default=None, description="温度(℃)")
     
-    # 热力专用字段
+    # 热/冷常用扩展字段
     supply_temp: Optional[float] = Field(default=None, description="供水温度(℃)")
     return_temp: Optional[float] = Field(default=None, description="回水温度(℃)")
-    heat_flow: Optional[float] = Field(default=None, description="热流量(GJ/h)")
+    heat_flow: Optional[float] = Field(default=None, description="热力专属扩展字段：热流量(GJ/h)，兼容映射到公共瞬时量 flow_rate")
     
     # 质量指标
     quality_index: Optional[float] = Field(default=None, description="质量指标（如水质、气质等）")

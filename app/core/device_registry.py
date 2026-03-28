@@ -1,6 +1,8 @@
 """
-设备类型注册表
-统一管理所有设备类型的元数据和配置
+设备类型注册表。
+
+第一批设备建模收敛仍保留统一 `Device` 对象，
+但通过 registry 显式补齐“设备对象 / 计量对象 / 点位对象”的兼容语义。
 """
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -15,12 +17,24 @@ class DeviceTypeConfig:
     energy_type: EnergyType  # 能源类型枚举
     name_zh: str  # 中文名称
     name_en: str  # 英文名称
-    unit: str  # 单位
+    unit: str  # 兼容旧字段：设备额定容量/主要瞬时量单位
     default_capacity: Optional[float] = None  # 默认额定容量
+
+    # 第一批对象语义
+    object_role: str = "equipment"  # equipment / meter
+    metering_role: str = "embedded_measurement"  # embedded_measurement / dedicated_meter
+    point_kind: str = "energy_point_series"
+    measurement_subject: str = "energy"
+    rated_capacity_unit: Optional[str] = None
+    consumption_unit: Optional[str] = None
+    flow_unit: Optional[str] = None
     
     # 数据字段配置
     required_fields: List[str] = None  # 必需字段
     optional_fields: List[str] = None  # 可选字段
+    public_data_fields: List[str] = None  # EnergyData 公共层字段
+    specialized_fields: List[str] = None  # EnergyData / payload 专属字段
+    compatible_aliases: Dict[str, str] = None  # 上报兼容别名
     
     # 图标和颜色（用于前端展示）
     icon: Optional[str] = None
@@ -31,6 +45,43 @@ class DeviceTypeConfig:
             self.required_fields = []
         if self.optional_fields is None:
             self.optional_fields = []
+        if self.public_data_fields is None:
+            self.public_data_fields = ["consumption", "flow_rate"]
+        if self.specialized_fields is None:
+            self.specialized_fields = []
+        if self.compatible_aliases is None:
+            self.compatible_aliases = {}
+        if self.rated_capacity_unit is None:
+            self.rated_capacity_unit = self.unit
+        if self.consumption_unit is None:
+            self.consumption_unit = self.unit
+        if self.flow_unit is None:
+            self.flow_unit = self.unit
+
+    def to_semantic_dict(self) -> Dict[str, Any]:
+        return {
+            "device_type": self.device_type,
+            "category": self.category.value,
+            "energy_type": self.energy_type.value,
+            "name_zh": self.name_zh,
+            "name_en": self.name_en,
+            "unit": self.unit,
+            "default_capacity": self.default_capacity,
+            "required_fields": self.required_fields,
+            "optional_fields": self.optional_fields,
+            "object_role": self.object_role,
+            "metering_role": self.metering_role,
+            "point_kind": self.point_kind,
+            "measurement_subject": self.measurement_subject,
+            "rated_capacity_unit": self.rated_capacity_unit,
+            "consumption_unit": self.consumption_unit,
+            "flow_unit": self.flow_unit,
+            "public_data_fields": self.public_data_fields,
+            "specialized_fields": self.specialized_fields,
+            "compatible_aliases": self.compatible_aliases,
+            "icon": self.icon,
+            "color": self.color,
+        }
 
 
 class DeviceRegistry:
@@ -59,8 +110,17 @@ class DeviceRegistry:
             name_en="Load Device",
             unit="kW",
             default_capacity=100.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="equipment_energy_point",
+            measurement_subject="electric_power",
+            rated_capacity_unit="kW",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "power"],
             optional_fields=["voltage", "current", "power_factor"],
+            specialized_fields=["voltage", "current", "power_factor"],
+            compatible_aliases={"power": "flow_rate"},
             icon="⚡",
             color="#FFB800"
         ))
@@ -74,8 +134,17 @@ class DeviceRegistry:
             name_en="Solar Panel",
             unit="kW",
             default_capacity=50.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="generation_energy_point",
+            measurement_subject="electric_generation",
+            rated_capacity_unit="kW",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "power"],  # consumption 为负值表示发电
             optional_fields=["voltage", "current", "irradiance", "temperature"],
+            specialized_fields=["voltage", "current", "temperature"],
+            compatible_aliases={"power": "flow_rate"},
             icon="☀️",
             color="#FFA500"
         ))
@@ -89,8 +158,17 @@ class DeviceRegistry:
             name_en="Wind Turbine",
             unit="kW",
             default_capacity=200.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="generation_energy_point",
+            measurement_subject="electric_generation",
+            rated_capacity_unit="kW",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "power"],
             optional_fields=["voltage", "current", "wind_speed"],
+            specialized_fields=["voltage", "current"],
+            compatible_aliases={"power": "flow_rate"},
             icon="💨",
             color="#00BFFF"
         ))
@@ -104,8 +182,17 @@ class DeviceRegistry:
             name_en="Energy Storage",
             unit="kWh",
             default_capacity=500.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="storage_energy_point",
+            measurement_subject="electric_storage",
+            rated_capacity_unit="kWh",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "power"],
             optional_fields=["voltage", "current", "temperature", "soc"],  # soc: 荷电状态（可选）
+            specialized_fields=["voltage", "current", "temperature"],
+            compatible_aliases={"power": "flow_rate"},
             icon="🔋",
             color="#4CAF50"
         ))
@@ -119,8 +206,17 @@ class DeviceRegistry:
             name_en="EV Charger",
             unit="kW",
             default_capacity=60.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="charging_energy_point",
+            measurement_subject="electric_charge",
+            rated_capacity_unit="kW",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "power"],
             optional_fields=["voltage", "current", "charging_status"],
+            specialized_fields=["voltage", "current"],
+            compatible_aliases={"power": "flow_rate"},
             icon="🔌",
             color="#9C27B0"
         ))
@@ -136,8 +232,16 @@ class DeviceRegistry:
             name_en="Water Meter",
             unit="m³/h",
             default_capacity=50.0,
+            object_role="meter",
+            metering_role="dedicated_meter",
+            point_kind="meter_reading_point",
+            measurement_subject="water_volume",
+            rated_capacity_unit="m³/h",
+            consumption_unit="m³",
+            flow_unit="m³/h",
             required_fields=["consumption", "flow_rate"],
             optional_fields=["pressure", "temperature", "quality_index"],
+            specialized_fields=["pressure", "temperature", "quality_index"],
             icon="💧",
             color="#2196F3"
         ))
@@ -153,8 +257,16 @@ class DeviceRegistry:
             name_en="Gas Meter",
             unit="m³/h",
             default_capacity=100.0,
+            object_role="meter",
+            metering_role="dedicated_meter",
+            point_kind="meter_reading_point",
+            measurement_subject="gas_volume",
+            rated_capacity_unit="m³/h",
+            consumption_unit="m³",
+            flow_unit="m³/h",
             required_fields=["consumption", "flow_rate"],
             optional_fields=["pressure", "temperature", "quality_index"],
+            specialized_fields=["pressure", "temperature", "quality_index"],
             icon="🔥",
             color="#FF5722"
         ))
@@ -170,8 +282,17 @@ class DeviceRegistry:
             name_en="Heat Meter",
             unit="GJ/h",
             default_capacity=10.0,
+            object_role="meter",
+            metering_role="dedicated_meter",
+            point_kind="meter_reading_point",
+            measurement_subject="heat_energy",
+            rated_capacity_unit="GJ/h",
+            consumption_unit="GJ",
+            flow_unit="GJ/h",
             required_fields=["consumption", "heat_flow"],
             optional_fields=["supply_temp", "return_temp", "flow_rate", "pressure"],
+            specialized_fields=["heat_flow", "supply_temp", "return_temp", "pressure"],
+            compatible_aliases={"heat_power": "heat_flow", "heat_flow": "flow_rate"},
             icon="🌡️",
             color="#E91E63"
         ))
@@ -187,8 +308,17 @@ class DeviceRegistry:
             name_en="Cooling Meter",
             unit="kW",
             default_capacity=200.0,
+            object_role="meter",
+            metering_role="dedicated_meter",
+            point_kind="meter_reading_point",
+            measurement_subject="cooling_energy",
+            rated_capacity_unit="kW",
+            consumption_unit="kWh",
+            flow_unit="kW",
             required_fields=["consumption", "flow_rate"],
             optional_fields=["supply_temp", "return_temp", "pressure"],
+            specialized_fields=["supply_temp", "return_temp", "pressure"],
+            compatible_aliases={"cooling_power": "flow_rate"},
             icon="❄️",
             color="#00BCD4"
         ))
@@ -204,8 +334,16 @@ class DeviceRegistry:
             name_en="Steam Meter",
             unit="t/h",
             default_capacity=5.0,
+            object_role="meter",
+            metering_role="dedicated_meter",
+            point_kind="meter_reading_point",
+            measurement_subject="steam_mass",
+            rated_capacity_unit="t/h",
+            consumption_unit="t",
+            flow_unit="t/h",
             required_fields=["consumption", "flow_rate"],
             optional_fields=["pressure", "temperature", "quality_index"],
+            specialized_fields=["pressure", "temperature", "quality_index"],
             icon="💨",
             color="#607D8B"
         ))
@@ -261,22 +399,7 @@ class DeviceRegistry:
     
     def to_dict(self) -> List[Dict[str, Any]]:
         """导出为字典列表（用于API响应）"""
-        return [
-            {
-                "device_type": config.device_type,
-                "category": config.category.value,
-                "energy_type": config.energy_type.value,
-                "name_zh": config.name_zh,
-                "name_en": config.name_en,
-                "unit": config.unit,
-                "default_capacity": config.default_capacity,
-                "required_fields": config.required_fields,
-                "optional_fields": config.optional_fields,
-                "icon": config.icon,
-                "color": config.color,
-            }
-            for config in self._registry.values()
-        ]
+        return [config.to_semantic_dict() for config in self._registry.values()]
 
 
 # 全局单例

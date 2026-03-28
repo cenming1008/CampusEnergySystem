@@ -13,6 +13,7 @@ from typing import Optional
 from sqlmodel import Session
 
 from app.core.access_control import get_allowed_device_ids
+from app.domain.device_payloads import describe_device_type_semantics
 from app.models.tables import User
 from app.services.energy_service import EnergyService
 from app.services.report_service import ReportService
@@ -26,7 +27,7 @@ class CsvExportPayload:
 
 REPORT_DEFINITIONS = {
     "energy_detail": {
-        "headers": ["时间", "设备ID", "设备名称", "能源类型", "电压(V)", "电流(A)", "功率/流量", "累计消耗"],
+        "headers": ["时间", "设备ID", "设备名称", "能源类型", "电压(V)", "电流(A)", "功率/流量", "累计消耗", "设备类型", "设备类别", "对象语义", "点位语义"],
         "rows_loader": "energy",
     },
     "alarm_history": {
@@ -34,7 +35,7 @@ REPORT_DEFINITIONS = {
         "rows_loader": "alarm",
     },
     "carbon_emission": {
-        "headers": ["时间", "设备ID", "设备名称", "能源类型", "能耗", "碳排放"],
+        "headers": ["时间", "设备ID", "设备名称", "能源类型", "能耗", "碳排放", "设备类型", "设备类别", "对象语义", "点位语义"],
         "rows_loader": "carbon",
     },
     "multi_energy_summary": {
@@ -191,7 +192,8 @@ def build_report_csv_export_use_case(
             end_time=end_time,
             limit=limit,
         )
-        for data, device_name in rows:
+        for data, device_name, device_type, device_category in rows:
+            semantics = describe_device_type_semantics(device_type)
             writer.writerow([
                 data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 data.device_id,
@@ -201,6 +203,10 @@ def build_report_csv_export_use_case(
                 data.current,
                 data.flow_rate,
                 data.consumption,
+                device_type,
+                device_category,
+                semantics["object_role"],
+                semantics["point_kind"],
             ])
     elif report_definition["rows_loader"] == "alarm":
         rows = list_alarm_report_rows_use_case(
@@ -233,7 +239,8 @@ def build_report_csv_export_use_case(
             end_time=end_time,
             limit=limit,
         )
-        for data, device_name in rows:
+        for data, device_name, device_type, device_category in rows:
+            semantics = describe_device_type_semantics(device_type)
             writer.writerow([
                 data.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 data.device_id,
@@ -241,6 +248,10 @@ def build_report_csv_export_use_case(
                 data.energy_type,
                 data.energy_consumption,
                 data.carbon_emission,
+                device_type,
+                device_category,
+                semantics["object_role"],
+                semantics["point_kind"],
             ])
     else:
         rows = build_multi_energy_summary_rows_use_case(

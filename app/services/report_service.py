@@ -80,9 +80,9 @@ class ReportService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 1000,
-    ) -> list[tuple[CarbonEmission, Optional[str]]]:
+    ) -> list[tuple[CarbonEmission, Optional[str], Optional[str], Optional[str]]]:
         statement = (
-            select(CarbonEmission, Device.name)
+            select(CarbonEmission, Device.name, Device.device_type, Device.device_category)
             .join(Device, Device.id == CarbonEmission.device_id)
             .order_by(CarbonEmission.timestamp.desc())
             .limit(limit)

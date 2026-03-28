@@ -16,13 +16,21 @@ def analyze_device_use_case(session: Session, current_user, device_id: int):
     snapshot = AnalysisService.analyze_device(session, device_id)
     latest = snapshot["latest"]
     semantics = snapshot["semantics"]
+    device_type_semantics = snapshot.get("device_type_semantics", {})
+    energy_data_fields = snapshot.get("energy_data_fields", {})
     current_value = round((latest.flow_rate or 0) if latest else 0, 2)
     today_consumption = round(snapshot["today_consumption"], 2)
     return {
         "device_id": device_id,
+        "device_type": snapshot.get("device_type"),
+        "device_category": snapshot.get("device_category"),
         "energy_type": snapshot["energy_type"],
         "energy_label": semantics["label"],
         "is_active": snapshot["is_active"],
+        "device_object_role": device_type_semantics.get("object_role"),
+        "metering_role": device_type_semantics.get("metering_role"),
+        "point_kind": device_type_semantics.get("point_kind"),
+        "measurement_subject": device_type_semantics.get("measurement_subject"),
         "current_power": current_value,
         "current_value": current_value,
         "current_value_label": semantics["flow_label"],
@@ -35,6 +43,8 @@ def analyze_device_use_case(session: Session, current_user, device_id: int):
         "today_consumption_label": semantics["consumption_label"],
         "today_consumption_unit": semantics["consumption_unit"],
         "today_consumption_semantics": semantics["consumption_stat_basis"],
+        "energy_data_public_fields": energy_data_fields.get("public_fields", []),
+        "energy_data_specialized_fields": energy_data_fields.get("specialized_fields", []),
         "today_cost": round(snapshot["today_cost"], 2),
         "analysis_boundary": "multi_energy_first_batch",
     }

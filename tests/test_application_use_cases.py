@@ -84,16 +84,19 @@ class TestApplicationUseCases(unittest.TestCase):
         mock_ensure_access.assert_called_once_with(session, current_user, 1)
         mock_get_device_data.assert_called_once()
 
+    @patch("app.application.device_reporting.DeviceService.get_device_semantic_profile")
     @patch("app.application.device_reporting.DeviceService.get_device_statistics")
     @patch("app.application.device_reporting.ensure_device_access")
     def test_get_device_statistics_use_case_checks_access_then_reads_service(
         self,
         mock_ensure_access,
         mock_get_device_statistics,
+        mock_get_device_semantic_profile,
     ):
         session = MagicMock()
         current_user = SimpleNamespace(username="viewer", role="viewer")
         mock_get_device_statistics.return_value = {"total_consumption": 42}
+        mock_get_device_semantic_profile.return_value = {"device_type": "load"}
 
         result = get_device_statistics_use_case(
             session=session,
@@ -105,6 +108,7 @@ class TestApplicationUseCases(unittest.TestCase):
         )
 
         self.assertEqual(result["total_consumption"], 42)
+        self.assertEqual(result["device_semantics"]["device_type"], "load")
         mock_ensure_access.assert_called_once_with(session, current_user, 1)
         mock_get_device_statistics.assert_called_once()
 
@@ -208,6 +212,8 @@ class TestApplicationUseCases(unittest.TestCase):
                     consumption=12.3,
                 ),
                 "一号设备",
+                "load",
+                "load",
             )
         ]
 
@@ -218,9 +224,10 @@ class TestApplicationUseCases(unittest.TestCase):
             limit=10,
         )
 
-        self.assertEqual(payload.filename, "energy_detail_20260327.csv")
+        self.assertEqual(payload.filename, "energy_detail_20260328.csv")
         self.assertIn("设备名称", payload.content)
         self.assertIn("一号设备", payload.content)
+        self.assertIn("对象语义", payload.content)
 
     @patch("app.application.reporting.EnergyService.get_carbon_summary")
     @patch("app.application.reporting.EnergyService.get_statistics_by_type")

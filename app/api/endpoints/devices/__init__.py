@@ -20,6 +20,7 @@ from .management import (
     create_device_smart,
     delete_device,
     get_device,
+    get_device_semantic_profile,
     get_device_type_info,
     get_device_types,
     get_devices,

@@ -211,9 +211,9 @@ class EnergyRepository(BaseRepository):
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 1000,
-    ) -> list[tuple[EnergyData, str]]:
+    ) -> list[tuple[EnergyData, str, str, str]]:
         statement = (
-            select(EnergyData, Device.name)
+            select(EnergyData, Device.name, Device.device_type, Device.device_category)
             .join(Device, Device.id == EnergyData.device_id)
             .order_by(EnergyData.timestamp.desc())
             .limit(limit)

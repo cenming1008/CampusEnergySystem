@@ -2,233 +2,284 @@
 
 ## 规范 -> 后端
 ### 任务
-- 按 [PLAN-20260327-multi-energy-data-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-optimization.md) 实施第一批多能源数据业务优化
-- 本轮只允许优先处理电 / 热 / 气 / 冷 / 碳排放在口径、单位、碳排边界和 `analysis` / `reports` 第一批收敛上的问题
+- 按 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 实施第一批设备分类与对象分层建模优化
+- 本轮只允许优先处理 `Device`、`EnergyData`、`device_registry`、设备 API、能耗 API 在“设备对象 / 计量对象 / 点位对象 / 能源类别对象”上的第一批语义收敛
 
 ### 已知信息
 - 允许修改目录：
-  - `docs/plans/*`
-  - `docs/05-架构与设计/*`
-  - `app/models/*`
+  - `app/models/`
+  - `app/domain/`
+  - `app/core/device_registry.py`
+  - `app/services/device_service.py`
   - `app/services/energy_service.py`
-  - `app/services/analysis_service.py`
-  - `app/services/report_service.py`
-  - `app/application/*`
-  - `app/api/endpoints/energy*`
-  - `app/api/endpoints/reports*`
-  - `app/api/endpoints/analysis*`
-  - 与上述内容直接相关的 schemas / DTO / tests
+  - `app/repositories/device_repository.py`
+  - `app/repositories/energy_repository.py`
+  - `app/application/device_reporting.py`
+  - `app/application/energy_management.py`
+  - `app/api/endpoints/devices/`
+  - `app/api/endpoints/energy/`
+  - `docs/plans/`
+  - `docs/05-架构与设计/`
 - 探索线程已确认的问题：
-  - 当前多能源建模仍偏 `energy_type + consumption / flow_rate` 的通用模型，能源专属业务语义不足
-  - `consumption` / `flow_rate` 的累计量与瞬时量口径存在混用风险
-  - 单位体系尚未形成“内部标准单位 + 入库换算 + 展示单位”三层规则
-  - 碳排逻辑当前更适合展示级，不适合作为正式核算结论
-  - `analysis` / `reports` 仍偏通用分类和明细导出，尚未形成第一批多能源业务指标
+  - 当前系统主要停留在 `device_type + device_category + energy_type` 的薄分类层，`Device` 仍混合承载业务设备、计量设备和能源类型标签语义
+  - 当前没有独立计量对象层，表计主要仍通过 `water_meter / gas_meter / heat_meter / cooling_meter / steam_meter` 这类 `device_type` 表达
+  - 当前没有独立点位对象层，采集值主要通过 `EnergyData` 宽表字段和 payload 承载
+  - `EnergyData` 宽表中的专属字段语义不清，空字段与“本对象无此语义字段”混淆
+  - `device_registry`、payload schema、落库模型之间存在能力不一致
+  - 文档与代码存在不一致：设备类型数量文档写 11 种，代码实际 10 种；`DeviceManagement.vue` 实际文件为 `DeviceManager.vue`
 
 ### 建议处理方式
 - 后端第一批优先顺序：
-  - 先处理累计量 / 瞬时量 / 差值量 / 统计量口径
-  - 再处理单位标准化与展示单位约束
-  - 再明确碳排展示级与核算级边界
-  - 最后处理 `analysis` / `reports` 的第一批多能源业务口径
+  - 先收敛 `Device`、`device_type`、`device_category`、`energy_type` 的对象边界与派生边界
+  - 再收敛 `EnergyData` 宽表中公共层 / 专属层 / 兼容层字段语义
+  - 再校正 `device_registry`、请求 schema、payload 规范化、落库模型之间的一致性
+  - 最后补齐设备 API / 能源 API 的第一批对象语义说明和兼容字段策略
 - 兼容原则：
   - 不做接口路径大规模重命名
-  - 不做数据库 schema 大爆炸式改造
+  - 不做全量数据库 schema 重构
   - 若现有模型不足以一次补齐，优先保留兼容层和边界说明
   - 若返回字段需要变化，必须先写回本文件并说明影响范围
 - 验证要求：
-  - 验证电 / 热 / 气 / 冷 / 碳排放第一批业务口径已明确
-  - 验证累计量 / 瞬时量口径已在代码和文档中可对应
-  - 验证单位与换算策略已形成统一约束
-  - 验证碳排逻辑已明确当前适用边界
-  - 验证 `analysis` / `reports` 第一批不再仅依赖粗粒度 `energy_type` 汇总
+  - 验证设备对象、计量对象、能源类别对象第一批边界已明确
+  - 验证 `EnergyData` 宽表字段的公共层 / 专属层 / 兼容层语义已补齐
+  - 验证 `device_registry`、schema、落库模型的不一致项已收敛或明确记录
+  - 验证设备 API / 能源 API 的第一批对象语义说明已可核对
 - 明确禁止：
-  - 不做告警逻辑重构
-  - 不做预测模型重构
-  - 不做设备控制链路重构
-  - 不做前端页面大改版
-  - 不做全项目数据模型推翻式重写
-  - 不一次性补齐所有能源机理模型
-  - 不做全局报表系统重构
-  - 不做数据库 schema 的大爆炸式改造
+  - 不做完整 `meter / offline meter / virtual meter / point / relation table` 全量数据库落地
+  - 不做前端设备管理页、多能源页、驾驶舱页面的大改版
+  - 不扩张到告警、预测、控制、调度优化、碳排核算细则、费用结算细则等设备分类建模之外的业务主题
   - 不处理本轮主线之外的顺手优化
 
 ---
 
 ## 规范 -> 前端
 ### 任务
-- 为第一批多能源数据业务优化做联调准备
-- 本轮只围绕多能源口径和返回结构做最小适配，不做页面大重构
+- 为第一批设备分类与对象分层建模优化做联调准备
+- 本轮只围绕设备语义、计量语义、字段兼容说明做最小适配，不做页面大重构
 
 ### 已知信息
 - 本轮重点接口和输出层主要集中在：
-  - `app/api/endpoints/energy*`
-  - `app/api/endpoints/analysis*`
-  - `app/api/endpoints/reports*`
+  - `frontend/src/api/device.ts`
+  - `frontend/src/api/energy.ts`
+  - `frontend/src/views/DeviceManager.vue`
+  - `frontend/src/views/EnergyManagement.vue`
 - 字段原则：
-  - 与累计量 / 瞬时量相关的字段语义原则上不要轻易改名
-  - 单位字段、展示单位、碳排相关字段若变化，必须提前说明
-  - `analysis` / `reports` 若增加分能源口径字段，应优先走兼容新增，而不是直接删改旧字段
+  - 与设备对象、计量对象、能源类别对象边界相关的字段原则上不要轻易改名
+  - `device_type`、`device_category`、`energy_type`、`unit`、`rated_capacity` 的兼容语义如需变化，必须提前说明
+  - 若后端补充“计量语义 / 点位语义 / 兼容说明字段”，优先走兼容新增，不直接删改旧字段
 
 ### 建议处理方式
 - 前端本轮重点关注：
-  - 多能源口径是否更清晰
-  - 返回字段是否仍可兼容现有展示
-  - 单位展示是否需要做最小适配
-  - 报表与分析页是否需要按新口径做文案或字段映射微调
+  - 设备列表和类型选择是否还能按现有接口正常工作
+  - `device.ts`、`energy.ts` 是否需要补最小对象语义字段
+  - `DeviceManager.vue`、`EnergyManagement.vue` 是否需要按兼容新增字段做最小展示适配
 - 前端本轮不要做：
-  - 页面大改版
-  - 状态管理重构
-  - 因猜测字段变化而提前重写多能源页面
+  - 设备管理页大改版
+  - 多能源页大改版
+  - 驾驶舱全面改版
+  - 因猜测 meter / point 语义而提前重写页面对象模型
 - 若联调发现以下情况，必须先回写 handoff 再动代码：
   - 返回字段删除或重命名
-  - 累计量 / 瞬时量含义变化
-  - 单位或量纲变化
-  - 碳排字段边界变化
+  - `device_type / device_category / energy_type` 语义变化
+  - `unit / rated_capacity / location` 的兼容语义变化
+  - 设备对象和能耗对象的关联方式变化
   - 异常语义变化
-  - CSV 结构变化
   - 原有路径不兼容
 
 ---
 
 ## 前端 -> 后端
 ### 当前建议
-- 前端本轮已完成多能源相关调用链审计，当前高优先级联调点如下：
+- 前端本轮围绕“设备分类、计量对象、点位对象与多能源分层建模第一批收敛”已完成依赖审计，当前高优先级联调点如下：
+  - `GET /devices/` / `POST /devices/` / `PUT /devices/{id}`
+    - 受影响模块：`frontend/src/api/device.ts`、`frontend/src/views/DeviceManager.vue`、`frontend/src/views/Dashboard.vue`、`frontend/src/views/CampusScene.vue`
+    - 当前直接依赖字段：`id`、`name`、`sn`、`device_type`、`device_category`、`energy_type`、`unit`、`rated_capacity`、`location`、`is_active`
+    - 当前已补齐字段：`location_id`、`updated_at`
+    - 隐式假设：前端仍把 `device_type` 当成设备对象、计量对象和能源类别对象的主入口字段；`rated_capacity` 仍被直接拿来做区域打分和运行规模推断
+    - 联调提醒：`device_type / device_category / energy_type / unit / rated_capacity / location` 的兼容语义若变化，必须提前同步
+  - `GET /devices/types`
+    - 受影响模块：`frontend/src/api/device.ts`、`frontend/src/views/DeviceManager.vue`
+    - 当前直接依赖字段：`device_type`、`category`、`energy_type`、`unit`、`default_capacity`、`required_fields`、`optional_fields`、`icon`、`name_zh`
+    - 隐式假设：页面仍以“注册表配置 = 对象语义”来渲染设备类型选择，没有独立 meter / point 对象层
+    - 联调提醒：若后端补充对象语义字段，应走兼容新增，不要直接重命名现有字段
   - `GET /energy/types`
     - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`
-    - 当前强依赖字段：`energy_types[*].value`、`label`、`unit`
-    - 新增建议保持稳定字段：`flow_unit`、`consumption_semantics`、`flow_semantics`、`carbon_scope`
-    - 联调提醒：这些新增语义字段当前主要用于前端兼容理解与后续展示约束，若改名或删除必须提前通知
-  - `GET /energy/statistics`
-    - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts`、`frontend/src/views/Dashboard.vue`
-    - 当前强依赖字段：`total_consumption`、`avg_flow_rate`、`peak_flow_rate`、`data_count`
-    - 新增建议保持稳定字段：`consumption_unit`、`flow_unit`、`consumption_semantics`、`consumption_stat_basis`、`flow_semantics`、`flow_stat_basis`、`meter_reset_suspected`
-    - 隐式假设：`Dashboard.vue` 仍把多种能源的 `total_consumption` 聚合成单一“总能耗”值，若单位或口径再次变化会直接影响首页卡片含义
-  - `GET /energy/overview`
-    - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`
-    - 当前强依赖字段：`statistics`、`carbon_summary`
-    - 新增建议保持稳定字段：`overview_boundary`、`unit_rule`、`cross_energy_mix_allowed`
-    - 联调提醒：`EnergyManagement.vue` 当前仍直接用 `statistics[*].total_consumption` 做跨能源对比；若后端明确 `cross_energy_mix_allowed=false`，后续前端会据此限制混合展示
-  - `GET /energy/carbon/summary`
-    - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`
-    - 当前强依赖字段：`total_carbon`、`by_energy_type[*].carbon_emission`、`by_energy_type[*].energy_consumption`、`by_energy_type[*].unit`
-    - 新增建议保持稳定字段：`boundary`、`calculation_method`、`is_accounting_grade`、`note`、`summary_basis`
-    - 联调提醒：前端当前把这组数据用于驾驶舱/多能源展示，不应把它误导成正式核算；若边界文案或布尔语义变化必须提前通知
-  - `GET /analysis/{device_id}`
-    - 受影响模块：`frontend/src/api/telemetry.ts`、`frontend/src/features/dashboard/composables/useDashboardRealtime.ts`、`frontend/src/views/CampusScene.vue`
-    - 当前兼容依赖字段：`device_id`、`is_active`、`current_power`、`voltage`、`current`、`today_energy`、`today_cost`
-    - 当前新增依赖字段：`energy_type`、`energy_label`、`current_value`、`current_value_label`、`current_value_unit`、`today_consumption`、`today_consumption_unit`、`today_consumption_semantics`、`electrical_fields_applicable`
-    - 联调提醒：旧兼容字段当前仍被页面直接消费；如果其空值语义、数值精度或适用范围变化，前端会直接受影响
+    - 当前直接依赖字段：`energy_types[*].value`、`label`、`unit`、`flow_unit`
+    - 隐式假设：前端仍把 `energy_type` 视为设备和计量语义的主要来源之一
+    - 联调提醒：若后端新增“对象语义 / 字段层级 / 专属字段说明”类字段，建议稳定保留
+  - `GET /energy/data/{device_id}` / `GET /analysis/{device_id}`
+    - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/api/telemetry.ts`、`frontend/src/views/EnergyManagement.vue`、`frontend/src/features/dashboard/composables/useDashboardRealtime.ts`、`frontend/src/views/CampusScene.vue`
+    - 当前直接依赖字段：`consumption`、`flow_rate`、`voltage`、`current`、`pressure`、`temperature`、`supply_temp`、`return_temp`、`heat_flow`、`quality_index`、`current_power`、`today_energy`
+    - 隐式假设：页面仍通过“字段是否有值”猜对象语义，尚无法区分“当前没采到”和“该对象本无此字段”
+    - 联调提醒：若后端只做兼容新增字段来表达公共层 / 专属层 / 兼容层，请明确字段名并提前通知
+  - `GET /energy/statistics` / `GET /energy/overview`
+    - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`、`frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts`、`frontend/src/views/Dashboard.vue`
+    - 当前直接依赖字段：`total_consumption`、`avg_consumption`、`avg_flow_rate`、`peak_flow_rate`、`statistics`
+    - 隐式假设：`Dashboard.vue` 和 `EnergyManagement.vue` 仍自己拼业务口径
+    - 联调提醒：字段名即使不变，只要对象语义或统计口径变化，也必须提前同步
   - `GET /reports/export_csv`
     - 受影响模块：`frontend/src/api/report.ts`、`frontend/src/views/Report.vue`
-    - 当前已接入报表类型：`energy_detail`、`alarm_history`、`carbon_emission`、`multi_energy_summary`
-    - 当前依赖行为：返回 200 + blob 下载流；路径与主要查询参数保持不变；默认文件名规则仍按 `{report_type}_{YYYYMMDD}.csv` 兜底
-    - 联调提醒：`multi_energy_summary` 的列顺序、列头命名、单位列和碳排边界说明若变化，必须提前同步前端
+    - 当前依赖行为：仍假设 blob 下载稳定、设备和能源筛选参数保持兼容
+    - 联调提醒：若后端开始按新对象语义调整导出列头、列顺序或筛选含义，必须提前通知
 - 前端已识别的高风险页面：
-  - `frontend/src/views/Dashboard.vue`
-    - 仍将多能源 `total_consumption` 混算成单一“今日总能耗 / 本月总能耗”
+  - `frontend/src/views/DeviceManager.vue`
+    - 仍以 `device_type` 驱动创建流程，页面本身没有设备对象 / 计量对象 / 点位对象分层消费
   - `frontend/src/views/EnergyManagement.vue`
-    - 仍直接将分能源统计与碳排汇总拼成统一图表，尚未依据 `cross_energy_mix_allowed` / `is_accounting_grade` 做展示约束
+    - 仍以 `energy_type + unit + total_consumption + 宽表字段` 组合消费对象语义
+  - `frontend/src/views/Dashboard.vue`
+    - 仍以 `device_type / energy_type / rated_capacity / total_consumption` 自行拼区域和总览口径
   - `frontend/src/views/CampusScene.vue`
-    - 仍主要依赖 `analysis` 的电力兼容字段推导状态
+    - 仍以 `device_type / current_power` 推断对象状态，偏旧电力设备理解
 - 前端建议的最小兼容方式：
-  - 多能源第一批新增字段优先通过“兼容新增”提供，不直接删改旧字段
-  - `analysis` 继续保留旧兼容字段，同时稳定提供新增语义字段，便于前端分阶段切换
-  - `reports/export_csv` 继续保持 blob 下载模式；`multi_energy_summary` 如需扩列，请追加列而不是重排已有核心列
-  - 若后端后续要彻底禁止跨能源混算，优先通过 `cross_energy_mix_allowed`、`unit_rule` 等边界字段表达，不要让前端靠猜测判断
+  - 旧字段继续保留，新增对象语义字段优先走兼容新增
+  - 如果后端暂时不新增字段，本轮前端已经可以继续跑，不强制改代码
+  - 若后端新增“公共层 / 专属层 / 兼容层”说明字段，前端优先先补 `api` 类型，再决定是否改页面消费点
+  - `reports/export_csv` 继续保持现有 blob 下载模式，不要在本轮顺带改下载协议
+- 当前文档不一致点：
+  - `handoff.md` 目前尚未看到“后端 -> 前端｜设备分类与对象分层建模第一批后端收敛”专门块；前端本轮结论主要基于正式 PLAN、探索审计和现有后端代码静态核对，真实联调前仍需后端补齐该块
 
 ## 前端 -> 规范
 ### 当前建议
-- 本轮前端审计已确认，当前最大的联调风险不是“拿不到字段”，而是“旧页面可能继续按旧业务口径解释新字段”。
-- 若规范线程后续继续补文档，建议优先补两类展示级约束说明：
-  - “跨能源混合展示”在什么条件下允许，哪些页面必须按分能源拆开显示
-  - “展示级碳排”与“核算级碳排”在前端文案上的最小区分要求
-- 这部分目前还不需要扩成新的大规范，只要能让前后端在 `cross_energy_mix_allowed`、`is_accounting_grade`、`boundary` 的解释上保持一致即可
+- 当前最大的联调风险不是“字段不存在”，而是页面仍把 `device_type / device_category / energy_type / unit` 当作足够完整的对象语义。
+- 若规范线程继续补文档，建议优先补三类说明：
+  - `Device`、计量对象、点位对象在本轮第一批收敛中的边界说明
+  - `EnergyData` 宽表字段里哪些属于公共层、哪些属于专属层、哪些只是兼容层
+  - 当前不一致点的正式说明：输入中的 `DeviceManagement.vue` 实际文件为 `DeviceManager.vue`
+- 当前不建议扩成新的大规范；只要让 PLAN、`current-status.md`、`handoff.md` 对本主题使用同一套对象语义表述即可
 
 ---
 
 ## 后端 -> 前端
 ### 当前建议
-- 本轮已完成第一批多能源后端收敛的接口：
-  - `GET /energy/statistics`
-  - `GET /energy/overview`
+- 本轮已按 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 完成第一批后端收敛，重点接口如下：
+  - `GET /devices/types`
+  - `GET /devices/types/{device_type}`
+  - `GET /devices/{device_id}/semantic-profile`
+  - `GET /devices/{device_id}/statistics`
   - `GET /energy/types`
-  - `GET /energy/carbon/summary`
-  - `GET /energy/carbon/factors`
+  - `GET /energy/overview`
+  - `GET /energy/statistics`
   - `GET /analysis/{device_id}`
   - `GET /reports/export_csv`
-- 已收敛的多能源口径：
-  - `consumption` 继续表示累计量 / 累计表计读数，不再在统计汇总里直接求和
-  - `flow_rate` 继续表示瞬时量，统计口径固定为均值 / 峰值，不与累计量混算
-  - `/energy/statistics`、`/energy/overview` 的 `total_consumption` 现在表示“时段首末差值”
-  - `/energy/carbon/summary` 现在表示“基于时段消耗差值 * 固定因子”的展示级估算，不是正式碳核算
+- 本轮已收敛的对象语义：
+  - `Device` 仍是统一对象，但现在明确通过 `device_type` registry 派生第一批 `object_role`、`metering_role`、`point_kind`、`measurement_subject`
+  - `device_category` 继续表示兼容分组层，`energy_type` 继续表示能源介质层，前端不要再把任一单字段当成完整对象模型
+  - `EnergyData` 仍是统一宽表，但现在明确区分：
+    - 公共字段：`consumption`、`flow_rate`、`timestamp`
+    - 专属字段：`voltage`、`current`、`power_factor`、`pressure`、`temperature`、`supply_temp`、`return_temp`、`heat_flow`、`quality_index`
+    - 兼容层：如热量场景下 `heat_flow` 会映射到公共层 `flow_rate`
 - 对前端保持兼容的内容：
-  - 请求参数未改
+  - 现有路径未重命名，请求参数未改
   - `GET /analysis/{device_id}` 仍保留 `device_id`、`is_active`、`current_power`、`voltage`、`current`、`today_energy`、`today_cost`
-  - `GET /reports/export_csv` 仍返回 200 + CSV 流，原有 `energy_detail` / `alarm_history` / `carbon_emission` 仍可用
-  - 原有接口路径没有重命名
+  - `GET /reports/export_csv` 仍返回 200 + CSV 流，原有 `energy_detail` / `alarm_history` / `carbon_emission` 仍可下载
+  - 原有 `device_type`、`device_category`、`energy_type`、`unit`、`rated_capacity` 字段继续保留
 - 本轮兼容新增字段：
-  - `/analysis/{device_id}` 新增 `energy_type`、`energy_label`、`current_value`、`current_value_label`、`current_value_unit`、`today_consumption`、`today_consumption_unit`、`today_consumption_semantics`、`electrical_fields_applicable`
-  - `/energy/statistics` 新增 `consumption_unit`、`flow_unit`、`consumption_semantics`、`consumption_stat_basis`、`flow_semantics`、`flow_stat_basis`、`meter_reset_suspected`
-  - `/energy/overview` 新增 `overview_boundary`、`unit_rule`、`cross_energy_mix_allowed`
-  - `/energy/carbon/summary` 新增 `boundary`、`calculation_method`、`is_accounting_grade`、`note`、`summary_basis`
-  - `/energy/types` 新增每类能源的 `flow_unit`、`consumption_semantics`、`flow_semantics`、`carbon_scope` 等语义字段
-- 新增报表类型：
-  - `GET /reports/export_csv?report_type=multi_energy_summary&start_time=...&end_time=...`
-  - 返回按能源类型汇总的周期消耗、瞬时统计和展示级碳排估算
-  - 前端当前若没有入口，可先不接；如要接，只需按现有 blob 下载逻辑接入
+  - `GET /devices/types` / `GET /devices/types/{device_type}`：
+    - `object_role`
+    - `metering_role`
+    - `point_kind`
+    - `measurement_subject`
+    - `rated_capacity_unit`
+    - `consumption_unit`
+    - `flow_unit`
+    - `public_data_fields`
+    - `specialized_fields`
+    - `compatible_aliases`
+  - `GET /devices/{device_id}/semantic-profile`：
+    - 设备对象、计量对象、点位对象的第一批兼容语义快照
+  - `GET /devices/{device_id}/statistics`：
+    - `device_semantics`
+    - `statistics_boundary`
+  - `GET /energy/types` / `GET /energy/overview` / `GET /energy/statistics`：
+    - `supported_device_types`
+    - `data_object_kind`
+    - `point_kind`
+    - `public_fields`
+    - `specialized_fields`
+    - `null_field_rule`
+    - `field_boundary_rule`
+    - `device_object_boundary`
+  - `GET /analysis/{device_id}`：
+    - `device_type`
+    - `device_category`
+    - `device_object_role`
+    - `metering_role`
+    - `point_kind`
+    - `measurement_subject`
+    - `energy_data_public_fields`
+    - `energy_data_specialized_fields`
+- 本轮细微变化但未改路径 / 主字段名的点：
+  - 前端不能再把“宽表字段有值 / 无值”直接理解成对象语义；要优先结合 `public_fields`、`specialized_fields`、`null_field_rule`
+  - 前端不能再把 `device_type` 单独理解成“设备对象 = 计量对象 = 点位对象 = 能源类别对象”的完整表达
+  - `energy_detail`、`carbon_emission` 两类 CSV 在原列之后追加了：
+    - `设备类型`
+    - `设备类别`
+    - `对象语义`
+    - `点位语义`
+    现有 blob 下载逻辑可继续用，但如果页面或脚本依赖固定列序，需要按新列头联调
 - 前端联调注意：
-  - 若页面以前把 `total_consumption` 理解成“累计值求和”，现在需要改成“周期消耗”
-  - `today_energy` 在非电力设备上仍保留兼容，但语义应按新增字段 `today_consumption_unit` / `energy_type` 理解
-  - 非电力设备的 `voltage` / `current` 继续保留兼容字段，是否适用请以 `electrical_fields_applicable` 为准
-  - 若页面要展示碳排，请优先使用 `/energy/carbon/summary` 的新增边界字段，不要把结果当正式核算值
+  - 设备列表、设备类型选择器、驾驶舱实时卡片仍可继续用旧字段跑通，但若要正确消费对象语义，优先读取新增兼容字段
+  - `EnergyManagement.vue` 这类页面如果还按 `energy_type + unit + 宽表字段有无` 猜对象语义，联调时要对照 `/energy/types`、`/energy/overview` 的新增边界字段确认
+  - `Dashboard.vue` / `CampusScene.vue` 若继续拿 `current_power`、`rated_capacity` 直接推断全部设备语义，需结合 `metering_role`、`measurement_subject` 做最小消费调整
+  - `GET /devices/{device_id}/semantic-profile` 是给联调和排障用的稳定入口，本轮推荐优先用它核对单设备语义
 - 当前仍未解决的风险：
-  - 接入侧异构单位自动换算还没做
-  - 历史 `carbon_emission` 明细没有做回填重算
-  - 更细粒度的热 / 冷 / 气专属业务指标还未补齐
+  - 还没有真正落地独立 meter / point / relation schema
+  - `EnergyData` 宽表仍存在深层 nullable 扩展字段问题，本轮只补了第一批边界说明
+  - `reports/export_csv` 的列追加是兼容新增，但外部脚本若硬编码列序仍需确认
+  - 设备类型数量以后端注册表实际 10 种为准；若其他文档仍写 11 种，应以后端实际输出和本轮 PLAN 为准
 
 ## 后端 -> 规范
 ### 当前建议
-- 本轮已按 [PLAN-20260327-multi-energy-data-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-optimization.md) 的既定边界实施，无需新增一套规范。
-- 已落实的规范口径：
-  - 累计量统计口径：首末差值
-  - 瞬时量统计口径：均值 / 峰值
-  - 单位策略：先锁定内部标准单位与展示单位说明，不做本轮接入换算重构
-  - 碳排策略：展示级估算，非正式核算
-- 建议规范线程后续只补“接入换算规则”和“展示级碳排 / 核算级碳排分层说明”，不要把本轮结果误解成需要立即推进数据库或接口大重构。
+- 本轮已按 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 的既定边界实施，无需重新开新主题。
+- 已落实的第一批规范口径：
+  - `Device` 继续作为统一对象保留，不在本轮强拆数据库结构
+  - `device_type` 作为对象语义派生入口，`device_category` 作为兼容分组层，`energy_type` 作为能源介质层
+  - 计量对象 / 点位对象当前通过 registry 元信息和接口新增字段兼容表达，不等同于已落库成独立 schema
+  - `EnergyData` 当前按“公共字段 / 专属字段 / 兼容层”解释，不代表宽表问题已经彻底解决
+- 建议规范线程后续只补以下内容，不要扩成新一轮全系统重构：
+  - 把“设备对象 / 计量对象 / 点位对象 / 能源类别对象”的第一批兼容表达写入后端规范或产品语义说明
+  - 清理仍写成 11 种设备类型的历史文档，统一为注册表当前 10 种
+  - 继续明确哪些场景必须进入真正的 meter / point / relation schema 设计，哪些场景继续沿用兼容层即可
+- 当前代码与计划的最小兼容差异：
+  - 本轮通过新增 `/devices/{device_id}/semantic-profile` 提供联调用语义快照，这属于计划允许的兼容新增，不是路径替换
+  - `reports/export_csv` 没有新建独立报表协议，而是在现有 `energy_detail`、`carbon_emission` 导出里追加语义列，属于最小兼容实现
 
 ---
 
 ## 验收 -> 全局
 ### 验收结论
-- 本轮“电 / 热 / 气 / 冷 / 碳排放数据业务优化”在实现层面已基本完成第一批目标：
-  - 探索线程已形成审计文档并沉淀到 [PLAN-20260327-multi-energy-data-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-audit.md)
-  - 规范线程已形成正式实施计划并把后端 / 前端边界写入交接文档
-  - 后端线程已完成第一批口径、单位、碳排边界、`analysis` / `reports` 收敛，并提供测试验证
-  - 前端线程已完成依赖审计、API 层最小适配和 `multi_energy_summary` 导出入口接入
-- 但本轮暂不建议标记为“正式收口”。
+- 本轮“CampusEnergySystem 设备分类、计量对象、点位对象与多能源分层建模优化闭环验收”结论为：后端第一批实现已基本完成，但本轮暂不建议标记为“正式收口”。
+- 当前状态更准确地说是：
+  - 探索线程达标
+  - 规范线程未完成进度回写
+  - 后端线程达标
+  - 前端线程完成审计和极小适配，但联调准备未完全闭环
 
 ### 暂不收口的原因
-- 当前最大的缺口是文档闭环而不是主功能实现：
-  - [PLAN-20260327-multi-energy-data-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-optimization.md) 仍显示“未开始”，进度记录未同步后端实施、前端最小适配和验收执行结果。
-  - 这使得正式 PLAN、`current-status.md`、`handoff.md`、实际代码状态之间仍存在一处关键不一致。
-- 前端页面层仍保留已知风险：
-  - [frontend/src/views/Dashboard.vue](/Users/todo/MineEnergySystem/frontend/src/views/Dashboard.vue) 与 [frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts](/Users/todo/MineEnergySystem/frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts) 仍有跨能源 `total_consumption` 混算。
-  - [frontend/src/views/EnergyManagement.vue](/Users/todo/MineEnergySystem/frontend/src/views/EnergyManagement.vue) 尚未基于 `cross_energy_mix_allowed`、`is_accounting_grade` 做展示级边界约束。
-  - 上述页面风险已被识别并记录，当前属于“待真实联调后再决定是否最小微调”的剩余风险，不要求本轮继续扩大实现。
+- 文档闭环缺口：
+  - [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 仍显示“未开始”，进度记录没有同步后端已实施、前端已审计、验收已执行的实际状态。
+  - `current-status.md` 与 `handoff.md` 已经写到后端第一批完成，但正式 PLAN 还没跟上，三者未完全一致。
+- 前端联调准备缺口：
+  - [frontend/src/api/device.ts](/Users/todo/MineEnergySystem/frontend/src/api/device.ts) 仍未承接 `GET /devices/types` / `GET /devices/types/{device_type}` 返回的 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases`。
+  - [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 仍未承接 `GET /energy/types`、`GET /energy/statistics`、`GET /energy/overview` 的对象语义和字段边界新增字段。
+  - [frontend/src/api/telemetry.ts](/Users/todo/MineEnergySystem/frontend/src/api/telemetry.ts) 仍未承接 `GET /analysis/{device_id}` 已新增的对象语义字段。
+- 已识别但不阻塞本轮“后端实现达标”判断的存量风险：
+  - [frontend/src/views/DeviceManager.vue](/Users/todo/MineEnergySystem/frontend/src/views/DeviceManager.vue)、[frontend/src/views/EnergyManagement.vue](/Users/todo/MineEnergySystem/frontend/src/views/EnergyManagement.vue)、[frontend/src/views/Dashboard.vue](/Users/todo/MineEnergySystem/frontend/src/views/Dashboard.vue)、[frontend/src/views/CampusScene.vue](/Users/todo/MineEnergySystem/frontend/src/views/CampusScene.vue) 仍用旧字段组合猜测对象语义。
+  - 这些页面风险在本轮 PLAN 中属于“已识别、暂不大改”的范围，不要求验收线程直接补实现。
 
 ### 线程完成情况
-- 探索线程：已完成。本轮多能源建模、累计量 / 瞬时量、单位与换算、碳排边界、`analysis` / `reports` 语义问题均已文档化。
-- 规范线程：部分完成。正式 PLAN 已建立并约束了范围，但尚未把 PLAN 状态与进度记录更新到实际完成状态。
-- 后端线程：已完成。第一批实现已落地，验证结果存在，范围未扩张到告警 / 预测 / 控制 / 数据库重构。
-- 前端线程：已完成本轮范围内任务。已完成联调准备与最小适配，但未承诺完成页面级全面口径调整。
+- 探索线程：已完成。探索文档已落到 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md)，且已明确 EMS 分层建模差距、本轮范围和非目标。
+- 规范线程：部分完成。正式 PLAN 已建立并能约束范围，但状态和进度记录未更新到实际完成态。
+- 后端线程：已完成。`Device`、`device_registry`、`EnergyData`、设备 / 能源接口、analysis / reports 兼容新增语义字段均已落地，且 38 个相关测试通过。
+- 前端线程：部分完成。已完成依赖审计，`device.ts` 和 `DeviceManager.vue` 做了极小适配，但 `device.ts` / `energy.ts` / `telemetry.ts` 尚未补齐本轮对象语义兼容字段类型。
 
 ### 下一步交接建议
 - 第一优先级交回规范线程：
-  - 补齐 [PLAN-20260327-multi-energy-data-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-optimization.md) 的状态、进度记录和验收结果，使计划文档与现状一致。
-- 第二优先级视真实联调结果决定是否交回前端线程：
-  - 若真实联调确认首页和多能源页需要显式消费边界字段，再按最小修改原则处理展示层。
-- 当前不建议交回后端线程继续追加主功能；后端第一批范围已经达到计划要求。
+  - 补齐 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 的状态、进度记录和验收结果，使正式 PLAN 与现状一致。
+- 第二优先级交回前端线程：
+  - 补齐 `frontend/src/api/device.ts`、`frontend/src/api/energy.ts`、`frontend/src/api/telemetry.ts` 的对象语义兼容字段类型。
+  - 明确记录“本轮为何不改页面结构，只补联调准备”的结论。
+- 当前不建议交回后端线程继续追加主功能；后端第一批范围已经达到正式 PLAN 的实现要求。
 
 ---
 
@@ -304,5 +355,67 @@
 
 ### 可直接阅读的文档入口
 - [PLAN-20260327-multi-energy-data-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-multi-energy-data-audit.md)
+- [current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md)
+- [handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md)
+
+---
+
+## 2026-03-28｜探索 -> 规范｜设备分类与对象分层建模
+
+### 交接主题
+- 基于 EMS（MyEMS）项目设备分类建模思路，对 CampusEnergySystem 的设备分类、计量对象、点位对象、对象关系与多能源扩展建模进行审计。
+
+### 当前主要简化点 / 风险点
+- 当前系统不是没有设备分类能力，而是分类主要停留在 `device_type + device_category + energy_type` 的薄分类层，未形成“能源类别 / 仪表对象 / 点位对象 / 业务对象 / 关系表”分层。
+- `Device` 同时承担业务设备、计量设备和能源类型标签语义；`build_device_create_fields()` 会从 `device_type` 派生 `device_category / energy_type / unit / rated_capacity`，说明对象边界仍混在一起。
+- `EnergyData` 仍是统一宽表，`voltage / current / power_factor / pressure / temperature / supply_temp / return_temp / heat_flow / quality_index` 等异构字段共表存储，空字段与“本对象本来无此语义”无法区分。
+- 当前没有独立计量对象层雏形：未发现 `meter / virtual meter / offline meter` 正式模型，表计主要通过 `water_meter / gas_meter / heat_meter / cooling_meter / steam_meter` 这类 `device_type` 表达。
+- 当前没有独立点位对象层雏形：能源采集值主要通过 `EnergyData` 和 payload 字段承载，没有独立 `point / telemetry_point / measurement_point` 模型。
+- `app/core/device_registry.py` 中声明的 `irradiance / wind_speed / soc / charging_status` 等字段，实际没有被 `app/api/endpoints/devices/shared.py`、`app/domain/device_payloads.py`、`app/models/tables.py` 承接，存在定义与实现不一致。
+- 文档与代码也存在不一致：
+  - `docs/02-功能使用/统一设备管理指南.md` 写内置 11 种设备类型，代码注册表实际为 10 种。
+  - 任务输入给出的 `frontend/src/views/DeviceManagement.vue` 在仓库中不存在，实际文件为 `frontend/src/views/DeviceManager.vue`。
+
+### 建议优先优化的层
+- P0：设备对象 / 计量对象 / 能源类型对象边界治理
+  - 先明确 `Device` 继续承载什么，不再往里继续塞 meter 语义和更多对象职责。
+- P0：宽表可空字段与专属字段语义治理
+  - 先把 `EnergyData` 中“可选采集字段”和“该对象无此字段语义”分清，避免继续无序膨胀。
+- P1：点位 / 测点建模与扩展字段治理
+  - 先明确是否需要独立 point 对象层，至少先建立扩展字段和采集语义边界。
+- P1：多能源对象分层与对象关系治理
+  - 在前两层稳定后，再决定是否补 meter / relation 这一层。
+- P2：analysis / reporting / overview 层再建设
+  - 在对象语义没站稳之前，不建议先堆新的统计与展示能力。
+
+### 为什么不要一开始就发散成全系统重构
+- 当前最核心的问题不是“系统完全没有设备建模”，而是“已有统一设备台账和统一接入底座，但分类过薄、对象未分层、宽表过载、定义与实现不一致”。
+- 如果一开始就扩成数据库全量重构、全对象体系重建或前端全面改版，风险会超过当前真实瓶颈，也会让后续线程失去最小落地边界。
+- 更合理的路径是先控制范围，先做对象边界和语义治理，再决定哪些层需要真正独立建模。
+
+### 规范线程下一步应如何收敛成 PLAN
+- 直接以 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md) 为输入编写正式 PLAN。
+- 建议计划标题：
+  - `docs/plans/PLAN-20260328-device-object-layering-and-meter-point-governance.md`
+- 建议第一批范围锁定：
+  - `Device` 的对象边界和派生字段边界
+  - `device_registry`、请求 schema、落库模型的一致性治理
+  - `EnergyData` 宽表扩张边界和字段语义约束
+  - 是否引入“计量对象层 / 点位对象层”的最小判定标准
+- 建议验收优先要求：
+  - 已明确当前系统在本主题上的定位不是“专业 EMS 分层对象建模级”
+  - 已明确哪些语义不得继续塞进 `Device` 和 `EnergyData`
+  - 已明确注册表、schema、model 的一致性规则
+  - 已明确第一批不碰哪些范围外模块
+
+### 本轮明确不做
+- 不展开告警模块、预测模块、设备控制模块、巡检模块、权限模块、认证模块。
+- 不展开前端通用 UI 重构。
+- 不展开数据库全量重构。
+- 不展开 LSTM 预测模块、MQTT 接入可靠性、碳排核算细则、费用结算细则、调度优化模块。
+- 不在本轮直接设计或实现完整的 meter / point 新模型。
+
+### 文档入口
+- [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md)
 - [current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md)
 - [handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md)

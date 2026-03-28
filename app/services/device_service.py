@@ -9,6 +9,8 @@ from app.core.logger import logger
 
 from app.domain.device_payloads import (
     build_device_create_fields,
+    describe_device_type_semantics,
+    describe_energy_data_fields,
     get_device_type_config,
     normalize_device_report_payload,
 )
@@ -346,15 +348,28 @@ class DeviceService:
             return None
         
         return {
-            "device_type": config.device_type,
-            "category": config.category.value,
-            "energy_type": config.energy_type.value,
-            "name_zh": config.name_zh,
-            "name_en": config.name_en,
-            "unit": config.unit,
-            "default_capacity": config.default_capacity,
-            "required_fields": config.required_fields,
-            "optional_fields": config.optional_fields,
-            "icon": config.icon,
-            "color": config.color,
+            **describe_device_type_semantics(device_type),
+            "energy_data_fields": describe_energy_data_fields(device_type),
+        }
+
+    @staticmethod
+    def get_device_semantic_profile(session: Session, device_id: int) -> Dict[str, Any]:
+        """返回单个设备的第一批兼容语义。"""
+        device = DeviceService.get_device_by_id(session, device_id)
+        device_type_profile = describe_device_type_semantics(device.device_type)
+        return {
+            "device_id": device.id,
+            "name": device.name,
+            "device_type": device.device_type,
+            "device_category": device.device_category,
+            "energy_type": device.energy_type,
+            "unit": device.unit,
+            "rated_capacity": device.rated_capacity,
+            "object_role": device_type_profile["object_role"],
+            "metering_role": device_type_profile["metering_role"],
+            "point_kind": device_type_profile["point_kind"],
+            "measurement_subject": device_type_profile["measurement_subject"],
+            "consumption_unit": device_type_profile["consumption_unit"],
+            "flow_unit": device_type_profile["flow_unit"],
+            "energy_data_fields": describe_energy_data_fields(device.device_type),
         }

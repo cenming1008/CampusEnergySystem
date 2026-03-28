@@ -102,6 +102,16 @@ def get_device(
     return DeviceService.get_device_by_id(session, device_id)
 
 
+@router.get("/{device_id}/semantic-profile")
+def get_device_semantic_profile(
+    device_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_device_access(session, current_user, device_id)
+    return success_response(data=DeviceService.get_device_semantic_profile(session, device_id))
+
+
 @router.put("/{device_id}", response_model=Device)
 def update_device(
     device_id: int,

@@ -74,10 +74,13 @@ def get_device_statistics_use_case(
 ) -> Dict:
     """统一设备统计读取入口。"""
     ensure_device_access(session, current_user, device_id)
-    return DeviceService.get_device_statistics(
+    stats = DeviceService.get_device_statistics(
         session=session,
         device_id=device_id,
         start_time=start_time,
         end_time=end_time,
         period_type=period_type,
     )
+    stats["device_semantics"] = DeviceService.get_device_semantic_profile(session, device_id)
+    stats["statistics_boundary"] = "device_semantics_first_batch"
+    return stats

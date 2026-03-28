@@ -17,6 +17,8 @@ class TestEnergyEndpointSemantics(unittest.TestCase):
         self.assertEqual(electricity["unit"], "kWh")
         self.assertEqual(electricity["flow_unit"], "kW")
         self.assertEqual(electricity["consumption_semantics"], "cumulative_meter_reading")
+        self.assertIn("supported_device_types", electricity)
+        self.assertEqual(result["device_object_boundary"], "Device 仍是统一对象；meter/point 语义本轮通过 device_type registry 和接口元信息兼容表达。")
 
     @patch("app.api.endpoints.energy.data.EnergyService.get_carbon_summary")
     @patch("app.api.endpoints.energy.data.EnergyService.get_statistics_by_type")
@@ -40,6 +42,7 @@ class TestEnergyEndpointSemantics(unittest.TestCase):
 
         self.assertEqual(result["overview_boundary"], "multi_energy_first_batch")
         self.assertFalse(result["cross_energy_mix_allowed"])
+        self.assertIn("field_boundary_rule", result)
 
     def test_get_carbon_factors_marks_display_boundary(self):
         result = carbon.get_carbon_factors()

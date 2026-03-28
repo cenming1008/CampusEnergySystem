@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 from sqlmodel import Session, select, func
 from app.core.logger import logger
+from app.core.device_registry import device_registry
+from app.domain.device_payloads import describe_energy_data_fields
 
 from app.domain.energy_rules import (
     CARBON_FACTORS as DOMAIN_CARBON_FACTORS,
@@ -74,9 +76,39 @@ class EnergyService:
     def list_energy_type_catalog() -> list[Dict]:
         """返回多能源类型与第一批语义说明。"""
         return [
-            EnergyService.get_energy_semantics(energy_type.value)
+            {
+                **EnergyService.get_energy_semantics(energy_type.value),
+                "supported_device_types": [
+                    config.device_type
+                    for config in device_registry.get_by_energy_type(energy_type)
+                ],
+            }
             for energy_type in EnergyType
         ]
+
+    @staticmethod
+    def get_energy_type_profile(energy_type: str) -> Dict:
+        semantics = EnergyService.get_energy_semantics(energy_type)
+        device_configs = device_registry.get_by_energy_type(EnergyType(energy_type))
+        specialized_fields = sorted({
+            field
+            for config in device_configs
+            for field in config.specialized_fields
+        })
+        return {
+            **semantics,
+            "supported_device_types": [config.device_type for config in device_configs],
+            "supported_device_categories": sorted({config.category.value for config in device_configs}),
+            "field_profiles": [
+                describe_energy_data_fields(config.device_type)
+                for config in device_configs
+            ],
+            "data_object_kind": "energy_point_series",
+            "point_kind": "energy_point_series",
+            "public_fields": ["consumption", "flow_rate", "timestamp"],
+            "specialized_fields": specialized_fields,
+            "null_field_rule": "nullable_specialized_field_means_not_applicable_or_not_reported",
+        }
     
     @staticmethod
     def get_electricity_price(hour: int) -> float:
@@ -321,23 +353,32 @@ class EnergyService:
             allowed_device_ids=allowed_device_ids,
         )
         if rows:
-            return summarize_energy_statistics(rows)
-
-        semantics = EnergyService.get_energy_semantics(energy_type)
-        return {
-            "total_consumption": 0.0,
-            "avg_consumption": 0.0,
-            "avg_flow_rate": 0.0,
-            "peak_flow_rate": 0.0,
-            "data_count": 0,
-            "consumption_unit": semantics["consumption_unit"],
-            "flow_unit": semantics["flow_unit"],
-            "consumption_semantics": semantics["consumption_semantics"],
-            "consumption_stat_basis": semantics["consumption_stat_basis"],
-            "flow_semantics": semantics["flow_semantics"],
-            "flow_stat_basis": semantics["flow_stat_basis"],
-            "meter_reset_suspected": False,
-        }
+            result = summarize_energy_statistics(rows)
+        else:
+            semantics = EnergyService.get_energy_semantics(energy_type)
+            result = {
+                "total_consumption": 0.0,
+                "avg_consumption": 0.0,
+                "avg_flow_rate": 0.0,
+                "peak_flow_rate": 0.0,
+                "data_count": 0,
+                "consumption_unit": semantics["consumption_unit"],
+                "flow_unit": semantics["flow_unit"],
+                "consumption_semantics": semantics["consumption_semantics"],
+                "consumption_stat_basis": semantics["consumption_stat_basis"],
+                "flow_semantics": semantics["flow_semantics"],
+                "flow_stat_basis": semantics["flow_stat_basis"],
+                "meter_reset_suspected": False,
+            }
+        profile = EnergyService.get_energy_type_profile(energy_type)
+        result.update({
+            "data_object_kind": profile["data_object_kind"],
+            "point_kind": profile["point_kind"],
+            "public_fields": profile["public_fields"],
+            "specialized_fields": profile["specialized_fields"],
+            "null_field_rule": profile["null_field_rule"],
+        })
+        return result
 
     @staticmethod
     def get_statistics_by_type(
@@ -376,6 +417,15 @@ class EnergyService:
                     "flow_stat_basis": semantics["flow_stat_basis"],
                     "meter_reset_suspected": False,
                 }
+            profile = EnergyService.get_energy_type_profile(energy_type)
+            results[energy_type].update({
+                "data_object_kind": profile["data_object_kind"],
+                "point_kind": profile["point_kind"],
+                "public_fields": profile["public_fields"],
+                "specialized_fields": profile["specialized_fields"],
+                "null_field_rule": profile["null_field_rule"],
+                "supported_device_types": profile["supported_device_types"],
+            })
         return results
     
     @staticmethod

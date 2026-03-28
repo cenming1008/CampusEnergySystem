@@ -11,10 +11,12 @@ export interface Device {
   energy_type?: string
   unit?: string
   rated_capacity?: number
+  location_id?: number
   location?: string
   is_active: boolean
   description?: string
   created_at?: string
+  updated_at?: string
 }
 
 // 设备类型配置（来自后端注册表）
