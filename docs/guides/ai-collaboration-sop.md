@@ -1,6 +1,8 @@
 # AI 多线程协作 SOP
 
 > 适用于本仓库内的 Codex、Cursor 与人工协作者。用于统一多线程协作的启动、执行、归档、收口和主题切换动作。
+>
+> 本 SOP 负责治理层动作；若要在高频开发中判断线程分流、切换、并行边界与单轮闭环，请配合阅读 [Codex 五线程 Vibe Coding 框架](./five-thread-vibe-coding-framework.md)。
 
 ---
 
@@ -497,6 +499,7 @@
 
 - [AGENTS.md](../../AGENTS.md)
 - [规范指南 README](./README.md)
+- [Codex 五线程 Vibe Coding 框架](./five-thread-vibe-coding-framework.md)
 - [变更计划规范](./变更计划规范.md)
 - [计划目录 README](../plans/README.md)
 - [Current Status](../plans/current-status.md)

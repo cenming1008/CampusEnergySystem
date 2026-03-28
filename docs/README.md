@@ -34,14 +34,15 @@ docs/
 │   ├── README.md
 │   ├── 文档体系规范.md
 │   ├── 变更计划规范.md
-│   └── ai-collaboration-sop.md
+│   ├── ai-collaboration-sop.md
+│   └── five-thread-vibe-coding-framework.md
 │
 ├── plans/                     ← 具体改动计划与模板
 │   ├── README.md
 │   ├── TEMPLATE.md
 │   ├── current-status.md
 │   ├── handoff.md
-│   └── document-audit.md
+│   └── PLAN-*.md
 │
 ├── 01-新手入门/               ← 新用户从这里开始
 │   ├── README.md
@@ -111,6 +112,7 @@ docs/
 
 - [规范指南](./guides/README.md) - 长期稳定规则、文档落点和计划规范
 - [AI 多线程协作 SOP](./guides/ai-collaboration-sop.md) - 多线程协作的正式执行流程、daily 归档与主题收口规则
+- [Codex 五线程 Vibe Coding 框架](./guides/five-thread-vibe-coding-framework.md) - 五线程在高频开发中的分流、切换、并行边界与最小闭环
 - [计划目录](./plans/README.md) - 具体改动计划、模板和执行记录
 - [根目录 AGENTS.md](../AGENTS.md) - 协作者与智能体的统一执行约定
 - [文档归档区](./archive/README.md) - 历史材料、已合并来源和待删除候选

@@ -26,6 +26,7 @@
 - [文档体系规范.md](./文档体系规范.md)：定义 `docs/` 的新增落点、命名方式和维护职责
 - [变更计划规范.md](./变更计划规范.md)：定义计划文档的触发条件、标准结构和验收写法
 - [AI 多线程协作 SOP](./ai-collaboration-sop.md)：定义多线程协作的启动、执行、归档、收口和主题切换规则
+- [five-thread-vibe-coding-framework.md](./five-thread-vibe-coding-framework.md)：定义五线程在 Codex 中的任务分流、切换、并行边界和单轮闭环规则
 
 ---
 
@@ -34,7 +35,8 @@
 1. 先读 [文档体系规范.md](./文档体系规范.md)，判断文档应该落在哪个目录
 2. 再读 [变更计划规范.md](./变更计划规范.md)，判断当前改动是否需要先写计划
 3. 若涉及多人或智能体协作，再读 [AI 多线程协作 SOP](./ai-collaboration-sop.md)
-4. 若涉及多人或智能体协作，同时阅读根目录 `AGENTS.md`
+4. 若涉及 Codex 五线程接力、高频开发、任务分流或线程切换，再读 [five-thread-vibe-coding-framework.md](./five-thread-vibe-coding-framework.md)
+5. 若涉及多人或智能体协作，同时阅读根目录 `AGENTS.md`
 
 ---
 

@@ -2,14 +2,16 @@
 
 ## 项目协作规则
 
-本项目采用四线程协作模式：
+本项目采用五线程协作模式：
 
-1. 规范
-2. 探索
+1. 验收
+2. 后端
 3. 前端
-4. 后端
+4. 规范
+5. 探索
 
 协作流程、归档与主题收口的正式执行规范，统一以 `docs/guides/ai-collaboration-sop.md` 为准。
+高频开发下的线程分流、切换、并行边界与单轮闭环，统一以 `docs/guides/five-thread-vibe-coding-framework.md` 为准。
 
 所有线程开始工作前，必须先阅读：
 - AGENTS.md
@@ -17,6 +19,7 @@
 - docs/plans/handoff.md
 - 当前主题对应 `PLAN-*.md`（如存在）
 - docs/guides/product-positioning.md
+- docs/guides/five-thread-vibe-coding-framework.md
 
 如果涉及具体实现，还必须继续阅读：
 - 前端线程：docs/guides/frontend-guidelines.md
@@ -65,6 +68,8 @@
 ---
 
 ## 线程职责
+
+以下职责按协作位置展开，不代表固定启动顺序；线程组合、切换与并行边界以 `docs/guides/five-thread-vibe-coding-framework.md` 为准。
 
 ### 1. 规范线程
 职责：
@@ -139,7 +144,7 @@
 
 ---
 
-### 5. 验收动作
+### 5. 验收线程
 职责：
 - 对照当前 `PLAN-*.md`、`current-status.md`、`handoff.md` 核对是否达到阶段完成或正式完成
 - 判断是否需要继续保留当前主主题
@@ -148,6 +153,11 @@
 要求：
 - 即使没有单独的“验收线程”，每个主题结束时也必须执行一次验收动作
 - 主题完成后，必须执行一次“是否收口 / 是否归档”的判断
+
+输出位置：
+- docs/plans/current-status.md
+- docs/plans/handoff.md
+- 当前主题对应 `PLAN-*.md`（必要时）
 
 ---
 
@@ -160,7 +170,7 @@
 3. 阅读 handoff.md
 4. 阅读当前主题对应 `PLAN-*.md`（复杂任务必须具备正式 PLAN 或等价执行依据）
 5. 阅读 product-positioning.md
-6. 根据角色阅读对应 guide
+6. 根据角色阅读对应 guide，并按 `docs/guides/five-thread-vibe-coding-framework.md` 判断线程分流、接力与并行
 7. 先确认任务是否符合“园区能源管理系统”方向
 8. 先分析，再修改
 9. 修改后做最小验证
