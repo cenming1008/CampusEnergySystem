@@ -9,10 +9,13 @@
 3. 前端
 4. 后端
 
+协作流程、归档与主题收口的正式执行规范，统一以 `docs/guides/ai-collaboration-sop.md` 为准。
+
 所有线程开始工作前，必须先阅读：
 - AGENTS.md
 - docs/plans/current-status.md
 - docs/plans/handoff.md
+- 当前主题对应 `PLAN-*.md`（如存在）
 - docs/guides/product-positioning.md
 
 如果涉及具体实现，还必须继续阅读：
@@ -136,6 +139,18 @@
 
 ---
 
+### 5. 验收动作
+职责：
+- 对照当前 `PLAN-*.md`、`current-status.md`、`handoff.md` 核对是否达到阶段完成或正式完成
+- 判断是否需要继续保留当前主主题
+- 判断是否需要执行 daily 归档、主题收口和归档迁移
+
+要求：
+- 即使没有单独的“验收线程”，每个主题结束时也必须执行一次验收动作
+- 主题完成后，必须执行一次“是否收口 / 是否归档”的判断
+
+---
+
 ## 工作顺序
 
 所有线程默认遵循以下顺序：
@@ -143,12 +158,15 @@
 1. 阅读 AGENTS.md
 2. 阅读 current-status.md
 3. 阅读 handoff.md
-4. 阅读 product-positioning.md
-5. 根据角色阅读对应 guide
-6. 先确认任务是否符合“园区能源管理系统”方向
-7. 先分析，再修改
-8. 修改后做最小验证
-9. 将结论写回 current-status.md / handoff.md
+4. 阅读当前主题对应 `PLAN-*.md`（复杂任务必须具备正式 PLAN 或等价执行依据）
+5. 阅读 product-positioning.md
+6. 根据角色阅读对应 guide
+7. 先确认任务是否符合“园区能源管理系统”方向
+8. 先分析，再修改
+9. 修改后做最小验证
+10. 将结论写回 current-status.md / handoff.md
+11. 每天任务结束后，将状态快照与交接快照归档到 `docs/plans/daily/YYYY-MM/`
+12. 主题完成后，执行一次“是否收口 / 是否归档 / 是否切换下一个主主题”的判断
 
 ---
 
@@ -169,6 +187,13 @@
 
 历史总结、已完成计划、已合并来源和删除候选，统一查看：
 - docs/archive/README.md
+
+主区维护纪律：
+- `docs/plans/current-status.md` 和 `docs/plans/handoff.md` 主区任意时刻只允许服务一个当前主主题
+- `current-status.md` 只维护当前主主题状态，不保留按天累积的历史块
+- `handoff.md` 只维护当前仍有行动价值的交接，不承担长期存史职责
+- 每天任务结束后，必须将当天状态与交接快照归档到 `docs/plans/daily/YYYY-MM/`
+- 长期追溯优先查看 `docs/plans/daily/` 与 `docs/archive/plans/`
 
 ### 脚本整理与维护规则
 - 前端原生命令保留在 `frontend/package.json`，不要把仓库级运维或初始化命令塞进去

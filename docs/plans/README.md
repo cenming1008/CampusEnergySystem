@@ -34,6 +34,7 @@
 - 一个计划只服务一个明确目标，避免混装多个独立事项
 - `current-status.md` 只维护“当前阶段正在执行的主主题、状态、风险和验证结论”
 - `handoff.md` 只维护“当前阶段线程间仍需交接的执行信息与约束”
+- 任意时刻，`current-status.md` 和 `handoff.md` 主区只允许服务一个当前主主题
 
 ---
 
@@ -55,6 +56,8 @@
 
 如果某份文档已经主要承担“历史盘点、一次性探索、已完成迁移分析”职责，应迁入 `docs/archive/plans/`，不要继续停留在当前执行层。
 
+复杂任务在进入实现前，必须先有明确的 `PLAN-*.md` 或等价执行依据；`current-status.md` 和 `handoff.md` 不能替代正式 PLAN。
+
 ---
 
 ## 推荐工作流
@@ -63,7 +66,8 @@
 2. 按实际改动填写目标、非目标、范围和验收标准
 3. 实施过程中持续更新正式 PLAN 的“进度记录”，并把当天状态同步到 [current-status.md](./current-status.md) / [handoff.md](./handoff.md)
 4. 每日结束时，将当天已完成的状态块和交接块迁入 `docs/plans/daily/YYYY-MM/`
-5. 主题完成后，再判断正式 PLAN 是否仍作为执行依据；若否，迁入 `docs/archive/plans/`
+5. 每日归档后，主区只保留当前仍需继续推进的最新状态与交接
+6. 主题完成后，必须执行一次“是否继续作为执行依据 / 是否迁入 `docs/archive/plans/` / 是否切换下一个主主题”的收口判断
 
 ---
 
@@ -83,10 +87,10 @@
 ## 对 `current-status.md` 和 `handoff.md` 的维护要求
 
 - `current-status.md`
-  - 只维护当前仍在推进的任务状态
+  - 只维护当前仍在推进的当前主主题状态
   - 每天结束后，将已完成或阶段性收口的状态块迁入对应的 `daily/.../YYYY-MM-DD-status.md`
 - `handoff.md`
-  - 只保留当前阶段仍有行动价值的交接块
+  - 只保留当前阶段仍有行动价值的当前主主题交接块
   - 每天结束后，将已完成或只剩追溯价值的交接块迁入对应的 `daily/.../YYYY-MM-DD-handoff.md`
 
 ---
@@ -99,6 +103,8 @@
 - `daily/*.md`
   - 保存某一天结束后的状态快照和交接快照
   - 主要服务按日期审查，不替代正式 PLAN
+
+`handoff.md` 负责行动，不负责长期存史；长期追溯优先查看 `daily/` 和 `docs/archive/plans/`。
 
 查看某一天的历史记录时，优先进入对应月份目录，例如 `docs/plans/daily/2026-03/`，再按 `YYYY-MM-DD-status.md` / `YYYY-MM-DD-handoff.md` 查找。
 
@@ -116,5 +122,6 @@
 ## 相关文档
 
 - [变更计划规范](../guides/变更计划规范.md)
+- [AI 多线程协作 SOP](../guides/ai-collaboration-sop.md)
 - [文档体系规范](../guides/文档体系规范.md)
 - [docs 主目录](../README.md)
