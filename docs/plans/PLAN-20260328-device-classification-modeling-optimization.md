@@ -1,6 +1,6 @@
 # PLAN-20260328-device-classification-modeling-optimization
 
-> 状态：未开始 | 负责人：待定 | 更新时间：2026-03-28
+> 状态：进行中 | 负责人：待定 | 更新时间：2026-03-28
 
 ---
 
@@ -235,9 +235,11 @@
 
 ## 8. 进度记录
 
-- 2026-03-28：规范线程基于 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md) 收敛正式实施计划，状态为 `未开始`。
-- 2026-03-28：已识别输入与仓库现状不一致点：`frontend/src/views/DeviceManagement.vue` 实际为 `frontend/src/views/DeviceManager.vue`；设备类型数量文档与代码不一致。
-- 2026-03-28：已明确本轮以“第一批收敛 + 兼容优先”为原则，不进入完整 meter / point / relation schema 重建。
+- 2026-03-28：规范线程基于 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md) 收敛正式实施计划，状态由 `未开始` 修正为 `进行中`。
+- 2026-03-28：规范已收敛，范围锁定为“设备对象 / 计量对象 / 点位对象 / 能源类别对象”的第一批边界治理，不进入完整 `meter / point / relation` schema 重建。
+- 2026-03-28：后端第一批已实施，已完成 `Device`、`EnergyData`、`device_registry`、设备 / 能源接口的第一批语义收敛，并保持接口兼容。
+- 2026-03-28：前端已完成依赖审计与最小适配，范围控制在 `device.ts`、`energy.ts`、`DeviceManager.vue`、`EnergyManagement.vue`。
+- 2026-03-28：验收已执行，但暂不正式收口；原因是前端对后端新增对象语义兼容字段的真实联调确认仍未完成，正式 PLAN 与实际实现已对齐，但收口条件尚未全部满足。
 
 ---
 

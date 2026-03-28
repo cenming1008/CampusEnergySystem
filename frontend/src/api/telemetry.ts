@@ -18,6 +18,8 @@ export interface DeviceData {
 export interface DeviceAnalysis {
   device_id: number
   is_active: boolean
+  device_type?: string
+  device_category?: string
   current_power: number
   voltage: number
   current: number
@@ -25,12 +27,18 @@ export interface DeviceAnalysis {
   today_cost: number
   energy_type?: string
   energy_label?: string
+  device_object_role?: string
+  metering_role?: string
+  point_kind?: string
+  measurement_subject?: string
   current_value?: number
   current_value_label?: string
   current_value_unit?: string
   today_consumption?: number
   today_consumption_unit?: string
   today_consumption_semantics?: string
+  energy_data_public_fields?: string[]
+  energy_data_specialized_fields?: string[]
   electrical_fields_applicable?: boolean
 }
 
@@ -60,6 +68,8 @@ function normalizeAnalysis(payload: Partial<DeviceAnalysis>): DeviceAnalysis {
   return {
     device_id: Number(payload.device_id || 0),
     is_active: Boolean(payload.is_active),
+    device_type: payload.device_type,
+    device_category: payload.device_category,
     current_power: Number(payload.current_power || 0),
     voltage: Number(payload.voltage || 0),
     current: Number(payload.current || 0),
@@ -67,12 +77,18 @@ function normalizeAnalysis(payload: Partial<DeviceAnalysis>): DeviceAnalysis {
     today_cost: Number(payload.today_cost || 0),
     energy_type: payload.energy_type,
     energy_label: payload.energy_label,
+    device_object_role: payload.device_object_role,
+    metering_role: payload.metering_role,
+    point_kind: payload.point_kind,
+    measurement_subject: payload.measurement_subject,
     current_value: payload.current_value == null ? undefined : Number(payload.current_value),
     current_value_label: payload.current_value_label,
     current_value_unit: payload.current_value_unit,
     today_consumption: payload.today_consumption == null ? undefined : Number(payload.today_consumption),
     today_consumption_unit: payload.today_consumption_unit,
     today_consumption_semantics: payload.today_consumption_semantics,
+    energy_data_public_fields: Array.isArray(payload.energy_data_public_fields) ? payload.energy_data_public_fields : [],
+    energy_data_specialized_fields: Array.isArray(payload.energy_data_specialized_fields) ? payload.energy_data_specialized_fields : [],
     electrical_fields_applicable: payload.electrical_fields_applicable,
   }
 }

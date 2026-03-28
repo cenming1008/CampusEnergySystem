@@ -53,8 +53,9 @@
 - 已按 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 和 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md) 完成前端依赖审计。
 - 当前受影响最大的前端消费点不是“接口拿不到数据”，而是仍按旧理解消费 `device_type / device_category / energy_type / unit / total_consumption / current_power` 这些字段。
 - 已完成的最小适配只落在允许范围内：
-  - `frontend/src/api/device.ts` 补齐后端已存在的 `location_id / updated_at` 类型
-  - `frontend/src/views/DeviceManager.vue` 的降级设备类型列表补齐到注册表当前 10 种，避免接口失败时前端继续使用过期分类
+  - `frontend/src/api/device.ts` 已承接 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases`
+  - `frontend/src/api/energy.ts` 已承接 `supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`
+  - `frontend/src/api/telemetry.ts` 已承接 `device_type`、`device_category`、`device_object_role`、`metering_role`、`point_kind`、`measurement_subject`、`energy_data_public_fields`、`energy_data_specialized_fields`
 - 本轮没有重构设备管理页、多能源页、驾驶舱；`Dashboard.vue`、`CampusScene.vue`、`EnergyManagement.vue` 中的对象语义和口径风险只做记录，不扩张为页面改版。
 
 ### 后端线程
@@ -70,11 +71,11 @@
 
 ### 验收线程
 - 已按验收线程要求复核 `docs/guides/*`、`docs/plans/*`、`handoff.md`、本轮 2026-03-28 主题相关后端 / 前端代码与测试证据。
-- 验收结论：本轮“设备分类、计量对象、点位对象与多能源分层建模优化”后端第一批实现已落地，但暂不建议正式收口。
-- 当前阻塞点有两类：
-  - 正式 PLAN 仍停留在“未开始”，`current-status.md` / `handoff.md` / 实际代码状态未完全对齐，属于文档闭环缺口。
-  - 前端虽已完成依赖审计与极小适配，但 `frontend/src/api/device.ts`、`frontend/src/api/energy.ts`、`frontend/src/api/telemetry.ts` 仍未承接后端已新增的对象语义字段，联调准备未完全闭环。
-- `DeviceManager.vue`、`Dashboard.vue`、`CampusScene.vue`、`EnergyManagement.vue` 仍以旧字段组合猜测对象语义；这部分不是要求本轮做页面重构，但需要前端线程至少补齐 API 类型和联调说明后再收口。
+- 验收结论：规范线程已把正式 PLAN 状态和进度回写完整，但前端线程对对象语义兼容新增字段的承接仍未完全达标。
+- 当前唯一阻塞点集中在 `frontend/src/api/energy.ts`：
+  - 已承接 `supported_device_types / data_object_kind / point_kind / public_fields / specialized_fields / field_boundary_rule`
+  - 但尚未承接后端和 `handoff.md` 已明确存在的 `null_field_rule`、`device_object_boundary`、`energy_profiles`
+- 因此本轮判断为“部分完成，需交回前端线程”，而不是“主功能完成但文档未闭环”。
 
 ---
 
@@ -91,12 +92,13 @@
 - [x] 回写 `current-status.md` / `handoff.md`
 - [x] 将后端 / 前端执行边界写清楚
 - [x] 为 `app/application/` 补充详细 README，明确 use case 分工与新增落点规则
-- [ ] 等待后端线程按计划实施后回写进度
+- [x] 已回写正式 PLAN 状态与进度记录，使其与 `current-status.md` / `handoff.md` / 实际实现一致
 - [x] 基于多能源探索文档收敛第一批正式实施计划
 - [x] 覆盖更新多能源相关的 `handoff.md` / `current-status.md` 规范块
 - [x] 已新增 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md)
 - [x] 已覆盖更新设备分类与对象分层建模主题对应的规范块
 - [x] 当前设备分类与对象分层建模主题以本次 PLAN 为准
+- [ ] 当前暂不正式收口，待前端完成对象语义兼容字段的真实联调确认后再复核
 
 ### 后端线程
 - [x] 只在 `devices/data`、`analysis`、`reports` 三条主路径内实施 application 收敛
@@ -115,17 +117,18 @@
 - [x] 已完成 `frontend/src/api/device.ts`、`frontend/src/api/energy.ts`、`frontend/src/api/report.ts`、`frontend/src/api/telemetry.ts`、`frontend/src/views/DeviceManager.vue`、`frontend/src/views/EnergyManagement.vue`、`frontend/src/views/Report.vue`、`frontend/src/views/Dashboard.vue`、`frontend/src/views/CampusScene.vue`、`frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts`、`frontend/src/features/dashboard/composables/useDashboardRealtime.ts` 的设备分类与对象语义依赖审计
 - [x] 已确认本轮输入中的 `DeviceManagement.vue` 实际文件为 `frontend/src/views/DeviceManager.vue`，审计与改动均以实际文件为准
 - [x] 已完成最小适配：
-  - `frontend/src/api/device.ts` 承接后端现有 `location_id / updated_at`
-  - `frontend/src/views/DeviceManager.vue` 的设备类型降级列表补齐到当前注册表 10 种
+  - `frontend/src/api/device.ts` 承接设备 registry 第一批对象语义字段
+  - `frontend/src/api/energy.ts` 承接能耗对象边界字段和字段层级字段
+  - `frontend/src/api/telemetry.ts` 承接 `analysis` 第一批对象语义字段
 - [x] 已保持现有页面结构与交互不变，没有扩张为设备页、多能源页、驾驶舱整体重构
-- [ ] 待后端线程补齐“设备分类与对象分层建模第一批后端收敛”专门交接块后，再做真实联调确认
-- [ ] 若后端后续只做兼容新增字段，前端优先走 API 类型和最小消费点适配，不扩张为架构治理
+- [x] 已补齐 API 类型层对后端第一批对象语义兼容新增字段的承接
+- [ ] 真实联调时重点确认页面层是否继续按旧语义消费这些字段
 
 ### 验收线程
 - [x] 已完成探索 / 规范 / 后端 / 前端四类产出统一验收
-- [ ] 暂不建议将本轮标记为“正式收口”
-- [ ] 建议先回到规范线程补齐 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 的状态、进度记录与验收结果
-- [ ] 建议再交回前端线程补齐 `device.ts`、`energy.ts`、`telemetry.ts` 对对象语义兼容新增字段的类型承接与联调说明，再由验收线程做最终确认
+- [ ] 当前不建议将本轮标记为“正式收口”
+- [x] 规范线程已完成正式 PLAN 状态与进度回写
+- [ ] 交回前端线程补齐 `frontend/src/api/energy.ts` 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接，再由验收线程做最终确认
 
 ---
 
@@ -237,13 +240,14 @@
   - `report.ts` / `Report.vue` 增加与后端文件命名规则更接近的导出文件名兜底，并补上 `multi_energy_summary` 最小入口
 - 已完成 2026-03-28 设备分类与对象分层建模主题前端审计：
   - `device.ts`：确认前端仍直接依赖 `device_type / device_category / energy_type / unit / rated_capacity / location` 这组薄标签字段
-  - `DeviceManager.vue`：确认新增设备时只选择 `device_type`，其余语义全部默认由后端派生；并已把降级设备类型列表补齐到 10 种
+  - `DeviceManager.vue`：确认新增设备时只选择 `device_type`，其余语义全部默认由后端派生
   - `EnergyManagement.vue`：确认页面仍按 `energy_type + unit + total_consumption` 消费对象语义，没有独立计量对象 / 点位对象语义层
   - `Dashboard.vue` / `CampusScene.vue` / `useDashboardRealtime.ts`：确认仍通过 `device_type / energy_type / current_power / rated_capacity / location` 组合猜测设备和计量语义
   - `Report.vue` / `report.ts`：当前报表下载链路对本主题无额外 breaking change，但仍依赖 blob 下载行为稳定
 - 已做 2026-03-28 主题最小前端适配：
-  - `frontend/src/api/device.ts` 补齐 `location_id / updated_at`
-  - `frontend/src/views/DeviceManager.vue` 将降级设备类型列表扩展为与当前注册表一致的 10 种
+  - `frontend/src/api/device.ts` 已承接 `object_role / metering_role / point_kind / measurement_subject / public_data_fields / specialized_fields / compatible_aliases`
+  - `frontend/src/api/energy.ts` 已承接 `supported_device_types / data_object_kind / point_kind / public_fields / specialized_fields / field_boundary_rule`
+  - `frontend/src/api/telemetry.ts` 已承接 `device_type / device_category / device_object_role / metering_role / point_kind / measurement_subject / energy_data_public_fields / energy_data_specialized_fields`
 - 已执行 `cd frontend && npm run build`，构建通过
 
 ---
@@ -275,7 +279,7 @@
   - `Dashboard.vue` 与 `CampusScene.vue` 仍通过 `device_type / energy_type / rated_capacity / current_power` 组合来猜设备语义和运行语义。
   - `EnergyManagement.vue` 仍把 `EnergyData` 宽表字段直接当成稳定测点语义消费，无法区分“字段暂无值”和“该对象本无此语义字段”。
   - `frontend/src/api/device.ts` 现在虽已补上 `location_id`，但前端页面仍只消费 `location` 字符串，没有进入位置对象语义层。
-- 当前 `handoff.md` 中仍缺少“后端 -> 前端｜设备分类与对象分层建模第一批后端收敛”专门块；前端本轮只能基于现有 PLAN、探索审计和实际代码做静态审计，真实联调前仍需后端补齐该块。
+- `handoff.md` 已存在“后端 -> 前端｜设备分类与对象分层建模第一批后端收敛”专门块；当前前端阻塞点不再是缺少交接块，而是页面消费层尚未经过真实联调确认。
 - 验收视角补充：
   - 后端代码、`handoff.md` 与 `current-status.md` 对“设备对象 / 计量对象 / 点位对象第一批兼容语义已补到 registry、接口和导出层”的描述基本一致。
   - 但正式 PLAN 仍停留在“未开始”，且前端 API 类型层未承接后端新增的 `object_role / metering_role / point_kind / supported_device_types / energy_data_public_fields` 等语义字段，说明当前不只是文档慢一步，还存在前端联调准备缺口。
@@ -290,18 +294,15 @@
 - 判断本轮是否满足第一批对象分层建模优化的收口条件，并把验收结论写回协作文档。
 
 ### 发现的问题
-- [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 顶部状态仍为“未开始”，进度记录也只保留规范线程建计划时的信息，未反映后端已实施、前端已完成审计、验收已执行的实际状态。
-- [frontend/src/api/device.ts](/Users/todo/MineEnergySystem/frontend/src/api/device.ts) 的 `DeviceTypeConfig` 仍未声明后端已返回的 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases` 等字段。
-- [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 仍未承接 `supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`、`energy_profiles` 等本轮后端兼容新增字段。
-- [frontend/src/api/telemetry.ts](/Users/todo/MineEnergySystem/frontend/src/api/telemetry.ts) 仍未声明后端 `GET /analysis/{device_id}` 已新增的 `device_type`、`device_category`、`device_object_role`、`metering_role`、`point_kind`、`measurement_subject`、`energy_data_public_fields`、`energy_data_specialized_fields`。
-- [current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md) 先前“待后端线程补齐专门交接块后再做真实联调确认”的说法已过期，因为 [handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md) 已存在对应的 `后端 -> 前端` 交接块。
+- [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 已从“未开始”更新为“进行中”，且进度记录已补到后端实施、前端审计和验收执行状态；规范线程本次核查通过。
+- [frontend/src/api/device.ts](/Users/todo/MineEnergySystem/frontend/src/api/device.ts) 已承接 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases`。
+- [frontend/src/api/telemetry.ts](/Users/todo/MineEnergySystem/frontend/src/api/telemetry.ts) 已承接 `device_type`、`device_category`、`device_object_role`、`metering_role`、`point_kind`、`measurement_subject`、`energy_data_public_fields`、`energy_data_specialized_fields`。
+- [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 仍未承接后端 / handoff 已明确的 `null_field_rule`、`device_object_boundary`、`energy_profiles`，因此前端对象语义兼容新增字段承接尚未完全闭环。
 
 ### 验收结论
-- 探索线程结论、正式 PLAN、后端第一批实现、测试验证、`handoff.md` 中的后端 / 前端交接已能互相对应，说明后端主功能基本闭环。
-- 但当前仍有两类收口阻塞：
-  - 正式 PLAN 进度未回写，文档闭环不完整。
-  - 前端联调准备只完成了审计和极小修补，尚未把后端新增对象语义字段承接到 API 类型层。
-- 验收判断：本轮属于“后端主功能已完成，但规范进度回写和前端联调准备未完全闭环”，暂不正式收口。
+- 规范线程已达标：正式 PLAN 状态与进度记录已回写到当前实际状态。
+- 前端线程仅部分达标：`device.ts` 与 `telemetry.ts` 已通过，但 `energy.ts` 仍缺少部分对象语义兼容字段。
+- 验收判断：本轮属于“部分完成，需交回前端线程”。
 
 ### 修改文件
 - docs/plans/current-status.md
@@ -316,15 +317,14 @@
 - 已执行 `cd frontend && npm run build`，通过。
 
 ### 剩余风险
-- 当前未闭环的第一问题是正式 PLAN 进度和状态未同步更新，这会让后续线程无法直接判断本轮是否已完成。
-- 当前未闭环的第二问题是前端 API 类型层尚未承接对象语义兼容新增字段；这不会阻塞现有页面运行，但会阻塞“前端已完成联调准备”的验收判断。
-- `Dashboard.vue`、`CampusScene.vue`、`EnergyManagement.vue` 仍按旧字段组合猜测对象语义，这属于已识别存量风险；验收线程不直接改页面，因为本轮 PLAN 明确禁止页面大改版。
-- 若下一步继续推进，应先由规范线程补齐计划进度，再由前端线程补齐最小 API 类型与联调说明；后端当前不需要继续扩大实现范围。
+- 当前未闭环的问题已收敛为前端 API 类型层单点缺口：`frontend/src/api/energy.ts` 仍未完整承接对象语义兼容新增字段。
+- 页面层仍按旧字段组合消费对象语义属于已识别存量风险，但不属于本次你限定的两项终验范围，也不是本轮要求验收线程直接补实现的事项。
+- 下一步只需交回前端线程补齐 `energy.ts` 的字段承接，并重新跑构建后再复核；规范线程本轮不再是阻塞点。
 
 ### 需要交接给谁
-- 先交回规范线程：补齐正式 PLAN 的状态、进度记录和验收结果，使计划文档与 `current-status.md` / `handoff.md` / 实际实现一致。
-- 再交回前端线程：补齐 `device.ts`、`energy.ts`、`telemetry.ts` 对兼容新增对象语义字段的类型承接，并把“为何页面层本轮不改”写得更明确。
-- 当前不建议交回后端线程继续追加主功能。
+- 交回前端线程：
+  - 补齐 `frontend/src/api/energy.ts` 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接
+  - 保持页面层不扩张，只完成 API 类型层与构建自洽
 
 ---
 
@@ -385,7 +385,8 @@
 
 ### 修改文件
 - frontend/src/api/device.ts
-- frontend/src/views/DeviceManager.vue
+- frontend/src/api/energy.ts
+- frontend/src/api/telemetry.ts
 - docs/plans/current-status.md
 - docs/plans/handoff.md
 
@@ -393,14 +394,15 @@
 - 已阅读 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md)、[PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md)、`current-status.md`、`handoff.md` 现有相关块。
 - 已核对前端受影响文件与后端设备接口、注册表、请求模型之间的真实对应关系。
 - 已完成最小前端适配：
-  - `frontend/src/api/device.ts` 增加 `location_id / updated_at`
-  - `frontend/src/views/DeviceManager.vue` 的默认设备类型列表补齐到 10 种
+  - `frontend/src/api/device.ts` 增加第一批 registry 对象语义字段
+  - `frontend/src/api/energy.ts` 增加第一批能耗对象边界字段
+  - `frontend/src/api/telemetry.ts` 增加第一批 analysis 对象语义字段
 - 已执行 `cd frontend && npm run build`，构建通过。
 
 ### 剩余风险
-- 本轮没有看到后端线程专门写出的“设备分类与对象分层建模第一批后端收敛”交接块；当前判断仍以静态代码和正式 PLAN 为主，属于预估性联调结论。
 - `DeviceManager.vue`、`EnergyManagement.vue`、`Dashboard.vue`、`CampusScene.vue` 仍主要消费旧标签语义，本轮只记录风险，不扩张为页面重构。
-- 若后端下一步仅通过兼容新增字段暴露对象语义，前端仍需再做一轮 API 类型补齐和最小消费确认。
+- 后端虽已写出专门交接块，但这些新增对象语义字段尚未在页面层经过真实联调确认。
+- 若后端后续继续追加对象语义字段，前端仍应优先在 API 类型层承接，再决定是否改页面消费点。
 
 ### 修改文件补充
 - docs/plans/PLAN-20260327-multi-energy-data-audit.md

@@ -30,6 +30,13 @@ export interface DeviceTypeConfig {
   default_capacity: number
   required_fields: string[]
   optional_fields: string[]
+  object_role?: string
+  metering_role?: string
+  point_kind?: string
+  measurement_subject?: string
+  public_data_fields?: string[]
+  specialized_fields?: string[]
+  compatible_aliases?: Record<string, string>
   icon: string
   color: string
 }

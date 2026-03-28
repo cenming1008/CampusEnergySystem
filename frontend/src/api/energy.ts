@@ -76,6 +76,12 @@ export interface EnergyStatistics {
   flow_semantics?: string
   flow_stat_basis?: string
   meter_reset_suspected?: boolean
+  supported_device_types?: string[]
+  data_object_kind?: string
+  point_kind?: string
+  public_fields?: string[]
+  specialized_fields?: string[]
+  field_boundary_rule?: string
 }
 
 export interface EnergyOverview {
@@ -84,6 +90,12 @@ export interface EnergyOverview {
   overview_boundary?: string
   unit_rule?: string
   cross_energy_mix_allowed?: boolean
+  supported_device_types?: string[]
+  data_object_kind?: string
+  point_kind?: string
+  public_fields?: string[]
+  specialized_fields?: string[]
+  field_boundary_rule?: string
 }
 
 // 能源类型信息
@@ -95,6 +107,12 @@ export interface EnergyTypeInfo {
   consumption_semantics?: string
   flow_semantics?: string
   carbon_scope?: string
+  supported_device_types?: string[]
+  data_object_kind?: string
+  point_kind?: string
+  public_fields?: string[]
+  specialized_fields?: string[]
+  field_boundary_rule?: string
 }
 
 // 碳排放因子
