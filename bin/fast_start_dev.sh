@@ -18,7 +18,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🔧 MineEnergySystem 开发模式启动${NC}"
+echo -e "${BLUE}  🔧 园区综合能源管理系统开发模式启动${NC}"
 echo -e "${BLUE}  （中间件 Docker + 前后端本地）${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""

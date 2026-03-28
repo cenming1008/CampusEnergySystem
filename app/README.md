@@ -497,5 +497,5 @@ value = await redis.get("key")
 
 ---
 
-**维护者**：MineEnergySystem 团队  
+**维护者**：园区综合能源管理系统团队  
 **最后更新**：2026-03-24

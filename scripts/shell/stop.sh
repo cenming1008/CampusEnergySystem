@@ -1,5 +1,5 @@
 #!/bin/bash
-# MineEnergySystem 停止脚本
+# 园区综合能源管理系统停止脚本
 
 # 获取脚本所在目录
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -11,7 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${BLUE}🛑 停止 MineEnergySystem 服务...${NC}"
+echo -e "${BLUE}🛑 停止园区综合能源管理系统服务...${NC}"
 echo ""
 
 docker compose down

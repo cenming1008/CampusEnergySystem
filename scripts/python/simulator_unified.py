@@ -304,7 +304,7 @@ def on_message(client, userdata, msg):
 
 def start_simulation():
     print("=" * 60, flush=True)
-    print("   🏭 煤矿综合能源管理系统 - 统一模拟器 v2.3", flush=True)
+    print("   🏭 园区综合能源管理系统 - 统一模拟器 v2.3", flush=True)
     print("   支持远程控制：通过 MQTT 发送 start/stop 指令", flush=True)
     print("=" * 60, flush=True)
     print(flush=True)

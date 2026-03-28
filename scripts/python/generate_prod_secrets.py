@@ -19,7 +19,7 @@ def generate_password(length: int) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="生成 MineEnergySystem 生产环境密钥片段")
+    parser = argparse.ArgumentParser(description="生成园区综合能源管理系统生产环境密钥片段")
     parser.add_argument("--password-length", type=int, default=24, help="生成密码长度，默认 24")
     return parser.parse_args()
 

@@ -55,7 +55,7 @@ check_json_endpoint() {
     pass "${name} 可用"
 }
 
-echo "==> MineEnergySystem 试点联调冒烟检查"
+echo "==> 园区综合能源管理系统试点联调冒烟检查"
 echo "后端地址: ${BACKEND_URL}"
 
 check_json_endpoint "健康检查" "/health"

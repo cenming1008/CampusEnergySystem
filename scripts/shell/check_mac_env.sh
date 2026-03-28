@@ -1,6 +1,6 @@
 #!/bin/bash
 # Mac 环境检查脚本
-# 用于验证 MineEnergySystem 在 Mac 上的运行环境
+# 用于验证园区综合能源管理系统在 Mac 上的运行环境
 
 echo "🔍 检查 Mac 运行环境..."
 echo ""

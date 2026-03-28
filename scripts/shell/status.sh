@@ -1,5 +1,5 @@
 #!/bin/bash
-# MineEnergySystem 状态查看脚本
+# 园区综合能源管理系统状态查看脚本
 
 set -euo pipefail
 
@@ -157,7 +157,7 @@ fi
 configure_env "$TARGET_ENV"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  MineEnergySystem 服务状态 (${COMPOSE_LABEL})${NC}"
+echo -e "${BLUE}  园区综合能源管理系统服务状态 (${COMPOSE_LABEL})${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 

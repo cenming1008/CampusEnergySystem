@@ -326,7 +326,7 @@ def verify_system():
 
 def main():
     logger.info("=" * 60)
-    logger.info("  🏭 煤矿综合能源管理系统 - 完整初始化")
+    logger.info("  🏭 园区综合能源管理系统 - 完整初始化")
     logger.info("=" * 60)
     
     try:

@@ -1,61 +1,162 @@
 # Handoff
 
 ## 当前主题
-- 当前主主题：设备分类与对象分层建模优化
+- 当前主主题：命名迁移分层治理
 - 当前执行依据：
-  - [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md)
-  - [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md)（保留为探索输入，不替代正式 PLAN）
+  - [PLAN-20260328-naming-migration-layering.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-naming-migration-layering.md)
+  - [naming-migration-residue-analysis.md](/Users/todo/MineEnergySystem/docs/plans/naming-migration-residue-analysis.md)（专题分层材料，供后续线程按需深挖）
 
 ---
 
-## 规范 / 验收 -> 前端
+## 验收结论
 ### 当前任务
-- 若继续推进本主题，前端只做真实联调核对和最小兼容修正，不新开页面重构。
+- 验收线程已完成本轮“主入口命名修正 + 低风险脚本/后端文案修正”的阶段验收，当前结论可直接作为下一轮接棒依据。
+
+### 当前结论
+- 本轮目标已完成：README、文档中心、新手入口、`frontend/README.md` 的主入口命名已统一到“园区综合能源管理系统 / Campus Energy Management System / 园区 EMS”口径。
+- 后端 / 脚本补充轮已完成：启动脚本、状态脚本、冒烟脚本、初始化脚本、模拟器、密钥生成帮助文案，以及少量后端部署说明文本已统一到“园区综合能源管理系统”口径。
+- 非目标已遵守：本轮改动未扩成全仓 rename，未触碰 Docker、数据库、环境变量、MQTT、Prometheus、Grafana、脚本契约和 `frontend/src/three/mine/` 兼容目录本体。
+- 验证已补齐：验收线程已复核目标入口文件、主区文档一致性、定向 `git diff --name-only` 改动范围，并执行 `cd frontend && npm run build`、`python3 scripts/python/generate_prod_secrets.py --help`，均通过。
+- 当前主题结论不是“正式收口”，而是“通过，进入下一轮；主主题继续保留”。
+
+### 为什么暂不正式收口
+- 当前主题虽已完成主入口与一轮后端低风险文案收敛，但仓库内仍有少量剩余命中落在独立部署文档、历史背景说明、仓库路径噪音与冻结的运行时兼容标识层，尚未形成“主题已无行动项”的正式收口条件。
+- `MineEnergySystem`、绝对路径、Git URL 与 `mine_*` 运行时兼容标识仍会在仓库内持续存在，需要继续依赖当前 PLAN 约束后续线程不要误做批量替换。
+- 当前不应迁 archive；正式 PLAN 仍需留在主区作为执行依据。
+
+---
+
+## 规范结论
+### 当前任务
+- 规范线程已锁定正式术语、四类残留判断标准和实施边界，当前可按既定边界交实现线程。
 
 ### 当前仍有行动价值的信息
-- 不要再把 `device_type` 单独当成完整对象模型。
-- 不要继续通过 `device_type / device_category / energy_type` 和 `EnergyData` 宽表字段“是否有值”直接猜对象语义。
-- 联调时优先核对后端已补的对象语义字段与边界字段，包括：
-  - `object_role`
-  - `metering_role`
-  - `point_kind`
-  - `measurement_subject`
-  - `public_fields`
-  - `specialized_fields`
-  - `null_field_rule`
-  - `device_object_boundary`
+- `MineEnergySystem` 在很多文档里只是绝对路径或仓库名引用，不能直接视为产品命名残留。
+- 当前必须优先处理的是主入口用户可见命名，而不是 `mine_energy / mine_backend / mine_mqtt` 这类运行时标识。
+- `frontend/src/three/mine/` 与矿区 3D 场景应先标为历史背景，不要顺手扩成 3D 改版。
+- 正式产品主名统一为“园区综合能源管理系统”，英文主名统一为“Campus Energy Management System”，允许简称为“园区 EMS / 智慧园区 EMS”。
 
 ### 仅允许的下一步
-- 核对 `DeviceManager.vue`、`EnergyManagement.vue`、`Dashboard.vue`、`CampusScene.vue` 是否仍误把旧字段当完整语义。
-- 若发现兼容问题，只补最小消费说明或最小适配，不扩成页面改版。
+- 前端 / 文档线程只处理 README、新手入口、主导航和其他用户第一次进入就会看到的正式产品文案。
+- 可选的脚本 / 后端线程只处理低风险标题、帮助文字、初始化说明中的旧产品名。
+- 对历史模块仅补“历史背景”说明，不推进结构性 rename。
 
----
+### 禁止扩张
+- 不把规范线程变成全仓清理线程。
+- 不提前批准改数据库名、容器名、MQTT 用户名、Prometheus 指标名。
+- 不跳过规范直接让实现线程按检索结果批量替换。
 
-## 规范 / 验收 -> 后端
+## 规范 -> 前端
 ### 当前任务
-- 若继续推进本主题，后端只处理真实联调暴露的兼容问题，不扩张新 schema 设计。
+- 规范锁口径后，前端 / 文档线程只处理主入口用户可见命名，不做结构性页面重构。
 
 ### 当前仍有行动价值的信息
-- 当前必须继续以兼容层方式维护第一批对象语义，不把本轮误判为“已完成独立 meter / point / relation schema”。
-- 若联调继续暴露问题，优先核对两类风险：
-  - `device_registry` 已声明字段与 schema / payload / model 实际承接能力是否一致
-  - 接口返回是否仍会诱导前端用旧标签和宽表字段猜对象语义
+- 优先目标是主入口文案和导航口径一致，包括 README / 新手入口 / 前端主导航的园区 EMS 表达。
+- `frontend/src/three/mine/` 当前只允许降级入口、改标签或补历史说明，不允许直接重写场景引擎。
+- 如果发现某个词位于运行时契约层，应停止前端替换并打回探索 / 规范。
 
 ### 仅允许的下一步
-- 只做兼容修正、边界说明补齐、返回语义澄清。
-- 不做接口路径重命名。
-- 不做全量数据库 schema 重构。
+- 仅改用户可见文案、主导航标签、主入口说明、明显误导性的产品表述。
+- 正式中文主名使用“园区综合能源管理系统”；英文仅在需要英文主名时使用“Campus Energy Management System”；简称只在导航或空间受限时使用“园区 EMS / 智慧园区 EMS”。
+- 仅改不会影响接口、监控、Docker、脚本自动化的前端层命名。
+- 对历史矿区 3D 页面，只做降级或标记，不做大改。
+
+### 禁止扩张
+- 不做全仓 rename。
+- 不顺手清理 `mine_*` 基础设施标识。
+- 不把本轮扩成 Dashboard / Login / 3D 场景全面视觉重构，除非规范另行放开。
+
+### 打回条件
+- 发现目标字符串对应的是容器名、数据库名、监控指标、MQTT 契约或脚本依赖。
+- 发现需要修改的不是前端入口，而是规范口径本身。
+- 发现页面调整已超出“最小命名迁移”范围。
+
+## 前端 -> 验收
+### 当前任务
+- 前端线程已在允许边界内完成主入口命名修正，现交验收线程判断是否达到阶段完成。
+
+### 当前前端已完成
+- 已修正根 README 标题与项目介绍中的英文主名写法，统一为“园区综合能源管理系统 / Campus Energy Management System”口径。
+- 已修正文档中心入口、快速启动指南、安装配置完整指南中的旧 `MineEnergySystem` / “煤矿综合能源管理系统” 主入口标题与祝贺文案。
+- 已修正 `frontend/README.md` 的前端入口标题与介绍，并将 `src/three/mine/` 说明降级为“历史 3D 场景生成器（兼容目录）”。
+- 已复核 `frontend/src/layout/`、`frontend/src/router/` 与 `frontend/src/views/Login.vue`，未发现还在主导航、登录主入口或页面主标题中继续扩写旧煤矿主名的情况。
+
+### 对验收线程的限制
+- 只核对主入口用户可见文案是否已切到园区 EMS 口径，不以仓库名、绝对路径、Git clone 命令中的 `MineEnergySystem` 判定前端未完成。
+- 不要求本轮继续清理 `frontend/src/three/mine/`、Docker、数据库、MQTT、Prometheus、Grafana、环境变量等运行时标识。
+- 如果验收发现需要改的是运行时契约、历史资源文档标题或更深层 README，请转探索 / 规范重新分流，不直接打回前端做全仓替换。
+
+### 打回前端条件
+- 主导航、登录主入口、README、文档中心或新手入口中仍存在会把当前产品主名表达成“煤矿综合能源管理系统 / 矿区能源管理系统 / Mine”的显性对外文案。
+- 验收发现本轮改动误伤了用户可见入口的标题展示或链接可读性。
 
 ---
 
-## 验收 -> 规范
+## 规范 -> 后端 / 脚本
 ### 当前任务
-- 在下一次验收动作中，判断本主题是否正式收口，以及 audit 是否继续保留在 `docs/plans/`。
+- 若继续推进本主题，只允许后端 / 脚本线程处理低风险终端文案和说明文字；运行时标识迁移不在本轮。
+
+### 当前仍有行动价值的信息
+- 可延后改的主要是脚本启动文案、初始化文案、CLI 描述，不是服务名本身。
+- `app/core/metrics.py`、`docker-compose*.yml`、`env*.example`、`monitoring/` 当前应视为运行时契约层。
+- 若只改输出文案，不应影响命令、环境变量、容器探针和 Grafana 查询。
+
+### 仅允许的下一步
+- 修改脚本文案标题、说明文字、帮助信息中的旧产品名。
+- 若出现 `MineEnergySystem`，先判断其是否只是仓库路径、绝对路径或 Git URL；这三类不作为当前文案替换目标。
+- 必要时补注释说明：`mine_*` 标识当前属于历史运行时兼容命名。
+- 不改环境变量键名、数据库名、容器名、指标名、topic 名。
+
+### 禁止扩张
+- 不做 breaking change。
+- 不改监控查询表达式。
+- 不调整 Docker / 数据库 / MQTT 真实运行标识。
+
+### 打回条件
+- 改动需要同步变更容器名、数据库名、指标名或联调命令。
+- 改动范围已超出“文案和说明文字”。
+
+### 再次进入验收条件
+- 已完成低风险标题、帮助文案或初始化说明的收敛，并回写 `current-status.md` / `handoff.md`。
+- 已明确本轮没有改动任何运行时 `mine_*` 契约、容器名、数据库名、环境变量键名或监控查询。
+- 若准备申请正式收口，需先证明当前主题已无剩余行动项，或明确用户决定停在当前阶段。
+
+## 验收 -> 下一轮
+### 当前任务
+- 当前阶段验收已通过，但主题暂不正式收口；若还要继续推进，只能按当前 PLAN 的分层边界进入下一轮。
+
+### 下一轮默认路径
+- 优先路径：`验收 -> 探索 / 规范`
+- 适用场景：只有在用户明确要求继续清理剩余命中时，才先由探索 / 规范重新判断 `scripts/QUICK_REFERENCE.md`、`bin/README.md`、`docs/03-开发与部署/DATABASE_STORAGE.md`、`Git完整指南.md` 等位置究竟属于路径噪音、历史背景，还是仍可纳入低风险文案轮次。
+- 当前不默认直接打回前端或后端继续实现。
+
+### 仅允许的下一步
+- 只补剩余命中的分层判断与最小范围结论。
+- 若确认仍属低风险说明文案，可再交对应线程做一轮局部修正。
+- 若确认只是仓库路径、维护者署名、历史背景或冻结契约，则应停止继续扩张，并准备正式收口判断。
+
+### 禁止扩张
+- 不把当前主题重新升级为全仓 rename。
+- 不借“剩余命中”名义触碰运行时 `mine_*` 契约、监控、MQTT、容器名、数据库名、环境变量或 `frontend/src/three/mine/` 历史兼容目录。
+- 不在未重新分层前直接打回前端 / 后端做批量替换。
+
+### 再次进入验收条件
+- 已明确剩余命中的归类边界，并回写 `PLAN`、`current-status.md`、`handoff.md`。
+- 若申请正式收口，需能证明当前主题已无新的行动项，或用户明确决定停在当前阶段。
+
+---
+
+## 交给验收
+### 当前任务
+- 当前轮次已完成。后续只有在脚本 / 后端低风险文案轮次结束，或用户要求正式收口时，才再次回到验收线程。
 
 ### 验收关注点
-- 正式 PLAN 是否仍能独立承担执行依据。
-- `current-status.md`、`handoff.md`、正式 PLAN 三者是否继续一致。
-- 是否还存在必须保留在主区的行动项；若无，应执行主题收口判断。
+- 正式中文主名、英文主名、允许简称是否在主区和正式 PLAN 中保持一致。
+- 正式 PLAN、`current-status.md`、`handoff.md` 是否一致。
+- 是否已明确四类残留位置及禁止扩张项。
+- 主入口文案是否已迁到园区 EMS 口径。
+- 低风险脚本 / 后端帮助文案、初始化说明和部署说明是否已迁到园区 EMS 口径。
+- 是否仍保留运行时兼容边界，没有误伤 `mine_*` 基础设施标识。
 
 ---
 

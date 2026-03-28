@@ -1,5 +1,5 @@
 #!/bin/bash
-# MineEnergySystem 一键启动脚本（Mac/Linux 通用）
+# 园区综合能源管理系统一键启动脚本（Mac/Linux 通用）
 # 使用 Docker Compose 启动所有服务
 
 set -e  # 遇到错误立即退出
@@ -16,7 +16,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🚀 MineEnergySystem 启动脚本${NC}"
+echo -e "${BLUE}  🚀 园区综合能源管理系统启动脚本${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 

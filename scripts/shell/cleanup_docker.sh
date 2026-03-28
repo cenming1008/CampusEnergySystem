@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Docker 容器清理脚本
-# 用途：清理所有 MineEnergySystem 相关的 Docker 资源
+# 用途：清理园区综合能源管理系统相关的 Docker 资源
 
 set -e
 
-echo "🧹 MineEnergySystem Docker 清理脚本"
+echo "🧹 园区综合能源管理系统 Docker 清理脚本"
 echo "======================================"
 echo ""
 

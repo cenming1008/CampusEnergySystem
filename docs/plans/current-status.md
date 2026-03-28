@@ -1,42 +1,65 @@
 # Current Status
 
 ## 当前总目标
-- 保持“设备分类与对象分层建模优化”作为 `docs/plans/` 当前主主题。
-- 让 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 可以独立承担执行依据，`current-status.md` 只保留当前态。
+- 将 `docs/plans/` 当前主主题切换为“命名迁移分层治理”，先完成残留分层、范围锁定与线程分流，避免实现线程误做全仓 rename。
+- 让 [PLAN-20260328-naming-migration-layering.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-naming-migration-layering.md) 成为当前执行依据，并以“园区综合能源管理系统 / Campus Energy Management System / 园区 EMS”作为当前唯一正式产品口径。
 
 ---
 
 ## 当前阶段
-- [x] 当前主主题已收敛到“设备分类与对象分层建模优化”
-- [x] 正式 PLAN 已补入 audit 中仍有执行价值的关键问题摘要
-- [x] `current-status.md` / `handoff.md` 主区已按“当前态 + 当前交接”收轻
-- [x] 2026-03-27 / 2026-03-28 的历史状态与交接快照已沉淀到 `docs/plans/daily/2026-03/`
-- [ ] 待真实联调或下一轮验收决定是否正式收口，并判断 audit 是否迁入归档
+- [x] 探索线程已确认：本轮“命名迁移探索、范围分层和线程分流”不属于上一主题“设备分类与对象分层建模优化”
+- [x] 已建立正式 PLAN：[PLAN-20260328-naming-migration-layering.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-naming-migration-layering.md)
+- [x] 已建立专题分析：[naming-migration-residue-analysis.md](/Users/todo/MineEnergySystem/docs/plans/naming-migration-residue-analysis.md)
+- [x] 已区分“当前必须改 / 可以延后改 / 只需标记为历史背景 / 暂时不要动”
+- [x] 规范线程已锁定正式产品名、允许简称、旧命名禁用边界与四类残留口径
+- [x] 前端 / 文档线程已完成 README、新手入口、文档中心与前端 README 的主入口命名修正
+- [x] 验收线程已复核主入口口径与兼容边界，确认“用户可见主入口命名修正”阶段完成
+- [x] 后端 / 脚本线程已完成低风险标题、帮助文案与初始化说明中的旧产品名修正
+- [x] 验收线程已复核后端 / 脚本低风险文案改动范围与最小验证，确认“主入口 + 低风险脚本/后端文案修正”阶段完成
+- [ ] 当前主题暂未正式收口，主区继续保留“命名迁移分层治理”
 
 ---
 
 ## 当前阻塞
-- 当前正式 PLAN 虽已可独立阅读，但主题是否正式收口仍取决于后续真实联调或明确的终验判断。
-- 探索文档 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md) 仍保留为输入文档；若长期并列不收口，`plans/` 主入口仍会存在双文档并行风险。
+- 仓库名、克隆命令和绝对路径中的 `MineEnergySystem` 仍会持续出现在入口和说明文档中，检索噪音依旧很高，后续若继续推进仍需先做分层判断。
+- `mine_energy / mine_backend / mine_mqtt` 已进入 Docker、数据库、脚本、监控与联调命令，当前只能冻结，不可纳入本主题当前阶段实现。
+- 少量剩余命中仍散落在独立部署文档、历史背景说明和维护者署名中；在未重新确认是否继续推进前，不宜直接扩成下一轮批量替换。
+- 正式收口条件尚未满足：当前阶段虽已通过，但当前主题是否继续推进剩余少量独立说明文档命中，仍需后续线程或用户明确决定。
 
 ## 当前待办
-- [x] 收敛 `current-status.md`，仅保留当前主主题状态面板
-- [x] 收敛 `handoff.md`，仅保留当前仍有行动价值的交接
-- [x] 在正式 PLAN 中补入 `device_registry` 与 schema / payload / model 承接不一致问题摘要
-- [x] 在正式 PLAN 中补入前端仍通过 `device_type / device_category / energy_type / EnergyData` 宽表字段猜对象语义的问题摘要
-- [ ] 后续由验收动作判断本主题是否继续保留在 `docs/plans/`
-- [ ] 若主题正式完成，判断是否将 audit 与正式 PLAN 分别留存或迁入 `docs/archive/plans/`
+- [x] 判定本轮应新开“命名迁移分层治理”主题，而非并入上一主题
+- [x] 建立正式 PLAN 与 analysis，沉淀分类口径与代表位置
+- [x] 规范线程锁定正式术语、四类残留判断标准和禁止触碰层级
+- [x] 前端 / 文档线程按规范结果处理 README、新手入口、文档中心与前端 README 的用户可见主入口命名
+- [x] 验收线程复核主入口已迁到园区 EMS 口径，且未误伤运行时标识
+- [x] 脚本 / 后端线程已处理低风险标题、帮助文案与初始化说明，不触碰运行时标识
+- [x] 验收线程已复核：本轮目标范围内的剩余命中已收敛为路径噪音、历史背景或冻结的运行时契约
+- [ ] 判断当前主题是否停在本阶段，还是继续推进剩余少量独立说明文档命中
+- [ ] 在用户或后续线程明确是否继续推进后，再做正式收口与 archive 判断
 
 ## 当前验证结论
-- [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 已补入关键问题摘要，当前可脱离 audit 独立承担执行依据。
-- [handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md) 已回到“当前交接入口”角色，不再承担大段历史说明和验收复盘。
-- [current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md) 已回到“当前态面板”角色，不再继续堆积阶段性长记录。
-- `docs/plans/daily/2026-03/` 已保留 2026-03-27 / 2026-03-28 的状态快照与交接快照，主区迁出的历史内容仍可追溯。
+- 已确认本轮任务属于新的“命名迁移分层治理”主题，不属于当前主区原主题“设备分类与对象分层建模优化”。
+- 已确认正式产品主名为“园区综合能源管理系统”，正式英文名为“Campus Energy Management System”，允许简称为“园区 EMS / 智慧园区 EMS”。
+- 已确认建议线程路径为 `探索 -> 规范 -> 前端 -> 验收`；后端 / 脚本只处理规范锁定后的低风险终端文案，运行时标识不纳入本轮。
+- 已确认 `MineEnergySystem` 的大量命中来自路径与仓库名引用，属于高噪音项，不能直接视为产品文案残留。
+- 已完成根 README、文档中心入口、新手入口与前端 README 的显性旧产品名修正；前端导航、登录页与路由标题未发现需处理的旧“煤矿 / Mine / 矿区”主入口文案。
+- 已确认当前剩余高频命中主要来自仓库名、克隆命令、绝对路径与历史 3D 资源文档，当前更适合交验收判断是否阶段完成，而不是继续扩成全仓 rename。
+- 已执行 `cd frontend && npm run build`，构建通过，可支持本轮阶段验收。
+- 已由验收线程确认：本轮“用户可见主入口命名修正”阶段通过，但整个“命名迁移分层治理”主题暂不正式收口。
+- 已完成脚本 / 后端低风险文案收敛：`scripts/shell/*.sh`、`scripts/python/*.py`、`bin/*.sh` 与少量后端部署说明中的旧产品名已切换到“园区综合能源管理系统”口径。
+- 已执行 `python3 scripts/python/generate_prod_secrets.py --help`，帮助输出已显示新产品名。
+- 已静态复核本轮改动文件，确认不再包含“煤矿综合能源管理系统”或 `MineEnergySystem` 文案，同时 `mine_backend`、`mine_energy`、`mine_mqtt` 与 MQTT topic 等运行时标识保持不变。
+- 已执行定向 `git diff --name-only` 复核，确认本轮改动集中在 README、主入口文档、低风险脚本 / 说明文案与主区文档，未误触 Docker、环境变量、监控、MQTT 契约或 `frontend/src/three/mine/` 兼容目录。
+- 当前验收结论已更新为：本轮阶段通过，可继续推进；但主题暂不正式收口，主区继续保留“命名迁移分层治理”。
 
 ## 当前剩余风险
-- 当前仍未完成真实页面联调与最终收口判断；若后续消费语义与正式 PLAN 不一致，仍需再次回写文档。
-- audit 与正式 PLAN 目前仍并列存在，虽然职责已区分，但后续若不做收口判断，仍可能重新出现职责重叠。
-- 其他历史文档中若仍保留“11 种设备类型”或旧文件名表述，后续仍需按主题推进时继续修正。
+- 若实现线程不严格按四类口径筛选命中，仍可能把运行时标识和用户可见文案混在一起修改，造成范围失控。
+- `frontend/src/three/mine/` 与矿区 3D 场景更适合作为历史背景处理；若前端顺手重做 3D 模块，会偏离本轮最小闭环。
+- `frontend/README.md` 仍保留少量指向历史矿区 3D 资源文档的文件路径，若后续要改文件标题或目录名，应先走规范或探索，不属于本轮前端闭环。
+- Docker、数据库、MQTT、Prometheus、Grafana 仍使用 `mine_*` 标识，后续若要迁移必须单独立项，否则存在联调、监控和脚本破坏风险。
+- 若下一轮继续推进时缺少“只改低风险文案、不碰运行时契约”的约束，主题可能再次被误拉回全仓 rename 方向。
+- `scripts/QUICK_REFERENCE.md`、`bin/README.md`、`docs/03-开发与部署/DATABASE_STORAGE.md` 等剩余命中当前多为仓库路径、历史维护者署名或独立部署文档，不应在未重新分层前继续批量替换。
+- 当前主题是否继续推进剩余少量低风险说明文案，尚需一次明确取舍；在此之前不宜宣布整个命名迁移主题正式完成。
 
 ---
 

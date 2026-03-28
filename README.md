@@ -1,4 +1,4 @@
-# 园区综合能源管理系统（CampusEnergySystem）
+# 园区综合能源管理系统（Campus Energy Management System）
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-2.0-009688.svg)](https://fastapi.tiangolo.com)
 [![Vue3](https://img.shields.io/badge/Vue-3.x-4FC08D.svg)](https://vuejs.org)
@@ -6,7 +6,7 @@
 [![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-3C5280.svg)](https://mosquitto.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 基于 FastAPI + Vue3 + TimescaleDB + MQTT 的工业级能源监控和管理平台
+> 基于 FastAPI + Vue3 + TimescaleDB + MQTT 的园区综合能源监控与管理平台
 
 ---
 
