@@ -98,11 +98,12 @@
 - 优先产出分析结论，不急于修改代码
 - 若需要修改代码，仅允许做最小验证性修改，并写明原因
 - 若发现旧有煤矿专属能力，先判断其是否只是历史残留，不默认继续扩张
+- 探索线程输出默认分两层：`current-status.md` 与 `handoff.md` 为主区必写，`docs/plans/*-analysis.md` 仅在复杂专题深挖且需反复引用时新增；线程接力默认以主区为准，analysis 仅作深挖材料。
 
 输出位置：
 - docs/plans/current-status.md
 - docs/plans/handoff.md
-- docs/plans/*-analysis.md
+- 必要时的 docs/plans/*-analysis.md
 
 ---
 

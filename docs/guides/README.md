@@ -26,7 +26,7 @@
 - [文档体系规范.md](./文档体系规范.md)：定义 `docs/` 的新增落点、命名方式和维护职责
 - [变更计划规范.md](./变更计划规范.md)：定义计划文档的触发条件、标准结构和验收写法
 - [AI 多线程协作 SOP](./ai-collaboration-sop.md)：定义多线程协作的启动、执行、归档、收口和主题切换规则
-- [five-thread-vibe-coding-framework.md](./five-thread-vibe-coding-framework.md)：定义五线程在 Codex 中的任务分流、切换、并行边界和单轮闭环规则
+- [five-thread-vibe-coding-framework.md](./five-thread-vibe-coding-framework.md)：定义五线程在 Codex 中的任务分流、切换、并行边界、单轮闭环与探索线程输出分层规则
 
 ---
 
