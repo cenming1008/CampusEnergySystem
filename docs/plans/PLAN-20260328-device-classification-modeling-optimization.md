@@ -31,6 +31,8 @@
 - `docs/02-功能使用/统一设备管理指南.md` 写“内置 11 种设备类型”，代码注册表实际为 10 种。
 - 用户输入中的 `frontend/src/views/DeviceManagement.vue` 在仓库中不存在，实际文件为 `frontend/src/views/DeviceManager.vue`。
 - 当前 `current-status.md`、`handoff.md` 顶部规范块仍主要围绕 2026-03-27 的多能源主题，本轮需要以本 PLAN 为准，定点覆盖设备分类与对象分层建模相关的规范块。
+- `device_registry` 中已声明的 `irradiance`、`wind_speed`、`soc`、`charging_status` 等字段，并未被当前 payload schema、规范化逻辑和落库模型完整承接，存在“注册表定义”和“实际承载能力”不一致。
+- 前端当前仍主要通过 `device_type / device_category / energy_type` 以及 `EnergyData` 宽表字段推断对象语义，尚未形成独立的计量对象 / 点位对象消费模型。
 
 ---
 
@@ -66,6 +68,7 @@
 - 不做 `Device` / `EnergyData` 的推翻式重写。
 - 不一次性补齐所有对象关系层和专业 EMS 全量建模能力。
 - 不把本轮解释成“专业 EMS 对象建模级已完成”。
+- 不把注册表中已声明但尚未被 schema / payload / model 承接的所有字段，一次性扩成真实落库能力。
 
 ---
 
@@ -95,6 +98,7 @@
 
 - `Device`、`device_type`、`device_category`、`energy_type` 的对象边界和派生边界
 - `device_registry`、请求 schema、落库模型之间的一致性
+- `device_registry optional_fields` 与 payload schema / 规范化 / 落库模型之间的不一致收敛
 - `EnergyData` 宽表专属字段的公共层 / 专属层 / 兼容层划分
 - 设备 API / 能源 API 的第一批对象语义说明
 - 前端 `device.ts`、`energy.ts`、`DeviceManager.vue`、`EnergyManagement.vue` 的最小消费约束
