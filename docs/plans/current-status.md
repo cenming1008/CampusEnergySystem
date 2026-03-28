@@ -54,7 +54,7 @@
 - 当前受影响最大的前端消费点不是“接口拿不到数据”，而是仍按旧理解消费 `device_type / device_category / energy_type / unit / total_consumption / current_power` 这些字段。
 - 已完成的最小适配只落在允许范围内：
   - `frontend/src/api/device.ts` 已承接 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases`
-  - `frontend/src/api/energy.ts` 已承接 `supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`
+  - `frontend/src/api/energy.ts` 已承接 `supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`、`null_field_rule`、`energy_profiles`、`device_object_boundary`
   - `frontend/src/api/telemetry.ts` 已承接 `device_type`、`device_category`、`device_object_role`、`metering_role`、`point_kind`、`measurement_subject`、`energy_data_public_fields`、`energy_data_specialized_fields`
 - 本轮没有重构设备管理页、多能源页、驾驶舱；`Dashboard.vue`、`CampusScene.vue`、`EnergyManagement.vue` 中的对象语义和口径风险只做记录，不扩张为页面改版。
 
@@ -71,11 +71,9 @@
 
 ### 验收线程
 - 已按验收线程要求复核 `docs/guides/*`、`docs/plans/*`、`handoff.md`、本轮 2026-03-28 主题相关后端 / 前端代码与测试证据。
-- 验收结论：规范线程已把正式 PLAN 状态和进度回写完整，但前端线程对对象语义兼容新增字段的承接仍未完全达标。
-- 当前唯一阻塞点集中在 `frontend/src/api/energy.ts`：
-  - 已承接 `supported_device_types / data_object_kind / point_kind / public_fields / specialized_fields / field_boundary_rule`
-  - 但尚未承接后端和 `handoff.md` 已明确存在的 `null_field_rule`、`device_object_boundary`、`energy_profiles`
-- 因此本轮判断为“部分完成，需交回前端线程”，而不是“主功能完成但文档未闭环”。
+- 验收结论：前端线程已补齐 `device.ts`、`energy.ts`、`telemetry.ts` 的第一批对象语义兼容字段承接；当前唯一未闭环项转为规范线程的正式 PLAN 进度记录仍保留旧版“暂不正式收口”表述。
+- 当前不再有“API 类型层缺字段”的阻塞；真正需要补的是 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 与当前验收结论保持一致。
+- 因此本轮判断更新为“部分完成，需交回规范线程”。
 
 ---
 
@@ -118,7 +116,7 @@
 - [x] 已确认本轮输入中的 `DeviceManagement.vue` 实际文件为 `frontend/src/views/DeviceManager.vue`，审计与改动均以实际文件为准
 - [x] 已完成最小适配：
   - `frontend/src/api/device.ts` 承接设备 registry 第一批对象语义字段
-  - `frontend/src/api/energy.ts` 承接能耗对象边界字段和字段层级字段
+  - `frontend/src/api/energy.ts` 承接能耗对象边界字段、空值边界字段和聚合 profile 字段
   - `frontend/src/api/telemetry.ts` 承接 `analysis` 第一批对象语义字段
 - [x] 已保持现有页面结构与交互不变，没有扩张为设备页、多能源页、驾驶舱整体重构
 - [x] 已补齐 API 类型层对后端第一批对象语义兼容新增字段的承接
@@ -127,8 +125,9 @@
 ### 验收线程
 - [x] 已完成探索 / 规范 / 后端 / 前端四类产出统一验收
 - [ ] 当前不建议将本轮标记为“正式收口”
-- [x] 规范线程已完成正式 PLAN 状态与进度回写
-- [ ] 交回前端线程补齐 `frontend/src/api/energy.ts` 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接，再由验收线程做最终确认
+- [ ] 规范线程仍需把正式 PLAN 中旧版“暂不正式收口 / 待真实联调确认”结论更新到当前实际验收状态
+- [x] 前端已补齐 `frontend/src/api/energy.ts` 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接
+- [ ] 下一步先由规范线程回写正式 PLAN 进度，再由验收线程复核 `PLAN / current-status / handoff` 三者一致性
 
 ---
 
@@ -281,9 +280,9 @@
   - `frontend/src/api/device.ts` 现在虽已补上 `location_id`，但前端页面仍只消费 `location` 字符串，没有进入位置对象语义层。
 - `handoff.md` 已存在“后端 -> 前端｜设备分类与对象分层建模第一批后端收敛”专门块；当前前端阻塞点不再是缺少交接块，而是页面消费层尚未经过真实联调确认。
 - 验收视角补充：
-  - 后端代码、`handoff.md` 与 `current-status.md` 对“设备对象 / 计量对象 / 点位对象第一批兼容语义已补到 registry、接口和导出层”的描述基本一致。
-  - 但正式 PLAN 仍停留在“未开始”，且前端 API 类型层未承接后端新增的 `object_role / metering_role / point_kind / supported_device_types / energy_data_public_fields` 等语义字段，说明当前不只是文档慢一步，还存在前端联调准备缺口。
-  - 因此，本轮状态更准确地说是“后端主功能已完成，但规范进度回写和前端联调准备未完全闭环，暂不建议正式收口”。
+  - 后端代码、`frontend/src/api/device.ts`、`frontend/src/api/energy.ts`、`frontend/src/api/telemetry.ts` 已对齐第一批对象语义兼容字段，前端 API 类型层缺口已关闭。
+  - 当前主要不一致点转为正式 PLAN：状态已不是“未开始”，但进度记录仍保留旧版“暂不正式收口 / 待真实联调确认”结论，与本次窄范围终验不一致。
+  - 因此，本轮状态更准确地说是“前端 API 类型层已闭环，但规范线程尚未完成最终 PLAN 进度回写，暂不建议正式收口”。
 
 ---
 
@@ -294,15 +293,15 @@
 - 判断本轮是否满足第一批对象分层建模优化的收口条件，并把验收结论写回协作文档。
 
 ### 发现的问题
-- [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 已从“未开始”更新为“进行中”，且进度记录已补到后端实施、前端审计和验收执行状态；规范线程本次核查通过。
+- [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 已从“未开始”更新为“进行中”，但进度记录最后一条仍写“验收已执行，但暂不正式收口”，与当前这次只检查“PLAN 回写 + 前端 API 类型层闭环”的终验范围不一致。
 - [frontend/src/api/device.ts](/Users/todo/MineEnergySystem/frontend/src/api/device.ts) 已承接 `object_role`、`metering_role`、`point_kind`、`measurement_subject`、`public_data_fields`、`specialized_fields`、`compatible_aliases`。
 - [frontend/src/api/telemetry.ts](/Users/todo/MineEnergySystem/frontend/src/api/telemetry.ts) 已承接 `device_type`、`device_category`、`device_object_role`、`metering_role`、`point_kind`、`measurement_subject`、`energy_data_public_fields`、`energy_data_specialized_fields`。
-- [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 仍未承接后端 / handoff 已明确的 `null_field_rule`、`device_object_boundary`、`energy_profiles`，因此前端对象语义兼容新增字段承接尚未完全闭环。
+- [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 已补齐后端 / handoff 已明确的 `null_field_rule`、`device_object_boundary`、`energy_profiles`，前端 API 类型层闭环已完成。
 
 ### 验收结论
-- 规范线程已达标：正式 PLAN 状态与进度记录已回写到当前实际状态。
-- 前端线程仅部分达标：`device.ts` 与 `telemetry.ts` 已通过，但 `energy.ts` 仍缺少部分对象语义兼容字段。
-- 验收判断：本轮属于“部分完成，需交回前端线程”。
+- 规范线程暂未完全达标：正式 PLAN 状态已回写，但最终进度结论仍停留在上一版“暂不正式收口”。
+- 前端线程已达标：`device.ts`、`energy.ts` 与 `telemetry.ts` 均已完成第一批对象语义兼容字段承接。
+- 验收判断：本轮属于“部分完成，需交回规范线程”。
 
 ### 修改文件
 - docs/plans/current-status.md
@@ -317,14 +316,14 @@
 - 已执行 `cd frontend && npm run build`，通过。
 
 ### 剩余风险
-- 当前未闭环的问题已收敛为前端 API 类型层单点缺口：`frontend/src/api/energy.ts` 仍未完整承接对象语义兼容新增字段。
-- 页面层仍按旧字段组合消费对象语义属于已识别存量风险，但不属于本次你限定的两项终验范围，也不是本轮要求验收线程直接补实现的事项。
-- 下一步只需交回前端线程补齐 `energy.ts` 的字段承接，并重新跑构建后再复核；规范线程本轮不再是阻塞点。
+- 当前未闭环的问题不再是前端 API 类型层缺口，而是正式 PLAN 的最终进度结论尚未同步到这次窄范围终验结果。
+- 页面层真实联调风险仍存在，但它已超出本次你限定的验收范围，不能继续作为当前 PLAN 进度记录里的收口阻塞描述。
+- 下一步应先由规范线程更新 PLAN，再由验收线程复核三份协作文档的一致性。
 
 ### 需要交接给谁
-- 交回前端线程：
-  - 补齐 `frontend/src/api/energy.ts` 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接
-  - 保持页面层不扩张，只完成 API 类型层与构建自洽
+- 交回规范线程：
+  - 把正式 PLAN 的最终进度记录从旧版“暂不正式收口 / 待真实联调确认”更新为当前实际验收状态
+  - 保持只修正文档结论，不扩张为新一轮规范重写
 
 ---
 

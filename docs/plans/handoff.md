@@ -113,9 +113,9 @@
   - `GET /energy/types`
     - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`
     - 当前直接依赖字段：`energy_types[*].value`、`label`、`unit`、`flow_unit`
-    - 当前已承接兼容新增字段：`supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`
+    - 当前已承接兼容新增字段：`supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`、`null_field_rule`、`device_object_boundary`
     - 隐式假设：前端仍把 `energy_type` 视为设备和计量语义的主要来源之一
-    - 联调提醒：即使字段名不变，`supported_device_types / public_fields / specialized_fields / field_boundary_rule` 的语义变化也必须提前通知
+    - 联调提醒：即使字段名不变，`supported_device_types / public_fields / specialized_fields / field_boundary_rule / null_field_rule / device_object_boundary` 的语义变化也必须提前通知
   - `GET /energy/data/{device_id}` / `GET /analysis/{device_id}`
     - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/api/telemetry.ts`、`frontend/src/views/EnergyManagement.vue`、`frontend/src/features/dashboard/composables/useDashboardRealtime.ts`、`frontend/src/views/CampusScene.vue`
     - 当前直接依赖字段：`consumption`、`flow_rate`、`voltage`、`current`、`pressure`、`temperature`、`supply_temp`、`return_temp`、`heat_flow`、`quality_index`、`current_power`、`today_energy`
@@ -125,7 +125,7 @@
   - `GET /energy/statistics` / `GET /energy/overview`
     - 受影响模块：`frontend/src/api/energy.ts`、`frontend/src/views/EnergyManagement.vue`、`frontend/src/features/dashboard/composables/useDashboardEnergyStats.ts`、`frontend/src/views/Dashboard.vue`
     - 当前直接依赖字段：`total_consumption`、`avg_consumption`、`avg_flow_rate`、`peak_flow_rate`、`statistics`
-    - 当前已承接兼容新增字段：`supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`
+    - 当前已承接兼容新增字段：`supported_device_types`、`data_object_kind`、`point_kind`、`public_fields`、`specialized_fields`、`field_boundary_rule`、`null_field_rule`、`energy_profiles`
     - 隐式假设：`Dashboard.vue` 和 `EnergyManagement.vue` 仍自己拼业务口径
     - 联调提醒：字段名即使不变，只要对象语义或统计口径变化，也必须提前同步
   - `GET /reports/export_csv`
@@ -148,7 +148,7 @@
   - `reports/export_csv` 继续保持现有 blob 下载模式，不要在本轮顺带改下载协议
 - 当前真实联调仍需重点确认：
   - `DeviceManager.vue` 是否需要后续消费 `object_role / metering_role`
-  - `EnergyManagement.vue` 是否需要基于 `public_fields / specialized_fields / field_boundary_rule` 调整展示解释
+  - `EnergyManagement.vue` 是否需要基于 `public_fields / specialized_fields / null_field_rule / field_boundary_rule / device_object_boundary` 调整展示解释
   - `Dashboard.vue` / `CampusScene.vue` 是否会继续误把 `current_power / rated_capacity` 当所有设备都适用的语义字段
 
 ## 前端 -> 规范
@@ -262,32 +262,33 @@
 
 ## 验收 -> 全局
 ### 验收结论
-- 本轮“CampusEnergySystem 设备分类、计量对象、点位对象与多能源分层建模优化闭环验收”结论为：部分完成，需交回前端线程。
+- 本轮“CampusEnergySystem 设备分类、计量对象、点位对象与多能源分层建模优化闭环验收”结论为：部分完成，需交回规范线程。
 - 当前状态更准确地说是：
   - 探索线程达标
-  - 规范线程达标
+  - 规范线程仅完成了 PLAN 状态修正，但最终进度结论仍未同步到当前终验结果
   - 后端线程达标
-  - 前端线程仅在 API 类型层还剩一个未补齐的兼容字段缺口
+  - 前端线程已补齐 API 类型层兼容字段缺口
 
 ### 暂不收口的原因
-- 规范侧已不再是阻塞点：
-  - [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 已更新为“进行中”，并补齐了进度记录。
-- 前端兼容字段承接仍有一个未闭环点：
+- 前端兼容字段承接已闭环：
   - [frontend/src/api/device.ts](/Users/todo/MineEnergySystem/frontend/src/api/device.ts) 已承接设备类型对象语义兼容新增字段。
   - [frontend/src/api/telemetry.ts](/Users/todo/MineEnergySystem/frontend/src/api/telemetry.ts) 已承接 `analysis` 对象语义兼容新增字段。
-  - [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 尚未承接后端 / handoff 已明确的 `null_field_rule`、`device_object_boundary`、`energy_profiles`，因此本轮“前端已完成对象语义兼容字段承接”还不能判定通过。
+  - [frontend/src/api/energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 已承接 `null_field_rule`、`device_object_boundary`、`energy_profiles`。
+- 当前剩余阻塞点转为规范侧文档一致性：
+  - [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 虽已不再写“未开始”，但进度记录最后一条仍保留旧版“验收已执行，但暂不正式收口；待真实联调确认”。
+  - 这与当前这次只检查“正式 PLAN 回写 + 前端 API 类型层闭环”的窄范围终验不一致。
 
 ### 线程完成情况
 - 探索线程：已完成。探索文档已落到 [PLAN-20260328-device-classification-modeling-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-audit.md)，且已明确 EMS 分层建模差距、本轮范围和非目标。
-- 规范线程：已完成。正式 PLAN 已建立，且状态、进度记录已回写到当前实际状态。
+- 规范线程：部分完成。正式 PLAN 已建立，状态已从“未开始”修正，但最终进度结论尚未更新到当前终验结论。
 - 后端线程：已完成。`Device`、`device_registry`、`EnergyData`、设备 / 能源接口、analysis / reports 兼容新增语义字段均已落地，且 38 个相关测试通过。
-- 前端线程：部分完成。`device.ts`、`telemetry.ts` 已达标，但 `energy.ts` 仍未补齐全部对象语义边界字段。
+- 前端线程：已完成 API 类型层最小适配。`device.ts`、`energy.ts`、`telemetry.ts` 均已承接第一批对象语义兼容新增字段。
 
 ### 下一步交接建议
-- 交回前端线程：
-  - 补齐 [energy.ts](/Users/todo/MineEnergySystem/frontend/src/api/energy.ts) 对 `null_field_rule`、`device_object_boundary`、`energy_profiles` 的类型承接。
-  - 补完后重新执行前端构建，并由验收线程复核。
-- 当前不建议交回规范线程或后端线程继续追加工作；这两侧已达到本次终验要求。
+- 交回规范线程：
+  - 仅更新 [PLAN-20260328-device-classification-modeling-optimization.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260328-device-classification-modeling-optimization.md) 的最终进度记录，使其与当前验收结论一致。
+  - 保持只修正文档状态，不扩张为新一轮范围讨论或实现变更。
+- 当前不建议交回前端线程或后端线程继续追加工作；这两侧已达到本次终验要求。
 
 ---
 
