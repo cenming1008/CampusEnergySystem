@@ -114,7 +114,7 @@ class TestApplicationUseCases(unittest.TestCase):
 
     @patch("app.application.telemetry_ingestion.IngestionHealthService.mark_ingestion_success")
     @patch("app.application.telemetry_ingestion.AlarmService.check_and_create_alarm")
-    @patch("app.application.telemetry_ingestion.report_device_data_use_case")
+    @patch("app.application.telemetry_ingestion.report_device_data_ingestion_use_case")
     @patch("app.application.telemetry_ingestion.IngestionHealthService.mark_message_received")
     def test_ingest_telemetry_use_case_orchestrates_services(
         self,

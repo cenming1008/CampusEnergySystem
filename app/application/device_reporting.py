@@ -12,7 +12,7 @@ from sqlmodel import Session
 from app.core.access_control import ensure_device_access
 from app.core.audit import audit_log
 from app.domain.device_payloads import normalize_device_report_payload
-from app.models.tables import EnergyData
+from app.models.tables import Device, EnergyData
 from app.services.device_service import DeviceService
 from app.services.energy_service import EnergyService
 
@@ -41,6 +41,38 @@ def report_device_data_use_case(
         current_user.username,
         f"device:{device_id}",
         role=getattr(current_user, "role", None),
+    )
+    return result
+
+
+def report_device_data_ingestion_use_case(
+    session: Session,
+    device_id: int,
+    data: Dict[str, Any],
+    timestamp: Optional[datetime] = None,
+) -> EnergyData:
+    """
+    MQTT / 内部遥测入库：不绑定 HTTP 用户，仅校验设备存在。
+    与 HTTP 上报分离，避免误用缺少 current_user 的 report_device_data_use_case 导致运行时异常。
+    """
+    device = session.get(Device, device_id)
+    if not device:
+        raise ValueError("设备不存在")
+
+    payload = normalize_device_report_payload(device.device_type, data)
+    result = EnergyService.save_energy_data(
+        session=session,
+        device_id=device_id,
+        energy_type=device.energy_type,
+        consumption=payload.consumption,
+        flow_rate=payload.flow_rate,
+        timestamp=timestamp,
+        **payload.optional_fields,
+    )
+    audit_log(
+        "device.report_data",
+        "mqtt-ingestion",
+        f"device:{device_id}",
     )
     return result
 

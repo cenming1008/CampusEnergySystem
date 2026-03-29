@@ -32,18 +32,41 @@ class TestAlarmEndpoints(unittest.TestCase):
         user = SimpleNamespace(username="admin")
         session = object()
         with patch.object(alarms.AlarmService, "resolve_alarm", return_value=True) as mock_resolve:
-            result = alarms.resolve_alarm(
-                alarm_id=3,
-                handling_note="已复位",
-                session=session,
-                current_user=user,
-            )
+            with patch.object(alarms, "get_allowed_device_ids", return_value={3}) as mock_allowed:
+                result = alarms.resolve_alarm(
+                    alarm_id=3,
+                    handling_note="已复位",
+                    session=session,
+                    current_user=user,
+                )
 
+        mock_allowed.assert_called_once_with(session, user)
         mock_resolve.assert_called_once_with(
             session,
             3,
             resolved_by="admin",
             handling_note="已复位",
+            allowed_device_ids={3},
+        )
+        self.assertTrue(result["success"])
+
+    def test_resolve_all_alarms_passes_scope_to_service(self):
+        user = SimpleNamespace(username="operator")
+        session = object()
+        with patch.object(alarms.AlarmService, "resolve_all_alarms", return_value=2) as mock_resolve:
+            with patch.object(alarms, "get_allowed_device_ids", return_value={1, 2}) as mock_allowed:
+                result = alarms.resolve_all_alarms(
+                    handling_note="批量确认",
+                    session=session,
+                    current_user=user,
+                )
+
+        mock_allowed.assert_called_once_with(session, user)
+        mock_resolve.assert_called_once_with(
+            session,
+            resolved_by="operator",
+            handling_note="批量确认",
+            allowed_device_ids={1, 2},
         )
         self.assertTrue(result["success"])
 

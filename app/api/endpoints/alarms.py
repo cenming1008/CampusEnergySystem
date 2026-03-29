@@ -21,14 +21,14 @@ router = APIRouter()
 def get_alarms(
     limit: int = 20,
     device_id: Optional[int] = Query(None, description="按设备筛选"),
-    resolved: Optional[bool] = Query(False, description="是否已解决，默认仅看未解决"),
+    resolved: Optional[bool] = Query(False, description="是否已处理，默认仅看未处理"),
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """
-    获取未处理的报警列表（受 location_scope 约束）
+    获取报警列表（按人工处理状态过滤，受 location_scope 约束）
     """
     if limit > 100:
         limit = 100
@@ -55,17 +55,17 @@ def resolve_all_alarms(
     current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
 ):
     """
-    批量解决所有未处理的报警
-    
-    将所有未解决的报警标记为已解决
+    批量处理当前用户可访问范围内的未处理报警
     
     Returns:
-        包含解决数量的响应对象
+        包含处理数量的响应对象
     """
+    allowed_ids = get_allowed_device_ids(session, current_user)
     count = AlarmService.resolve_all_alarms(
         session,
         resolved_by=current_user.username,
         handling_note=handling_note,
+        allowed_device_ids=allowed_ids,
     )
     audit_log(
         "alarm.resolve_all",
@@ -76,7 +76,7 @@ def resolve_all_alarms(
     )
     return success_response(
         data={"count": count},
-        message=f"已解决 {count} 条报警"
+        message=f"已处理 {count} 条报警"
     )
 
 
@@ -88,7 +88,7 @@ def resolve_alarm(
     current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
 ):
     """
-    解决单个报警
+    处理单个报警
     
     Args:
         alarm_id: 报警ID
@@ -97,16 +97,18 @@ def resolve_alarm(
         成功响应
         
     Raises:
-        HTTPException: 报警不存在或已解决时返回404
+        HTTPException: 报警不存在、不可访问或已处理时返回404
     """
+    allowed_ids = get_allowed_device_ids(session, current_user)
     success = AlarmService.resolve_alarm(
         session,
         alarm_id,
         resolved_by=current_user.username,
         handling_note=handling_note,
+        allowed_device_ids=allowed_ids,
     )
     if not success:
-        raise HTTPException(status_code=404, detail="报警不存在或已解决")
+        raise HTTPException(status_code=404, detail="报警不存在、不可访问或已处理")
     audit_log(
         "alarm.resolve",
         current_user.username,
@@ -116,5 +118,5 @@ def resolve_alarm(
     
     return success_response(
         data={"alarm_id": alarm_id},
-        message="报警已标记为已解决"
+        message="报警已标记为已处理"
     )

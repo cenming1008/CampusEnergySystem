@@ -56,6 +56,9 @@ def _sync_runtime_schema() -> None:
                 "severity": "ALTER TABLE alarm ADD COLUMN severity VARCHAR(32) DEFAULT 'warning'",
                 "category": "ALTER TABLE alarm ADD COLUMN category VARCHAR(64) DEFAULT 'threshold'",
                 "source": "ALTER TABLE alarm ADD COLUMN source VARCHAR(64) DEFAULT 'telemetry'",
+                "instance_key": "ALTER TABLE alarm ADD COLUMN instance_key VARCHAR(255) NULL",
+                "last_seen_at": "ALTER TABLE alarm ADD COLUMN last_seen_at TIMESTAMP NULL",
+                "recovered_at": "ALTER TABLE alarm ADD COLUMN recovered_at TIMESTAMP NULL",
                 "resolved_at": "ALTER TABLE alarm ADD COLUMN resolved_at TIMESTAMP NULL",
                 "resolved_by": "ALTER TABLE alarm ADD COLUMN resolved_by VARCHAR(255) NULL",
                 "handling_note": "ALTER TABLE alarm ADD COLUMN handling_note TEXT NULL",
@@ -129,6 +132,8 @@ def _ensure_runtime_indexes() -> None:
         "ON energydata (energy_type, timestamp DESC)",
         "CREATE INDEX IF NOT EXISTS idx_alarm_device_resolved_timestamp "
         "ON alarm (device_id, is_resolved, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_alarm_instance_recovered_last_seen "
+        "ON alarm (instance_key, recovered_at, last_seen_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_success "
         "ON device_ingestion_health (last_success_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_failure "
@@ -178,7 +183,17 @@ def _assert_required_columns_present() -> None:
     """生产模式下验证关键表字段已通过 migration 到位。"""
     inspector = inspect(engine)
     required_columns = {
-        "alarm": {"severity", "category", "source", "resolved_at", "resolved_by", "handling_note"},
+        "alarm": {
+            "severity",
+            "category",
+            "source",
+            "instance_key",
+            "last_seen_at",
+            "recovered_at",
+            "resolved_at",
+            "resolved_by",
+            "handling_note",
+        },
         "mqtt_ingestion_record": {"raw_payload", "retry_count", "next_retry_at", "replay_count", "last_replayed_at"},
         "user": {
             "role",

@@ -286,19 +286,22 @@ class EnergyData(SQLModel, table=True):
 
 
 class Alarm(SQLModel, table=True):
-    """报警记录表"""
+    """告警生命周期实例表。"""
 
     __tablename__ = "alarm"
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(index=True, foreign_key="device.id")
+    instance_key: Optional[str] = Field(default=None, index=True, description="稳定实例键")
     message: str
     severity: str = Field(default="warning", index=True, description="报警级别：info/warning/critical")
     category: str = Field(default="threshold", index=True, description="报警类别")
     source: str = Field(default="telemetry", description="报警来源")
-    timestamp: datetime = Field(default_factory=datetime.now, index=True)
-    is_resolved: bool = Field(default=False)
-    resolved_at: Optional[datetime] = Field(default=None, index=True, description="解决时间")
-    resolved_by: Optional[str] = Field(default=None, description="解决人")
+    timestamp: datetime = Field(default_factory=datetime.now, index=True, description="首次触发时间")
+    last_seen_at: Optional[datetime] = Field(default=None, index=True, description="最近一次仍处于异常状态的时间")
+    recovered_at: Optional[datetime] = Field(default=None, index=True, description="系统恢复时间")
+    is_resolved: bool = Field(default=False, description="是否已被人工处理")
+    resolved_at: Optional[datetime] = Field(default=None, index=True, description="人工处理时间")
+    resolved_by: Optional[str] = Field(default=None, description="处理人")
     handling_note: Optional[str] = Field(default=None, description="处理备注")
 
 

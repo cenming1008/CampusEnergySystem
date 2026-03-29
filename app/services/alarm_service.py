@@ -2,18 +2,15 @@
 报警管理服务层
 封装报警相关的业务逻辑
 """
-import os
 import json
-from datetime import timedelta
-from typing import List, Dict, Any, Optional
-from sqlmodel import Session, select
+import os
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from sqlmodel import Session, select
 
 from app.models.tables import Alarm
 from app.core.logger import logger
-
-
-ALARM_DEDUP_SECONDS = 300
 
 
 class AlarmService:
@@ -29,14 +26,14 @@ class AlarmService:
     @staticmethod
     def get_unresolved_alarms(session: Session, limit: int = 20) -> List[Alarm]:
         """
-        获取未解决的报警列表
+        获取未处理的报警列表
         
         Args:
             session: 数据库会话
             limit: 返回的最大记录数，默认20条
             
         Returns:
-            未解决的报警列表，按时间倒序排列（最新的在前）
+            未处理的报警列表，按时间倒序排列（最新的在前）
         """
         statement = (
             select(Alarm)
@@ -76,25 +73,28 @@ class AlarmService:
         session: Session,
         resolved_by: Optional[str] = None,
         handling_note: Optional[str] = None,
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> int:
         """
-        批量解决所有未解决的报警
+        批量处理所有未处理的报警
         
         Args:
             session: 数据库会话
             
         Returns:
-            解决的报警数量
+            处理的报警数量
         """
-        # 查询所有未解决的报警
-        unresolved = session.exec(
-            select(Alarm).where(Alarm.is_resolved == False)
-        ).all()
+        statement = select(Alarm).where(Alarm.is_resolved == False)
+        if allowed_device_ids is not None:
+            if not allowed_device_ids:
+                return 0
+            statement = statement.where(Alarm.device_id.in_(allowed_device_ids))
+
+        unresolved = session.exec(statement).all()
         
         if not unresolved:
             return 0
         
-        # 批量更新为已解决
         count = 0
         for alarm in unresolved:
             alarm.is_resolved = True
@@ -105,10 +105,9 @@ class AlarmService:
             session.add(alarm)
             count += 1
         
-        # 提交事务
         session.commit()
         
-        logger.info(f"批量解决了 {count} 条报警")
+        logger.info(f"批量处理了 {count} 条报警")
         return count
     
     @staticmethod
@@ -117,19 +116,23 @@ class AlarmService:
         alarm_id: int,
         resolved_by: Optional[str] = None,
         handling_note: Optional[str] = None,
+        allowed_device_ids: Optional[set[int]] = None,
     ) -> bool:
         """
-        解决单个报警
+        处理单个报警
         
         Args:
             session: 数据库会话
             alarm_id: 报警ID
             
         Returns:
-            是否成功解决，如果报警不存在或已解决则返回False
+            是否成功处理，如果报警不存在、不可访问或已处理则返回False
         """
         alarm = session.get(Alarm, alarm_id)
         if not alarm or alarm.is_resolved:
+            return False
+
+        if allowed_device_ids is not None and alarm.device_id not in allowed_device_ids:
             return False
         
         alarm.is_resolved = True
@@ -140,7 +143,7 @@ class AlarmService:
         session.add(alarm)
         session.commit()
         
-        logger.info(f"报警 {alarm_id} 已标记为已解决")
+        logger.info(f"报警 {alarm_id} 已标记为已处理")
         return True
     
     @staticmethod
@@ -176,6 +179,9 @@ class AlarmService:
         severity: str = "warning",
         category: str = "threshold",
         source: str = "telemetry",
+        instance_key: Optional[str] = None,
+        last_seen_at: Optional[datetime] = None,
+        recovered_at: Optional[datetime] = None,
         auto_commit: bool = True,
     ) -> Alarm:
         """
@@ -195,12 +201,15 @@ class AlarmService:
         
         alarm = Alarm(
             device_id=device_id,
+            instance_key=instance_key,
             message=message,
             severity=severity,
             category=category,
             source=source,
             timestamp=timestamp,
-            is_resolved=False
+            last_seen_at=last_seen_at or timestamp,
+            recovered_at=recovered_at,
+            is_resolved=False,
         )
         
         session.add(alarm)
@@ -214,6 +223,111 @@ class AlarmService:
         return alarm
 
     @staticmethod
+    def build_instance_key(device_id: int, category: str, source: str = "telemetry") -> str:
+        """构造稳定告警实例键。"""
+        return f"{device_id}:{source}:{category}"
+
+    @staticmethod
+    def get_active_alarm(
+        session: Session,
+        device_id: int,
+        category: str,
+        source: str = "telemetry",
+    ) -> Optional[Alarm]:
+        """获取同设备/类别/来源下仍处于活跃态的实例。"""
+        return session.exec(
+            select(Alarm)
+            .where(Alarm.device_id == device_id)
+            .where(Alarm.category == category)
+            .where(Alarm.source == source)
+            .where(Alarm.recovered_at == None)
+            .order_by(Alarm.timestamp.desc())
+        ).first()
+
+    @staticmethod
+    def upsert_active_alarm(
+        session: Session,
+        device_id: int,
+        message: str,
+        timestamp: datetime,
+        severity: str,
+        category: str,
+        source: str = "telemetry",
+    ) -> tuple[Alarm, bool]:
+        """
+        创建或刷新活跃实例。
+
+        Returns:
+            (alarm, created)
+        """
+        instance_key = AlarmService.build_instance_key(device_id, category, source)
+        existing_alarm = AlarmService.get_active_alarm(
+            session=session,
+            device_id=device_id,
+            category=category,
+            source=source,
+        )
+
+        if existing_alarm is not None:
+            existing_alarm.instance_key = existing_alarm.instance_key or instance_key
+            existing_alarm.message = message
+            existing_alarm.severity = severity
+            existing_alarm.last_seen_at = timestamp
+            session.add(existing_alarm)
+            return existing_alarm, False
+
+        alarm = AlarmService.create_alarm(
+            session=session,
+            device_id=device_id,
+            message=message,
+            timestamp=timestamp,
+            severity=severity,
+            category=category,
+            source=source,
+            instance_key=instance_key,
+            last_seen_at=timestamp,
+            auto_commit=False,
+        )
+        return alarm, True
+
+    @staticmethod
+    def mark_recovered_alarms(
+        session: Session,
+        device_id: int,
+        active_instance_keys: set[str],
+        timestamp: datetime,
+        categories: set[str],
+        source: str = "telemetry",
+    ) -> int:
+        """将本轮未再命中的活跃实例标记为系统已恢复。"""
+        if not categories:
+            return 0
+
+        active_alarms = session.exec(
+            select(Alarm)
+            .where(Alarm.device_id == device_id)
+            .where(Alarm.source == source)
+            .where(Alarm.category.in_(categories))
+            .where(Alarm.recovered_at == None)
+        ).all()
+
+        recovered_count = 0
+        for alarm in active_alarms:
+            expected_key = alarm.instance_key or AlarmService.build_instance_key(
+                alarm.device_id,
+                alarm.category,
+                alarm.source,
+            )
+            if alarm.instance_key != expected_key:
+                alarm.instance_key = expected_key
+            if expected_key in active_instance_keys:
+                continue
+            alarm.recovered_at = timestamp
+            session.add(alarm)
+            recovered_count += 1
+        return recovered_count
+
+    @staticmethod
     def infer_severity(message: str) -> str:
         if any(keyword in message for keyword in ("故障", "中断", "离线")):
             return "critical"
@@ -221,30 +335,6 @@ class AlarmService:
             return "warning"
         return "info"
 
-    @staticmethod
-    def should_create_alarm(
-        session: Session,
-        device_id: int,
-        message: str,
-        timestamp: datetime,
-        dedup_seconds: int = ALARM_DEDUP_SECONDS,
-    ) -> bool:
-        """判断是否需要创建新报警，避免短时间内重复刷同类报警。"""
-        if dedup_seconds <= 0:
-            return True
-
-        cutoff_time = timestamp - timedelta(seconds=dedup_seconds)
-        existing_alarm = session.exec(
-            select(Alarm)
-            .where(Alarm.device_id == device_id)
-            .where(Alarm.message == message)
-            .where(Alarm.is_resolved == False)
-            .where(Alarm.timestamp >= cutoff_time)
-            .order_by(Alarm.timestamp.desc())
-        ).first()
-
-        return existing_alarm is None
-    
     @staticmethod
     def load_thresholds() -> Dict:
         """
@@ -288,6 +378,9 @@ class AlarmService:
             创建的报警列表
         """
         alarms = []
+        active_instance_keys: set[str] = set()
+        managed_categories: set[str] = set()
+        mutated = False
         cfg = AlarmService.load_thresholds()
         defaults = cfg.get("default", {})
         dev_cfg = cfg.get("device_thresholds", {}).get(str(device_id), {})
@@ -296,21 +389,23 @@ class AlarmService:
         if "current" in data and data["current"] is not None:
             current = float(data["current"])
             limit = dev_cfg.get("current_max", defaults.get("current_max", 45.0))
+            managed_categories.add("current_overload")
             
             if current > limit:
                 message = f"⚠️ 过载报警! 当前: {current}A (上限: {limit}A)"
-                if AlarmService.should_create_alarm(session, device_id, message, timestamp):
-                    alarm = AlarmService.create_alarm(
-                        session=session,
-                        device_id=device_id,
-                        message=message,
-                        timestamp=timestamp,
-                        severity="critical",
-                        category="current_overload",
-                        auto_commit=False,
-                    )
+                alarm, created = AlarmService.upsert_active_alarm(
+                    session=session,
+                    device_id=device_id,
+                    message=message,
+                    timestamp=timestamp,
+                    severity="critical",
+                    category="current_overload",
+                )
+                active_instance_keys.add(alarm.instance_key or "")
+                mutated = True
+                if created:
                     alarms.append(alarm)
-                    logger.warning(f"设备 {device_id} 电流过载: {current}A > {limit}A")
+                logger.warning(f"设备 {device_id} 电流过载: {current}A > {limit}A")
         
         # 电压异常检测
         if "voltage" in data and data["voltage"] is not None:
@@ -318,23 +413,36 @@ class AlarmService:
             # 支持设备个性化电压配置，优先使用设备配置，否则使用默认值
             v_max = dev_cfg.get("voltage_max", defaults.get("voltage_max", 250.0))
             v_min = dev_cfg.get("voltage_min", defaults.get("voltage_min", 190.0))
+            managed_categories.add("voltage_out_of_range")
             
             if voltage > v_max or voltage < v_min:
                 message = f"⚡ 电压异常! 读数: {voltage}V (范围: {v_min}-{v_max}V)"
-                if AlarmService.should_create_alarm(session, device_id, message, timestamp):
-                    alarm = AlarmService.create_alarm(
-                        session=session,
-                        device_id=device_id,
-                        message=message,
-                        timestamp=timestamp,
-                        severity="warning",
-                        category="voltage_out_of_range",
-                        auto_commit=False,
-                    )
+                alarm, created = AlarmService.upsert_active_alarm(
+                    session=session,
+                    device_id=device_id,
+                    message=message,
+                    timestamp=timestamp,
+                    severity="warning",
+                    category="voltage_out_of_range",
+                )
+                active_instance_keys.add(alarm.instance_key or "")
+                mutated = True
+                if created:
                     alarms.append(alarm)
-                    logger.warning(f"设备 {device_id} 电压异常: {voltage}V")
+                logger.warning(f"设备 {device_id} 电压异常: {voltage}V")
 
-        if alarms:
+        recovered_count = AlarmService.mark_recovered_alarms(
+            session=session,
+            device_id=device_id,
+            active_instance_keys={key for key in active_instance_keys if key},
+            timestamp=timestamp,
+            categories=managed_categories,
+        )
+        if recovered_count:
+            mutated = True
+            logger.info(f"设备 {device_id} 有 {recovered_count} 条告警实例已恢复")
+
+        if mutated:
             session.commit()
             for alarm in alarms:
                 session.refresh(alarm)

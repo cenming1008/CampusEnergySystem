@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlmodel import Session
 
-from app.application.device_reporting import report_device_data_use_case
+from app.application.device_reporting import report_device_data_ingestion_use_case
 from app.services.alarm_service import AlarmService
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_models import TelemetryBroadcastData
@@ -32,7 +32,7 @@ def ingest_telemetry_use_case(
     """处理单条设备遥测的落库、告警和健康状态更新。"""
     IngestionHealthService.mark_message_received(session, device_id=device_id, timestamp=timestamp)
 
-    record = report_device_data_use_case(
+    record = report_device_data_ingestion_use_case(
         session=session,
         device_id=device_id,
         data=data,
