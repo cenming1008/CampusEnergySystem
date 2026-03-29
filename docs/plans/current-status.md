@@ -1,77 +1,66 @@
 # Current Status
 
 ## 当前总目标
-- 以“报警链路审计与最小修复路径分析”为当前主主题，先完成告警生命周期最小闭环，再交验收判断是否达到阶段完成。
-- 让 [PLAN-20260329-alarm-pipeline-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-alarm-pipeline-audit.md) 成为当前执行依据，避免后续线程把报警问题误当成单点 bug 或继续依赖聊天接力。
+- 将 `docs/plans/` 当前主主题切换为“前端架构收敛专题探索”，先明确结构性问题、现有分层雏形与第一轮最小闭环入口，不进入代码实现。
+- 让 [PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md) 成为当前执行依据，避免后续线程把问题误缩成若干局部页面修补。
 
 ---
 
 ## 当前阶段
-- [x] 探索线程已确认：本轮“CampusEnergySystem 报警逻辑问题”不属于当前主区原主题“命名迁移分层治理”
-- [x] 已建立正式 PLAN：[PLAN-20260329-alarm-pipeline-audit.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-alarm-pipeline-audit.md)
-- [x] 已完成 MQTT 遥测 -> 报警检测 -> 报警查询 / 处理 -> WebSocket 推送链路审计
-- [x] 已确认主问题为“告警生命周期缺失”，不是单纯 MQTT 断链
-- [x] 规范线程已锁定主题边界、生命周期术语、最小模型语义与轻量 schema 扩展方向
-- [x] 后端线程已完成最小闭环实现：稳定实例键、恢复/处理分离、处理接口对象级权限一致
-- [x] 验收线程已复核：本轮“报警后端最小闭环修复”达到阶段完成
-- [ ] 当前主题进入阶段收口判断，不直接扩成下一轮实现
+- [x] 探索线程已确认：本轮“CampusEnergySystem 前端架构问题”不属于当前主区原主题“报警链路审计与最小修复路径分析”
+- [x] 已建立正式 PLAN：[PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md)
+- [x] 已完成前端入口、超大页面、feature/shared/stores/lint 现状审计
+- [x] 已确认当前问题更适合定义为“前端架构收敛专题”，不是若干孤立页面治理任务的简单拼接
+- [x] 已确认 feature/shared 分层雏形已存在，但核心页面、状态层、入口治理和 lint 规则仍未收敛完成
+- [ ] 待规范线程锁定专题边界、第一轮代表页与最小治理规则
+- [ ] 待前端线程按第一轮最小闭环推进，不扩成全局重构
 
 ---
 
 ## 当前阻塞
-- 其他消费方仍有旧 `is_resolved` 解释方式，但这属于下一轮兼容收敛，不构成本轮后端最小闭环阻塞。
-- WebSocket 当前仍只广播 `telemetry_update`，但本轮已明确不纳入告警事件补点；进入阶段收口时应继续按非目标处理。
-- 生产环境若关闭运行时 schema sync，仍需要正式 migration 才能承接 `instance_key / last_seen_at / recovered_at` 新字段；这是部署落地风险，不是本轮闭环阻塞。
+- 当前还没有锁定“前端架构收敛专题”的结构性边界；若直接交前端实现，容易扩成多页面并行重构。
+- `Dashboard.vue` 已有 feature/shared composable 雏形，但页面层仍承载大量衍生计算、图表组装和协调逻辑；是否继续拆透、拆到哪一层，还需先定边界。
+- `useDeviceStore.ts` 当前为空文件，说明关键业务状态尚未沉淀；但是否在第一轮就补 store，需要先拍板。
+- ESLint 当前关闭 `no-unused-vars`、`@typescript-eslint/no-unused-vars`、`vue/no-mutating-props`，会放大架构漂移，但不应在第一轮直接升级成全面规则整治。
 
 ## 当前待办
-- [x] 判定本轮报警问题应新开主题，而非并入“命名迁移分层治理”
-- [x] 建立正式 PLAN，沉淀链路审计结论与最小修复路径
-- [x] 规范线程锁定：
-  - 主题名
-  - 生命周期术语
-  - 是否允许轻量 schema 扩展
-  - 本轮不纳入告警实时事件
-- [x] 后端线程已处理主问题闭环：
-  - 稳定去重键
-  - 生命周期最小表达
-  - 查询 / 处理权限边界一致性
-- [x] 验收线程已复核“链路不断、去重稳定、权限一致、生命周期可解释”达到阶段完成
-- [ ] 进入阶段收口，判断是否保留本主题继续推进兼容消费收敛，还是结束当前主题
+- [x] 判定本轮前端架构问题应新开主题，而非并入报警主题
+- [x] 建立正式 PLAN，沉淀结构性问题、现有雏形与第一轮入口建议
+- [ ] 规范线程锁定：
+  - 专题名称
+  - 第一轮代表页
+  - 结构性问题与实现细节的边界
+  - 第一轮是否只补一条最小治理规则
+- [ ] 前端线程优先围绕 `Dashboard.vue` 做代表性收敛，不同时展开 `DeviceMonitor.vue`
+- [ ] 验收线程复核“代表页收敛是否成立、是否未扩成全局重构”
 
 ## 当前验证结论
-- 已确认 MQTT 遥测到报警检测并未断链：`process_payload_dict()` 调用 `persist_device_data()`，后者进入 `ingest_telemetry_use_case()`，依次执行入库、报警检测和健康状态更新。
-- 已确认当前去重逻辑存在高概率失效：`AlarmService.should_create_alarm()` 以 `device_id + message + 未解决 + 最近 5 分钟` 判断重复，而 `message` 直接拼接实时值。
-- 已确认权限边界不一致：
-  - `GET /alarms` 受 `location_scope` 过滤
-  - `resolve-all` / `resolve/{alarm_id}` 仅受角色限制，不校验对象级设备访问范围
-- 已确认 `Alarm` 模型目前只能稳定表达“某时刻生成了一条报警事件，以及后来是否被人工标记处理”，不能稳定表达：
-  - 持续异常实例
-  - 恢复时间 / 恢复事件
-  - 当前异常是否仍在持续
-  - 同一告警实例的最后观测值
-- 已确认本轮术语边界为：
-  - `Alarm` 按“告警生命周期实例”理解
-  - “恢复”是系统状态变化
-  - “已处理”是人工动作
-  - “活跃告警”不等同于“未处理告警”
-- 已确认本轮允许对 `Alarm` 做轻量 schema 扩展，但不新建完整事件流水，也不纳入 WebSocket 告警事件。
-- 已完成 `Alarm` 轻量 schema 扩展：
-  - `instance_key`
-  - `last_seen_at`
-  - `recovered_at`
-- 已将去重从“带实时值的 `message`”切换为“同设备 + 同类别 + 同来源的稳定实例键”，持续异常时只更新现有活跃实例，不再重复插入新行。
-- 已实现系统恢复表达：当本轮遥测未再命中活跃实例的异常条件时，记录 `recovered_at`，且不复用人工处理字段。
-- 已将 `resolve-all` / `resolve/{alarm_id}` 收敛到与 `GET /alarms` 一致的对象级权限边界，统一使用 `get_allowed_device_ids()`。
-- 已执行 `PYTHONPATH=. venv/bin/pytest -q tests/test_alarm_service.py tests/test_alarm_endpoints.py`，`6 passed`。
-- 已执行 `python3 -m compileall app/services/alarm_service.py app/api/endpoints/alarms.py app/models/tables.py app/core/database.py`，通过。
-- 已额外发现遥测广播字段错配：`TelemetryBroadcastData.power` 当前取的是 `record.flow_rate`，说明遥测广播映射与告警/入库责任边界已有松动，但不属于本轮后端闭环范围。
-- 验收线程已复核代码、测试与主区文档，确认本轮已达到“报警后端最小闭环修复”的阶段完成，剩余风险均落在本轮外问题，可进入阶段收口。
+- 已确认当前问题不是“前端完全没有分层”，而是“整体分层已起步但未收敛完成”。
+- 已确认现有分层雏形真实存在：
+  - `features/dashboard/composables/*`
+  - `features/alarm/composables/useAlarmPolling.ts`
+  - `shared/composables/usePermissions.ts`
+  - `shared/composables/useCrudDialog.ts`
+  - `shared/composables/useCrudSubmit.ts`
+  - `shared/composables/useECharts.ts`
+  - `shared/ui/StatTile.vue`
+  - `stores/useAuthStore.ts`
+  - `stores/useSocketStore.ts`
+- 已确认结构性问题仍然成立：
+  - `Dashboard.vue` 约 2125 行，虽然已引入 feature/shared composable，但页面层仍承载大量展示编排、图表拼装和衍生计算。
+  - `DeviceMonitor.vue` 约 980 行，仍由页面直接承接接口调用、图表渲染、告警处理、控制操作和筛选逻辑。
+  - `AlarmCenter.vue` 约 279 行，更像局部页面问题，不足以单独代表当前架构专题。
+  - `useDeviceStore.ts` 当前为空文件，说明关键设备相关状态尚未形成稳定 store 分层。
+  - `main.ts` 仍手工集中注册大量 Element Plus 组件和图标，入口治理偏重。
+  - ESLint 当前关闭 `no-unused-vars`、`@typescript-eslint/no-unused-vars`、`vue/no-mutating-props`，治理闸门明显偏松。
+- 已确认本轮更适合定义为“前端架构收敛专题”，而不是“若干局部页面治理任务”的简单集合。
+- 已确认第一轮最短闭环更适合“先选一个代表性页面做收敛”，建议以 `Dashboard.vue` 作为代表页，而不是先做全局规则统一。
 
 ## 当前剩余风险
-- `device_monitor_service`、`campus_service`、报表导出等其他消费方仍主要按 `is_resolved` 解释告警状态；若下一轮要让“活跃 vs 未处理”在更多页面/报表严格一致，需单独做兼容收敛。
-- 生产环境若不开 runtime schema sync，本轮新增字段仍需正式 migration 落地，否则会在启动校验阶段失败。
-- 本轮只验证了告警服务与端点层，没有补 WebSocket 告警事件，也没有扩到前端告警中心消费。
-- `TelemetryBroadcastData.power = record.flow_rate` 的广播映射问题仍在，但当前已确认其不属于本轮告警后端最小闭环缺口。
+- 若不先锁定“代表页收敛”边界，前端线程容易同时展开 `Dashboard.vue`、`DeviceMonitor.vue` 和入口治理，导致范围失控。
+- 若先从 ESLint 或 Element Plus 注册方式入手，可能会把专题带偏成治理杂项，而不是先解决核心页面和分层不彻底问题。
+- `useDeviceStore.ts` 为空说明状态层存在空档，但若第一轮直接引入新 store，也可能把问题提前升级为更重架构重排。
+- 当前工作区虽然干净，但主区此前仍保留报警主题内容；若不依赖本轮回写，后续线程容易接错主题。
 
 ---
 
