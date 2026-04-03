@@ -31,12 +31,20 @@ def process_data(
     payload_str: str,
     topic: Optional[str] = None,
     broadcast_callback: Optional[Callable[[dict[str, Any]], Any]] = None,
+    event_callback: Optional[Callable[[str, dict[str, Any]], None]] = None,
 ):
     """处理一条 MQTT 消息：入库 +（可选）回调广播。"""
+    if event_callback:
+        event_callback("message_received", {"topic": topic})
     ws_message = process_payload(payload_str, topic=topic)
+    if event_callback:
+        event_callback(
+            "message_processed" if ws_message else "message_skipped",
+            {"topic": topic, "event_type": ws_message.get("type") if ws_message else None},
+        )
     if broadcast_callback and ws_message:
         broadcast_callback(ws_message)
-    return None
+    return ws_message
 
 
 def _create_client() -> mqtt.Client:
@@ -77,7 +85,10 @@ def _initial_connect_loop(c: mqtt.Client) -> bool:
     return False
 
 
-def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) -> bool:
+def start_mqtt_background(
+    on_message_callback: Callable[[dict[str, Any]], Any],
+    event_callback: Optional[Callable[[str, dict[str, Any]], None]] = None,
+) -> bool:
     """启动 MQTT 后台监听线程（非阻塞）。"""
     global client, _retry_thread
 
@@ -89,26 +100,45 @@ def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) 
         if rc != 0:
             logger.warning(f"MQTT on_connect with non-zero rc={rc}")
             runtime_state.mark_service("mqtt", "unhealthy", f"connect rc={rc}")
+            if event_callback:
+                event_callback("connect_failed", {"rc": rc})
             return
         logger.info(f"MQTT connected rc={rc}")
         runtime_state.mark_service("mqtt", "healthy", f"connected rc={rc}")
         _client.subscribe(settings.mqtt_topic)
         _client.subscribe(settings.mqtt_topic_wildcard)
         logger.info(f"MQTT subscribed: {settings.mqtt_topic}, {settings.mqtt_topic_wildcard}")
+        if event_callback:
+            event_callback(
+                "connected",
+                {
+                    "rc": rc,
+                    "topics": [settings.mqtt_topic, settings.mqtt_topic_wildcard],
+                },
+            )
 
     def on_disconnect_internal(_client: mqtt.Client, _userdata: Any, rc: int):
         if _shutdown_event.is_set():
             logger.info("MQTT disconnected (shutdown requested)")
+            if event_callback:
+                event_callback("stopped", {"rc": rc})
             return
         runtime_state.mark_service("mqtt", "unhealthy", f"disconnected rc={rc}")
         if rc != 0:
             logger.warning(f"MQTT unexpected disconnect rc={rc}, paho will auto-reconnect")
         else:
             logger.info("MQTT disconnected cleanly")
+        if event_callback:
+            event_callback("disconnected", {"rc": rc})
 
     def on_message_internal(_client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
         payload = msg.payload.decode(errors="ignore")
-        process_data(payload, topic=getattr(msg, "topic", None), broadcast_callback=on_message_callback)
+        process_data(
+            payload,
+            topic=getattr(msg, "topic", None),
+            broadcast_callback=on_message_callback,
+            event_callback=event_callback,
+        )
 
     c.on_connect = on_connect_internal
     c.on_disconnect = on_disconnect_internal
@@ -123,6 +153,8 @@ def start_mqtt_background(on_message_callback: Callable[[dict[str, Any]], Any]) 
     except Exception as e:
         logger.warning(f"MQTT initial connect failed: {e}, starting background retry thread")
         runtime_state.mark_service("mqtt", "unhealthy", str(e))
+        if event_callback:
+            event_callback("connect_retrying", {"error": str(e)})
         _retry_thread = threading.Thread(
             target=_initial_connect_loop, args=(c,), daemon=True, name="mqtt-retry"
         )

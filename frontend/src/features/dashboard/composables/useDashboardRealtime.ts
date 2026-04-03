@@ -1,5 +1,5 @@
-import { computed, reactive, watch, type Ref } from 'vue'
-import { getAnalysis, getHistory } from '@/api/telemetry'
+import { computed, reactive, ref, watch, type Ref } from 'vue'
+import { getAnalysis, getHistory, type DeviceAnalysis } from '@/api/telemetry'
 import type { Device } from '@/api/device'
 
 interface TelemetryMessage {
@@ -56,6 +56,7 @@ export function useDashboardRealtime(options: {
     device: false,
     trend: false
   })
+  const analysisSnapshot = ref<DeviceAnalysis | null>(null)
   let requestToken = 0
 
   const isStorageDevice = computed(() => {
@@ -92,6 +93,7 @@ export function useDashboardRealtime(options: {
       ])
 
       if (token !== requestToken || currentDeviceId.value !== deviceId) return
+      analysisSnapshot.value = analysis
 
       updateRealtimeMetrics({
         power: analysis.current_power || 0,
@@ -104,6 +106,7 @@ export function useDashboardRealtime(options: {
       updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
     } catch {
       if (token === requestToken) {
+        analysisSnapshot.value = null
         updateRealtimeMetrics({
           power: 0,
           energy: 0,
@@ -160,6 +163,7 @@ export function useDashboardRealtime(options: {
   })
 
   return {
+    analysisSnapshot,
     displayCurrent,
     displayEnergy,
     displayPower,

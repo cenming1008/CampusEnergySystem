@@ -138,6 +138,76 @@ class TestAlarmService(unittest.TestCase):
             self.assertTrue(alarm_a.is_resolved)
             self.assertFalse(alarm_b.is_resolved)
 
+    def test_list_alarms_filters_by_resolution_and_allowed_devices(self):
+        with Session(self.engine) as session:
+            device_a = self._create_device(session, "ALARM-005")
+            device_b = self._create_device(session, "ALARM-006")
+            alarm_a = AlarmService.create_alarm(session, device_a.id, "A-告警", category="threshold", auto_commit=False)
+            alarm_b = AlarmService.create_alarm(session, device_b.id, "B-告警", category="threshold", auto_commit=False)
+            alarm_b.is_resolved = True
+            session.add(alarm_b)
+            session.commit()
+
+            alarms = AlarmService.list_alarms(
+                session,
+                resolved=False,
+                allowed_device_ids={device_a.id},
+            )
+
+            self.assertEqual([alarm.id for alarm in alarms], [alarm_a.id])
+
+    def test_get_alarm_count_supports_device_and_resolved_filters(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-007")
+            alarm_a = AlarmService.create_alarm(session, device.id, "A-告警", category="threshold", auto_commit=False)
+            alarm_b = AlarmService.create_alarm(session, device.id, "B-告警", category="threshold", auto_commit=False)
+            alarm_b.is_resolved = True
+            session.add(alarm_b)
+            session.commit()
+
+            unresolved_count = AlarmService.get_alarm_count(session, device_id=device.id, resolved=False)
+            resolved_count = AlarmService.get_alarm_count(session, device_id=device.id, resolved=True)
+
+            self.assertEqual(unresolved_count, 1)
+            self.assertEqual(resolved_count, 1)
+
+    def test_mark_recovered_alarms_backfills_instance_key_and_marks_recovery(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-008")
+            alarm = AlarmService.create_alarm(
+                session,
+                device.id,
+                "电流过高",
+                category="current_overload",
+                source="telemetry",
+                instance_key=None,
+                auto_commit=False,
+            )
+            session.commit()
+
+            recovered_count = AlarmService.mark_recovered_alarms(
+                session=session,
+                device_id=device.id,
+                active_instance_keys=set(),
+                timestamp=datetime(2026, 4, 3, 10, 0, 0),
+                categories={"current_overload"},
+            )
+            session.commit()
+            session.refresh(alarm)
+
+            self.assertEqual(recovered_count, 1)
+            self.assertEqual(
+                alarm.instance_key,
+                AlarmService.build_instance_key(device.id, "current_overload", "telemetry"),
+            )
+            self.assertIsNotNone(alarm.recovered_at)
+
+    def test_load_thresholds_returns_empty_when_file_missing(self):
+        with unittest.mock.patch("os.path.exists", return_value=False):
+            thresholds = AlarmService.load_thresholds()
+
+        self.assertEqual(thresholds, {})
+
 
 if __name__ == "__main__":
     unittest.main()

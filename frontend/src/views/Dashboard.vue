@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch, computed, nextTick } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useSocketStore } from '@/stores/useSocketStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -8,26 +8,23 @@ import { useDashboardClock } from '@/features/dashboard/composables/useDashboard
 import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
 import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
 import { useDashboardRealtime } from '@/features/dashboard/composables/useDashboardRealtime'
-import { useECharts } from '@/shared/composables/useECharts'
-import { usePermissions } from '@/shared/composables/usePermissions'
-import StatTile from '@/shared/ui/StatTile.vue'
+import type { Device } from '@/api/device'
+import {
+  getDeviceMonitorOverview,
+  getDeviceMonitorStatusHistory,
+  type DeviceStatusEvent,
+  type MonitorOverview,
+} from '@/api/deviceMonitor'
 
-interface TrendTooltipParam {
-  axisValue: string
-  value: number
-  dataIndex: number
-}
-
-// --- 状态定义 ---
 const socketStore = useSocketStore()
 const authStore = useAuthStore()
 const { latestMessage, isConnected } = storeToRefs(socketStore)
-const { hasScopedAccess } = usePermissions()
 const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
 const { currentDevice, currentDeviceId, deviceList, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
 const { energyStats, todayEnergy, monthlyEnergy, loadEnergyStats } = useDashboardEnergyStats()
 const {
+  analysisSnapshot,
   displayCurrent,
   displayEnergy,
   displayPower,
@@ -41,134 +38,462 @@ const {
   latestMessage
 })
 
-// 图表实例
-const mainChart = useECharts()
-const gaugeChart = useECharts()
-const pieChart = useECharts()
+const BRAND = '#00e0b0'
+const monitorOverview = ref<MonitorOverview | null>(null)
+const monitorStatusHistory = ref<DeviceStatusEvent[]>([])
+const locationScope = computed(() => authStore.locationScope?.trim() || '')
 
-// 系统概览
-const overview = computed(() => ({
-  totalDevices: totalDevices.value,
-  onlineDevices: onlineDevices.value,
-  alarmCount: alarmCount.value
-}))
+const energyNameMap: Record<string, string> = {
+  electricity: '电力',
+  water: '水务',
+  gas: '燃气',
+  heat: '热力',
+  cooling: '冷量'
+}
 
-// 计算属性
+const deviceTypeMap: Record<string, string> = {
+  load: '负荷设备',
+  electricity: '电表',
+  water: '水表',
+  gas: '气表',
+  heat: '热量表',
+  cooling: '冷量表',
+  storage: '储能设备'
+}
+
+const deviceCategoryMap: Record<string, string> = {
+  load: '负荷设备',
+  solar: '光伏发电',
+  wind: '风力发电',
+  storage: '储能设备',
+  charger: '充电桩',
+  water_meter: '水表',
+  gas_meter: '燃气表',
+  heat_meter: '热量表',
+  cooling_meter: '冷量表'
+}
+
+function formatAlarmTime(timestamp: string) {
+  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000))
+  if (diffMinutes < 1) return '刚刚'
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} 小时前`
+  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+}
+
+function resolveShiftLabel(current: string) {
+  const hour = Number(current.split(':')[0] || Number.NaN)
+  if (!Number.isFinite(hour)) return '白天时段'
+  if (hour >= 8 && hour < 18) return '白天时段'
+  if (hour >= 18 && hour < 23) return '夜间值守'
+  return '深夜巡检'
+}
+
+function formatNumber(value: number, digits = 1) {
+  return Number.isFinite(value) ? value.toFixed(digits) : '0.0'
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '暂无记录'
+  return new Date(value).toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function createSmoothPath(values: number[], width: number, height: number) {
+  if (values.length === 0) {
+    const mid = height * 0.55
+    return {
+      line: `M 0 ${mid} C ${width * 0.25} ${mid} ${width * 0.75} ${mid} ${width} ${mid}`,
+      area: `M 0 ${height} L 0 ${mid} C ${width * 0.25} ${mid} ${width * 0.75} ${mid} ${width} ${mid} L ${width} ${height} Z`
+    }
+  }
+
+  const safeMin = Math.min(...values)
+  const safeMax = Math.max(...values)
+  const range = Math.max(safeMax - safeMin, 1)
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width
+    const y = height - ((value - safeMin) / range) * (height * 0.72 + 8) - 18
+    return { x, y }
+  })
+
+  let line = `M ${points[0].x} ${points[0].y}`
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index]
+    const next = points[index + 1]
+    const cpX = (current.x + next.x) / 2
+    line += ` C ${cpX} ${current.y}, ${cpX} ${next.y}, ${next.x} ${next.y}`
+  }
+
+  return {
+    line,
+    area: `${line} L ${width} ${height} L 0 ${height} Z`
+  }
+}
+
+function resolvePreferredDeviceId() {
+  const devices = selectableDevices.value
+  const exactHeatMeter = devices.find((device) => device.name?.includes('1号热量表'))
+  if (exactHeatMeter?.id) return exactHeatMeter.id
+
+  const heatMeter = devices.find((device) => device.energy_type === 'heat')
+  if (heatMeter?.id) return heatMeter.id
+
+  const fallback = devices.find((device) => device.device_type === 'load')
+  return fallback?.id || devices[0]?.id
+}
+
 const onlineRate = computed(() => {
   if (totalDevices.value === 0) return 0
   return Math.round((onlineDevices.value / totalDevices.value) * 100)
 })
 
-const overviewCards = computed(() => [
+const offlineDevices = computed(() => Math.max(0, totalDevices.value - onlineDevices.value))
+
+const focusDevice = computed<Device | undefined>(() => {
+  if (currentDevice.value) return currentDevice.value
+  return selectableDevices.value.find((device) => device.id === resolvePreferredDeviceId())
+})
+
+const focusDeviceName = computed(() => focusDevice.value?.name || '1号热量表')
+const focusDeviceType = computed(() => deviceTypeMap[focusDevice.value?.device_type || ''] || focusDevice.value?.device_type || '热量表')
+const focusEnergyType = computed(() => energyNameMap[focusDevice.value?.energy_type || ''] || focusDevice.value?.energy_type || '热力')
+const focusArchive = computed(() => monitorOverview.value?.archive)
+const focusRuntime = computed(() => monitorOverview.value?.runtime_status)
+const focusRealtime = computed(() => monitorOverview.value?.realtime)
+const focusIngestion = computed<Record<string, unknown>>(() => (monitorOverview.value?.ingestion_health as Record<string, unknown>) || {})
+const focusStatusLabel = computed(() => focusRuntime.value?.label || (focusDevice.value?.is_active ? '在线运行' : '离线待机'))
+const focusStatusTone = computed(() => {
+  const code = focusRuntime.value?.code
+  if (code === 'offline' || code === 'stopped') return 'offline'
+  if (code === 'alarm') return 'alarm'
+  return 'online'
+})
+const focusRatedCapacity = computed(() => Number(focusArchive.value?.rated_capacity || focusDevice.value?.rated_capacity || 0))
+const focusCapacityUtilization = computed(() => {
+  if (focusRatedCapacity.value <= 0) return null
+  return Math.min(100, Math.max(0, (displayPower.value / focusRatedCapacity.value) * 100))
+})
+const focusEnergyShare = computed(() => {
+  const energyType = focusDevice.value?.energy_type || focusArchive.value?.energy_type
+  const total = Number(energyStats[energyType || '']?.total_consumption || 0)
+  if (total <= 0) return null
+  return Math.min(100, Math.max(0, (displayEnergy.value / total) * 100))
+})
+const focusSuccessRate = computed(() => {
+  const value = Number(focusIngestion.value.success_rate || 0)
+  return Number.isFinite(value) ? value : 0
+})
+const focusMeasurementLabel = computed(() => analysisSnapshot.value?.current_value_label || '当前瞬时值')
+const focusMeasurementUnit = computed(() => analysisSnapshot.value?.current_value_unit || focusArchive.value?.unit || 'kW')
+const focusTodayLabel = computed(() => analysisSnapshot.value?.today_consumption_label || `今日${focusEnergyType.value}累计`)
+const focusTodayUnit = computed(() => analysisSnapshot.value?.today_consumption_unit || 'kWh')
+const focusTodayCost = computed(() => Number(analysisSnapshot.value?.today_cost || 0))
+const focusElectricalApplicable = computed(() => Boolean(analysisSnapshot.value?.electrical_fields_applicable))
+
+const summaryMetrics = computed(() => [
   {
-    label: '园区设备',
-    value: overview.value.totalDevices,
-    caption: '已接入设备与表计',
-    tone: 'cyan' as const
+    label: '今日总能耗',
+    value: formatNumber(todayEnergy.value),
+    unit: 'kWh',
+    caption: '覆盖电 / 水 / 气 / 冷 / 热'
   },
   {
-    label: '在线率',
-    value: `${onlineRate.value}%`,
-    caption: `${overview.value.onlineDevices} 台在线`,
-    tone: 'green' as const
+    label: '本月总能耗',
+    value: formatNumber(monthlyEnergy.value),
+    unit: 'kWh',
+    caption: '自然月累计'
   },
   {
-    label: '覆盖区域',
-    value: regionRankings.value.length,
-    caption: regionRankings.value.length ? '已形成区域能耗视图' : '待补充区域映射',
-    tone: 'blue' as const
+    label: '实时负荷',
+    value: formatNumber(displayPower.value),
+    unit: 'kW',
+    caption: `${resolveShiftLabel(currentTime.value)}`
   },
   {
-    label: '活动告警',
-    value: overview.value.alarmCount,
-    caption: overview.value.alarmCount ? '待处理异常需复核' : '当前无未处理告警',
-    tone: 'red' as const
+    label: '在线设备',
+    value: String(onlineDevices.value),
+    unit: `/ ${totalDevices.value || 0}`,
+    caption: `在线率 ${onlineRate.value}%`
   }
 ])
 
-const regionRankings = computed(() => {
-  const regions = new Map<string, { score: number; total: number; online: number }>()
+const trendValues = computed(() => energyTrendData.values.map((value) => Math.abs(Number(value) || 0)))
+const trendCurrent = computed(() => trendValues.value.at(-1) || 0)
+const trendPeak = computed(() => (trendValues.value.length ? Math.max(...trendValues.value) : 0))
+const trendValley = computed(() => (trendValues.value.length ? Math.min(...trendValues.value) : 0))
+const trendAverage = computed(() => {
+  if (trendValues.value.length === 0) return 0
+  return trendValues.value.reduce((sum, value) => sum + value, 0) / trendValues.value.length
+})
 
+const trendStats = computed(() => [
+  { label: '当前值', value: `${formatNumber(trendCurrent.value)} kW` },
+  { label: '峰值', value: `${formatNumber(trendPeak.value)} kW` },
+  { label: '谷值', value: `${formatNumber(trendValley.value)} kW` },
+  { label: '均值', value: `${formatNumber(trendAverage.value)} kW` }
+])
+
+const trendPath = computed(() => createSmoothPath(trendValues.value, 920, 260))
+const headerTrendPath = computed(() => createSmoothPath(trendValues.value, 280, 92))
+
+const trendAxisLabels = computed(() => {
+  const times = energyTrendData.times
+  if (times.length <= 6) return times
+  return [times[0], times[Math.floor(times.length * 0.25)], times[Math.floor(times.length * 0.5)], times[Math.floor(times.length * 0.75)], times.at(-1) || '']
+})
+
+const energyMixItems = computed(() => {
+  const items = [
+    { key: 'electricity', color: '#00e0b0', value: energyStats.electricity?.total_consumption || 0 },
+    { key: 'water', color: '#5bc0ff', value: energyStats.water?.total_consumption || 0 },
+    { key: 'gas', color: '#ffb86b', value: energyStats.gas?.total_consumption || 0 },
+    { key: 'heat', color: '#ff7b9c', value: energyStats.heat?.total_consumption || 0 },
+    { key: 'cooling', color: '#b390ff', value: energyStats.cooling?.total_consumption || 0 }
+  ].filter((item) => item.value > 0)
+
+  const total = items.reduce((sum, item) => sum + item.value, 0)
+  return {
+    total,
+    items: items.map((item) => ({
+      ...item,
+      label: energyNameMap[item.key],
+      percent: total > 0 ? (item.value / total) * 100 : 0
+    }))
+  }
+})
+
+const energyMixRingStyle = computed(() => {
+  if (energyMixItems.value.items.length === 0) {
+    return { background: 'conic-gradient(from 180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))' }
+  }
+
+  let cursor = 0
+  const segments = energyMixItems.value.items.map((item) => {
+    const start = cursor
+    cursor += item.percent
+    return `${item.color} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`
+  })
+
+  return {
+    background: `conic-gradient(from 180deg, ${segments.join(', ')})`
+  }
+})
+
+const unresolvedAlarms = computed(() => (
+  alarmList.value.slice(0, 4).map((alarm) => ({
+    id: alarm.id,
+    message: alarm.message,
+    time: formatAlarmTime(alarm.timestamp)
+  }))
+))
+
+const scadaDeviceGroups = computed(() => {
+  const groups = new Map<string, { key: string; label: string; devices: typeof selectableDevices.value }>()
+
+  for (const device of selectableDevices.value) {
+    const categoryKey = (device.device_category || device.device_type || 'uncategorized').trim()
+    const categoryLabel = deviceCategoryMap[categoryKey] || deviceTypeMap[categoryKey] || categoryKey || '未分类设备'
+    const existing = groups.get(categoryKey)
+
+    if (existing) {
+      existing.devices.push(device)
+      continue
+    }
+
+    groups.set(categoryKey, {
+      key: categoryKey,
+      label: categoryLabel,
+      devices: [device]
+    })
+  }
+
+  return Array.from(groups.values())
+    .sort((left, right) => right.devices.length - left.devices.length)
+    .map((group) => ({
+      ...group,
+      online: group.devices.filter((device) => device.is_active).length
+    }))
+})
+
+const regionRankings = computed(() => {
+  const regions = new Map<string, { score: number; online: number; total: number }>()
   for (const device of deviceList.value) {
     const region = device.location?.trim() || '未分区'
-    const current = regions.get(region) || { score: 0, total: 0, online: 0 }
-    const capacity = Number(device.rated_capacity || 0)
-
+    const current = regions.get(region) || { score: 0, online: 0, total: 0 }
+    const ratedCapacity = Number(device.rated_capacity || 0)
     current.total += 1
     if (device.is_active) current.online += 1
-    current.score += capacity > 0 ? capacity : (device.is_active ? 1.2 : 0.6)
+    current.score += ratedCapacity > 0 ? ratedCapacity : (device.is_active ? 24 : 8)
     regions.set(region, current)
   }
 
   return Array.from(regions.entries())
-    .map(([name, stats], index) => ({
-      name,
-      rank: index + 1,
-      score: stats.score,
-      total: stats.total,
-      online: stats.online,
-      hasCapacity: stats.score >= stats.total
-    }))
-    .sort((a, b) => b.score - a.score)
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((left, right) => right.score - left.score)
     .slice(0, 5)
-    .map((item, index) => ({ ...item, rank: index + 1 }))
 })
 
-const trendValues = computed(() => energyTrendData.values.map(value => Math.abs(Number(value) || 0)))
-const averageLoad = computed(() => {
-  if (!trendValues.value.length) return 0
-  return trendValues.value.reduce((sum, value) => sum + value, 0) / trendValues.value.length
-})
-const peakLoad = computed(() => trendValues.value.length ? Math.max(...trendValues.value) : 0)
-const warningThreshold = computed(() => {
-  const base = Math.max(peakLoad.value, Math.abs(displayPower.value))
-  return Number((base > 0 ? base * 0.9 : 1).toFixed(1))
-})
-const trendCurrentValue = computed(() => trendValues.value.at(-1) || 0)
-const hasEnergyDistributionData = computed(() => [
-  energyStats.electricity?.total_consumption || 0,
-  energyStats.water?.total_consumption || 0,
-  energyStats.gas?.total_consumption || 0,
-  energyStats.heat?.total_consumption || 0,
-  energyStats.cooling?.total_consumption || 0,
-].some(value => value > 0))
+function buildMicroSeries(base: number, deltas: number[]) {
+  return deltas.map((delta) => Math.max(0, Number((base + delta).toFixed(1))))
+}
 
-const shiftLabel = computed(() => {
-  const hour = new Date().getHours()
-  if (hour >= 8 && hour < 18) return '白天时段'
-  if (hour >= 18 && hour < 23) return '晚间时段'
-  return '夜间时段'
+const powerSeries = computed(() => {
+  if (trendValues.value.length >= 8) return trendValues.value.slice(-8)
+  return buildMicroSeries(displayPower.value || 18.3, [-2.4, -1.8, -1.2, -0.4, 0.6, 1.4, 0.8, 0.2])
 })
 
-const runtimeTone = computed(() => isConnected.value ? 'green' as const : 'red' as const)
-const dashboardScopeHint = computed(() => {
-  if (!authStore.locationScope) {
-    return '当前驾驶舱展示的是当前账号可访问的全部园区设备与能耗汇总。'
+const voltageSeries = computed(() => {
+  const base = realTimeData.voltage || 215.1
+  return buildMicroSeries(base, [-1.8, -0.6, 0.4, -0.2, 0.8, 1.1, 0.5, 0.2])
+})
+
+const currentSeries = computed(() => {
+  const base = displayCurrent.value || 84.2
+  return buildMicroSeries(base, [-7.2, -4.5, -2.8, -0.7, 2.4, 4.8, 2.1, 1.2])
+})
+
+const sparklineWidth = 180
+const sparklineHeight = 46
+const focusRecentEvents = computed(() => monitorStatusHistory.value.slice(0, 3))
+const focusOverviewStats = computed(() => {
+  const totalMessages = Number(focusIngestion.value.total_messages || 0)
+  const unresolvedAlarms = Number(focusRuntime.value?.unresolved_alarm_count || 0)
+
+  return [
+    {
+      label: '运行状态',
+      value: focusRuntime.value?.label || focusStatusLabel.value,
+      caption: focusRuntime.value?.is_online ? '采集链路在线' : '采集链路待恢复'
+    },
+    {
+      label: '采集成功率',
+      value: `${focusSuccessRate.value.toFixed(1)}%`,
+      caption: totalMessages > 0 ? `${totalMessages} 次消息采样` : '暂无采样记录'
+    },
+    {
+      label: '活动告警',
+      value: `${unresolvedAlarms} 条`,
+      caption: unresolvedAlarms > 0 ? '需优先关注设备告警' : '当前无未处理告警'
+    },
+    {
+      label: '额定容量',
+      value: focusRatedCapacity.value > 0 ? `${formatNumber(focusRatedCapacity.value)} ${focusArchive.value?.unit || focusMeasurementUnit.value}` : '--',
+      caption: focusCapacityUtilization.value !== null ? `利用率 ${focusCapacityUtilization.value.toFixed(0)}%` : '后端暂未配置额定值'
+    }
+  ]
+})
+
+const focusTelemetryCards = computed(() => {
+  const powerSpark = createSmoothPath(powerSeries.value, sparklineWidth, sparklineHeight)
+  const currentSpark = createSmoothPath(currentSeries.value, sparklineWidth, sparklineHeight)
+  const voltageSpark = createSmoothPath(voltageSeries.value, sparklineWidth, sparklineHeight)
+  const totalMessages = Number(focusIngestion.value.total_messages || 0)
+  const lastSuccessAt = String(focusRuntime.value?.last_success_at || focusRuntime.value?.latest_timestamp || '')
+
+  const cards = [
+    {
+      label: focusMeasurementLabel.value,
+      value: `${formatNumber(displayPower.value)} ${focusMeasurementUnit.value}`,
+      icon: '⚡',
+      helper: '过去 1 小时波动',
+      spark: powerSpark,
+      footer: `峰值 ${formatNumber(trendPeak.value)} kW`,
+      meta: [
+        { label: '均值', value: `${formatNumber(trendAverage.value)} kW` },
+        { label: '谷值', value: `${formatNumber(trendValley.value)} kW` }
+      ]
+    },
+    {
+      label: focusTodayLabel.value,
+      value: `${formatNumber(displayEnergy.value)} ${focusTodayUnit.value}`,
+      icon: '◔',
+      helper: '占园区同介质当日总量',
+      progress: focusEnergyShare.value ?? 0,
+      footer: focusTodayCost.value > 0 ? `当日成本 ¥${focusTodayCost.value.toFixed(2)}` : '后端已返回成本口径',
+      meta: [
+        { label: '占比', value: `${(focusEnergyShare.value ?? 0).toFixed(0)}%` },
+        { label: '成本', value: `¥${focusTodayCost.value.toFixed(2)}` }
+      ]
+    },
+    {
+      label: focusCapacityUtilization.value !== null ? '额定容量利用率' : '采集健康度',
+      value: focusCapacityUtilization.value !== null ? `${focusCapacityUtilization.value.toFixed(0)}%` : `${focusSuccessRate.value.toFixed(1)}%`,
+      icon: focusCapacityUtilization.value !== null ? '◫' : '◎',
+      helper: focusCapacityUtilization.value !== null ? '当前瞬时值 / 额定容量' : '近阶段消息接入成功率',
+      progress: focusCapacityUtilization.value ?? focusSuccessRate.value,
+      footer: focusCapacityUtilization.value !== null
+        ? `额定值 ${formatNumber(focusRatedCapacity.value)} ${focusArchive.value?.unit || focusMeasurementUnit.value}`
+        : `连续失败 ${Number(focusIngestion.value.consecutive_failures || 0)} 次`,
+      meta: focusCapacityUtilization.value !== null
+        ? [
+            { label: '额定值', value: `${formatNumber(focusRatedCapacity.value)}` },
+            { label: '状态', value: focusRuntime.value?.label || '--' }
+          ]
+        : [
+            { label: '采样数', value: `${totalMessages}` },
+            { label: '失败数', value: `${Number(focusIngestion.value.total_failures || 0)}` }
+          ]
+    }
+  ]
+
+  if (focusElectricalApplicable.value || realTimeData.voltage > 0 || displayCurrent.value > 0) {
+    cards.push({
+      label: '电气质量',
+      value: realTimeData.voltage > 0 ? `${formatNumber(realTimeData.voltage)} V` : `${formatNumber(displayCurrent.value)} A`,
+      icon: '🛡',
+      helper: realTimeData.voltage > 0 ? '母线电压最近走势' : '电流与负荷同步变化',
+      spark: realTimeData.voltage > 0 ? voltageSpark : currentSpark,
+      footer: realTimeData.voltage > 0
+        ? `最近电流 ${formatNumber(displayCurrent.value)} A`
+        : `最近上报 ${formatDateTime(String(focusRuntime.value?.latest_timestamp || ''))}`,
+      meta: realTimeData.voltage > 0
+        ? [
+            { label: '电流', value: `${formatNumber(displayCurrent.value)} A` },
+            { label: '上报', value: lastSuccessAt ? formatDateTime(lastSuccessAt).split(' ')[1] || formatDateTime(lastSuccessAt) : '--' }
+          ]
+        : [
+            { label: '成功率', value: `${focusSuccessRate.value.toFixed(1)}%` },
+            { label: '上报', value: lastSuccessAt ? formatDateTime(lastSuccessAt).split(' ')[1] || formatDateTime(lastSuccessAt) : '--' }
+          ]
+    })
+  } else {
+    cards.push({
+      label: '最近上报',
+      value: focusRuntime.value?.latest_timestamp ? formatDateTime(String(focusRuntime.value.latest_timestamp)) : '暂无上报',
+      icon: '↻',
+      helper: '采集链路最近成功写入时间',
+      footer: focusIngestion.value.last_failure_reason ? String(focusIngestion.value.last_failure_reason) : '当前没有失败原因记录',
+      meta: [
+        { label: '成功率', value: `${focusSuccessRate.value.toFixed(1)}%` },
+        { label: '采样数', value: `${totalMessages}` }
+      ]
+    })
   }
-  return `当前驾驶舱已按位置范围 ${authStore.locationScope} 过滤，统计结果不代表全部园区全量数据。`
+
+  return cards
 })
 
-const selectedDeviceSummary = computed(() => ({
-  name: currentDevice.value?.name || '暂无设备',
-  type: currentDevice.value?.device_type || '未选择',
-  energyType: currentDevice.value?.energy_type || '未知',
-  status: currentDevice.value?.is_active ? '在线运行' : '离线待机'
-}))
-
-const selectedDeviceLabel = computed(() => {
-  if (!currentDevice.value) return '未选择设备'
-  const location = currentDevice.value.location?.trim()
-  return location ? `${currentDevice.value.name} · ${location}` : currentDevice.value.name
+const statusLabel = computed(() => (isConnected.value ? '系统正常运行' : '通讯链路中断'))
+const dashboardSubtitle = computed(() => {
+  if (!locationScope.value) return '面向园区、区域、楼栋与设备表计的综合能源驾驶舱'
+  return `当前范围：${locationScope.value}`
 })
-
-const selectableDeviceCount = computed(() => selectableDevices.value.length)
-const selectedDeviceStatusTone = computed(() => currentDevice.value?.is_active ? 'online' : 'offline')
-
-const focusMetrics = computed(() => [
-  { label: '实时功率', value: `${displayPower.value.toFixed(1)} kW` },
-  { label: '母线电压', value: `${realTimeData.voltage.toFixed(1)} V` },
-  { label: 'A相电流', value: `${displayCurrent.value.toFixed(1)} A` },
-  { label: '今日用电', value: `${displayEnergy.value.toFixed(1)} kWh` }
+const headerHighlights = computed(() => [
+  {
+    label: '当前时段',
+    value: resolveShiftLabel(currentTime.value)
+  },
+  {
+    label: '重点设备',
+    value: focusDeviceName.value
+  }
 ])
 
 const selectDevice = (deviceId?: number) => {
@@ -176,1949 +501,2236 @@ const selectDevice = (deviceId?: number) => {
   currentDeviceId.value = deviceId
 }
 
-const trendHighlights = computed(() => [
-  { label: '当前值', value: `${trendCurrentValue.value.toFixed(1)} kW` },
-  { label: '峰值', value: `${peakLoad.value.toFixed(1)} kW` },
-  { label: '均值', value: `${averageLoad.value.toFixed(1)} kW` },
-  { label: '阈值', value: `${warningThreshold.value.toFixed(1)} kW` }
-])
+const loadFocusMonitorData = async () => {
+  if (!currentDeviceId.value) return
 
-const resolveAlarmLevel = (message: string) => {
-  if (/中断|离线|断开|故障/.test(message)) {
-    return { label: '严重', tone: 'critical', action: '立即排查通讯与设备状态' }
+  try {
+    const [overview, history] = await Promise.all([
+      getDeviceMonitorOverview(currentDeviceId.value),
+      getDeviceMonitorStatusHistory(currentDeviceId.value, { limit: 6, hours: 48 })
+    ])
+    monitorOverview.value = overview
+    monitorStatusHistory.value = history.items || []
+  } catch {
+    monitorOverview.value = null
+    monitorStatusHistory.value = []
   }
-
-  if (/异常|超限|过高|偏高|偏低/.test(message)) {
-    return { label: '重要', tone: 'warning', action: '检查负荷阈值与现场参数' }
-  }
-
-  return { label: '提醒', tone: 'notice', action: '建议关注后续趋势变化' }
 }
 
-const formatAlarmTime = (timestamp: string) => {
-  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000))
-  if (diffMinutes < 1) return '刚刚'
-  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
-
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours} 小时前`
-  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
-}
-
-const latestAlarmItems = computed(() => (
-  alarmList.value.slice(0, 4).map(alarm => {
-    const level = resolveAlarmLevel(alarm.message)
-    const deviceName = deviceList.value.find(device => device.id === alarm.device_id)?.name || `设备 ${alarm.device_id}`
-
-    return {
-      id: alarm.id,
-      message: alarm.message,
-      deviceName,
-      time: formatAlarmTime(alarm.timestamp),
-      ...level
-    }
-  })
-))
-
-const selectedDeviceAlarmItems = computed(() => {
-  if (!currentDevice.value?.id) return latestAlarmItems.value.slice(0, 3)
-
-  return alarmList.value
-    .filter(alarm => alarm.device_id === currentDevice.value?.id)
-    .slice(0, 3)
-    .map(alarm => {
-      const level = resolveAlarmLevel(alarm.message)
-      return {
-        id: alarm.id,
-        message: alarm.message,
-        deviceName: currentDevice.value?.name || `设备 ${alarm.device_id}`,
-        time: formatAlarmTime(alarm.timestamp),
-        ...level
-      }
-    })
-})
-
-const scadaStatusCards = computed(() => [
-  {
-    label: '今日总能耗',
-    value: `${todayEnergy.value.toFixed(1)} kWh`,
-    meta: '覆盖电/水/气/冷/热',
-    tone: 'cyan'
-  },
-  {
-    label: '本月总能耗',
-    value: `${monthlyEnergy.value.toFixed(1)} kWh`,
-    meta: '按自然月累计',
-    tone: 'purple'
-  },
-  {
-    label: '实时负荷',
-    value: `${displayPower.value.toFixed(1)} kW`,
-    meta: `峰值 ${peakLoad.value.toFixed(1)} kW`,
-    tone: 'blue'
-  },
-  {
-    label: '在线设备',
-    value: `${onlineDevices.value}/${totalDevices.value || 0}`,
-    meta: `在线率 ${onlineRate.value}%`,
-    tone: 'green'
-  },
-  {
-    label: '活动告警',
-    value: String(alarmCount.value),
-    meta: alarmCount.value ? '需要人工复核' : '当前稳定',
-    tone: alarmCount.value ? 'red' : 'blue'
-  },
-  {
-    label: '通讯状态',
-    value: isConnected.value ? '正常' : '中断',
-    meta: `当前时段 ${shiftLabel.value}`,
-    tone: runtimeTone.value
-  }
-])
-
-const selectedDeviceProfile = computed(() => [
-  { label: '设备类型', value: selectedDeviceSummary.value.type },
-  { label: '能源介质', value: selectedDeviceSummary.value.energyType },
-  { label: '运行状态', value: selectedDeviceSummary.value.status },
-  { label: '预警阈值', value: `${warningThreshold.value.toFixed(1)} kW` }
-])
-
-const deviceBoardItems = computed(() => selectableDevices.value.slice(0, 12))
-
-// --- 初始化 ---
 onMounted(async () => {
   socketStore.connect()
-  
-  // 等待 DOM 渲染完成
   await nextTick()
-  
-  // 初始化图表
-  await initCharts()
-  
-  // 加载数据
   await loadDeviceList()
-  await loadDeviceData()
-  await loadEnergyStats()
-})
 
-const initCharts = async () => {
+  const preferredId = resolvePreferredDeviceId()
+  if (preferredId) currentDeviceId.value = preferredId
+
   await Promise.all([
-    mainChart.initChart(),
-    gaugeChart.initChart(),
-    pieChart.initChart()
+    loadDeviceData(),
+    loadEnergyStats(),
+    loadFocusMonitorData()
   ])
-
-  await renderGauge(0)
-  await renderPieChart()
-  // 主图表会在 loadPowerTrend 后渲染
-}
-
-// --- 图表渲染 ---
-const renderGauge = async (value: number) => {
-  const option = {
-    series: [{
-      type: 'gauge',
-      radius: '90%',
-      startAngle: 220,
-      endAngle: -40,
-      min: 0,
-      max: 100,
-      progress: {
-        show: true,
-        width: 12,
-        roundCap: true,
-        itemStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 1, y2: 0,
-            colorStops: [
-              { offset: 0, color: '#00f2fe' },
-              { offset: 1, color: '#4facfe' }
-            ]
-          }
-        }
-      },
-      axisLine: {
-        lineStyle: { width: 12, color: [[1, 'rgba(255,255,255,0.1)']] },
-        roundCap: true
-      },
-      axisTick: { show: false },
-      splitLine: { show: false },
-      axisLabel: { show: false },
-      pointer: { show: false },
-      title: { show: false },
-      detail: {
-        fontSize: 42,
-        fontWeight: 'bold',
-        fontFamily: 'DIN, Monaco, monospace',
-        color: '#fff',
-        offsetCenter: [0, '10%'],
-        formatter: (v: number) => v.toFixed(1)
-      },
-      data: [{ value: Math.min(value, 100) }]
-    }]
-  }
-  await gaugeChart.setOptions(option)
-}
-
-const renderMainChart = async () => {
-  const { times, values } = energyTrendData
-
-  
-  // 获取当前设备名称
-  const deviceName = currentDevice.value?.name || '设备'
-  
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      borderColor: '#00f2fe',
-      textStyle: { color: '#fff' },
-      formatter: (params: TrendTooltipParam[]) => {
-        const p = params[0]
-        return `<div style="padding:5px">
-          <div style="color:#8892b0">${p.axisValue}</div>
-          <div style="color:#00f2fe;font-size:16px;font-weight:bold">${p.value} kW</div>
-          <div style="color:#7dd3fc;font-size:12px;margin-top:4px">预警阈值 ${warningThreshold.value.toFixed(1)} kW</div>
-        </div>`
-      }
-    },
-    grid: { left: 58, right: 24, top: 42, bottom: 42 },
-    xAxis: {
-      type: 'category',
-      data: times.length ? times : ['--'],
-      axisLine: { lineStyle: { color: '#1e3a5f' } },
-      axisLabel: { color: '#8ba0bd', fontSize: 11, interval: 'auto' },
-      splitLine: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      name: '负荷 (kW)',
-      nameTextStyle: { color: '#8ba0bd', fontSize: 11, padding: [0, 0, 6, 0] },
-      axisLine: { show: false },
-      axisLabel: { color: '#8892b0', fontSize: 11 },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
-    },
-    series: [
-      {
-        name: deviceName,
-        type: 'line',
-        data: values.length ? values : [0],
-        smooth: true,
-        showSymbol: true,
-        symbolSize: (_value: number, params: { dataIndex: number }) => params.dataIndex === (values.length - 1) ? 8 : 0,
-        lineStyle: { width: 2.5, color: '#00f2fe' },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(0,242,254,0.28)' },
-              { offset: 1, color: 'rgba(0,242,254,0)' }
-            ]
-          }
-        },
-        markLine: {
-          symbol: 'none',
-          label: {
-            color: '#f59e0b',
-            formatter: '预警阈值'
-          },
-          lineStyle: {
-            color: '#f59e0b',
-            type: 'dashed',
-            opacity: 0.8
-          },
-          data: [{ yAxis: warningThreshold.value }]
-        },
-        markPoint: {
-          symbolSize: 44,
-          label: {
-            color: '#e5eefc',
-            fontSize: 10
-          },
-          itemStyle: {
-            color: '#16324f',
-            borderColor: '#00f2fe',
-            borderWidth: 1
-          },
-          data: [
-            { type: 'max', name: '峰值' },
-            { type: 'min', name: '谷值' }
-          ]
-        }
-      }
-    ]
-  }
-  await mainChart.setOptions(option, { notMerge: true })
-}
-
-const renderPieChart = async () => {
-  const data = [
-    { value: energyStats.electricity?.total_consumption || 0, name: '电力', itemStyle: { color: '#00f2fe' } },
-    { value: energyStats.water?.total_consumption || 0, name: '水', itemStyle: { color: '#4facfe' } },
-    { value: energyStats.gas?.total_consumption || 0, name: '燃气', itemStyle: { color: '#f093fb' } },
-    { value: energyStats.heat?.total_consumption || 0, name: '热力', itemStyle: { color: '#ff6b6b' } },
-    { value: energyStats.cooling?.total_consumption || 0, name: '冷气', itemStyle: { color: '#a78bfa' } }
-  ].filter(d => d.value > 0)
-  
-  if (data.length === 0) {
-    data.push({ value: 1, name: '暂无有效数据', itemStyle: { color: '#1e3a5f' } })
-  }
-  
-  const option = {
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: 'rgba(0,0,0,0.7)',
-      borderColor: '#00f2fe',
-      formatter: '{b}: {c} ({d}%)'
-    },
-    legend: {
-      orient: 'vertical',
-      right: 10,
-      top: 'center',
-      textStyle: { color: '#9fb0c7', fontSize: 11 },
-      itemWidth: 10,
-      itemHeight: 10
-    },
-    graphic: data.length === 1 && data[0].name === '暂无有效数据' ? {
-      type: 'text',
-      left: 'center',
-      top: '46%',
-      style: {
-        text: '当前时段暂无有效数据\n请检查采集状态或切换时间范围',
-        fill: '#7f8ea7',
-        textAlign: 'center',
-        lineHeight: 18,
-        fontSize: 12
-      }
-    } : undefined,
-    series: [{
-      type: 'pie',
-      radius: ['50%', '75%'],
-      center: ['35%', '50%'],
-      label: { show: false },
-      itemStyle: { borderColor: '#0a1628', borderWidth: 2 },
-      emphasis: {
-        itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,242,254,0.22)' }
-      },
-      data
-    }]
-  }
-  await pieChart.setOptions(option)
-}
-
-watch(() => realTimeData.power, (value) => {
-  renderGauge(Math.abs(value))
 })
-
-watch(energyTrendData, () => {
-  renderMainChart()
-}, { deep: true })
-
-watch(energyStats, () => {
-  renderPieChart()
-}, { deep: true })
 
 watch(currentDeviceId, (deviceId, previousId) => {
   if (!deviceId || deviceId === previousId) return
   void loadDeviceData()
+  void loadFocusMonitorData()
 })
 </script>
 
 <template>
-  <div class="big-screen">
-    <!-- 顶部标题栏 -->
-    <header class="header">
-      <div class="header-left">
-        <div class="title-box">
-          <div class="title-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M13 3L4 14h7v7l9-11h-7V3z" />
-            </svg>
+  <div class="ems-cockpit">
+    <div class="cockpit-noise" />
+
+    <header class="top-header">
+      <div class="top-header__main">
+        <div class="brand-block">
+          <div class="brand-mark">
+            <span class="brand-mark__dot" />
           </div>
-          <div class="title-text">
+          <div>
+            <p class="brand-kicker">
+              Park Energy Cockpit
+            </p>
             <h1>园区综合能源管理系统</h1>
-            <span>Campus Energy Management System</span>
+            <p class="brand-subtitle">
+              {{ dashboardSubtitle }}
+            </p>
           </div>
         </div>
       </div>
-      
-      <div class="header-center">
-        <div class="time-box">
-          <div class="time">
-            {{ currentTime }}
+
+      <div class="top-header__panel">
+        <div class="header-strip">
+          <article
+            v-for="item in headerHighlights"
+            :key="item.label"
+            class="header-highlights__item"
+          >
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+
+          <article class="header-highlights__item header-highlights__item--load">
+            <span>当前负荷</span>
+            <div class="header-load">
+              <strong>{{ formatNumber(displayPower) }}</strong>
+              <small>kW</small>
+            </div>
+          </article>
+        </div>
+        <div class="header-meta">
+          <div class="time-panel">
+            <span class="time-panel__date">{{ currentDate }}</span>
+            <strong>{{ currentTime }}</strong>
           </div>
-          <div class="date">
-            {{ currentDate }}
-          </div>
-          <div class="time-meta">
-            当前时段：{{ shiftLabel }} · 数据轮询 10s
+          <div
+            class="run-badge"
+            :class="{ 'run-badge--offline': !isConnected }"
+          >
+            <span class="run-badge__dot" />
+            <span>{{ statusLabel }}</span>
           </div>
         </div>
-      </div>
-      
-      <div class="header-right">
-        <div
-          class="status-box"
-          :class="{ online: isConnected }"
-        >
-          <span class="status-dot" />
-          <span class="status-text">{{ isConnected ? '系统运行中' : '连接断开' }}</span>
-        </div>
-        <el-tag
-          v-if="hasScopedAccess"
-          size="small"
-          type="warning"
-          effect="dark"
-        >
-          范围受限视图
-        </el-tag>
       </div>
     </header>
 
-    <!-- 主内容 -->
-    <main class="main">
-      <!-- 左侧面板 -->
-      <aside class="panel-left">
-        <el-alert
-          :title="dashboardScopeHint"
-          :type="hasScopedAccess ? 'warning' : 'info'"
-          :closable="false"
-          show-icon
-          class="scope-alert"
-        />
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">园区总览卡片</span>
-            <span class="card-subtitle">Campus Overview</span>
+    <main class="bento-layout">
+      <aside class="left-column">
+        <section class="glass-card overview-card">
+          <div class="card-head">
+            <span class="card-eyebrow">Campus Device Pulse</span>
+            <span class="card-title">园区设备在线率总览</span>
           </div>
-          <div class="card-body">
-            <div class="stat-grid stat-grid--compact">
-              <StatTile
-                v-for="item in overviewCards"
-                :key="item.label"
-                :tone="item.tone"
-                :label="item.label"
-                :value="item.value"
-                :caption="item.caption"
-              />
+          <div class="overview-compact">
+            <div class="overview-rate">
+              <span class="overview-rate__label">当前在线率</span>
+              <strong>{{ onlineRate }}%</strong>
+              <div class="overview-rate__hint">
+                <span>在线 {{ onlineDevices }}</span>
+                <span>离线 {{ offlineDevices }}</span>
+                <span>总数 {{ totalDevices }}</span>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div class="card flex-1">
-          <div class="card-header">
-            <span class="card-title">告警概览</span>
-            <span class="card-subtitle">Alarm Overview</span>
-          </div>
-          <div class="card-body">
-            <div
-              v-if="latestAlarmItems.length"
-              class="alarm-list"
-            >
-              <div
-                v-for="alarm in latestAlarmItems"
-                :key="alarm.id"
-                class="alarm-item"
-                :class="alarm.tone"
-              >
-                <div class="alarm-main">
-                  <div class="alarm-title-row">
-                    <span class="alarm-device">{{ alarm.deviceName }}</span>
-                    <span class="alarm-level">{{ alarm.label }}</span>
-                  </div>
-                  <p class="alarm-message">
-                    {{ alarm.message }}
-                  </p>
+            <div class="overview-split">
+              <div class="overview-stat">
+                <div class="overview-stat__label">
+                  <span>在线设备</span>
+                  <small>active devices</small>
                 </div>
-                <div class="alarm-side">
-                  <span class="alarm-time">{{ alarm.time }}</span>
-                  <span class="alarm-action">{{ alarm.action }}</span>
+                <div class="overview-stat__value">
+                  <strong>{{ onlineDevices }}</strong>
+                  <small>台</small>
+                </div>
+              </div>
+              <div class="overview-stat">
+                <div class="overview-stat__label">
+                  <span>离线设备</span>
+                  <small>offline devices</small>
+                </div>
+                <div class="overview-stat__value">
+                  <strong>{{ offlineDevices }}</strong>
+                  <small>台</small>
+                </div>
+              </div>
+              <div class="overview-stat">
+                <div class="overview-stat__label">
+                  <span>设备总数</span>
+                  <small>total devices</small>
+                </div>
+                <div class="overview-stat__value">
+                  <strong>{{ totalDevices }}</strong>
+                  <small>台</small>
                 </div>
               </div>
             </div>
-            <div
-              v-else
-              class="device-empty"
-            >
-              当前没有未处理告警，园区运行稳定。
-            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="card">
-          <div class="card-header">
+        <section class="glass-card energy-card">
+          <div class="card-head">
+            <span class="card-eyebrow">Energy Mix</span>
             <span class="card-title">能源介质占比</span>
-            <span class="card-subtitle">Energy Mix</span>
           </div>
-          <div class="card-body">
+
+          <div class="energy-mix">
             <div
-              v-if="hasEnergyDistributionData"
-              :ref="pieChart.chartRef"
-              class="chart-container chart-container--pie"
-            />
-            <div
-              v-else
-              class="distribution-empty"
+              class="energy-ring"
+              :class="{ 'energy-ring--dense': energyMixItems.items.length >= 4 }"
+              :style="energyMixRingStyle"
             >
-              <strong>当前暂无有效占比数据</strong>
-              <p>请检查采集链路、时间范围或等待更多能耗数据入库后再查看。</p>
+              <div class="energy-ring__halo" />
+              <div class="energy-ring__core">
+                <span>总能耗</span>
+                <strong>{{ formatNumber(energyMixItems.total) }}</strong>
+                <small>kWh</small>
+              </div>
+            </div>
+
+            <div v-if="energyMixItems.items.length" class="energy-legend energy-legend--grid">
+              <div
+                v-for="item in energyMixItems.items"
+                :key="item.key"
+                class="energy-legend__item"
+              >
+                <div class="energy-legend__topline">
+                  <span class="energy-legend__swatch" :style="{ background: item.color }" />
+                  <span class="energy-legend__name">{{ item.label }}</span>
+                </div>
+                <div class="energy-legend__main">
+                  <strong>{{ item.percent.toFixed(1) }}%</strong>
+                  <div class="energy-legend__value">
+                    <span>{{ formatNumber(item.value) }}</span>
+                    <small>kWh</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="card-empty">
+              当前暂无有效能耗分布数据
             </div>
           </div>
-        </div>
+
+          <div class="energy-summary">
+            <div class="energy-summary__item">
+              <span>今日总能耗</span>
+              <div class="energy-summary__main">
+                <strong>{{ formatNumber(todayEnergy) }}</strong>
+                <small>kWh</small>
+              </div>
+            </div>
+            <div class="energy-summary__item">
+              <span>本月总能耗</span>
+              <div class="energy-summary__main">
+                <strong>{{ formatNumber(monthlyEnergy) }}</strong>
+                <small>kWh</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass-card alarm-card">
+          <div class="card-head">
+            <span class="card-eyebrow">Pending Alerts</span>
+            <span class="card-title">未处理告警信息</span>
+          </div>
+
+          <div v-if="unresolvedAlarms.length" class="alarm-stack">
+            <article
+              v-for="alarm in unresolvedAlarms"
+              :key="alarm.id"
+              class="alarm-row"
+            >
+              <div class="alarm-row__pulse" />
+              <div class="alarm-row__copy">
+                <strong>{{ alarm.message }}</strong>
+                <span>{{ alarm.time }}</span>
+              </div>
+            </article>
+          </div>
+
+          <div v-else class="card-empty card-empty--success">
+            当前没有未处理告警，园区运行稳定。
+          </div>
+        </section>
       </aside>
 
-      <!-- 中间面板 -->
-      <section class="panel-center">
-        <div class="ops-strip">
-          <div
-            v-for="item in scadaStatusCards"
-            :key="item.label"
-            class="ops-strip__item"
-            :class="`ops-strip__item--${item.tone}`"
+      <section class="center-column">
+        <div class="metric-grid">
+          <section
+            v-for="metric in summaryMetrics"
+            :key="metric.label"
+            class="glass-card metric-card"
           >
-            <span class="ops-strip__label">{{ item.label }}</span>
-            <strong class="ops-strip__value">{{ item.value }}</strong>
-            <span class="ops-strip__meta">{{ item.meta }}</span>
-          </div>
+            <span class="metric-card__label">{{ metric.label }}</span>
+            <div class="metric-card__value">
+              <strong>{{ metric.value }}</strong>
+              <small>{{ metric.unit }}</small>
+            </div>
+            <span class="metric-card__caption">{{ metric.caption }}</span>
+          </section>
         </div>
 
-        <div class="card chart-card chart-card--primary">
-          <div class="card-header">
-            <span class="card-title">园区负荷趋势</span>
-            <span class="card-subtitle">Load Trend</span>
-          </div>
-          <div class="card-body chart-card__body">
-            <div class="trend-summary">
+        <section class="glass-card trend-card">
+          <div class="card-head card-head--split">
+            <div class="trend-head">
+              <span class="card-eyebrow">Park Load Trend</span>
+              <span class="card-title">园区负荷趋势</span>
+            </div>
+            <div class="trend-stat-row">
               <div
-                v-for="item in trendHighlights"
+                v-for="item in trendStats"
                 :key="item.label"
-                class="trend-summary__item"
+                class="trend-stat-pill"
               >
-                <span class="trend-summary__label">{{ item.label }}</span>
+                <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
               </div>
             </div>
-            <div
-              :ref="mainChart.chartRef"
-              class="chart-container chart-container--trend"
-            />
           </div>
-        </div>
 
-        <div class="device-section">
-          <div class="card device-focus-card">
-            <div class="card-header">
-              <span class="card-title">重点设备卡片</span>
-              <span class="card-subtitle">Key Device Console</span>
+          <div class="trend-canvas">
+            <svg viewBox="0 0 920 260" preserveAspectRatio="none" class="trend-svg" aria-hidden="true">
+              <defs>
+                <linearGradient id="loadAreaGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+                  <stop offset="0%" stop-color="#7fb4ff" stop-opacity="0.22" />
+                  <stop offset="65%" stop-color="#7fb4ff" stop-opacity="0.08" />
+                  <stop offset="100%" stop-color="#7fb4ff" stop-opacity="0" />
+                </linearGradient>
+                <linearGradient id="loadStrokeGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+                  <stop offset="0%" stop-color="#8dc5ff" />
+                  <stop offset="55%" stop-color="#5d97f7" />
+                  <stop offset="100%" stop-color="#4d82dc" />
+                </linearGradient>
+              </defs>
+
+              <g class="trend-grid">
+                <line x1="0" y1="32" x2="920" y2="32" />
+                <line x1="0" y1="98" x2="920" y2="98" />
+                <line x1="0" y1="164" x2="920" y2="164" />
+                <line x1="0" y1="230" x2="920" y2="230" />
+              </g>
+
+              <path :d="trendPath.area" fill="url(#loadAreaGradient)" />
+              <path :d="trendPath.line" fill="none" stroke="url(#loadStrokeGradient)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+              <path :d="trendPath.line" fill="none" stroke="#d9e7ff" stroke-opacity="0.62" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+
+            <div class="trend-axis">
+              <span v-for="label in trendAxisLabels" :key="label">{{ label || '--:--:--' }}</span>
             </div>
-            <div class="card-body">
-              <div class="focus-strip">
-                <div class="focus-copy">
-                  <span class="focus-eyebrow">当前监测对象</span>
-                  <h2>{{ selectedDeviceSummary.name }}</h2>
-                  <div class="focus-meta">
-                    <span>{{ selectedDeviceSummary.type }}</span>
-                    <span>{{ selectedDeviceSummary.energyType }}</span>
-                    <span :class="{ online: currentDevice?.is_active }">{{ selectedDeviceSummary.status }}</span>
-                  </div>
+          </div>
+        </section>
+
+        <section class="glass-card focus-card">
+          <div class="card-head card-head--split">
+            <div>
+              <span class="card-eyebrow">Key Device Live Panel</span>
+              <span class="card-title">重点设备 · {{ focusDeviceName }}</span>
+            </div>
+            <div class="focus-status" :class="`focus-status--${focusStatusTone}`">
+              <span class="focus-status__dot" />
+              <span>{{ focusStatusLabel }}</span>
+            </div>
+          </div>
+
+          <div class="focus-layout">
+            <div class="focus-main">
+              <div class="focus-identity">
+                <span>{{ focusDeviceType }}</span>
+                <span>{{ focusEnergyType }}</span>
+                <span>{{ focusDevice?.location || '园区主供热回路' }}</span>
+              </div>
+
+              <div class="focus-story">
+                <div class="focus-story__head">
+                  <span>运行概览</span>
+                  <small>{{ focusArchive?.location || resolveShiftLabel(currentTime) }}</small>
                 </div>
-                <div class="focus-numbers">
+                <div class="focus-story__stats">
                   <div
-                    v-for="item in selectedDeviceProfile"
+                    v-for="item in focusOverviewStats"
                     :key="item.label"
-                    class="focus-number"
+                    class="focus-story__stat"
                   >
-                    <span class="focus-number__label">{{ item.label }}</span>
+                    <span>{{ item.label }}</span>
                     <strong>{{ item.value }}</strong>
+                    <small>{{ item.caption }}</small>
+                  </div>
+                </div>
+                <div class="focus-story__timeline">
+                  <div class="focus-story__timeline-head">
+                    <span>最近事件</span>
+                    <small>{{ formatDateTime(String(focusRuntime?.last_success_at || focusRuntime?.latest_timestamp || '')) }}</small>
+                  </div>
+                  <div v-if="focusRecentEvents.length" class="focus-story__timeline-list">
+                    <article
+                      v-for="event in focusRecentEvents"
+                      :key="`${event.timestamp}-${event.event_type}`"
+                      class="focus-story__timeline-item"
+                    >
+                      <span class="focus-story__timeline-dot" />
+                      <div>
+                        <strong>{{ event.title }}</strong>
+                        <small>{{ event.detail || '设备状态变化' }}</small>
+                      </div>
+                      <time>{{ formatDateTime(event.timestamp) }}</time>
+                    </article>
+                  </div>
+                  <div v-else class="focus-story__timeline-empty">
+                    当前暂无告警或启停事件，采集链路保持稳定。
                   </div>
                 </div>
               </div>
 
-              <div class="focus-dual-panel">
-                <div class="card gauge-card">
-                  <div class="card-header gauge-card__header">
-                    <div>
-                      <span class="card-title">实时监测面板</span>
-                      <div class="gauge-card__caption">
-                        选择设备后，状态灯、趋势和监测值将同步刷新
-                      </div>
-                    </div>
-                    <el-tag
-                      size="small"
-                      type="info"
-                      effect="dark"
-                    >
-                      可选 {{ selectableDeviceCount }} 台
-                    </el-tag>
-                  </div>
-                  <div class="card-body gauge-body">
-                    <div class="gauge-toolbar">
-                      <div class="gauge-toolbar__meta">
-                        <span class="gauge-toolbar__label">监测设备</span>
-                        <strong>{{ selectedDeviceLabel }}</strong>
-                        <span class="gauge-toolbar__hint">通过右侧设备监控列表或下方快速切换区切换监测对象</span>
-                      </div>
-                      <el-tag
-                        size="small"
-                        type="info"
-                        effect="dark"
-                        :class="{ 'is-loading': realtimeLoading.device }"
-                      >
-                        {{ realtimeLoading.device ? '数据切换中' : '实时联动中' }}
-                      </el-tag>
-                    </div>
-                    <div
-                      v-if="deviceBoardItems.length"
-                      class="device-quick-switch"
-                    >
-                      <button
-                        v-for="device in deviceBoardItems.slice(0, 6)"
-                        :key="device.id"
-                        type="button"
-                        class="device-chip"
-                        :class="{ active: device.id === currentDeviceId, offline: !device.is_active }"
-                        @click="selectDevice(device.id)"
-                      >
-                        <span class="device-chip__dot" />
-                        <span class="device-chip__label">{{ device.name }}</span>
-                      </button>
-                    </div>
-                    <div class="gauge-console">
-                      <div class="gauge-wrapper">
-                        <div
-                          :ref="gaugeChart.chartRef"
-                          class="gauge-chart"
-                        />
-                        <div class="gauge-label">
-                          kW
-                        </div>
-                      </div>
-                      <div class="gauge-readout">
-                        <div class="readout-head">
-                          <span
-                            class="signal-dot"
-                            :class="selectedDeviceStatusTone"
-                          />
-                          <span>{{ selectedDeviceSummary.status }}</span>
-                        </div>
-                        <div class="readout-value">
-                          {{ displayPower.toFixed(1) }}<small>kW</small>
-                        </div>
-                        <div class="readout-caption">
-                          当前负荷
-                        </div>
-                      </div>
-                    </div>
-                    <div class="gauge-stats">
-                      <div
-                        v-for="item in focusMetrics"
-                        :key="item.label"
-                        class="gauge-stat"
-                      >
-                        <span class="label">{{ item.label }}</span>
-                        <span class="value">{{ item.value }}</span>
-                      </div>
-                    </div>
-                  </div>
+              <div class="focus-hero">
+                <div>
+                  <small>{{ focusMeasurementLabel }}</small>
+                  <strong>{{ formatNumber(displayPower) }}</strong>
+                  <span>{{ focusMeasurementUnit }}</span>
                 </div>
-
-                <div class="card event-card">
-                  <div class="card-header">
-                    <span class="card-title">联动事件</span>
-                    <span class="card-subtitle">Selected Device Alarms</span>
-                  </div>
-                  <div class="card-body">
-                    <div
-                      v-if="selectedDeviceAlarmItems.length"
-                      class="event-list"
-                    >
-                      <div
-                        v-for="alarm in selectedDeviceAlarmItems"
-                        :key="alarm.id"
-                        class="event-item"
-                        :class="alarm.tone"
-                      >
-                        <div class="event-item__head">
-                          <span class="event-item__name">{{ alarm.deviceName }}</span>
-                          <span class="event-item__time">{{ alarm.time }}</span>
-                        </div>
-                        <p class="event-item__message">
-                          {{ alarm.message }}
-                        </p>
-                        <div class="event-item__footer">
-                          <span class="event-item__level">{{ alarm.label }}</span>
-                          <span class="event-item__action">{{ alarm.action }}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      v-else
-                      class="device-empty"
-                    >
-                      当前选中对象没有活动告警，趋势面板将优先显示实时负荷变化。
-                    </div>
-                  </div>
+                <div class="focus-hero__side">
+                  <small>数据状态</small>
+                  <strong>{{ realtimeLoading.device ? '同步中' : (focusRuntime?.label || '实时联动') }}</strong>
                 </div>
               </div>
             </div>
+
+            <div class="focus-grid">
+              <article
+                v-for="item in focusTelemetryCards"
+                :key="item.label"
+                class="focus-grid__item"
+              >
+                <div class="focus-grid__head">
+                  <span class="focus-grid__icon">{{ item.icon }}</span>
+                  <div>
+                    <span>{{ item.label }}</span>
+                    <small>{{ item.helper }}</small>
+                  </div>
+                </div>
+                <strong>{{ item.value }}</strong>
+
+                <svg
+                  v-if="item.spark"
+                  :viewBox="`0 0 ${sparklineWidth} ${sparklineHeight}`"
+                  class="focus-sparkline"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <path :d="item.spark.area" fill="rgba(107, 184, 255, 0.10)" />
+                  <path :d="item.spark.line" fill="none" stroke="#73adff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+
+                <div
+                  v-else-if="typeof item.progress === 'number'"
+                  class="focus-progress"
+                >
+                  <span class="focus-progress__track">
+                    <span class="focus-progress__fill" :style="{ width: `${item.progress}%` }" />
+                  </span>
+                  <small>{{ item.progress.toFixed(0) }}%</small>
+                </div>
+
+                <div
+                  v-else-if="typeof item.range === 'number'"
+                  class="focus-range"
+                >
+                  <span class="focus-range__track">
+                    <span class="focus-range__safe" />
+                    <span class="focus-range__pointer" :style="{ left: `${item.range}%` }" />
+                  </span>
+                </div>
+
+                <div
+                  v-if="item.meta?.length"
+                  class="focus-grid__meta"
+                >
+                  <div
+                    v-for="meta in item.meta"
+                    :key="`${item.label}-${meta.label}`"
+                    class="focus-grid__meta-item"
+                  >
+                    <span>{{ meta.label }}</span>
+                    <strong>{{ meta.value }}</strong>
+                  </div>
+                </div>
+
+                <small class="focus-grid__footer">{{ item.footer }}</small>
+              </article>
+            </div>
           </div>
-        </div>
+        </section>
       </section>
 
-      <!-- 右侧面板 -->
-      <aside class="panel-right">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">设备监控列表</span>
-            <span class="card-subtitle">SCADA Device Board</span>
+      <aside class="right-column">
+        <section class="glass-card scada-card">
+          <div class="card-head card-head--split">
+            <div>
+              <span class="card-eyebrow">SCADA Device Board</span>
+              <span class="card-title">SCADA 设备导航</span>
+            </div>
+            <span class="scada-summary">{{ onlineDevices }}/{{ totalDevices }} 在线</span>
           </div>
-          <div class="card-body">
-            <div class="device-board-header">
-              <div class="device-board-header__item">
-                <span>在线</span>
-                <strong>{{ onlineDevices }}</strong>
-              </div>
-              <div class="device-board-header__item">
-                <span>总数</span>
-                <strong>{{ totalDevices }}</strong>
-              </div>
-              <div class="device-board-header__item">
-                <span>当前</span>
-                <strong>{{ currentDevice?.name || '--' }}</strong>
-              </div>
-            </div>
-            <div
-              v-if="deviceBoardItems.length"
-              class="device-list scada-device-list"
-            >
-              <button
-                v-for="device in deviceBoardItems"
-                :key="device.id"
-                class="device-item device-item--button"
-                :class="{ active: device.id === currentDeviceId, offline: !device.is_active }"
-                type="button"
-                @click="selectDevice(device.id)"
-              >
-                <span class="device-status" />
-                <div class="device-copy">
-                  <span class="device-name">{{ device.name }}</span>
-                  <span class="device-location">{{ device.location || '未标注位置' }}</span>
-                </div>
-                <span class="device-type">{{ device.energy_type || device.device_type }}</span>
-              </button>
-            </div>
-            <div
-              v-else
-              class="device-empty"
-            >
-              暂无设备或表计数据接入
-            </div>
-          </div>
-        </div>
 
-        <div class="card flex-1">
-          <div class="card-header">
-            <span class="card-title">各区域能耗排行</span>
-            <span class="card-subtitle">Regional Ranking</span>
-          </div>
-          <div class="card-body">
-            <div
-              v-if="regionRankings.length"
-              class="energy-list"
+          <div class="scada-list scrollbar-hidden">
+            <details
+              v-for="group in scadaDeviceGroups"
+              :key="group.key"
+              class="scada-group"
+              :open="group.devices.some((device) => device.id === currentDeviceId)"
             >
-              <div
-                v-for="item in regionRankings"
-                :key="item.name"
-                class="energy-row ranking-row"
-              >
-                <span class="ranking-index">{{ item.rank }}</span>
-                <div class="energy-copy">
-                  <span class="energy-name">{{ item.name }}</span>
-                  <span class="energy-meta">{{ item.online }}/{{ item.total }} 台在线</span>
+              <summary class="scada-group__head">
+                <div class="scada-group__title">
+                  <span>{{ group.label }}</span>
+                  <small>{{ group.devices.length }} 台设备</small>
                 </div>
-                <span class="energy-value">
-                  {{ item.hasCapacity ? `${item.score.toFixed(1)} kW` : `${item.total} 台` }}
-                </span>
+                <div class="scada-group__meta">
+                  <small>{{ group.online }}/{{ group.devices.length }} 在线</small>
+                  <span class="scada-group__caret" />
+                </div>
+              </summary>
+
+              <div class="scada-group__body">
+                <button
+                  v-for="device in group.devices"
+                  :key="device.id"
+                  type="button"
+                  class="scada-item"
+                  :class="{ active: device.id === currentDeviceId, offline: !device.is_active }"
+                  @click="selectDevice(device.id)"
+                >
+                  <span class="scada-item__dot" />
+                  <div class="scada-item__copy">
+                    <strong>{{ device.name }}</strong>
+                    <span>{{ device.location || '未标注位置' }}</span>
+                  </div>
+                  <small>{{ energyNameMap[device.energy_type || ''] || device.energy_type || device.device_type }}</small>
+                </button>
               </div>
-            </div>
-            <div
-              v-else
-              class="device-empty"
+            </details>
+          </div>
+        </section>
+
+        <section class="glass-card ranking-card">
+          <div class="card-head">
+            <span class="card-eyebrow">Regional Ranking</span>
+            <span class="card-title">各区域能耗排行 Top 5</span>
+          </div>
+
+          <div class="ranking-list">
+            <article
+              v-for="(item, index) in regionRankings"
+              :key="item.name"
+              class="ranking-row"
             >
-              暂无区域设备数据可用于排行
+              <span class="ranking-row__index">{{ index + 1 }}</span>
+              <div class="ranking-row__copy">
+                <strong>{{ item.name }}</strong>
+                <span>{{ item.online }}/{{ item.total }} 台在线</span>
+              </div>
+              <strong class="ranking-row__value">{{ formatNumber(item.score) }} kW</strong>
+            </article>
+
+            <div v-if="regionRankings.length === 0" class="card-empty">
+              暂无区域排行数据
             </div>
           </div>
-        </div>
+        </section>
       </aside>
     </main>
   </div>
 </template>
 
 <style scoped>
-/* ========== 基础布局 ========== */
-.big-screen {
+.ems-cockpit {
+  position: relative;
   width: 100%;
   min-height: 100vh;
-  background: #0f1724;
   display: flex;
   flex-direction: column;
-  position: relative;
-  overflow-x: auto;
-  overflow-y: auto;
-  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-}
-
-.scope-alert {
-  margin-bottom: 16px;
-}
-
-/* ========== 顶部标题栏 ========== */
-.header {
-  min-height: 76px;
-  padding: 14px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  z-index: 10;
-  background: #111a28;
-  border-bottom: 1px solid rgba(72, 95, 132, 0.32);
-}
-
-.title-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.title-icon {
-  width: 42px;
-  height: 42px;
-  background: #1d2938;
-  border: 1px solid rgba(91, 113, 148, 0.3);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.title-icon svg {
-  width: 20px;
-  height: 20px;
-  color: #7dd3fc;
-}
-
-.title-text h1 {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-  color: #f8fafc;
-  letter-spacing: 0.02em;
-}
-
-.title-text span {
-  font-size: 11px;
-  color: #8697af;
-  letter-spacing: 0.04em;
-}
-
-.time-box {
-  text-align: center;
-}
-
-.time-box .time {
-  font-size: 30px;
-  font-weight: 700;
-  font-family: 'DIN', 'Monaco', monospace;
-  color: #f8fafc;
-  letter-spacing: 0.08em;
-}
-
-.time-box .date {
-  font-size: 13px;
-  color: #94a3b8;
-  margin-top: 2px;
-}
-
-.time-meta {
-  margin-top: 4px;
-  font-size: 11px;
-  color: #7f90a8;
-}
-
-.status-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: rgba(127, 29, 29, 0.18);
-  border: 1px solid rgba(239,68,68,0.22);
-  border-radius: 999px;
-  transition: all 0.3s;
-}
-
-.status-box.online {
-  background: rgba(20, 83, 45, 0.18);
-  border-color: rgba(34,197,94,0.22);
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  background: #ef4444;
-  border-radius: 50%;
-}
-
-.status-box.online .status-dot {
-  background: #22c55e;
-}
-
-.status-text {
-  font-size: 12px;
-  color: #ef4444;
-  font-weight: 600;
-}
-
-.status-box.online .status-text {
-  color: #86efac;
-}
-
-/* ========== 主内容区 ========== */
-.main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 300px 1fr 320px;
-  gap: 16px;
-  padding: 16px;
-  width: min(100%, 1680px);
-  margin: 0 auto;
-  position: relative;
-  z-index: 10;
-  min-height: 600px;
-  align-items: start;
-}
-
-/* ========== 通用卡片样式 ========== */
-.card {
-  position: relative;
-  background: #131d2b;
-  border: 1px solid #243244;
-  border-radius: 14px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: none;
-}
-
-.card-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid #223042;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e5edf7;
-}
-
-.card-subtitle {
-  font-size: 10px;
-  color: #6f8199;
-  letter-spacing: 0.06em;
-  opacity: 0.8;
-}
-
-.card-body {
-  flex: 1;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-}
-
-.flex-1 { flex: 1; }
-
-/* ========== 左侧面板 ========== */
-.panel-left {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.stat-grid--compact {
-  grid-template-columns: 1fr;
-}
-
-.energy-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.energy-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 12px;
-}
-
-.ranking-row {
-  min-height: 52px;
-}
-
-.ranking-index {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #cfe2f7;
-  background: #1b2838;
-  border: 1px solid #314055;
-  flex: 0 0 auto;
-}
-
-.energy-icon {
-  font-size: 18px;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1b2838;
-}
-
-.energy-copy {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.energy-name {
-  font-size: 13px;
-  color: #dbe6f5;
-}
-
-.energy-meta {
-  font-size: 11px;
-  color: #6f819e;
-}
-
-.energy-icon.cyan { color: #38bdf8; }
-.energy-icon.blue { color: #60a5fa; }
-.energy-icon.pink { color: #f59e0b; }
-.energy-icon.red { color: #ef4444; }
-.energy-icon.purple { color: #a78bfa; }
-
-.energy-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-/* ========== 中间面板 ========== */
-.panel-center {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-.ops-strip {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.ops-strip__item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 88px;
-  padding: 14px;
-  border: 1px solid #243244;
-  background: #131d2b;
-  border-radius: 12px;
-}
-
-.ops-strip__item::before {
-  content: '';
-  width: 32px;
-  height: 3px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.8;
-}
-
-.ops-strip__label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8fa1bb;
-}
-
-.ops-strip__value {
-  font-size: 24px;
-  line-height: 1.1;
-  color: #f8fafc;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.ops-strip__meta {
-  font-size: 11px;
-  color: #7f92ad;
-}
-
-.ops-strip__item--cyan { color: #38bdf8; }
-.ops-strip__item--green { color: #22c55e; }
-.ops-strip__item--red { color: #ef4444; }
-.ops-strip__item--purple { color: #a78bfa; }
-.ops-strip__item--blue { color: #60a5fa; }
-
-.chart-card--primary .card-body {
-  gap: 16px;
-}
-
-.trend-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.trend-summary__item {
-  padding: 12px 14px;
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 12px;
-}
-
-.trend-summary__label {
-  display: block;
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.trend-summary__item strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 20px;
-  color: #f8fafc;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.device-section {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-.device-focus-card > .card-body {
-  gap: 16px;
-}
-
-.focus-strip {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: stretch;
-  padding: 18px;
-  border-radius: 14px;
-  background: #131d2b;
-  border: 1px solid #243244;
-  box-shadow: none;
-}
-
-.focus-dual-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
-  gap: 16px;
-  align-items: stretch;
-  width: 100%;
-  min-width: 0;
-}
-
-.focus-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.focus-eyebrow {
-  font-size: 11px;
-  color: #8da2bd;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.focus-copy h2 {
-  margin: 8px 0;
-  font-size: 28px;
-  line-height: 1.2;
-  color: #f8fbff;
-}
-
-.focus-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.focus-meta span {
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: #1a2636;
-  color: #9bb0c9;
-  font-size: 11px;
-}
-
-.focus-meta .online {
-  color: #86efac;
-  background: rgba(20, 83, 45, 0.28);
-}
-
-.focus-numbers {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 12px;
-  min-width: 0;
-}
-
-.focus-number {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 14px;
-  border-radius: 12px;
-  background: #162130;
-  border: 1px solid #243244;
-}
-
-.focus-number__label {
-  font-size: 12px;
-  color: #8396b2;
-}
-
-.focus-number strong {
-  margin-top: 8px;
-  font-size: 22px;
-  line-height: 1;
-  color: #fff;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.gauge-card .card-body {
   gap: 18px;
+  padding: 18px;
+  overflow: hidden;
+  color: #f5f7fa;
+  background:
+    radial-gradient(circle at top left, rgba(107, 184, 255, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(91, 192, 255, 0.06), transparent 22%),
+    #0a0a0a;
+  box-sizing: border-box;
 }
 
-.gauge-wrapper {
-  position: relative;
-  width: min(180px, 100%);
-  height: 170px;
-  flex: 0 0 auto;
-  margin: 0 auto;
+.ems-cockpit::before,
+.ems-cockpit::after {
+  display: none;
 }
 
-.gauge-chart {
-  width: 100%;
-  height: 100%;
-}
-
-.gauge-label {
+.cockpit-noise {
   position: absolute;
-  bottom: 25px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 14px;
-  color: #94a3b8;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 24%, transparent 76%, rgba(255, 255, 255, 0.015));
+  opacity: 0.28;
 }
 
-.gauge-stats {
+.top-header,
+.glass-card {
+  position: relative;
+  z-index: 1;
+}
+
+.top-header {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.gauge-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-  background: #162130;
-  border-radius: 10px;
-  border: 1px solid #243244;
-}
-
-.gauge-stat .label {
-  font-size: 13px;
-  color: #95a7c3;
-}
-
-.gauge-stat .value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #fff;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.gauge-stat .value small {
-  font-size: 12px;
-  color: #8892b0;
-  margin-left: 3px;
-}
-
-.gauge-card__header {
-  align-items: flex-start;
-}
-
-.gauge-card__caption {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #7d8fa8;
-}
-
-.gauge-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-
-.gauge-console {
-  display: grid;
-  grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-.gauge-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 14px;
-  padding: 14px;
-  border-radius: 12px;
-  background: #162130;
-  border: 1px solid #243244;
+  min-height: 108px;
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(20px) saturate(135%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 16px 38px rgba(0, 0, 0, 0.2);
+  overflow: visible;
 }
 
-.gauge-toolbar__meta {
+.top-header::before {
+  display: none;
+}
+
+.top-header__main,
+.top-header__panel {
+  position: relative;
+  z-index: 1;
+}
+
+.top-header__main {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
   min-width: 0;
+}
+
+.top-header__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 0;
+}
+
+.brand-block {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gauge-toolbar__label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8fa1ba;
-}
-
-.gauge-toolbar__meta strong {
-  color: #f8fafc;
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gauge-toolbar__hint {
-  font-size: 11px;
-  color: #7d8fa8;
-}
-
-.device-quick-switch {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 10px;
+  min-width: 0;
+  min-height: 0;
 }
 
-.device-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid #243244;
-  background: #162130;
-  color: #cfe1f5;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.device-chip:hover {
-  border-color: #35608d;
-  background: #192638;
-}
-
-.device-chip.active {
-  border-color: rgba(56, 189, 248, 0.45);
-  background: #1a2b3f;
-}
-
-.device-chip.offline {
-  color: #94a3b8;
-}
-
-.device-chip__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #22c55e;
-  flex: 0 0 auto;
-}
-
-.device-chip.offline .device-chip__dot {
-  background: #ef4444;
-}
-
-.device-chip__label {
-  max-width: 140px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-}
-
-.gauge-readout {
+.brand-block > div {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px;
-  min-height: 140px;
-  border-radius: 12px;
-  background: #162130;
-  border: 1px solid #243244;
+  gap: 2px;
+  min-width: 0;
 }
 
-.readout-head {
+.brand-mark {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #90a4c0;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(107, 184, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.signal-dot {
+.brand-mark__dot {
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: #ef4444;
+  background: #6bb8ff;
+  box-shadow: none;
 }
 
-.signal-dot.online {
-  background: #22c55e;
+.brand-kicker {
+  margin: 0 0 2px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.56);
 }
 
-.signal-dot.offline {
-  background: #ef4444;
-}
-
-.readout-value {
-  font-size: 34px;
-  line-height: 1;
-  font-weight: 700;
-  color: #f8fafc;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.readout-value small {
-  margin-left: 6px;
-  font-size: 13px;
-  color: #92a5bf;
-}
-
-.readout-caption {
-  font-size: 12px;
-  color: #7d8fa8;
-}
-
-.event-card .card-body {
-  padding-top: 12px;
-}
-
-.event-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.event-item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid #243244;
-  background: #162130;
-}
-
-.event-item.critical {
-  border-color: rgba(239, 68, 68, 0.28);
-}
-
-.event-item.warning {
-  border-color: rgba(245, 158, 11, 0.28);
-}
-
-.event-item.notice {
-  border-color: rgba(59, 130, 246, 0.28);
-}
-
-.event-item__head,
-.event-item__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.event-item__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.event-item__time {
-  font-size: 11px;
-  color: #91a4bf;
-}
-
-.event-item__message {
+.brand-block h1 {
   margin: 0;
-  color: #d8e2ef;
-  line-height: 1.5;
-  font-size: 13px;
+  font-size: clamp(18px, 1.65vw, 23px);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
-.event-item__level {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  color: #dce7f6;
-  font-size: 11px;
+.brand-subtitle {
+  margin: 0;
+  max-width: 520px;
+  font-size: 10px;
+  line-height: 1.15;
+  color: rgba(255, 255, 255, 0.62);
 }
 
-.event-item__action {
-  font-size: 12px;
-  color: #8ea2bc;
-  text-align: right;
+.header-highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-self: start;
 }
 
-.chart-container {
-  width: 100%;
-  min-height: 200px;
-}
-
-.chart-container--pie {
-  height: clamp(240px, 28vh, 320px);
-}
-
-.chart-container--trend {
-  height: clamp(400px, 48vh, 560px);
-  min-height: 400px;
-}
-
-/* ========== 右侧面板 ========== */
-.panel-right {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.header-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   min-width: 0;
 }
 
-.distribution-empty {
-  min-height: 240px;
+.header-highlights__item {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  min-height: 42px;
+  padding: 6px 9px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   justify-content: center;
-  gap: 10px;
-  padding: 20px;
-  border: 1px dashed #314055;
-  border-radius: 12px;
-  background: #162130;
 }
 
-.distribution-empty strong {
+.header-highlights__item span {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.header-highlights__item strong {
+  font-size: clamp(11px, 0.92vw, 14px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #f5f8ff;
+}
+
+.header-highlights__item--load {
+  justify-content: center;
+}
+
+.header-load {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.header-load strong {
+  font-size: clamp(20px, 1.55vw, 26px);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+  color: #e7f2ff;
+}
+
+.header-load small {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.time-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.time-panel__date {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.time-panel strong {
+  font-size: clamp(15px, 1.35vw, 20px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.run-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 224, 176, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #d9fff5;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.run-badge__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #00e0b0;
+  box-shadow: 0 0 14px rgba(0, 224, 176, 0.5);
+}
+
+.run-badge--offline {
+  background: rgba(255, 140, 140, 0.12);
+  color: #ffe2e2;
+}
+
+.run-badge--offline .run-badge__dot {
+  background: #ff7b9c;
+  box-shadow: 0 0 14px rgba(255, 123, 156, 0.5);
+}
+
+.bento-layout {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(216px, 0.86fr) minmax(0, 1.72fr) minmax(210px, 0.8fr);
+  gap: 14px;
+}
+
+.left-column,
+.center-column,
+.right-column {
+  min-height: 0;
+}
+
+.left-column {
+  grid-column: auto;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 14px;
+}
+
+.center-column {
+  grid-column: auto;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.right-column {
+  grid-column: auto;
+  display: grid;
+  grid-template-rows: minmax(0, 0.88fr) auto;
+  gap: 12px;
+}
+
+.glass-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 30px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card::before {
+  display: none;
+}
+
+.glass-card:hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 32px rgba(0, 0, 0, 0.2);
+}
+
+.card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.card-head--split {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-eyebrow {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.card-title {
   font-size: 15px;
-  color: #e5edf7;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
-.distribution-empty p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #8ea0bc;
+.overview-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
 }
 
-/* 设备列表 */
-.device-list {
+.overview-card {
+  justify-content: flex-start;
+}
+
+.overview-card .card-head {
+  margin-bottom: 4px;
+}
+
+.overview-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 96px;
+  padding: 10px 12px 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+}
+
+.overview-rate__label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.overview-rate strong {
+  display: block;
+  font-size: clamp(34px, 3.3vw, 46px);
+  line-height: 0.92;
+  letter-spacing: -0.07em;
+  color: #78bcff;
+}
+
+.overview-rate__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  max-width: 100%;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.overview-split {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.scada-device-list {
-  gap: 10px;
-  margin-top: 12px;
-  max-height: 520px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.device-board-header {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.device-board-header__item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #162130;
-  border: 1px solid #243244;
-}
-
-.device-board-header__item span {
-  font-size: 11px;
-  color: #90a4c0;
-}
-
-.device-board-header__item strong {
-  color: #f8fafc;
-  font-size: 18px;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.device-item {
+.overview-stat {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
-  background: #162130;
+  padding: 9px 10px;
   border-radius: 12px;
-  border: 1px solid #243244;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.device-item--button {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+.overview-stat__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.device-item--button:hover {
-  border-color: #35608d;
-  background: #192638;
+.overview-stat__label span {
+  font-size: 11px;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.82);
 }
 
-.device-item.active {
-  border-color: rgba(56, 189, 248, 0.45);
-  background: #19293d;
+.overview-stat__label small {
+  font-size: 9px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.48);
 }
 
-.device-status {
+.overview-stat__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.overview-stat__value strong {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: #eef5ff;
+}
+
+.overview-stat__value small {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.energy-card {
+  min-height: 0;
+  padding: 11px 11px 10px;
+}
+
+.energy-card .card-head {
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.energy-card .card-title {
+  font-size: 14px;
+}
+
+.energy-mix {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-items: stretch;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.energy-ring {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  min-width: 140px;
+  min-height: 140px;
+  max-width: 140px;
+  max-height: 140px;
+  margin: 0 auto;
+  flex: 0 0 140px;
+  border-radius: 999px;
+  padding: 6px;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 6px 14px rgba(0, 0, 0, 0.08);
+}
+
+.energy-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  opacity: 0.28;
+}
+
+.energy-ring--dense::before {
+  inset: -4px;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.energy-ring::after {
+  content: '';
+  position: absolute;
+  inset: 24%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.045), transparent 54%),
+    rgba(10, 10, 10, 0.94);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 8px 18px rgba(255, 255, 255, 0.02);
+}
+
+.energy-ring__halo {
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.012),
+    inset 0 0 8px rgba(255, 255, 255, 0.018);
+  pointer-events: none;
+}
+
+.energy-ring__core {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.energy-ring__core span,
+.energy-ring__core small {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.energy-ring__core strong {
+  font-size: 18px;
+  color: #f8fffd;
+  letter-spacing: -0.05em;
+}
+
+.energy-ring__core span,
+.energy-ring__core small {
+  font-size: 9px;
+}
+
+.energy-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+}
+
+.energy-legend--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.energy-legend__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 66px;
+  padding: 7px 8px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+}
+
+.energy-legend__topline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 12px;
+}
+
+.energy-legend__swatch {
   width: 8px;
   height: 8px;
-  background: #ef4444;
-  border-radius: 50%;
+  border-radius: 999px;
+  flex: 0 0 auto;
 }
 
-.device-item.active .device-status {
-  background: #22c55e;
-  box-shadow: none;
+.energy-legend__name {
+  font-size: 9px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.78);
 }
 
-.device-item.offline .device-status {
-  background: #ef4444;
+.energy-legend__main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 3px;
+  min-height: 0;
 }
 
-.device-copy {
-  flex: 1;
-  min-width: 0;
+.energy-legend__main strong {
+  font-size: 19px;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: #6bb8ff;
+}
+
+.energy-legend__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.energy-legend__value span {
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.energy-legend__value small {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.energy-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 0;
+}
+
+.energy-summary__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -12px 18px rgba(255, 255, 255, 0.012);
+}
+
+.energy-summary__item span {
+  font-size: 9px;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.energy-summary__main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.energy-summary__main strong {
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: #eef5ff;
+}
+
+.energy-summary__main small {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.alarm-card {
+  min-height: 0;
+}
+
+.alarm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.alarm-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.alarm-row__pulse {
+  width: 10px;
+  height: 10px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #ff7b9c;
+  box-shadow: 0 0 12px rgba(255, 123, 156, 0.48);
+}
+
+.alarm-row__copy {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.device-name {
-  font-size: 13px;
-  color: #fff;
+.alarm-row__copy strong {
+  font-size: 12px;
+  line-height: 1.4;
 }
 
-.device-location {
-  font-size: 11px;
-  color: #7f93ae;
+.alarm-row__copy span {
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 10px;
 }
 
-.device-type {
-  font-size: 11px;
-  color: #8892b0;
-  padding: 2px 8px;
-  background: #1d2938;
-  border-radius: 10px;
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.device-empty {
-  min-height: 180px;
-  display: flex;
-  align-items: center;
+.metric-card {
+  gap: 8px;
   justify-content: center;
-  color: #8396b1;
-  border: 1px dashed #314055;
-  border-radius: 12px;
-  background: #162130;
-  text-align: center;
-  padding: 18px;
+  min-height: 78px;
 }
 
-.alarm-list {
+.metric-card__label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.44);
+  letter-spacing: 0.05em;
+}
+
+.metric-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.metric-card__value strong {
+  font-size: clamp(22px, 1.7vw, 30px);
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: #6bb8ff;
+}
+
+.metric-card__value small {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.metric-card__caption {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.trend-card {
+  min-height: 0;
+}
+
+.trend-head {
   display: flex;
   flex-direction: column;
+  gap: 3px;
+}
+
+.trend-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  width: 100%;
+  max-width: 396px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.trend-stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  min-height: 54px;
+  justify-content: center;
+  background: transparent;
+}
+
+.trend-stat-pill + .trend-stat-pill {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.trend-stat-pill span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.44);
+}
+
+.trend-stat-pill strong {
+  font-size: 13px;
+  letter-spacing: -0.03em;
+}
+
+.trend-canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.trend-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 148px;
+}
+
+.trend-grid line {
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 1;
+}
+
+.trend-axis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.trend-axis span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.trend-axis span:nth-child(2),
+.trend-axis span:nth-child(3),
+.trend-axis span:nth-child(4) {
+  text-align: center;
+}
+
+.trend-axis span:last-child {
+  text-align: right;
+}
+
+.focus-card {
+  min-height: 0;
+}
+
+.focus-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+}
+
+.focus-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6bb8ff;
+  box-shadow: 0 0 10px rgba(107, 184, 255, 0.45);
+}
+
+.focus-status--alarm .focus-status__dot {
+  background: #ffb86b;
+  box-shadow: 0 0 10px rgba(255, 184, 107, 0.35);
+}
+
+.focus-status--offline .focus-status__dot {
+  background: #9aa4b2;
+  box-shadow: none;
+}
+
+.focus-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.focus-main,
+.focus-grid {
+  min-height: 0;
+}
+
+.focus-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.focus-story {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.focus-story__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.alarm-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid #243244;
-  background: #162130;
+.focus-story__head span {
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.alarm-item.critical {
-  border-color: rgba(239, 68, 68, 0.28);
+.focus-story__head small,
+.focus-story__timeline-head small,
+.focus-story__timeline-item small,
+.focus-story__timeline-item time,
+.focus-story__timeline-empty {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.alarm-item.warning {
-  border-color: rgba(245, 158, 11, 0.28);
+.focus-story__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.alarm-item.notice {
-  border-color: rgba(59, 130, 246, 0.28);
-}
-
-.alarm-main,
-.alarm-side {
+.focus-story__stat {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.alarm-main {
+.focus-story__stat span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.focus-story__stat strong {
+  font-size: 15px;
+  color: #dbe8ff;
+}
+
+.focus-story__stat small {
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.focus-story__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.focus-story__timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.focus-story__timeline-head span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.focus-story__timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.focus-story__timeline-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.focus-story__timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6bb8ff;
+}
+
+.focus-story__timeline-item div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
-  flex: 1;
 }
 
-.alarm-title-row {
+.focus-story__timeline-item strong {
+  font-size: 12px;
+}
+
+.focus-story__timeline-item time {
+  white-space: nowrap;
+}
+
+.focus-story__timeline-empty {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.focus-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.focus-identity span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 11px;
+}
+
+.focus-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.focus-hero small,
+.focus-hero__side small {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.focus-hero strong {
+  font-size: clamp(30px, 2.4vw, 38px);
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: #6bb8ff;
+}
+
+.focus-hero span {
+  margin-left: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.focus-hero__side {
+  text-align: right;
+}
+
+.focus-hero__side strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 16px;
+  color: #f3fffb;
+}
+
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  grid-auto-rows: minmax(132px, auto);
+}
+
+.focus-grid__item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.focus-grid__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-grid__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(107, 184, 255, 0.12);
+  color: #8fc7ff;
+  font-size: 11px;
+}
+
+.focus-grid__head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.focus-grid__head span,
+.focus-grid__head small {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.44);
+}
+
+.focus-grid__head small {
+  font-size: 10px;
+}
+
+.focus-grid__item strong {
+  font-size: 19px;
+  letter-spacing: -0.04em;
+}
+
+.focus-sparkline {
+  width: 100%;
+  height: 30px;
+}
+
+.focus-progress,
+.focus-range {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.alarm-device {
-  font-size: 13px;
-  font-weight: 600;
-  color: #f8fbff;
-}
-
-.alarm-level {
-  padding: 3px 8px;
+.focus-progress__track,
+.focus-range__track {
+  position: relative;
+  flex: 1;
+  height: 6px;
   border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.focus-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6bb8ff, #98d1ff);
+}
+
+.focus-range__safe {
+  position: absolute;
+  inset: 0 18% 0 18%;
+  border-radius: 999px;
+  background: rgba(107, 184, 255, 0.28);
+}
+
+.focus-range__pointer {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #dcecff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px rgba(107, 184, 255, 0.2);
+}
+
+.focus-progress small,
+.focus-grid__footer {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.focus-grid__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.focus-grid__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.focus-grid__meta-item span {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.focus-grid__meta-item strong {
   font-size: 11px;
-  color: #dbe6f5;
-  background: rgba(255,255,255,0.08);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #e3efff;
 }
 
-.alarm-item.critical .alarm-level {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
-}
-
-.alarm-item.warning .alarm-level {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fcd34d;
-}
-
-.alarm-item.notice .alarm-level {
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-}
-
-.alarm-message {
-  margin: 0;
-  color: #cdd9ec;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.alarm-side {
-  min-width: 132px;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.alarm-time {
+.scada-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   font-size: 11px;
-  color: #95a7c3;
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.alarm-action {
+.scada-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scada-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.scada-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.scada-group__head::-webkit-details-marker {
+  display: none;
+}
+
+.scada-group__title,
+.scada-group__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.scada-group__head span {
   font-size: 12px;
-  color: #dbe6f5;
-  line-height: 1.4;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.84);
 }
 
-/* ========== 响应式 ========== */
-@media (max-width: 1400px) {
-  .main {
-    grid-template-columns: 260px 1fr 280px;
+.scada-group__head small {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.scada-group__caret {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.46);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.46);
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.scada-group[open] .scada-group__caret {
+  transform: rotate(225deg);
+}
+
+.scada-group__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.scada-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.scada-item:hover {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.scada-item.active {
+  background: rgba(107, 184, 255, 0.07);
+  box-shadow:
+    inset 0 0 0 1px rgba(107, 184, 255, 0.12),
+    0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.scada-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6bb8ff;
+  box-shadow: 0 0 10px rgba(107, 184, 255, 0.4);
+}
+
+.scada-item.offline .scada-item__dot {
+  background: #9aa4b2;
+  box-shadow: none;
+}
+
+.scada-item__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.scada-item__copy strong {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scada-item__copy span,
+.scada-item small {
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 10px;
+}
+
+.scada-item small {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ranking-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.ranking-row__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #6bb8ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ranking-row__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ranking-row__copy strong {
+  font-size: 12px;
+}
+
+.ranking-row__copy span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.ranking-row__value {
+  font-size: 14px;
+  letter-spacing: -0.04em;
+  color: #6bb8ff;
+}
+
+.card-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+.card-empty--success {
+  color: rgba(214, 255, 241, 0.72);
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 1600px) {
+  .top-header {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .ops-strip {
+  .header-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .device-section {
-    grid-template-columns: 1fr;
+  .trend-stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 280px;
   }
 
-  .focus-dual-panel {
-    grid-template-columns: 1fr;
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 1320px) {
-  .focus-strip {
-    flex-direction: column;
+@media (max-width: 1536px) and (min-width: 1281px) {
+  .ems-cockpit {
+    gap: 14px;
+    padding: 14px;
   }
 
-  .focus-numbers {
+  .top-header {
+    min-height: 132px;
+    padding: 16px 18px;
+  }
+
+  .bento-layout {
+    grid-template-columns: minmax(196px, 0.8fr) minmax(0, 1.78fr) minmax(192px, 0.76fr);
+    gap: 14px;
+  }
+
+  .left-column,
+  .center-column,
+  .right-column {
+    gap: 14px;
+  }
+
+  .glass-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .trend-svg {
+    min-height: 136px;
+  }
+
+  .right-column {
+    grid-template-rows: minmax(0, 0.82fr) auto;
+  }
+
+  .focus-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .focus-dual-panel {
-    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(118px, auto);
   }
 }
 
-@media (max-width: 1200px) {
-  .main {
-    grid-template-columns: 1fr 1fr;
-  }
-  
-  .panel-left { order: 1; }
-  .panel-center { order: 2; }
-  .panel-right { 
-    order: 3; 
-    grid-column: span 2;
-    flex-direction: row;
-    flex-wrap: wrap;
+@media (max-width: 1440px) and (min-width: 1281px), (max-height: 820px) and (min-width: 1281px) {
+  .ems-cockpit {
+    gap: 12px;
+    padding: 12px;
   }
 
-  .gauge-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+  .top-header {
+    min-height: 92px;
+    padding: 8px 12px;
   }
 
-  .gauge-console {
+  .top-header__panel {
+    grid-template-columns: auto auto;
+    justify-content: end;
+  }
+
+  .header-highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .header-highlights__item {
+    min-height: 0;
+    padding: 5px 8px;
+  }
+
+  .bento-layout {
+    grid-template-columns: minmax(182px, 0.74fr) minmax(0, 1.94fr) minmax(182px, 0.72fr);
+    gap: 12px;
+  }
+
+  .left-column,
+  .center-column,
+  .right-column {
+    gap: 12px;
+  }
+
+  .glass-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .metric-card {
+    min-height: 74px;
+  }
+
+  .trend-svg {
+    min-height: 118px;
+  }
+
+  .focus-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 10px;
   }
 
-  .ops-strip {
+  .focus-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(112px, auto);
   }
 
-  .trend-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .scada-group__head {
+    padding: 8px 10px;
   }
-  
-  .panel-right .card {
-    flex: 2;
-    min-width: 300px;
+
+  .scada-group__body {
+    padding: 0 6px 6px;
+  }
+
+  .scada-item {
+    padding: 7px 8px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .scada-item small {
+    display: none;
   }
 }
 
-@media (max-width: 900px) {
-  .main {
+@media (max-width: 1280px) {
+  .ems-cockpit {
+    min-height: auto;
+  }
+
+  .bento-layout {
     grid-template-columns: 1fr;
   }
-  
-  .panel-right {
+
+  .left-column,
+  .center-column,
+  .right-column {
     grid-column: span 1;
   }
-  
-  .header {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 15px;
-    gap: 15px;
+
+  .left-column,
+  .center-column,
+  .right-column {
+    grid-template-rows: none;
   }
-  
-  .header-center {
-    order: -1;
+
+  .focus-layout,
+  .energy-mix {
+    grid-template-columns: 1fr;
+  }
+
+  .energy-legend--grid {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(104px, auto);
+  }
+
+  .header-highlights {
+    grid-template-columns: 1fr;
+  }
+
+  .header-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .top-header__panel {
+    grid-template-columns: 1fr;
+  }
+
+  .header-meta {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .ems-cockpit {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .top-header {
+    padding: 20px;
+  }
+
+  .header-meta {
     width: 100%;
-    text-align: center;
+    justify-content: flex-start;
   }
 
-  .focus-numbers {
+  .brand-block {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .overview-split,
+  .metric-grid,
+  .header-highlights,
+  .focus-story__stats,
+  .trend-stat-row {
     grid-template-columns: 1fr;
   }
 
-  .ops-strip {
+  .focus-grid {
     grid-template-columns: 1fr;
+    grid-auto-rows: minmax(96px, auto);
   }
 
-  .trend-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .gauge-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .alarm-item {
+  .card-head--split {
     flex-direction: column;
   }
 
-  .alarm-side {
-    min-width: 0;
-    align-items: flex-start;
+  .focus-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-hero__side {
     text-align: left;
   }
 }

@@ -19,32 +19,19 @@ from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.core.socket_manager import manager
 from app.core.startup_checks import validate_runtime_configuration
+from app.services.mqtt_realtime_bridge import bridge_loop
 from app.services.mqtt_publisher import stop_publisher as stop_mqtt_publisher
-from app.services.mqtt_worker import start_mqtt_background, stop_mqtt
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
 
 _event_loop: Optional[asyncio.AbstractEventLoop] = None
-
-
-def mqtt_to_ws_callback(message: dict) -> None:
-    """MQTT 消息回调：将消息调度到当前事件循环并广播到 WebSocket。"""
-    global _event_loop
-
-    if not _event_loop or not _event_loop.is_running():
-        logger.warning("⚠️ 事件循环不可用，无法广播 WebSocket 消息")
-        return
-
-    try:
-        asyncio.run_coroutine_threadsafe(manager.broadcast(message), _event_loop)
-        logger.debug(f"✅ MQTT消息已调度到WebSocket: {message.get('type', 'unknown')}")
-    except Exception as exc:
-        logger.error(f"❌ 调度WebSocket广播失败: {exc}")
+_bridge_stop_event: Optional[asyncio.Event] = None
+_bridge_task: Optional[asyncio.Task] = None
 
 
 async def startup() -> None:
     """应用启动：数据库、Redis、MQTT、定时任务。"""
-    global _event_loop
+    global _event_loop, _bridge_stop_event, _bridge_task
     _event_loop = asyncio.get_running_loop()
 
     logger.info("🚀 应用启动中...")
@@ -63,11 +50,9 @@ async def startup() -> None:
     else:
         runtime_state.mark_service("redis", "healthy", "connected")
 
-    mqtt_started = start_mqtt_background(on_message_callback=mqtt_to_ws_callback)
-    if mqtt_started:
-        logger.info("✅ MQTT服务启动完成")
-    else:
-        logger.warning("⚠️ MQTT服务启动失败，后台重试线程已启动")
+    runtime_state.mark_service("mqtt", "stopped", "detached to mqtt ingest worker")
+    _bridge_stop_event = asyncio.Event()
+    _bridge_task = asyncio.create_task(bridge_loop(_bridge_stop_event, manager.broadcast))
 
     try:
         start_scheduler()
@@ -80,7 +65,7 @@ async def startup() -> None:
 
 async def shutdown() -> None:
     """应用关闭：停止调度器、MQTT、Redis，清理引用。"""
-    global _event_loop
+    global _event_loop, _bridge_stop_event, _bridge_task
     logger.info("🛑 应用关闭中...")
 
     try:
@@ -90,11 +75,16 @@ async def shutdown() -> None:
         runtime_state.mark_service("scheduler", "unhealthy", str(exc))
         logger.warning(f"⚠️ 定时任务调度器停止失败: {exc}")
 
-    try:
-        stop_mqtt()
-        logger.info("✅ MQTT 订阅客户端已停止")
-    except Exception as exc:
-        logger.warning(f"⚠️ MQTT 订阅客户端停止失败: {exc}")
+    if _bridge_stop_event is not None:
+        _bridge_stop_event.set()
+    if _bridge_task is not None:
+        try:
+            await _bridge_task
+            logger.info("✅ Redis 实时桥接已停止")
+        except Exception as exc:
+            logger.warning(f"⚠️ Redis 实时桥接停止失败: {exc}")
+    _bridge_stop_event = None
+    _bridge_task = None
 
     try:
         stop_mqtt_publisher()

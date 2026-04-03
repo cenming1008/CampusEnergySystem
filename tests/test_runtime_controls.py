@@ -139,6 +139,16 @@ class TestRuntimeState(unittest.TestCase):
 
         self.assertNotEqual(state.snapshot()["counters"]["mqtt_messages_total"], 999)
 
+    def test_runtime_state_tracks_service_meta(self):
+        state = RuntimeState()
+
+        state.mark_service("api_realtime", "healthy", "broadcast delivered", meta={"last_event_type": "telemetry_update"})
+
+        snapshot = state.snapshot()
+
+        self.assertEqual(snapshot["services"]["api_realtime"]["status"], "healthy")
+        self.assertEqual(snapshot["services"]["api_realtime"]["meta"]["last_event_type"], "telemetry_update")
+
 
 if __name__ == "__main__":
     unittest.main()

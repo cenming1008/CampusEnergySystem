@@ -224,7 +224,7 @@ class TestApplicationUseCases(unittest.TestCase):
             limit=10,
         )
 
-        self.assertEqual(payload.filename, "energy_detail_20260328.csv")
+        self.assertEqual(payload.filename, f"energy_detail_{datetime.now().strftime('%Y%m%d')}.csv")
         self.assertIn("设备名称", payload.content)
         self.assertIn("一号设备", payload.content)
         self.assertIn("对象语义", payload.content)

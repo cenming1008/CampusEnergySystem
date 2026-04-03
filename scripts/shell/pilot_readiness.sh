@@ -68,6 +68,48 @@ fi
 
 STATUS_FILE="$ARTIFACT_DIR/status.txt"
 : > "$STATUS_FILE"
+SUMMARY_FILE="$ARTIFACT_DIR/summary.md"
+
+write_summary() {
+    local exit_code="${1:-0}"
+    local pass_count fail_count final_status test_status
+
+    pass_count=$(grep -c '^PASS ' "$STATUS_FILE" || true)
+    fail_count=$(grep -c '^FAIL ' "$STATUS_FILE" || true)
+
+    if [ "$SKIP_TESTS" = "true" ]; then
+        test_status="跳过"
+    else
+        test_status="已执行"
+    fi
+
+    if [ "$exit_code" -eq 0 ] && [ "$fail_count" -eq 0 ]; then
+        final_status="通过"
+    else
+        final_status="失败"
+    fi
+
+    cat > "$SUMMARY_FILE" <<EOF
+# 试点就绪检查结果
+
+- 生成时间: $(date '+%Y-%m-%d %H:%M:%S %Z')
+- 最终状态: $final_status
+- 环境文件: \`$ENV_FILE\`
+- Python: \`$PYTHON_BIN\`
+- 通过项: $pass_count
+- 失败项: $fail_count
+- 测试状态: $test_status
+
+## 执行项
+
+$(sed 's/^/- /' "$STATUS_FILE")
+
+## 证据目录
+
+- 日志目录: \`$LOG_DIR\`
+- 汇总文件: \`$SUMMARY_FILE\`
+EOF
+}
 
 if "$PYTHON_BIN" -m alembic --help >/dev/null 2>&1; then
     ALEMBIC_RUNNER=("$PYTHON_BIN" -m alembic)
@@ -131,7 +173,13 @@ cleanup_temp_env() {
         rm -f .env
     fi
 }
-trap cleanup_temp_env EXIT
+finalize() {
+    local exit_code=$?
+    cleanup_temp_env
+    write_summary "$exit_code"
+    return "$exit_code"
+}
+trap finalize EXIT
 
 if [ ! -f ".env" ] && [ -f "env.example" ]; then
     cp env.example .env
@@ -146,32 +194,11 @@ run_step migration_sql "${ALEMBIC_RUNNER[@]}" upgrade head --sql
 run_step compose_config docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" config
 
 if [ "$SKIP_TESTS" != "true" ]; then
-    run_step unit_tests "$PYTHON_BIN" -m unittest discover -s tests -p 'test_*.py'
+    run_step backend_coverage_gate env \
+        BACKEND_COVERAGE_FAIL_UNDER="${BACKEND_COVERAGE_FAIL_UNDER:-57}" \
+        BACKEND_COVERAGE_XML=false \
+        bash ./scripts/shell/run_backend_coverage.sh
 fi
-
-PASS_COUNT=$(grep -c '^PASS ' "$STATUS_FILE" || true)
-FAIL_COUNT=$(grep -c '^FAIL ' "$STATUS_FILE" || true)
-SUMMARY_FILE="$ARTIFACT_DIR/summary.md"
-
-cat > "$SUMMARY_FILE" <<EOF
-# 试点就绪检查结果
-
-- 生成时间: $(date '+%Y-%m-%d %H:%M:%S %Z')
-- 环境文件: \`$ENV_FILE\`
-- Python: \`$PYTHON_BIN\`
-- 通过项: $PASS_COUNT
-- 失败项: $FAIL_COUNT
-- 测试状态: $( [ "$SKIP_TESTS" = "true" ] && echo "跳过" || echo "已执行" )
-
-## 执行项
-
-$(sed 's/^/- /' "$STATUS_FILE")
-
-## 证据目录
-
-- 日志目录: \`$LOG_DIR\`
-- 汇总文件: \`$SUMMARY_FILE\`
-EOF
 
 echo "✅ 试点就绪检查完成"
 echo "证据目录: $ARTIFACT_DIR"

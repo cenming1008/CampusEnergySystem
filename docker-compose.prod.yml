@@ -128,6 +128,7 @@ services:
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME:-mine_mqtt}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_CONSUMER_ENABLED=False
       # JWT密钥（必须修改！）
       - SECRET_KEY=${SECRET_KEY}
       # 应用配置
@@ -188,6 +189,53 @@ services:
         reservations:
           cpus: '1'
           memory: 1G
+
+  mqtt_ingest_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mine_mqtt_ingest_worker_prod
+    restart: always
+    command: ["python", "scripts/python/run_mqtt_ingest_worker.py"]
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/mine_energy
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-mine_mqtt}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_CONSUMER_ENABLED=True
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=False
+      - APP_ENV=production
+      - STRICT_STARTUP_CHECKS=True
+      - DB_AUTO_CREATE_TABLES=False
+      - DB_RUNTIME_SCHEMA_SYNC=False
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    networks:
+      - app_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   nginx:
     image: nginx:1.27-alpine

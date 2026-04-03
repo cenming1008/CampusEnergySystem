@@ -95,9 +95,10 @@ configure_env() {
     case "$selected" in
         default)
             COMPOSE_LABEL="default"
-            CONTAINERS=(mine_backend mine_energy_db ems_redis mine_mqtt)
+            CONTAINERS=(mine_backend mine_mqtt_ingest_worker mine_energy_db ems_redis mine_mqtt)
             SERVICE_SPECS=(
                 "后端API|container|mine_backend"
+                "MQTT ingest worker|container|mine_mqtt_ingest_worker"
                 "数据库|container|mine_energy_db"
                 "Redis|container|ems_redis"
                 "MQTT|container|mine_mqtt"
@@ -126,9 +127,10 @@ configure_env() {
             LOG_HINT="docker compose -f docker-compose.prod.yml logs -f [服务名]"
             RESTART_HINT="docker compose -f docker-compose.prod.yml restart [服务名]"
             PS_HINT="docker compose -f docker-compose.prod.yml ps"
-            CONTAINERS=(mine_backend_prod mine_energy_db_prod ems_redis_prod mine_mqtt_prod mine_nginx_prod mine_prometheus_prod mine_alertmanager_prod)
+            CONTAINERS=(mine_backend_prod mine_mqtt_ingest_worker_prod mine_energy_db_prod ems_redis_prod mine_mqtt_prod mine_nginx_prod mine_prometheus_prod mine_alertmanager_prod)
             SERVICE_SPECS=(
                 "生产后端|container|mine_backend_prod"
+                "生产 MQTT ingest worker|container|mine_mqtt_ingest_worker_prod"
                 "生产数据库|container|mine_energy_db_prod"
                 "生产Redis|container|ems_redis_prod"
                 "生产MQTT|container|mine_mqtt_prod"

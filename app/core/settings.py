@@ -30,7 +30,6 @@ def validate_database_url_value(value: str) -> str:
         raise ValueError("DATABASE_URL 必须以 postgresql:// 或 postgresql+psycopg2:// 开头")
     return value
 
-
 def validate_secret_key_value(value: str) -> str:
     """验证密钥强度。"""
     if len(value) < 32:
@@ -159,6 +158,36 @@ class Settings(BaseSettings):
         default="mine/device/+/telemetry",
         env="MQTT_TOPIC_WILDCARD",
         description="MQTT通配符主题"
+    )
+
+    mqtt_consumer_enabled: bool = Field(
+        default=False,
+        env="MQTT_CONSUMER_ENABLED",
+        description="当前进程是否启用 MQTT 订阅消费"
+    )
+
+    mqtt_realtime_bridge_channel: str = Field(
+        default="mine-energy-system:mqtt:realtime-events",
+        env="MQTT_REALTIME_BRIDGE_CHANNEL",
+        description="worker -> API 的 Redis 实时事件桥接频道"
+    )
+
+    mqtt_worker_health_key: str = Field(
+        default="mine-energy-system:mqtt:worker-health",
+        env="MQTT_WORKER_HEALTH_KEY",
+        description="MQTT worker 健康状态在 Redis 中的键"
+    )
+
+    mqtt_worker_health_ttl_seconds: int = Field(
+        default=30,
+        env="MQTT_WORKER_HEALTH_TTL_SECONDS",
+        description="MQTT worker 健康状态 TTL（秒）"
+    )
+
+    mqtt_worker_health_heartbeat_seconds: int = Field(
+        default=10,
+        env="MQTT_WORKER_HEALTH_HEARTBEAT_SECONDS",
+        description="MQTT worker 健康心跳刷新间隔（秒）"
     )
     
     mqtt_auto_create_device: bool = Field(

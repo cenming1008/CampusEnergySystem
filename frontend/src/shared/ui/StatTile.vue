@@ -34,26 +34,41 @@ defineProps<{
 .stat-tile {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
-  padding: 16px 14px;
-  border: 1px solid #243244;
-  background: #131d2b;
+  border-radius: 24px;
+  padding: 22px 18px;
+  border: 1px solid var(--dashboard-card-border, rgba(255, 255, 255, 0.06));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 46%, rgba(255, 255, 255, 0)),
+    var(--dashboard-card-bg, #131d2b);
+  box-shadow: var(--dashboard-card-shadow, 0 16px 34px rgba(3, 8, 18, 0.12));
+  backdrop-filter: blur(24px) saturate(155%);
+}
+
+.stat-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 34%, transparent 58%);
+  pointer-events: none;
 }
 
 .stat-tile::after {
   content: '';
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  border-radius: 12px 0 0 12px;
+  top: 16px;
+  left: 18px;
+  width: 28px;
+  height: 2px;
+  border-radius: 999px;
   background: currentColor;
-  opacity: 0.75;
+  opacity: 0.78;
 }
 
 .stat-tile__value {
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 700;
+  margin-top: 10px;
+  font-size: 34px;
+  line-height: 0.95;
+  font-weight: 650;
   font-family: 'DIN', 'Monaco', monospace;
   color: currentColor;
 }
@@ -64,21 +79,23 @@ defineProps<{
 }
 
 .stat-tile__label {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #d8e2ef;
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dashboard-card-label, #d8e2ef);
 }
 
 .stat-tile__caption {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 11px;
-  line-height: 1.4;
-  color: #8ea0bc;
+  line-height: 1.6;
+  color: var(--dashboard-card-caption, #8ea0bc);
 }
 
-.cyan { color: #38bdf8; }
-.green { color: #22c55e; }
-.red { color: #ef4444; }
-.purple { color: #a78bfa; }
-.blue { color: #60a5fa; }
+.cyan { color: var(--dashboard-accent-cyan, #38bdf8); }
+.green { color: var(--dashboard-accent-green, #22c55e); }
+.red { color: var(--dashboard-accent-red, #ef4444); }
+.purple { color: var(--dashboard-accent-purple, #a78bfa); }
+.blue { color: var(--dashboard-accent-blue, #60a5fa); }
 </style>

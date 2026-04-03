@@ -1,95 +1,98 @@
 # Handoff
 
 ## 当前主题
-- 当前主主题：前端架构收敛专题探索
+- 当前主主题：测试质量门槛与覆盖率收敛专题
 - 当前执行依据：
-  - [PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md)
+  - [PLAN-20260403-test-quality-threshold-and-coverage-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260403-test-quality-threshold-and-coverage-convergence.md)
 
 ---
 
-## 探索结论
+## 规范结论
 ### 当前任务
-- 探索线程已完成前端入口、超大页面、feature/shared/stores/lint 现状审计；下一棒应先交规范，再交前端。
+- 规范线程已完成第三轮边界锁定；前两轮已通过并保留当前主题，下一棒可直接交后端，路径固定为 `规范 -> 后端 -> 验收`。
 
 ### 当前结论
-- 当前问题更适合定义为“前端分层已起步但未收敛完成”，不是单纯几个页面太长。
-- `features/`、`shared/`、`stores/` 已有真实雏形，不应误判为从零开始。
-- 结构性问题主要集中在：
-  - 核心页面没拆透
-  - 状态层偏轻
-  - 入口治理偏重
-  - lint 闸门偏松
-- 第一轮不应直接展开全局重构，而应先选代表页验证收敛路径。
+- 本轮不再属于“MQTT 采集进程解耦专题”，应切为独立测试主题。
+- 当前问题不能简单定义为“把 coverage fail-under 从 50 提高”。
+- 更准确的主问题是：测试门槛、统计口径和关键链路保护需要统一质量策略。
+- 当前 backend CI 的 `50%` 来自 `.github/workflows/backend-ci.yml`，且 coverage 总表把 `tests/` 自身纳入统计，存在被测试代码抬高总覆盖率的问题。
+- 发布检查与试点就绪脚本当前只跑 `unittest`，没有统一 coverage 门槛策略。
+- 第一轮已完成并通过验收：
+  - coverage 只统计 `app/`
+  - `tests/` 不再算入总 coverage 判断
+  - backend CI fail-under 已提升到 `55%`
+  - 第一批关键链路已完成最小必要补测
+- 第二轮已完成并通过验收：
+  - `device_service`、`energy_service` 第二批关键链路补测已到位
+  - backend fail-under 已提升到 `57%`
+  - `run_backend_coverage.sh` 已成为统一 coverage 入口
+  - `release_readiness.sh` / `pilot_readiness.sh` 已最小接通统一 coverage 入口
+- 第三轮正式名称锁定为：`统一 coverage 入口的 readiness / pilot 实战演练与门槛生效验证`
+- 第三轮主目标锁定为：
+  - 验证统一 coverage 入口在 `release_readiness.sh` / `pilot_readiness.sh` 中是否真实生效
+  - 验证脚本接入没有长出第二套门槛体系
+  - 在真实演练基础上补最小必要修复
 
 ---
 
-## 探索 -> 规范
+## 规范 -> 后端
 ### 当前任务
-- 规范线程先锁定本主题名称、第一轮代表页、结构性问题边界，以及第一轮最小治理规则。
+- 后端线程已完成第三轮返工复核，下一棒交验收线程。
 
 ### 当前仍有行动价值的信息
-- `Dashboard.vue` 已接入多个 feature/shared composable，但页面仍是超重协调层，是当前最有代表性的结构性样本。
-- `DeviceMonitor.vue` 也很重，但更适合作为第二轮对象，不建议和 `Dashboard.vue` 同时起步。
-- `AlarmCenter.vue` 体量较轻，更像局部页面，不足以单独代表当前专题。
-- `useDeviceStore.ts` 当前为空，说明状态层存在空档，但不宜未经拍板直接升级为全局 store 重排。
+- 第三轮仍严格停留在后端测试质量收敛范围内，不扩大到前端或全仓测试体系。
+- 当前统一 coverage 入口已经存在并被最小接通：
+  - [run_backend_coverage.sh](/Users/todo/MineEnergySystem/scripts/shell/run_backend_coverage.sh)
+  - [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh)
+  - [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)
+  - [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)
+- 第三轮只允许围绕这些现有入口做真实演练与最小修正，不允许另起新规则。
+- 第三轮后端已完成的事实证据：
+  - `release_readiness.sh` 已真实执行到 `Backend coverage gate`
+  - `pilot_readiness.sh` 在合格 env 下已真实执行到 `backend_coverage_gate`
+  - `pilot_readiness.sh` 失败路径现在也会写 `summary.md`
+  - `pilot_readiness.sh` 的通过证据位于：
+    - `/tmp/pilot_readiness_pass_20260403/summary.md`
+    - `/tmp/pilot_readiness_pass_20260403/logs/backend_coverage_gate.log`
+  - `pilot_readiness.sh` 使用 `env.prod.example` 的失败证据位于：
+    - `/tmp/pilot_readiness_fail_20260403/summary.md`
+- 第三轮返工复核新增证据：
+  - `bash ./scripts/shell/run_backend_coverage.sh`：`TOTAL 57%`
+  - `bash ./scripts/shell/release_readiness.sh`：`TOTAL 57%`
+  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true bash ./scripts/shell/run_backend_coverage.sh`：`TOTAL 57%` 且生成 `coverage.xml`
+  - 当前工作区未发现 `release_readiness.sh` / `pilot_readiness.sh` / `backend-ci.yml` 在 coverage 测试集、参数或 fail-under 上存在分叉
 
 ### 仅允许的下一步
-- 锁定本轮是否定义为“前端架构收敛专题”。
-- 锁定第一轮是否只收 `Dashboard.vue` 一个代表页。
-- 锁定第一轮是否只补一条规则：新增复杂逻辑不得继续堆回超大页面。
+- 由验收线程复核第三轮返工后是否达到阶段完成。
+- 若需打回后端，只能围绕第三轮现有脚本接线、失败摘要或门槛生效证据做小修。
+- 不允许在验收后反向扩成新一轮大规模补测或新门槛体系。
 
 ### 禁止扩张
-- 不把本轮直接扩成全局重构方案。
-- 不同时推进多个超大页面。
-- 不把 ESLint、Element Plus、store、router 一次性全部拉进第一轮实现。
-
-## 规范 -> 前端
-### 当前任务
-- 前端线程按已锁定边界推进第一轮最小闭环，不做全局重构。
-
-### 当前结论
-- 第一轮优先只处理一个代表页，建议是 `Dashboard.vue`。
-- 目标不是把页面拆到最细，而是验证：
-  - 页面协调层边界
-  - feature composable 还能否继续下沉
-  - 是否需要稳定的 page-level 状态沉淀
-- `AlarmCenter.vue` 不应被误当作当前专题的首轮代表页。
-
-### 仅允许的下一步
-- 只做代表页收敛与一条最小治理规则。
-- 若确需抽出子组件 / composable / 局部状态，只围绕代表页闭环，不外溢到全局。
-- 本轮不默认补空的 `useDeviceStore.ts`，除非代表页收敛证据明确需要它。
-
-### 禁止扩张
-- 不同时启动 `Dashboard.vue` 和 `DeviceMonitor.vue` 双页面重构。
-- 不先做全局 ESLint 严格化。
-- 不先做 Element Plus 全量注册方式改造。
-- 不把专题扩成“统一前端规范大全”。
+- 不把本轮直接扩成全仓测试体系重建。
+- 不先做大规模测试重构。
+- 不先统一迁移到 pytest。
+- 不纳入前端 coverage 治理。
+- 不顺手开启大批低覆盖模块补测。
+- 不重新设计另一套脚本门槛体系。
+- 不把第三轮写成长期测试平台建设。
 
 ### 打回条件
-- 发现代表页收敛无法独立闭环，必须先统一 store / composable / component 原则。
-- 发现问题已超出前端层，转而依赖后端接口契约调整。
-- 发现第一轮范围已扩大到多个页面或全局规则整治。
-
-## 前端 -> 验收
-### 当前任务
-- 前端线程完成代表页收敛后，再交验收核对它是否证明了专题判断，而不是只做了一轮局部美化。
-
-### 验收关注点
-- 代表页是否从“超大页面”变成“页面协调层 + 更清楚的 feature/shared 边界”。
-- 是否没有顺手扩成多页面重构。
-- 是否为后续专题沉淀出可复用的前端收敛路径。
-
----
+- 发现 `release_readiness.sh` / `pilot_readiness.sh` 实际没有复用统一 coverage 入口。
+- 发现真实脚本链路中的 coverage 门槛并未按 `57%` 生效。
+- 发现脚本演练必须新建第二套门槛规则或新脚本体系才能继续。
+- 发现真实演练问题已经扩大成新一轮大规模补测或全仓测试治理。
+- 若再次复现 `TOTAL 56%`，但无法提供与当前工作区不同的测试集、参数或快照差异。
 
 ## 交给验收
 ### 当前任务
-- 当前轮次仅完成探索，不进入验收；待规范和前端完成第一轮闭环后再进入。
+- 当前第三轮上一轮验收已完成并打回；后端已完成返工复核，下一棒直接交验收。
 
-### 验收关注点
-- 正式 PLAN、`current-status.md`、`handoff.md` 是否一致。
-- 是否已明确主问题与各子症状的对应关系。
-- 是否已按代表页最小闭环推进，而未扩成全局前端重构。
+### 当前验收结论
+- 上一轮验收打回点是：`release_readiness.sh` 的真实链路结果被记录为 `TOTAL ... 56%`，与主区“已按 57% 通过”的既有口径不一致。
+- 当前返工后需要验收重点复核：
+  - `release_readiness.sh` 在当前工作区是否稳定为 `TOTAL 57%`
+  - `run_backend_coverage.sh`、`release_readiness.sh`、CI 同构 coverage 命令是否仍共用同一统一入口
+  - 若验收仍拿到 `56%`，是否能给出与当前工作区不同的测试集、参数或快照差异证据
 
 ---
 

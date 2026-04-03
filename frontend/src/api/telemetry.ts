@@ -35,6 +35,7 @@ export interface DeviceAnalysis {
   current_value_label?: string
   current_value_unit?: string
   today_consumption?: number
+  today_consumption_label?: string
   today_consumption_unit?: string
   today_consumption_semantics?: string
   energy_data_public_fields?: string[]
@@ -85,6 +86,7 @@ function normalizeAnalysis(payload: Partial<DeviceAnalysis>): DeviceAnalysis {
     current_value_label: payload.current_value_label,
     current_value_unit: payload.current_value_unit,
     today_consumption: payload.today_consumption == null ? undefined : Number(payload.today_consumption),
+    today_consumption_label: payload.today_consumption_label,
     today_consumption_unit: payload.today_consumption_unit,
     today_consumption_semantics: payload.today_consumption_semantics,
     energy_data_public_fields: Array.isArray(payload.energy_data_public_fields) ? payload.energy_data_public_fields : [],

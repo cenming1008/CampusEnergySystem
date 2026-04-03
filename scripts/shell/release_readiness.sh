@@ -45,8 +45,10 @@ ALERTMANAGER_WEBHOOK_URL=https://alerts.mine-energy.local/prod-channel \
 ALERTMANAGER_TARGET_PATH=/tmp/mine_alertmanager_generated.yml \
   sh ./scripts/shell/render_alertmanager_config.sh >/tmp/mine_alertmanager_check.out
 
-echo "==> 5. Unit tests"
-"$PYTHON_BIN" -m unittest discover -s tests -p 'test_*.py'
+echo "==> 5. Backend coverage gate"
+BACKEND_COVERAGE_FAIL_UNDER="${BACKEND_COVERAGE_FAIL_UNDER:-57}" \
+BACKEND_COVERAGE_XML=false \
+  bash ./scripts/shell/run_backend_coverage.sh
 
 echo "==> 6. Production compose validation"
 docker compose -f docker-compose.prod.yml --env-file "$TEMP_PROD_ENV" config >/tmp/mine_compose_config.out

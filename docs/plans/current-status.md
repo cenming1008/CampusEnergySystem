@@ -1,70 +1,264 @@
 # Current Status
 
 ## 当前总目标
-- 将 `docs/plans/` 当前主主题切换为“前端架构收敛专题探索”，先明确结构性问题、现有分层雏形与第一轮最小闭环入口，不进入代码实现。
-- 让 [PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md) 成为当前执行依据，避免后续线程把问题误缩成若干局部页面修补。
+- 将 `docs/plans/` 当前主主题保持为“测试质量门槛与覆盖率收敛专题”，当前已从“第三轮验收发现 release 链路口径与真实结果不一致，已打回后端”更新为“第三轮返工复核已完成，待交验收”状态。
+- 让 [PLAN-20260403-test-quality-threshold-and-coverage-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260403-test-quality-threshold-and-coverage-convergence.md) 成为当前执行依据，继续围绕统一 coverage 入口在 readiness / pilot / CI 链路中的真实生效验证推进收敛。
 
 ---
 
 ## 当前阶段
-- [x] 探索线程已确认：本轮“CampusEnergySystem 前端架构问题”不属于当前主区原主题“报警链路审计与最小修复路径分析”
-- [x] 已建立正式 PLAN：[PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md)
-- [x] 已完成前端入口、超大页面、feature/shared/stores/lint 现状审计
-- [x] 已确认当前问题更适合定义为“前端架构收敛专题”，不是若干孤立页面治理任务的简单拼接
-- [x] 已确认 feature/shared 分层雏形已存在，但核心页面、状态层、入口治理和 lint 规则仍未收敛完成
-- [ ] 待规范线程锁定专题边界、第一轮代表页与最小治理规则
-- [ ] 待前端线程按第一轮最小闭环推进，不扩成全局重构
+- [x] 探索线程已确认：本轮“测试部分仍然不够，coverage 门槛只有 50%”不属于当前主主题“MQTT 采集进程解耦专题”
+- [x] 已建立正式 PLAN：[PLAN-20260403-test-quality-threshold-and-coverage-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260403-test-quality-threshold-and-coverage-convergence.md)
+- [x] 已完成对 `.github/workflows/backend-ci.yml`、`tests/`、`app/`、`scripts/` 与 coverage 入口的定向审计
+- [x] 已确认当前 backend CI 仅在 GitHub Actions 中执行 `coverage report --fail-under=50`
+- [x] 已确认发布检查和试点就绪脚本只执行 `unittest`，不执行 coverage 门槛校验
+- [x] 已确认当前 coverage 总表把 `tests/` 自身也纳入统计，存在“统计口径偏宽、结果被测试代码抬高”的问题
+- [x] 已确认当前更接近“关键链路测试保护不足 + coverage 统计口径未收敛”，而不只是单点“基线门槛过低”
+- [x] 规范线程已锁定第一轮测试策略、coverage 统计边界和阶段门槛
+- [x] 后端线程已完成第一轮最小闭环：
+  - coverage 统计边界已收敛到 `app/`
+  - backend CI fail-under 已提升到 `55%`
+  - 第一批关键链路已完成最小必要补测
+- [x] 验收线程已复核“门槛提升来自真实 `app/` 保护增强”
+- [x] 用户已明确同意继续推进第二轮
+- [x] 规范线程已锁定第二轮：
+  - 正式名称：`第二批关键链路补测 + backend coverage 继续分阶段提升`
+  - 主目标：补第二批关键链路、继续抬高 backend fail-under、判断是否最小接入 readiness / pilot coverage 门槛
+  - 路径：`规范 -> 后端 -> 验收`
+- [x] 后端线程已完成第二轮最小闭环：
+  - 第二批关键链路 `app/services/device_service.py`、`app/services/energy_service.py` 已补最小必要测试
+  - backend coverage fail-under 已从 `55%` 提升到 `57%`
+  - `release_readiness.sh`、`pilot_readiness.sh` 已最小接入同一 backend coverage 门槛入口
+- [x] 验收线程已复核第二轮达到阶段完成
+- [x] 用户已明确同意继续推进第三轮
+- [x] 规范线程已锁定第三轮：
+  - 正式名称：`统一 coverage 入口的 readiness / pilot 实战演练与门槛生效验证`
+  - 主目标：验证统一 coverage 入口在真实脚本链路中生效，且未长出第二套规则
+  - 路径：`规范 -> 后端 -> 验收`
+- [x] 后端线程已完成第三轮最小实现：
+  - `release_readiness.sh` 已真实执行到统一 coverage 入口
+  - `pilot_readiness.sh` 已在真实链路中执行到 `backend_coverage_gate`，确认复用统一 coverage 入口
+  - `pilot_readiness.sh` 失败路径已补充 `summary.md` 落盘，便于证据归档与失败复核
+- [x] 验收线程已复核第三轮，指出上一版主区口径与其验收记录不一致，要求后端返工复核 `release_readiness.sh` 的真实 coverage 结果
+- [x] 后端线程已完成第三轮返工复核：
+  - `bash ./scripts/shell/run_backend_coverage.sh` 当前工作区实跑结果为 `TOTAL 57%`
+  - `bash ./scripts/shell/release_readiness.sh` 当前工作区真实链路实跑结果为 `TOTAL 57%`
+  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true bash ./scripts/shell/run_backend_coverage.sh` 当前工作区实跑结果仍为 `TOTAL 57%`，并正常生成 `coverage.xml`
+  - 当前工作区未发现 `release_readiness.sh` / `pilot_readiness.sh` / `backend-ci.yml` 在测试集、参数或 fail-under 上存在分叉
 
 ---
 
 ## 当前阻塞
-- 当前还没有锁定“前端架构收敛专题”的结构性边界；若直接交前端实现，容易扩成多页面并行重构。
-- `Dashboard.vue` 已有 feature/shared composable 雏形，但页面层仍承载大量衍生计算、图表组装和协调逻辑；是否继续拆透、拆到哪一层，还需先定边界。
-- `useDeviceStore.ts` 当前为空文件，说明关键业务状态尚未沉淀；但是否在第一轮就补 store，需要先拍板。
-- ESLint 当前关闭 `no-unused-vars`、`@typescript-eslint/no-unused-vars`、`vue/no-mutating-props`，会放大架构漂移，但不应在第一轮直接升级成全面规则整治。
+- 当前不再阻塞在第一轮最小闭环本身。
+- 当前不再阻塞在“是否继续推进第二轮”；用户已同意继续推进，规范边界也已锁定。
+- 当前不再阻塞在第二轮后端实现本身。
+- 当前不再阻塞在“是否继续推进第三轮”；用户已同意继续推进，规范边界也已锁定。
+- 当前不再阻塞在第三轮后端演练本身。
+- 当前不再阻塞在返工复核本身。
+- 当前剩余边界性要求是：只允许围绕统一 coverage 入口真实结果做最小修正，不得把脚本实战演练扩成全仓测试治理、前端 coverage 门槛改造或新平台建设。
 
 ## 当前待办
-- [x] 判定本轮前端架构问题应新开主题，而非并入报警主题
-- [x] 建立正式 PLAN，沉淀结构性问题、现有雏形与第一轮入口建议
-- [ ] 规范线程锁定：
-  - 专题名称
-  - 第一轮代表页
-  - 结构性问题与实现细节的边界
-  - 第一轮是否只补一条最小治理规则
-- [ ] 前端线程优先围绕 `Dashboard.vue` 做代表性收敛，不同时展开 `DeviceMonitor.vue`
-- [ ] 验收线程复核“代表页收敛是否成立、是否未扩成全局重构”
+- [x] 判定本轮应新开主题，而非继续挂在 MQTT 专题下
+- [x] 建立正式 PLAN，沉淀测试门槛、统计口径和关键链路审计结论
+- [x] 规范线程锁定：
+  - 第一轮 coverage 统计范围
+  - 第一轮 fail-under 目标值与阶段节奏
+  - 第一轮关键链路补测名单
+- [x] 后端线程按锁定边界补最小关键链路测试，并同步收紧 coverage 配置
+- [x] 验收线程复核“门槛提升是否来自真实 `app/` 覆盖，而不是测试代码稀释”
+- [x] 第一轮验收通过后继续保留当前主题
+- [x] 在用户明确继续推进后，由规范线程锁定第二轮范围
+- [x] 交由后端线程按第二轮边界推进最小实现
+- [x] 交由验收线程复核第二轮是否达到阶段完成
+- [x] 第二轮验收通过后继续保留当前主题
+- [x] 在用户明确继续推进后，由规范线程锁定第三轮范围
+- [x] 交由后端线程按第三轮边界推进最小实现
+- [x] 交由验收线程复核第三轮是否达到阶段完成
+- [x] 打回后端在线路内修正 `release_readiness.sh` 的真实 coverage 结果或修正文档口径后，再次回验收
+- [ ] 交由验收线程复核第三轮返工后是否达到阶段完成
 
 ## 当前验证结论
-- 已确认当前问题不是“前端完全没有分层”，而是“整体分层已起步但未收敛完成”。
-- 已确认现有分层雏形真实存在：
-  - `features/dashboard/composables/*`
-  - `features/alarm/composables/useAlarmPolling.ts`
-  - `shared/composables/usePermissions.ts`
-  - `shared/composables/useCrudDialog.ts`
-  - `shared/composables/useCrudSubmit.ts`
-  - `shared/composables/useECharts.ts`
-  - `shared/ui/StatTile.vue`
-  - `stores/useAuthStore.ts`
-  - `stores/useSocketStore.ts`
-- 已确认结构性问题仍然成立：
-  - `Dashboard.vue` 约 2125 行，虽然已引入 feature/shared composable，但页面层仍承载大量展示编排、图表拼装和衍生计算。
-  - `DeviceMonitor.vue` 约 980 行，仍由页面直接承接接口调用、图表渲染、告警处理、控制操作和筛选逻辑。
-  - `AlarmCenter.vue` 约 279 行，更像局部页面问题，不足以单独代表当前架构专题。
-  - `useDeviceStore.ts` 当前为空文件，说明关键设备相关状态尚未形成稳定 store 分层。
-  - `main.ts` 仍手工集中注册大量 Element Plus 组件和图标，入口治理偏重。
-  - ESLint 当前关闭 `no-unused-vars`、`@typescript-eslint/no-unused-vars`、`vue/no-mutating-props`，治理闸门明显偏松。
-- 已确认本轮更适合定义为“前端架构收敛专题”，而不是“若干局部页面治理任务”的简单集合。
-- 已确认第一轮最短闭环更适合“先选一个代表性页面做收敛”，建议以 `Dashboard.vue` 作为代表页，而不是先做全局规则统一。
+- 已确认 coverage 门槛入口：
+  - GitHub Actions backend CI：`.github/workflows/backend-ci.yml`
+  - 命令为 `python -m coverage run -m unittest discover -s tests -p 'test_*.py'`
+  - 随后执行 `python -m coverage report --fail-under=50`
+- 已确认本地 / 发布入口现状：
+  - `scripts/shell/release_readiness.sh` 仅执行 `python -m unittest discover`
+  - `scripts/shell/pilot_readiness.sh` 仅执行 `python -m unittest discover`
+  - 当前没有统一的 `.coveragerc` / `pytest.ini` / `pyproject.toml` coverage 配置承接同一策略
+- 已确认统计口径问题：
+  - 当前 `coverage report -m` 的 `TOTAL 8408 / 4177 / 50%` 把 `tests/test_*.py` 自身也纳入总表
+  - 这意味着当前 50% 不是纯 `app/` 覆盖率，门槛偏松且结果被测试代码抬高
+- 已确认测试分布信号：
+  - 后端测试文件共 39 个，覆盖 MQTT、健康、访问控制、部分 endpoint semantics、部分 service
+  - 前端已有独立 `frontend-ci.yml`、`frontend-e2e.yml`，并存在 unit/e2e 测试，但不属于本轮第一阶段收敛范围
+- 已确认高风险但已有一定保护的模块：
+  - `mqtt_realtime_bridge`、`mqtt_processor`、`mqtt_reliability_service`
+  - `health` / `runtime` / `monitoring_access`
+  - `access_control`、`audit`、`user_service`
+- 已确认当前明显缺保护或低覆盖的模块：
+  - `app/core/database.py`：13%
+  - `app/application/reporting.py`：12%
+  - `app/services/alarm_service.py`：27%
+  - `app/api/endpoints/health.py`：26%
+  - `app/application/device_reporting.py`：42%
+  - `app/services/device_service.py`：36%
+  - `app/services/energy_service.py`：35%
+  - `app/services/location_service.py`：21%
+  - `app/services/inspection_service.py`：19%
+  - `app/services/fdd_service.py`：16%
+- 已确认当前更适合的主题定义：
+  - 不是“单纯把 fail-under 提高”
+  - 也不只是“CI 基线过低”
+  - 更准确是“测试质量门槛与关键链路保护未收敛”，其中第一阶段优先处理后端
+- 已确认第一轮正式边界：
+  - coverage 统计边界：
+    - 只统计 `app/`
+    - 不再把 `tests/` 自身算入总 coverage 判断
+  - fail-under 策略：
+    - 采用分阶段提升
+    - 第一轮在 `app/` 统计口径下先提升到 `55%`
+    - 提升必须与关键链路补测同步，不允许只改数字
+  - 第一批关键链路补测范围：
+    - `app/services/alarm_service.py`
+    - `app/api/endpoints/health.py`
+    - `app/application/device_reporting.py`
+    - `app/core/database.py`
+  - 可选下一批：
+    - `app/services/device_service.py`
+    - `app/services/energy_service.py`
+  - 第一轮禁止扩张：
+    - 不扩成全仓测试体系重建
+    - 不先统一迁移到 pytest
+    - 不同时纳入前端 coverage 门槛治理
+    - 不把所有低覆盖模块一次性拉进来
+    - 不只改 `fail-under` 数字而不补关键链路测试
+- 后端已完成第一轮最小实现：
+  - 新增 [.coveragerc](/Users/todo/MineEnergySystem/.coveragerc)，统一 coverage 只统计 `app/`
+  - 更新 [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)，在 `app/` 口径下将 fail-under 从 `50%` 提升到 `55%`
+  - 新增 [test_database_core.py](/Users/todo/MineEnergySystem/tests/test_database_core.py)，补 `app/core/database.py` 的初始化分支、schema 校验、session 生成与 hypertable 容错
+  - 新增 [test_device_reporting_use_case.py](/Users/todo/MineEnergySystem/tests/test_device_reporting_use_case.py)，补 `report_device_data_ingestion_use_case()` 的成功与设备不存在分支
+  - 扩展 [test_alarm_service.py](/Users/todo/MineEnergySystem/tests/test_alarm_service.py)，补 `list_alarms()`、`get_alarm_count()`、`mark_recovered_alarms()`、`load_thresholds()` 等服务分支
+  - 修正 [test_application_use_cases.py](/Users/todo/MineEnergySystem/tests/test_application_use_cases.py) 中写死日期导致的现有失败断言，改为按当天日期断言
+- 本轮验证结果：
+  - `PYTHONPATH=. venv/bin/python -m unittest tests.test_database_core tests.test_device_reporting_use_case tests.test_alarm_service tests.test_health_endpoint tests.test_application_use_cases`
+  - `PYTHONPATH=. venv/bin/python -m coverage erase && PYTHONPATH=. venv/bin/python -m coverage run -m unittest discover -s tests -p 'test_*.py' && PYTHONPATH=. venv/bin/python -m coverage report --fail-under=55 && PYTHONPATH=. venv/bin/python -m coverage xml`
+  - 结果：
+    - 目标补测集：`34 tests OK`
+    - 全量后端测试：`175 tests OK`
+    - `app/` coverage：`56%`
+- 第一批关键链路当前覆盖改善：
+  - `app/services/alarm_service.py`: `27% -> 83%`
+  - `app/api/endpoints/health.py`: `26% -> 72%`
+  - `app/application/device_reporting.py`: `42% -> 100%`
+  - `app/core/database.py`: `13% -> 41%`
+- 验收线程已确认：
+  - coverage 现在只统计 `app/`，总表不再混入 `tests/test_*.py`
+  - `55%` 的 fail-under 提升来自真实关键链路补测，而不是口径技巧
+  - 第一批关键链路名单已按计划补齐
+  - 本轮仍严格停留在后端关键链路与 backend CI coverage 门槛收敛范围内，没有扩成全仓测试治理
+- 已确认第二轮正式边界：
+  - 正式名称：`第二批关键链路补测 + backend coverage 继续分阶段提升`
+  - 第二轮范围：
+    - 围绕第二批关键链路补最小必要测试
+    - 在真实补测基础上继续抬高 backend coverage 门槛
+    - 判断是否把 coverage 门槛最小接入 `release_readiness.sh` / `pilot_readiness.sh`
+  - 第二批关键链路候选：
+    - `app/services/device_service.py`
+    - `app/services/energy_service.py`
+  - 第二轮允许动作：
+    - 围绕第二批关键链路补测试
+    - 在后端真实覆盖改善基础上继续提升 fail-under
+    - 最小评估并接入 readiness / pilot 脚本中的 coverage 门槛，但只允许复用现有 coverage 配置与现有后端测试入口
+  - 第二轮禁止扩张：
+    - 不扩成全仓测试体系重建
+    - 不先统一迁移到 pytest
+    - 不同时纳入前端 coverage 门槛治理
+    - 不把所有低覆盖模块一次性拉进来
+    - 不把第二轮写成长期测试治理大全
+  - 第二轮验收口径：
+    - 第二批关键链路是否真的补到了
+    - fail-under 提升是否来自真实业务代码保护增强
+    - readiness / pilot 脚本若被纳入，是否保持最小闭环
+    - 本轮是否仍然只聚焦后端测试质量收敛
+- 后端已完成第二轮最小实现：
+  - 新增 [test_device_service_round2.py](/Users/todo/MineEnergySystem/tests/test_device_service_round2.py)，补 `create_device_smart()`、`create_device()`、`update_device()`、`get_device_data()`、`get_device_statistics()`、`get_device_type_info()` 等关键分支
+  - 新增 [test_energy_service_round2.py](/Users/todo/MineEnergySystem/tests/test_energy_service_round2.py)，补 `list_energy_type_catalog()`、`get_energy_type_profile()`、`save_energy_data()`、`calculate_carbon_emission()`、`get_statistics_by_type()`、`get_carbon_summary()`、`save_statistics()` 等关键分支
+  - 新增 [run_backend_coverage.sh](/Users/todo/MineEnergySystem/scripts/shell/run_backend_coverage.sh)，统一 backend coverage 门槛入口，复用现有 `coverage run -m unittest discover -s tests -p 'test_*.py'`
+  - 更新 [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)，将 backend fail-under 从 `55%` 提升到 `57%`，并切到统一 coverage 脚本入口
+  - 更新 [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh) 与 [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)，最小接入同一 coverage 门槛入口，未新建第二套规则
+- 第二轮验证结果：
+  - `PYTHONPATH=. venv/bin/python -m unittest tests.test_device_service_round2 tests.test_energy_service_round2 tests.test_device_monitor_service tests.test_ingestion_reliability`
+  - `PYTHONPATH=. venv/bin/python -m coverage erase && PYTHONPATH=. venv/bin/python -m coverage run -m unittest discover -s tests -p 'test_*.py' && PYTHONPATH=. venv/bin/python -m coverage report --include='app/*' -m`
+  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=false bash ./scripts/shell/run_backend_coverage.sh`
+  - `bash -n scripts/shell/run_backend_coverage.sh scripts/shell/release_readiness.sh scripts/shell/pilot_readiness.sh`
+  - 结果：
+    - 第二批目标补测集：`33 tests OK`
+    - 全量后端测试：`193 tests OK`
+    - `app/` coverage：`57%`
+- 第二批关键链路当前覆盖改善：
+  - `app/services/device_service.py`: `48% -> 90%`
+  - `app/services/energy_service.py`: `66% -> 88%`
+- 验收线程已确认：
+  - 第二批关键链路补测已真实落到 `app/services/device_service.py` 与 `app/services/energy_service.py`
+  - `57%` fail-under 提升来自真实业务代码保护增强，而不是仅改参数
+  - `release_readiness.sh` / `pilot_readiness.sh` 已复用统一 coverage 入口，而不是长出第二套门槛
+  - 本轮仍严格停留在后端测试质量收敛专题范围内，没有误扩成全仓测试治理
+- 已确认第三轮正式边界：
+  - 正式名称：`统一 coverage 入口的 readiness / pilot 实战演练与门槛生效验证`
+  - 第三轮范围：
+    - 验证统一 coverage 入口在 `release_readiness.sh` / `pilot_readiness.sh` 中是否真实生效
+    - 验证脚本接入没有长出第二套门槛体系
+    - 在真实演练基础上补最小必要修复
+    - 不把第三轮转成新一轮大规模补测
+  - 第三轮允许动作：
+    - 跑通 readiness / pilot 脚本中的 coverage 入口
+    - 修正脚本接线、参数传递、失败口径、输出摘要等最小问题
+    - 补必要测试或脚本级验证
+    - 保持复用 `scripts/shell/run_backend_coverage.sh`
+  - 第三轮禁止扩张：
+    - 不扩成全仓测试体系治理
+    - 不重新设计另一套脚本门槛体系
+    - 不顺手开启大批低覆盖模块补测
+    - 不纳入前端 coverage 治理
+    - 不迁移 pytest
+    - 不把第三轮写成长期测试平台建设
+  - 第三轮验收口径：
+    - `release_readiness.sh` / `pilot_readiness.sh` 是否真实复用统一 coverage 入口
+    - 覆盖门槛是否在真实脚本链路中有效
+    - 是否没有长出第二套独立规则
+    - 本轮是否仍然停留在后端测试质量收敛专题范围内
+- 后端已完成第三轮最小实现：
+  - 更新 [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)，在失败退出时也会落盘 `summary.md`，保证失败路径仍有统一摘要证据
+  - 保持 [run_backend_coverage.sh](/Users/todo/MineEnergySystem/scripts/shell/run_backend_coverage.sh) 作为唯一 coverage 门槛入口，未新增第二套脚本规则
+- 第三轮验证结果：
+  - `bash ./scripts/shell/release_readiness.sh`
+  - `bash ./scripts/shell/pilot_readiness.sh --env-file env.prod.example --artifact-dir /tmp/pilot_readiness_fail_20260403`
+  - `bash ./scripts/shell/pilot_readiness.sh --env-file /tmp/pilot_env_20260403.t9BjjJ --artifact-dir /tmp/pilot_readiness_pass_20260403`
+  - `bash -n scripts/shell/pilot_readiness.sh`
+  - 结果：
+    - `release_readiness.sh` 成功执行到 `Backend coverage gate`
+    - `pilot_readiness.sh` 使用 `env.prod.example` 时会先在 `production_readiness` 失败，未进入 coverage gate；但失败摘要现已正常写入 `/tmp/pilot_readiness_fail_20260403/summary.md`
+    - `pilot_readiness.sh` 使用合格临时 env 时，完整执行到 `backend_coverage_gate` 并通过，`summary.md` 与 `logs/backend_coverage_gate.log` 均明确记录统一 coverage 入口和 `57%` 门槛
+    - 两条真实脚本链路都复用了 `run_backend_coverage.sh`，未出现第二套独立 coverage 规则
+- 第三轮返工复核结果：
+  - `bash ./scripts/shell/run_backend_coverage.sh`
+  - `bash ./scripts/shell/release_readiness.sh`
+  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true bash ./scripts/shell/run_backend_coverage.sh`
+  - 结果：
+    - 三次复核均为 `TOTAL 57%`
+    - `release_readiness.sh` 当前工作区真实链路已稳定达到 `57%`
+    - CI 同构命令与脚本入口仍共用 `scripts/shell/run_backend_coverage.sh`
+    - 当前未复现 `TOTAL 56% / Coverage failure: total of 56 is less than fail-under=57`
 
 ## 当前剩余风险
-- 若不先锁定“代表页收敛”边界，前端线程容易同时展开 `Dashboard.vue`、`DeviceMonitor.vue` 和入口治理，导致范围失控。
-- 若先从 ESLint 或 Element Plus 注册方式入手，可能会把专题带偏成治理杂项，而不是先解决核心页面和分层不彻底问题。
-- `useDeviceStore.ts` 为空说明状态层存在空档，但若第一轮直接引入新 store，也可能把问题提前升级为更重架构重排。
-- 当前工作区虽然干净，但主区此前仍保留报警主题内容；若不依赖本轮回写，后续线程容易接错主题。
-
----
-
-## 每日归档入口
-
-- [2026-03-27 状态快照](./daily/2026-03/2026-03-27-status.md)
-- [2026-03-28 状态快照](./daily/2026-03/2026-03-28-status.md)
+- 如果直接把 `--fail-under` 从 50 拉高，而不先收敛 coverage 统计口径，CI 噪音会放大，且无法反映真实 `app/` 风险。
+- 如果只补零散测试、不先锁关键链路名单，测试会继续热点化堆积，难以形成长期门槛。
+- 如果第一轮把前后端测试一起纳入，会把主题扩大成全仓测试体系重构，降低闭环速度。
+- 如果 `55%` 的第一阶段门槛没有和第一批关键链路补测绑定，后端线程最容易退回“调参数过线”而不是真实保护增强。
+- `app/core/database.py` 虽已从 `13%` 提升到 `41%`，但仍有大量运行时 schema sync SQL 分支未被穷举，本轮只做到第一批最小保护。
+- 如果第二轮只抬 `fail-under` 数字、不真正补 `device_service` / `energy_service` 关键分支，仍会退回“参数过线”而不是保护增强。
+- `release_readiness.sh` 与 `pilot_readiness.sh` 已最小复用统一 coverage 脚本，但当前还没有做整条 readiness 流程的全链路演练；本轮验证以统一 coverage 入口可执行和 shell 语法通过为主。
+- 如果第三轮顺手把 readiness / pilot 演练扩成新一轮大补测或新脚本体系，最容易偏离“统一入口生效验证”这个最小目标。
+- `pilot_readiness.sh` 若直接使用 `env.prod.example`，仍会在 `production_readiness` 阶段因占位符配置失败；这说明 coverage gate 的实战演练需要合格 env 文件，但不构成统一入口失效。
+- 当前返工复核虽未复现 `TOTAL 56%`，但若验收线程仍能在其他工作区快照稳定复现该结果，需要一并记录当时的工作区差异或测试集差异。

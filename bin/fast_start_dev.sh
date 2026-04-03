@@ -2,7 +2,7 @@
 # 开发模式快捷入口
 # 说明：
 # - 中间件启动逻辑复用 scripts/shell/start_dev_env.sh
-# - 这里只额外负责本地后端和前端的后台启动
+# - 这里只额外负责本地后端、MQTT ingest worker 和前端的后台启动
 
 set -e
 
@@ -19,7 +19,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}  🔧 园区综合能源管理系统开发模式启动${NC}"
-echo -e "${BLUE}  （中间件 Docker + 前后端本地）${NC}"
+echo -e "${BLUE}  （中间件 Docker + 后端/worker/前端本地）${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -71,7 +71,18 @@ for i in {1..30}; do
 done
 echo ""
 
-# 4. 启动前端（本地）
+# 4. 启动 MQTT ingest worker（本地）
+echo -e "${YELLOW}➜ 启动 MQTT ingest worker（本地）...${NC}"
+echo -e "${GREEN}✅ MQTT ingest worker 将在后台运行${NC}"
+(
+    source venv/bin/activate
+    python scripts/python/run_mqtt_ingest_worker.py
+) > logs/mqtt_ingest_worker_dev.log 2>&1 &
+WORKER_PID=$!
+echo "   Worker PID: $WORKER_PID (日志: logs/mqtt_ingest_worker_dev.log)"
+echo ""
+
+# 5. 启动前端（本地）
 echo -e "${YELLOW}➜ 启动前端（本地）...${NC}"
 if [ ! -d "frontend" ]; then
     echo -e "${RED}❌ 未找到 frontend 目录${NC}"
@@ -88,7 +99,7 @@ echo "   前端 PID: $FRONTEND_PID (日志: logs/frontend_dev.log)"
 sleep 3
 echo ""
 
-# 5. 完成
+# 6. 完成
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ 开发环境已启动！${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -100,7 +111,8 @@ echo ""
 echo -e "${BLUE}📝 说明：${NC}"
 echo -e "   • 前后端支持热重载，修改代码自动生效"
 echo -e "   • 停止: ${YELLOW}./scripts/shell/stop_dev_env.sh${NC} (停止 Docker)"
-echo -e "   • 停止前后端: ${YELLOW}kill $BACKEND_PID $FRONTEND_PID${NC} 或 ${YELLOW}pkill -f 'python run.py' && pkill -f vite${NC}"
+echo -e "   • 停止本地进程: ${YELLOW}kill $BACKEND_PID $WORKER_PID $FRONTEND_PID${NC}"
 echo -e "   • 查看后端日志: ${YELLOW}tail -f logs/backend_dev.log${NC}"
+echo -e "   • 查看 worker 日志: ${YELLOW}tail -f logs/mqtt_ingest_worker_dev.log${NC}"
 echo -e "   • 查看前端日志: ${YELLOW}tail -f logs/frontend_dev.log${NC}"
 echo ""
