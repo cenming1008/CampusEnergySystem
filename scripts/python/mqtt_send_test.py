@@ -26,9 +26,9 @@ except ImportError:
 
 BROKER = os.getenv("MQTT_BROKER", "localhost")
 PORT = int(os.getenv("MQTT_PORT", "1883"))
-USERNAME = os.getenv("MQTT_USERNAME", "mine_mqtt")
-PASSWORD = os.getenv("MQTT_PASSWORD", "mine_mqtt_secret_2026")
-TOPIC = os.getenv("MQTT_TOPIC", "mine/telemetry")
+USERNAME = os.getenv("MQTT_USERNAME", "campus_mqtt")
+PASSWORD = os.getenv("MQTT_PASSWORD", "campus_mqtt_secret_2026")
+TOPIC = os.getenv("MQTT_TOPIC", "campus/telemetry")
 
 
 def send_one(

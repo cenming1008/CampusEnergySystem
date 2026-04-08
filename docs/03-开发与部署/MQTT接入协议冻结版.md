@@ -8,9 +8,9 @@
 
 ### 推荐正式主题
 
-- 单设备遥测：`mine/device/{device_code}/telemetry`
-- 平台订阅通配符：`mine/device/+/telemetry`
-- 控制指令下发：`mine/device/{device_code}/control`
+- 平台主遥测主题：`campus/telemetry`
+- 平台订阅通配符：`campus/device/+/telemetry`
+- 控制指令下发：`campus/control/{device_id}`
 
 ### 要求
 

@@ -4,12 +4,12 @@ services:
   # 1. 数据库 (TimescaleDB)
   db:
     image: timescale/timescaledb:latest-pg14
-    container_name: mine_energy_db
+    container_name: campus_energy_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
-      POSTGRES_DB: mine_energy
+      POSTGRES_DB: campus_energy
     ports:
       - "5433:5432"
     volumes:
@@ -17,7 +17,7 @@ services:
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d mine_energy"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d campus_energy"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -26,7 +26,7 @@ services:
   # 2. 消息队列 (MQTT)
   mqtt:
     image: eclipse-mosquitto:2.0
-    container_name: mine_mqtt
+    container_name: campus_mqtt
     restart: unless-stopped
     ports:
       - "1883:1883"
@@ -38,7 +38,7 @@ services:
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u mine_mqtt -P mine_mqtt_secret_2026 -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u campus_mqtt -P campus_mqtt_secret_2026 -t '$$SYS/#' -C 1 -W 3 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -47,7 +47,7 @@ services:
   # 3. 缓存 (Redis)
   redis:
     image: redis:7.0-alpine
-    container_name: ems_redis
+    container_name: campus_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -67,16 +67,19 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    container_name: mine_backend
+    container_name: campus_backend
     restart: unless-stopped
     environment:
-      # 使用 Docker 容器服务名连接（容器内网络）
-      - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+      # 容器内互联继续使用 Compose service 名；campus_* 只用于 docker exec/logs/inspect
+      - DATABASE_URL=postgresql://admin:password123@db:5432/campus_energy
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
-      - MQTT_USERNAME=mine_mqtt
-      - MQTT_PASSWORD=mine_mqtt_secret_2026
+      - MQTT_USERNAME=campus_mqtt
+      - MQTT_PASSWORD=campus_mqtt_secret_2026
+      - MQTT_TOPIC=campus/telemetry
+      - MQTT_TOPIC_WILDCARD=campus/device/+/telemetry
+      - MQTT_CONTROL_TOPIC_PREFIX=campus/control/
       - MQTT_CONSUMER_ENABLED=False
       - SECRET_KEY=mine-energy-system-secret-key-change-me-min-32-chars
       - DEBUG=False
@@ -109,16 +112,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mine_mqtt_ingest_worker
+    container_name: campus_mqtt_ingest_worker
     restart: unless-stopped
     command: ["python", "scripts/python/run_mqtt_ingest_worker.py"]
     environment:
-      - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+      # worker 容器内访问数据库/Redis/MQTT 仍走 db / redis / mqtt 这些 service 名
+      - DATABASE_URL=postgresql://admin:password123@db:5432/campus_energy
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
-      - MQTT_USERNAME=mine_mqtt
-      - MQTT_PASSWORD=mine_mqtt_secret_2026
+      - MQTT_USERNAME=campus_mqtt
+      - MQTT_PASSWORD=campus_mqtt_secret_2026
+      - MQTT_TOPIC=campus/telemetry
+      - MQTT_TOPIC_WILDCARD=campus/device/+/telemetry
+      - MQTT_CONTROL_TOPIC_PREFIX=campus/control/
       - MQTT_CONSUMER_ENABLED=True
       - SECRET_KEY=mine-energy-system-secret-key-change-me-min-32-chars
       - DEBUG=False

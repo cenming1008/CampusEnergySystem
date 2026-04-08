@@ -37,7 +37,7 @@ fi
 
 if [ ! -f "mosquitto/config/passwd" ]; then
     echo -e "${YELLOW}➜${NC} 未发现 Mosquitto 密码文件，正在生成开发默认凭据..."
-    bash ./scripts/shell/setup_mqtt_auth.sh mine_mqtt mine_mqtt_secret_2026 --force
+    bash ./scripts/shell/setup_mqtt_auth.sh campus_mqtt campus_mqtt_secret_2026 --force
 fi
 
 # 启动 Docker 服务
@@ -53,6 +53,7 @@ sleep 5
 echo ""
 echo -e "${YELLOW}➜${NC} 检查服务状态..."
 docker compose -f docker-compose.dev.yml ps
+echo "提示：compose 子命令继续使用服务名 db/redis/mqtt；直接 docker exec/logs 时使用 campus_*_dev 容器名。"
 
 # 测试服务连接
 echo ""
@@ -62,7 +63,7 @@ echo "=========================================="
 
 # 测试数据库
 echo -e "${YELLOW}➜${NC} 测试 TimescaleDB 连接..."
-if docker exec mine_energy_db_dev pg_isready -U admin -d mine_energy > /dev/null 2>&1; then
+if docker exec campus_energy_db_dev pg_isready -U admin -d campus_energy > /dev/null 2>&1; then
     echo -e "${GREEN}✔${NC} TimescaleDB 连接成功 (localhost:5432)"
 else
     echo -e "${RED}✖${NC} TimescaleDB 连接失败"
@@ -70,7 +71,7 @@ fi
 
 # 测试 Redis
 echo -e "${YELLOW}➜${NC} 测试 Redis 连接..."
-if docker exec ems_redis_dev redis-cli ping > /dev/null 2>&1; then
+if docker exec campus_redis_dev redis-cli ping > /dev/null 2>&1; then
     echo -e "${GREEN}✔${NC} Redis 连接成功 (localhost:6379)"
 else
     echo -e "${RED}✖${NC} Redis 连接失败"
@@ -78,7 +79,7 @@ fi
 
 # 测试 MQTT（简单检查容器是否运行）
 echo -e "${YELLOW}➜${NC} 测试 MQTT 服务..."
-if docker ps | grep mine_mqtt_dev > /dev/null 2>&1; then
+if docker ps | grep campus_mqtt_dev > /dev/null 2>&1; then
     echo -e "${GREEN}✔${NC} MQTT 服务正在运行 (localhost:1883)"
 else
     echo -e "${RED}✖${NC} MQTT 服务未运行"

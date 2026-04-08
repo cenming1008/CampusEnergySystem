@@ -54,7 +54,7 @@ services:
 # docker-compose.dev.yml
 services:
   db:
-    container_name: mine_energy_db_dev
+    container_name: campus_energy_db_dev
     volumes:
       - ./pg_data_dev:/var/lib/postgresql/data
     ports:
@@ -74,7 +74,7 @@ services:
 | **用途** | 生产环境 | 开发/测试环境 |
 | **Docker Compose** | `docker-compose.yml`<br>`docker-compose.prod.yml` | `docker-compose.dev.yml` |
 | **端口映射** | 5433（避免冲突） | 5432（标准端口） |
-| **容器名称** | `mine_energy_db_prod` | `mine_energy_db_dev` |
+| **容器名称** | `campus_energy_db_prod` | `campus_energy_db_dev` |
 | **数据重要性** | ⚠️ 重要，需备份 | 📝 可随时重建 |
 | **大小** | ~72MB | ~75MB |
 | **Git 管理** | ❌ 已忽略 | ❌ 已忽略 |
@@ -145,7 +145,7 @@ python scripts/python/init_complete_system.py
 bash scripts/shell/backup.sh
 
 # 或手动备份
-docker exec mine_energy_db_prod pg_dump -U admin mine_energy > backup.sql
+docker exec campus_energy_db_prod pg_dump -U admin campus_energy > backup.sql
 
 # 备份整个数据目录
 tar -czf pg_data_backup_$(date +%Y%m%d).tar.gz pg_data/
@@ -155,7 +155,7 @@ tar -czf pg_data_backup_$(date +%Y%m%d).tar.gz pg_data/
 
 ```bash
 # 从 SQL 文件恢复
-cat backup.sql | docker exec -i mine_energy_db_prod psql -U admin -d mine_energy
+cat backup.sql | docker exec -i campus_energy_db_prod psql -U admin -d campus_energy
 
 # 使用恢复脚本
 bash scripts/shell/restore.sh backup.sql
@@ -222,11 +222,11 @@ docker stop <container_id>
 docker ps | grep db
 
 # 查看数据库日志
-docker logs mine_energy_db_dev  # 开发环境
-docker logs mine_energy_db_prod # 生产环境
+docker logs campus_energy_db_dev  # 开发环境
+docker logs campus_energy_db_prod # 生产环境
 
 # 检查数据库是否就绪
-docker exec mine_energy_db_dev pg_isready -U admin
+docker exec campus_energy_db_dev pg_isready -U admin
 ```
 
 ### 问题3：数据目录权限问题
@@ -265,7 +265,7 @@ bash scripts/shell/restore.sh latest_backup.sql
 du -sh pg_data pg_data_dev
 
 # 进入数据库查看表大小
-docker exec -it mine_energy_db_dev psql -U admin -d mine_energy
+docker exec -it campus_energy_db_dev psql -U admin -d campus_energy
 
 # 在 psql 中执行
 SELECT 

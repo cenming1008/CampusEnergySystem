@@ -13,12 +13,12 @@ services:
   # 1. 数据库 (TimescaleDB)
   db:
     image: timescale/timescaledb:2.17.2-pg14
-    container_name: mine_energy_db_prod
+    container_name: campus_energy_db_prod
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: mine_energy
+      POSTGRES_DB: campus_energy
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
     volumes:
       - ./pg_data:/var/lib/postgresql/data
@@ -31,7 +31,7 @@ services:
         max-size: "50m"
         max-file: "5"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d mine_energy"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d campus_energy"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -48,7 +48,7 @@ services:
   # 2. 缓存 (Redis)
   redis:
     image: redis:7.0-alpine
-    container_name: ems_redis_prod
+    container_name: campus_redis_prod
     restart: always
     command: >
       redis-server
@@ -82,7 +82,7 @@ services:
   # 3. 消息队列 (MQTT)
   mqtt:
     image: eclipse-mosquitto:2.0
-    container_name: mine_mqtt_prod
+    container_name: campus_mqtt_prod
     restart: always
     # 生产环境不暴露 MQTT 到宿主机所有网卡（后端通过容器网络 app_network 访问）
     # 如需外部设备接入，取消注释并配合防火墙策略
@@ -101,7 +101,7 @@ services:
         max-size: "50m"
         max-file: "5"
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u ${MQTT_USERNAME:-mine_mqtt} -P ${MQTT_PASSWORD:-changeme} -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u ${MQTT_USERNAME:-campus_mqtt} -P ${MQTT_PASSWORD:-changeme} -t '$$SYS/#' -C 1 -W 3 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -116,18 +116,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mine_backend_prod
+    container_name: campus_backend_prod
     restart: always
     environment:
+      # 生产容器内互联继续使用 db / redis / mqtt 这些 service 名；campus_* 仅用于可见容器名
       # 数据库配置
-      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/mine_energy
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/campus_energy
       # Redis配置
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       # MQTT配置
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME:-mine_mqtt}
+      - MQTT_USERNAME=${MQTT_USERNAME:-campus_mqtt}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_TOPIC=${MQTT_TOPIC:-campus/telemetry}
+      - MQTT_TOPIC_WILDCARD=${MQTT_TOPIC_WILDCARD:-campus/device/+/telemetry}
+      - MQTT_CONTROL_TOPIC_PREFIX=${MQTT_CONTROL_TOPIC_PREFIX:-campus/control/}
       - MQTT_CONSUMER_ENABLED=False
       # JWT密钥（必须修改！）
       - SECRET_KEY=${SECRET_KEY}
@@ -194,16 +198,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mine_mqtt_ingest_worker_prod
+    container_name: campus_mqtt_ingest_worker_prod
     restart: always
     command: ["python", "scripts/python/run_mqtt_ingest_worker.py"]
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/mine_energy
+      # worker 容器内互联沿用 service 名，不跟随 campus_* 容器名变化
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD}@db:5432/campus_energy
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME:-mine_mqtt}
+      - MQTT_USERNAME=${MQTT_USERNAME:-campus_mqtt}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_TOPIC=${MQTT_TOPIC:-campus/telemetry}
+      - MQTT_TOPIC_WILDCARD=${MQTT_TOPIC_WILDCARD:-campus/device/+/telemetry}
+      - MQTT_CONTROL_TOPIC_PREFIX=${MQTT_CONTROL_TOPIC_PREFIX:-campus/control/}
       - MQTT_CONSUMER_ENABLED=True
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=False
@@ -239,7 +247,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: mine_nginx_prod
+    container_name: campus_nginx_prod
     restart: always
     depends_on:
       backend:
@@ -266,7 +274,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: mine_prometheus_prod
+    container_name: campus_prometheus_prod
     restart: always
     logging:
       driver: json-file
@@ -294,7 +302,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    container_name: mine_alertmanager_prod
+    container_name: campus_alertmanager_prod
     restart: always
     logging:
       driver: json-file
@@ -324,7 +332,7 @@ services:
 
   loki:
     image: grafana/loki:3.1.1
-    container_name: mine_loki_prod
+    container_name: campus_loki_prod
     restart: always
     logging:
       driver: json-file
@@ -342,7 +350,7 @@ services:
 
   promtail:
     image: grafana/promtail:3.1.1
-    container_name: mine_promtail_prod
+    container_name: campus_promtail_prod
     restart: always
     logging:
       driver: json-file
@@ -362,7 +370,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.1.4
-    container_name: mine_grafana_prod
+    container_name: campus_grafana_prod
     restart: always
     logging:
       driver: json-file

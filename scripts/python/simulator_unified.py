@@ -18,8 +18,8 @@ from datetime import datetime
 # ================= 配置 =================
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_TOPIC_TELEMETRY = "mine/telemetry"
-MQTT_TOPIC_CONTROL_PREFIX = "mine/control/"  # 控制指令主题前缀
+MQTT_TOPIC_TELEMETRY = os.getenv("MQTT_TOPIC", "campus/telemetry")
+MQTT_TOPIC_CONTROL_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", "campus/control/")  # 控制指令主题前缀
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8088")
 LOGIN_URL = f"{API_BASE}/auth/login"
@@ -30,8 +30,8 @@ ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "123456")
 
 # MQTT 认证（与 Mosquitto 配置一致）
-MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "campus_mqtt")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "campus_mqtt_secret_2026")
 
 # 全局变量
 current_token = None
@@ -256,7 +256,7 @@ def on_connect(client, userdata, flags, rc):
     """MQTT 连接成功后，订阅控制频道"""
     if rc == 0:
         print("✅ MQTT 连接成功！", flush=True)
-        # 订阅所有设备的控制指令：mine/control/+
+        # 订阅所有设备的控制指令：campus/control/+
         subscription_topic = f"{MQTT_TOPIC_CONTROL_PREFIX}+"
         client.subscribe(subscription_topic)
         print(f"👂 已启动指令监听: {subscription_topic}", flush=True)
@@ -266,7 +266,7 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     """
     处理远程控制指令
-    Topic 示例: mine/control/2
+    Topic 示例: campus/control/2
     Payload 示例: {"command": "stop", "device_id": 2}
     """
     try:
@@ -274,7 +274,7 @@ def on_message(client, userdata, msg):
         payload_str = msg.payload.decode()
         data = json.loads(payload_str)
         
-        # 从 topic 解析设备 ID: mine/control/2 -> 2
+        # 从 topic 解析设备 ID: campus/control/2 -> 2
         target_id_str = topic.split("/")[-1]
         
         if not target_id_str.isdigit():

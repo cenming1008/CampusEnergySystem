@@ -83,7 +83,7 @@ bash ./scripts/shell/release_readiness.sh
 python3 ./scripts/python/check_production_readiness.py --env-file "$ENV_FILE"
 
 # 4.2 部署前备份
-if docker ps --format '{{.Names}}' | grep -q "^mine_energy_db_prod$"; then
+if docker ps --format '{{.Names}}' | grep -q "^campus_energy_db_prod$"; then
     echo -e "${YELLOW}💾 创建部署前备份...${NC}"
     bash ./scripts/shell/backup.sh --label pre_deploy
 fi

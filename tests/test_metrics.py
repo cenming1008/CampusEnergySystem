@@ -10,5 +10,5 @@ class MetricsTest(unittest.TestCase):
 
         self.assertEqual(content_type.split(";")[0], "text/plain")
         text = payload.decode("utf-8")
-        self.assertIn("mine_http_requests_total", text)
+        self.assertIn("campus_http_requests_total", text)
         self.assertIn('path="/health"', text)

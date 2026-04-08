@@ -11,9 +11,9 @@ import paho.mqtt.client as mqtt
 # ---------- 配置（按需修改）----------
 BROKER = "localhost"
 PORT = 1883
-TOPICS = ["mine/telemetry", "mine/device/+/telemetry"]  # 可多个
-USERNAME = None   # 无需鉴权时保持 None
-PASSWORD = None
+TOPICS = ["campus/telemetry", "campus/device/+/telemetry"]  # 可多个
+USERNAME = "campus_mqtt"
+PASSWORD = "campus_mqtt_secret_2026"
 KEEPALIVE = 60
 # ------------------------------------
 

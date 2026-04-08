@@ -1,264 +1,237 @@
 # Current Status
 
 ## 当前总目标
-- 将 `docs/plans/` 当前主主题保持为“测试质量门槛与覆盖率收敛专题”，当前已从“第三轮验收发现 release 链路口径与真实结果不一致，已打回后端”更新为“第三轮返工复核已完成，待交验收”状态。
-- 让 [PLAN-20260403-test-quality-threshold-and-coverage-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260403-test-quality-threshold-and-coverage-convergence.md) 成为当前执行依据，继续围绕统一 coverage 入口在 readiness / pilot / CI 链路中的真实生效验证推进收敛。
+- 当前主区不再处于 `运行时命名契约迁移专题` 执行中状态。
+- 当前主区只保留：`运行时命名契约迁移专题` 已阶段收口、暂不迁 archive、继续保留在 `docs/plans/` 作为近期成果主题，并等待下一个主主题切换。
+- 上一主题 `application use case 分层收口专题` 已正式阶段收口，允许退出主区，但暂不迁入 archive，后续追溯仍以其原 PLAN 为准。
 
 ---
 
 ## 当前阶段
-- [x] 探索线程已确认：本轮“测试部分仍然不够，coverage 门槛只有 50%”不属于当前主主题“MQTT 采集进程解耦专题”
-- [x] 已建立正式 PLAN：[PLAN-20260403-test-quality-threshold-and-coverage-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260403-test-quality-threshold-and-coverage-convergence.md)
-- [x] 已完成对 `.github/workflows/backend-ci.yml`、`tests/`、`app/`、`scripts/` 与 coverage 入口的定向审计
-- [x] 已确认当前 backend CI 仅在 GitHub Actions 中执行 `coverage report --fail-under=50`
-- [x] 已确认发布检查和试点就绪脚本只执行 `unittest`，不执行 coverage 门槛校验
-- [x] 已确认当前 coverage 总表把 `tests/` 自身也纳入统计，存在“统计口径偏宽、结果被测试代码抬高”的问题
-- [x] 已确认当前更接近“关键链路测试保护不足 + coverage 统计口径未收敛”，而不只是单点“基线门槛过低”
-- [x] 规范线程已锁定第一轮测试策略、coverage 统计边界和阶段门槛
-- [x] 后端线程已完成第一轮最小闭环：
-  - coverage 统计边界已收敛到 `app/`
-  - backend CI fail-under 已提升到 `55%`
-  - 第一批关键链路已完成最小必要补测
-- [x] 验收线程已复核“门槛提升来自真实 `app/` 保护增强”
-- [x] 用户已明确同意继续推进第二轮
-- [x] 规范线程已锁定第二轮：
-  - 正式名称：`第二批关键链路补测 + backend coverage 继续分阶段提升`
-  - 主目标：补第二批关键链路、继续抬高 backend fail-under、判断是否最小接入 readiness / pilot coverage 门槛
-  - 路径：`规范 -> 后端 -> 验收`
-- [x] 后端线程已完成第二轮最小闭环：
-  - 第二批关键链路 `app/services/device_service.py`、`app/services/energy_service.py` 已补最小必要测试
-  - backend coverage fail-under 已从 `55%` 提升到 `57%`
-  - `release_readiness.sh`、`pilot_readiness.sh` 已最小接入同一 backend coverage 门槛入口
-- [x] 验收线程已复核第二轮达到阶段完成
-- [x] 用户已明确同意继续推进第三轮
-- [x] 规范线程已锁定第三轮：
-  - 正式名称：`统一 coverage 入口的 readiness / pilot 实战演练与门槛生效验证`
-  - 主目标：验证统一 coverage 入口在真实脚本链路中生效，且未长出第二套规则
-  - 路径：`规范 -> 后端 -> 验收`
-- [x] 后端线程已完成第三轮最小实现：
-  - `release_readiness.sh` 已真实执行到统一 coverage 入口
-  - `pilot_readiness.sh` 已在真实链路中执行到 `backend_coverage_gate`，确认复用统一 coverage 入口
-  - `pilot_readiness.sh` 失败路径已补充 `summary.md` 落盘，便于证据归档与失败复核
-- [x] 验收线程已复核第三轮，指出上一版主区口径与其验收记录不一致，要求后端返工复核 `release_readiness.sh` 的真实 coverage 结果
-- [x] 后端线程已完成第三轮返工复核：
-  - `bash ./scripts/shell/run_backend_coverage.sh` 当前工作区实跑结果为 `TOTAL 57%`
-  - `bash ./scripts/shell/release_readiness.sh` 当前工作区真实链路实跑结果为 `TOTAL 57%`
-  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true bash ./scripts/shell/run_backend_coverage.sh` 当前工作区实跑结果仍为 `TOTAL 57%`，并正常生成 `coverage.xml`
-  - 当前工作区未发现 `release_readiness.sh` / `pilot_readiness.sh` / `backend-ci.yml` 在测试集、参数或 fail-under 上存在分叉
+- [x] 已确认当前任务不属于旧主主题，必须独立立项
+- [x] 已正式锁定新主题名称：`运行时命名契约迁移专题`
+- [x] 已建立正式 PLAN：[PLAN-20260407-runtime-naming-contract-migration.md](/Users/todo/CampusEnergySystem/docs/plans/PLAN-20260407-runtime-naming-contract-migration.md)
+- [x] 已完成主区切换：
+  - 旧主题 `application use case 分层收口专题` 已阶段收口并退出主区
+  - 旧主题暂不迁 archive
+  - 当前主区只服务新主题
+- [x] 已锁定第一轮范围只处理：
+  - `container_name`
+  - 直接依赖容器名的脚本
+  - 直接依赖容器名的文档
+  - nginx upstream 内部别名
+- [x] 已锁定后续轮次候选范围：
+  - 第二轮：运行时数据 / 连接契约
+  - 第三轮：MQTT 用户名 / topic / wildcard
+  - 第四轮：数据库名本体 `mine_energy` / `DATABASE_URL`
+  - 第五轮：Prometheus / Alertmanager / 域名联调契约
+- [x] 已锁定第一轮冻结边界：
+  - 不改数据库名 / `DATABASE_URL`
+  - 不改 MQTT 用户名 / topic / wildcard
+  - 不改 Prometheus / Alertmanager / 域名联调口径
+  - 不顺手做 nginx / Docker / scripts 全面重构
+- [x] 后端 / 脚本线程已按第一轮边界完成最小实现
+- [x] 验收线程已确认第一轮 Docker 可见命名迁移通过
+- [x] 已锁定第二轮只处理：
+  - 内部连接契约
+  - 直接依赖连接口径的脚本 / 文档说明
+- [x] 已锁定第二轮明确不处理：
+  - 数据库名本体 `mine_energy`
+  - `DATABASE_URL`
+  - MQTT 用户名 / topic / wildcard
+  - Prometheus / Alertmanager / 域名联调契约
+  - 本机运行环境切换清理动作
+- [x] 后端 / 脚本线程已按第二轮边界完成最小实现
+- [x] 验收线程已确认第二轮“内部连接契约与脚本 / 文档依赖口径最小收口”通过
+- [x] 已锁定第三轮优先处理：
+  - MQTT 用户名
+  - MQTT topic
+  - MQTT wildcard
+  - 设备联调、worker 订阅、发送脚本与实时链路直接依赖的 MQTT 契约口径
+- [x] 已锁定第三轮明确不处理：
+  - 数据库名本体 `mine_energy`
+  - `DATABASE_URL`
+  - 数据目录、卷名、备份恢复口径
+  - Prometheus / Alertmanager / 域名联调契约
+- [x] 后端 / 脚本线程已按第三轮边界完成最小实现
+- [x] 验收线程已确认第三轮 MQTT 契约收口通过
+- [x] 已锁定第四轮正式处理：
+  - 数据库名本体 `mine_energy`
+  - `DATABASE_URL`
+  - 及其直接依赖口径
+- [x] 已锁定第四轮明确不处理：
+  - 数据目录、卷名、备份恢复口径
+  - MQTT 契约
+  - Prometheus / Alertmanager / 域名联调契约
+  - 本机运行环境切换清理动作
+- [x] 后端 / 脚本线程已按第四轮边界完成最小实现
+- [x] 验收线程已确认第四轮数据库命名 / `DATABASE_URL` 契约收口通过
+- [x] 已锁定第五轮正式处理：
+  - Prometheus `rule group` / `expr` / `job` 口径
+  - Alertmanager 相关活跃联调口径
+  - 活跃文档中的观测 / 域名联调命名
+- [x] 已锁定第五轮明确不处理：
+  - Grafana 面板体系重构
+  - 外部告警平台重配
+  - 历史归档材料批量清洗
+  - 联调环境重建
+- [x] 后端 / 脚本线程已按第五轮边界完成最小实现
+- [x] 验收线程已确认第五轮观测 / 联调契约收口通过
+- [x] 已确认当前主题正式达到阶段收口条件
+- [x] 已确认当前主题不再继续进入新的实现轮次
+- [x] 已确认当前主题暂不迁 archive
+- [x] 已确认当前主题继续保留在 `docs/plans/` 作为近期成果主题
+- [ ] 待切换到下一个主主题
 
 ---
 
 ## 当前阻塞
-- 当前不再阻塞在第一轮最小闭环本身。
-- 当前不再阻塞在“是否继续推进第二轮”；用户已同意继续推进，规范边界也已锁定。
-- 当前不再阻塞在第二轮后端实现本身。
-- 当前不再阻塞在“是否继续推进第三轮”；用户已同意继续推进，规范边界也已锁定。
-- 当前不再阻塞在第三轮后端演练本身。
-- 当前不再阻塞在返工复核本身。
-- 当前剩余边界性要求是：只允许围绕统一 coverage 入口真实结果做最小修正，不得把脚本实战演练扩成全仓测试治理、前端 coverage 门槛改造或新平台建设。
+- 当前无本主题继续执行阻塞；本主题已完成阶段收口判断。
+- 当前无仓库代码实现阻塞；当前等待的是下一个主主题确认与主区切换。
+- 本机开发中间件当前已切换到 `campus_energy_db_dev`、`campus_redis_dev`、`campus_mqtt_dev` 运行态；旧 `mine_energy_db_dev` 与 `ems_redis_dev` 残留已清理。
 
 ## 当前待办
-- [x] 判定本轮应新开主题，而非继续挂在 MQTT 专题下
-- [x] 建立正式 PLAN，沉淀测试门槛、统计口径和关键链路审计结论
-- [x] 规范线程锁定：
-  - 第一轮 coverage 统计范围
-  - 第一轮 fail-under 目标值与阶段节奏
-  - 第一轮关键链路补测名单
-- [x] 后端线程按锁定边界补最小关键链路测试，并同步收紧 coverage 配置
-- [x] 验收线程复核“门槛提升是否来自真实 `app/` 覆盖，而不是测试代码稀释”
-- [x] 第一轮验收通过后继续保留当前主题
-- [x] 在用户明确继续推进后，由规范线程锁定第二轮范围
-- [x] 交由后端线程按第二轮边界推进最小实现
-- [x] 交由验收线程复核第二轮是否达到阶段完成
-- [x] 第二轮验收通过后继续保留当前主题
-- [x] 在用户明确继续推进后，由规范线程锁定第三轮范围
-- [x] 交由后端线程按第三轮边界推进最小实现
-- [x] 交由验收线程复核第三轮是否达到阶段完成
-- [x] 打回后端在线路内修正 `release_readiness.sh` 的真实 coverage 结果或修正文档口径后，再次回验收
-- [ ] 交由验收线程复核第三轮返工后是否达到阶段完成
+- [x] 正式启用 `运行时命名契约迁移专题`
+- [x] 新建并启用正式 PLAN
+- [x] 将 `current-status.md` 与 `handoff.md` 从旧主题切换到新主题
+- [x] 由后端 / 脚本线程只在第一轮允许范围内完成迁移
+- [x] 由验收线程确认第一轮达到阶段完成
+- [x] 由后端 / 脚本线程只在第二轮允许范围内推进最小收口
+- [x] 由验收线程确认第二轮达到阶段完成
+- [x] 由后端 / 脚本线程只在第三轮允许范围内推进 MQTT 契约最小收口
+- [x] 由验收线程确认第三轮达到阶段完成
+- [x] 由后端 / 脚本线程只在第四轮允许范围内推进数据库命名 / 连接串契约最小收口
+- [x] 由验收线程确认第四轮达到阶段完成
+- [x] 由后端 / 脚本线程只在第五轮允许范围内推进观测 / 联调契约最小收口
+- [x] 由验收线程确认第五轮达到阶段完成
+- [x] 由规范 / 验收线程确认当前主题达到阶段收口条件
+- [ ] 由规范 / 验收线程切换到下一个主主题
 
 ## 当前验证结论
-- 已确认 coverage 门槛入口：
-  - GitHub Actions backend CI：`.github/workflows/backend-ci.yml`
-  - 命令为 `python -m coverage run -m unittest discover -s tests -p 'test_*.py'`
-  - 随后执行 `python -m coverage report --fail-under=50`
-- 已确认本地 / 发布入口现状：
-  - `scripts/shell/release_readiness.sh` 仅执行 `python -m unittest discover`
-  - `scripts/shell/pilot_readiness.sh` 仅执行 `python -m unittest discover`
-  - 当前没有统一的 `.coveragerc` / `pytest.ini` / `pyproject.toml` coverage 配置承接同一策略
-- 已确认统计口径问题：
-  - 当前 `coverage report -m` 的 `TOTAL 8408 / 4177 / 50%` 把 `tests/test_*.py` 自身也纳入总表
-  - 这意味着当前 50% 不是纯 `app/` 覆盖率，门槛偏松且结果被测试代码抬高
-- 已确认测试分布信号：
-  - 后端测试文件共 39 个，覆盖 MQTT、健康、访问控制、部分 endpoint semantics、部分 service
-  - 前端已有独立 `frontend-ci.yml`、`frontend-e2e.yml`，并存在 unit/e2e 测试，但不属于本轮第一阶段收敛范围
-- 已确认高风险但已有一定保护的模块：
-  - `mqtt_realtime_bridge`、`mqtt_processor`、`mqtt_reliability_service`
-  - `health` / `runtime` / `monitoring_access`
-  - `access_control`、`audit`、`user_service`
-- 已确认当前明显缺保护或低覆盖的模块：
-  - `app/core/database.py`：13%
-  - `app/application/reporting.py`：12%
-  - `app/services/alarm_service.py`：27%
-  - `app/api/endpoints/health.py`：26%
-  - `app/application/device_reporting.py`：42%
-  - `app/services/device_service.py`：36%
-  - `app/services/energy_service.py`：35%
-  - `app/services/location_service.py`：21%
-  - `app/services/inspection_service.py`：19%
-  - `app/services/fdd_service.py`：16%
-- 已确认当前更适合的主题定义：
-  - 不是“单纯把 fail-under 提高”
-  - 也不只是“CI 基线过低”
-  - 更准确是“测试质量门槛与关键链路保护未收敛”，其中第一阶段优先处理后端
-- 已确认第一轮正式边界：
-  - coverage 统计边界：
-    - 只统计 `app/`
-    - 不再把 `tests/` 自身算入总 coverage 判断
-  - fail-under 策略：
-    - 采用分阶段提升
-    - 第一轮在 `app/` 统计口径下先提升到 `55%`
-    - 提升必须与关键链路补测同步，不允许只改数字
-  - 第一批关键链路补测范围：
-    - `app/services/alarm_service.py`
-    - `app/api/endpoints/health.py`
-    - `app/application/device_reporting.py`
-    - `app/core/database.py`
-  - 可选下一批：
-    - `app/services/device_service.py`
-    - `app/services/energy_service.py`
-  - 第一轮禁止扩张：
-    - 不扩成全仓测试体系重建
-    - 不先统一迁移到 pytest
-    - 不同时纳入前端 coverage 门槛治理
-    - 不把所有低覆盖模块一次性拉进来
-    - 不只改 `fail-under` 数字而不补关键链路测试
-- 后端已完成第一轮最小实现：
-  - 新增 [.coveragerc](/Users/todo/MineEnergySystem/.coveragerc)，统一 coverage 只统计 `app/`
-  - 更新 [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)，在 `app/` 口径下将 fail-under 从 `50%` 提升到 `55%`
-  - 新增 [test_database_core.py](/Users/todo/MineEnergySystem/tests/test_database_core.py)，补 `app/core/database.py` 的初始化分支、schema 校验、session 生成与 hypertable 容错
-  - 新增 [test_device_reporting_use_case.py](/Users/todo/MineEnergySystem/tests/test_device_reporting_use_case.py)，补 `report_device_data_ingestion_use_case()` 的成功与设备不存在分支
-  - 扩展 [test_alarm_service.py](/Users/todo/MineEnergySystem/tests/test_alarm_service.py)，补 `list_alarms()`、`get_alarm_count()`、`mark_recovered_alarms()`、`load_thresholds()` 等服务分支
-  - 修正 [test_application_use_cases.py](/Users/todo/MineEnergySystem/tests/test_application_use_cases.py) 中写死日期导致的现有失败断言，改为按当天日期断言
-- 本轮验证结果：
-  - `PYTHONPATH=. venv/bin/python -m unittest tests.test_database_core tests.test_device_reporting_use_case tests.test_alarm_service tests.test_health_endpoint tests.test_application_use_cases`
-  - `PYTHONPATH=. venv/bin/python -m coverage erase && PYTHONPATH=. venv/bin/python -m coverage run -m unittest discover -s tests -p 'test_*.py' && PYTHONPATH=. venv/bin/python -m coverage report --fail-under=55 && PYTHONPATH=. venv/bin/python -m coverage xml`
-  - 结果：
-    - 目标补测集：`34 tests OK`
-    - 全量后端测试：`175 tests OK`
-    - `app/` coverage：`56%`
-- 第一批关键链路当前覆盖改善：
-  - `app/services/alarm_service.py`: `27% -> 83%`
-  - `app/api/endpoints/health.py`: `26% -> 72%`
-  - `app/application/device_reporting.py`: `42% -> 100%`
-  - `app/core/database.py`: `13% -> 41%`
-- 验收线程已确认：
-  - coverage 现在只统计 `app/`，总表不再混入 `tests/test_*.py`
-  - `55%` 的 fail-under 提升来自真实关键链路补测，而不是口径技巧
-  - 第一批关键链路名单已按计划补齐
-  - 本轮仍严格停留在后端关键链路与 backend CI coverage 门槛收敛范围内，没有扩成全仓测试治理
-- 已确认第二轮正式边界：
-  - 正式名称：`第二批关键链路补测 + backend coverage 继续分阶段提升`
-  - 第二轮范围：
-    - 围绕第二批关键链路补最小必要测试
-    - 在真实补测基础上继续抬高 backend coverage 门槛
-    - 判断是否把 coverage 门槛最小接入 `release_readiness.sh` / `pilot_readiness.sh`
-  - 第二批关键链路候选：
-    - `app/services/device_service.py`
-    - `app/services/energy_service.py`
-  - 第二轮允许动作：
-    - 围绕第二批关键链路补测试
-    - 在后端真实覆盖改善基础上继续提升 fail-under
-    - 最小评估并接入 readiness / pilot 脚本中的 coverage 门槛，但只允许复用现有 coverage 配置与现有后端测试入口
-  - 第二轮禁止扩张：
-    - 不扩成全仓测试体系重建
-    - 不先统一迁移到 pytest
-    - 不同时纳入前端 coverage 门槛治理
-    - 不把所有低覆盖模块一次性拉进来
-    - 不把第二轮写成长期测试治理大全
-  - 第二轮验收口径：
-    - 第二批关键链路是否真的补到了
-    - fail-under 提升是否来自真实业务代码保护增强
-    - readiness / pilot 脚本若被纳入，是否保持最小闭环
-    - 本轮是否仍然只聚焦后端测试质量收敛
-- 后端已完成第二轮最小实现：
-  - 新增 [test_device_service_round2.py](/Users/todo/MineEnergySystem/tests/test_device_service_round2.py)，补 `create_device_smart()`、`create_device()`、`update_device()`、`get_device_data()`、`get_device_statistics()`、`get_device_type_info()` 等关键分支
-  - 新增 [test_energy_service_round2.py](/Users/todo/MineEnergySystem/tests/test_energy_service_round2.py)，补 `list_energy_type_catalog()`、`get_energy_type_profile()`、`save_energy_data()`、`calculate_carbon_emission()`、`get_statistics_by_type()`、`get_carbon_summary()`、`save_statistics()` 等关键分支
-  - 新增 [run_backend_coverage.sh](/Users/todo/MineEnergySystem/scripts/shell/run_backend_coverage.sh)，统一 backend coverage 门槛入口，复用现有 `coverage run -m unittest discover -s tests -p 'test_*.py'`
-  - 更新 [backend-ci.yml](/Users/todo/MineEnergySystem/.github/workflows/backend-ci.yml)，将 backend fail-under 从 `55%` 提升到 `57%`，并切到统一 coverage 脚本入口
-  - 更新 [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh) 与 [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)，最小接入同一 coverage 门槛入口，未新建第二套规则
-- 第二轮验证结果：
-  - `PYTHONPATH=. venv/bin/python -m unittest tests.test_device_service_round2 tests.test_energy_service_round2 tests.test_device_monitor_service tests.test_ingestion_reliability`
-  - `PYTHONPATH=. venv/bin/python -m coverage erase && PYTHONPATH=. venv/bin/python -m coverage run -m unittest discover -s tests -p 'test_*.py' && PYTHONPATH=. venv/bin/python -m coverage report --include='app/*' -m`
-  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=false bash ./scripts/shell/run_backend_coverage.sh`
-  - `bash -n scripts/shell/run_backend_coverage.sh scripts/shell/release_readiness.sh scripts/shell/pilot_readiness.sh`
-  - 结果：
-    - 第二批目标补测集：`33 tests OK`
-    - 全量后端测试：`193 tests OK`
-    - `app/` coverage：`57%`
-- 第二批关键链路当前覆盖改善：
-  - `app/services/device_service.py`: `48% -> 90%`
-  - `app/services/energy_service.py`: `66% -> 88%`
-- 验收线程已确认：
-  - 第二批关键链路补测已真实落到 `app/services/device_service.py` 与 `app/services/energy_service.py`
-  - `57%` fail-under 提升来自真实业务代码保护增强，而不是仅改参数
-  - `release_readiness.sh` / `pilot_readiness.sh` 已复用统一 coverage 入口，而不是长出第二套门槛
-  - 本轮仍严格停留在后端测试质量收敛专题范围内，没有误扩成全仓测试治理
-- 已确认第三轮正式边界：
-  - 正式名称：`统一 coverage 入口的 readiness / pilot 实战演练与门槛生效验证`
-  - 第三轮范围：
-    - 验证统一 coverage 入口在 `release_readiness.sh` / `pilot_readiness.sh` 中是否真实生效
-    - 验证脚本接入没有长出第二套门槛体系
-    - 在真实演练基础上补最小必要修复
-    - 不把第三轮转成新一轮大规模补测
-  - 第三轮允许动作：
-    - 跑通 readiness / pilot 脚本中的 coverage 入口
-    - 修正脚本接线、参数传递、失败口径、输出摘要等最小问题
-    - 补必要测试或脚本级验证
-    - 保持复用 `scripts/shell/run_backend_coverage.sh`
-  - 第三轮禁止扩张：
-    - 不扩成全仓测试体系治理
-    - 不重新设计另一套脚本门槛体系
-    - 不顺手开启大批低覆盖模块补测
-    - 不纳入前端 coverage 治理
-    - 不迁移 pytest
-    - 不把第三轮写成长期测试平台建设
-  - 第三轮验收口径：
-    - `release_readiness.sh` / `pilot_readiness.sh` 是否真实复用统一 coverage 入口
-    - 覆盖门槛是否在真实脚本链路中有效
-    - 是否没有长出第二套独立规则
-    - 本轮是否仍然停留在后端测试质量收敛专题范围内
-- 后端已完成第三轮最小实现：
-  - 更新 [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)，在失败退出时也会落盘 `summary.md`，保证失败路径仍有统一摘要证据
-  - 保持 [run_backend_coverage.sh](/Users/todo/MineEnergySystem/scripts/shell/run_backend_coverage.sh) 作为唯一 coverage 门槛入口，未新增第二套脚本规则
-- 第三轮验证结果：
+- 已确认当前任务是高风险运行时命名 / 契约迁移，不应一次性全文替换。
+- 已确认迁移命中至少分三层：
+  - Docker 可见命名
+  - 运行时数据 / 连接契约
+  - 观测与联调契约
+- 已确认第一轮应只做 Docker 可见命名与其直接依赖，不应提前碰数据库名 / `DATABASE_URL`、MQTT topic、Prometheus / Alertmanager / 域名联调口径。
+- 已确认整体更适合拆成 5 轮，而不是一次性完成。
+- 已确认本轮推荐路径固定为：`规范 -> 后端/脚本 -> 验收`
+- 已确认每轮都必须独立验收，不允许多轮糊在一起推进。
+- 已完成第一轮代码改动：
+  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 中的 `mine_*` Docker 可见容器名已收敛为 `campus_*`
+  - nginx upstream 内部别名已从 `mine_backend_upstream` 收敛为 `campus_backend_upstream`
+  - 直接依赖容器名的脚本、README 与活跃开发/运维文档已同步更新
+- 已完成第一轮最小验证：
+  - `docker compose config -q`
+  - `docker compose -f docker-compose.dev.yml config -q`
+  - `docker compose -f docker-compose.prod.yml config -q`
+  - 基于临时证书的 nginx `default.conf` / `default.ssl.conf.example` 语法检查
+  - `campus_mqtt_dev` 已创建并启动，容器内 MQTT 健康探测 smoke 通过
+  - `status.sh dev` 已按新容器名识别 `campus_mqtt_dev`
+  - 当前开发环境已完成切换，`campus_energy_db_dev`、`campus_redis_dev`、`campus_mqtt_dev` 均可正常启动
+- 已确认第一轮验收通过，当前进入第二轮前的规范收敛。
+- 已确认第二轮只处理“内部连接契约与脚本 / 文档依赖口径”的最小收口，不触碰数据库名本体 `mine_energy`，也不触碰 `DATABASE_URL`。
+- 已确认“仓库代码 / 文档 / 脚本改动”与“本机运行环境切换清理”必须分开；后者只作为验证风险记录，不属于第二轮交付物。
+- 已确认当前残留的 `mine_*` 仅位于冻结非目标：
+  - 数据库名 / `DATABASE_URL`
+  - MQTT 用户名 / 密码默认值 / topic
+  - Alertmanager 临时文件名
+- 已完成第二轮代码改动：
+  - compose 注释已明确区分“容器内互联继续使用 service 名”和“`campus_*` 仅用于可见容器名”
+  - `status.sh`、`start_dev_env.sh`、`run_simulator.sh` 已补齐 service 名 / 容器名使用说明
+  - README、新手指南与 Docker 脚本文档已补齐 `docker compose` 用服务名、`docker exec/logs/inspect` 用 `campus_*` 的口径说明
+- 已完成第二轮最小验证：
+  - `docker compose config -q`
+  - `docker compose -f docker-compose.dev.yml config -q`
+  - `docker compose -f docker-compose.prod.yml config -q`
+  - `bash -n scripts/shell/status.sh scripts/shell/start_dev_env.sh bin/run_simulator.sh`
+  - `bash ./scripts/shell/status.sh dev` 已显示新的 service 名 / 容器名提示语
+  - 文档与脚本抽样复核已确认：
+    - `docker compose` 继续使用 `backend` / `db` / `redis` / `mqtt`
+    - `docker exec` / `docker inspect` 继续使用 `campus_*`
+    - 容器内互联仍使用 `db` / `redis` / `mqtt`
+- 已确认第二轮未触碰：
+  - 数据库名本体 `mine_energy`
+  - `DATABASE_URL`
+  - 数据目录、卷名、备份恢复口径
+  - MQTT 用户名 / topic / wildcard
+  - Prometheus / Alertmanager / 域名联调契约
+- 已确认第二轮验收通过，当前进入第三轮前的规范收敛。
+- 已确认第三轮应优先处理 MQTT 用户名 / topic / wildcard，而不是数据库名本体 `mine_energy` 与 `DATABASE_URL`。
+- 已确认数据库名本体与 `DATABASE_URL` 会直接牵动数据目录、备份恢复、连接串和本机运行态切换，不适合作为当前下一轮。
+- 已确认 MQTT 契约虽然会影响设备联调、worker 订阅、发送脚本与实时链路，但更适合作为单轮、可独立验收、可独立回滚的下一轮。
+- 已完成第三轮代码改动：
+  - `app/core/settings.py` 已将 MQTT 默认 topic / wildcard 收敛为 `campus/telemetry`、`campus/device/+/telemetry`，并新增 `MQTT_CONTROL_TOPIC_PREFIX=campus/control/`
+  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 已同步收敛 MQTT 用户名、健康检查鉴权、topic、wildcard 与控制 topic 前缀
+  - `setup_mqtt_auth.sh`、`start_dev_env.sh`、`mqtt_send_test.py`、`device_gateway.py`、`simulator_unified.py`、`mqtt_subscriber_template.py`、`run_simulator.sh` 已同步切到新 MQTT 契约
+  - `mqtt_publisher.py` 已切到 `campus/control/{id}` 控制主题前缀
+  - 活跃 MQTT 联调文档、真实设备接入文档、调试指南与企业部署文档已同步更新
+- 已完成第三轮最小验证：
+  - `docker compose config -q`
+  - `docker compose -f docker-compose.dev.yml config -q`
+  - `docker compose -f docker-compose.prod.yml config -q`
+  - `./venv/bin/python -m unittest tests.test_mqtt_contracts tests.test_mqtt_processor tests.test_mqtt_reliability_service tests.test_ingestion_reliability tests.test_replay_mqtt_failures tests.test_mqtt_realtime_bridge`
+  - `py_compile` 覆盖 settings、publisher、worker、bridge、发送脚本、网关、模拟器与新增测试
+  - 验证时本机执行 `setup_mqtt_auth.sh campus_mqtt ... --force` 与 `docker restart campus_mqtt_dev`，随后用 `mqtt_send_test.py` 发布到 `campus/telemetry`，并由 `mosquitto_sub` 成功收到消息
+- 已确认第三轮未触碰：
+  - 数据库名本体 `mine_energy`
+  - `DATABASE_URL`
+  - 数据目录、卷名、备份恢复口径
+  - Prometheus / Alertmanager / 域名联调契约
+- 已确认第三轮活跃区内剩余 `mine_*` 已只落在冻结非目标：
+  - 监控指标名前缀 `mine_mqtt_*`
+  - 历史计划 / archive 材料
+- 已确认第三轮验收通过，当前进入第四轮前的规范收敛。
+- 已确认第四轮正式处理数据库名本体 `mine_energy`、`DATABASE_URL` 及其直接依赖口径。
+- 已确认数据目录、卷名、备份恢复口径继续冻结，不纳入第四轮。
+- 已确认本机旧库停机、端口腾挪、容器清理等环境切换动作必须继续与仓库改动分离；前者只作为环境动作记录，不属于第四轮交付物。
+- 已确认第四轮验收通过，当前进入第五轮前的规范收敛。
+- 已确认第五轮正式处理 Prometheus / Alertmanager / 域名联调契约及其直接依赖口径。
+- 已确认 Grafana 面板体系重构、外部告警平台重配、历史归档材料批量清洗与联调环境重建继续冻结，不纳入第五轮。
+- 已确认若第五轮按边界完成并通过验收，整个 `运行时命名契约迁移专题` 将具备阶段收口判断条件。
+- 已确认第五轮验收通过，当前主题正式进入阶段收口判断。
+- 已完成第五轮代码改动：
+  - `monitoring/prometheus/prometheus.yml` 已将活跃 scrape job 从 `mine-backend` 收敛为 `campus-backend`
+  - `monitoring/prometheus/alert_rules.yml` 已将活跃 rule group、alert 名称与 `expr` 中的 HTTP / MQTT / scheduler / runtime 指标口径统一收敛到 `campus_*`
+  - `app/core/metrics.py` 已将活跃 Prometheus 指标从 `mine_*` 收敛到 `campus_*`
+  - `env.prod.example`、`nginx/conf.d/default.conf`、`README.md` 与 `docs/03-开发与部署/企业部署完整指南.md` 中的活跃 Alertmanager / 域名联调命名已同步改为 `campus-*`
+  - `scripts/shell/release_readiness.sh` 中的 Alertmanager 演练 URL 与临时文件命名已同步收敛
+- 已完成第五轮最小验证：
+  - `env PYTHONPYCACHEPREFIX=/Users/todo/CampusEnergySystem/.pycache ./venv/bin/python -m py_compile app/core/metrics.py scripts/python/check_production_readiness.py`
+  - `./venv/bin/python -m unittest tests.test_metrics`
   - `bash ./scripts/shell/release_readiness.sh`
-  - `bash ./scripts/shell/pilot_readiness.sh --env-file env.prod.example --artifact-dir /tmp/pilot_readiness_fail_20260403`
-  - `bash ./scripts/shell/pilot_readiness.sh --env-file /tmp/pilot_env_20260403.t9BjjJ --artifact-dir /tmp/pilot_readiness_pass_20260403`
-  - `bash -n scripts/shell/pilot_readiness.sh`
-  - 结果：
-    - `release_readiness.sh` 成功执行到 `Backend coverage gate`
-    - `pilot_readiness.sh` 使用 `env.prod.example` 时会先在 `production_readiness` 失败，未进入 coverage gate；但失败摘要现已正常写入 `/tmp/pilot_readiness_fail_20260403/summary.md`
-    - `pilot_readiness.sh` 使用合格临时 env 时，完整执行到 `backend_coverage_gate` 并通过，`summary.md` 与 `logs/backend_coverage_gate.log` 均明确记录统一 coverage 入口和 `57%` 门槛
-    - 两条真实脚本链路都复用了 `run_backend_coverage.sh`，未出现第二套独立 coverage 规则
-- 第三轮返工复核结果：
-  - `bash ./scripts/shell/run_backend_coverage.sh`
-  - `bash ./scripts/shell/release_readiness.sh`
-  - `BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true bash ./scripts/shell/run_backend_coverage.sh`
-  - 结果：
-    - 三次复核均为 `TOTAL 57%`
-    - `release_readiness.sh` 当前工作区真实链路已稳定达到 `57%`
-    - CI 同构命令与脚本入口仍共用 `scripts/shell/run_backend_coverage.sh`
-    - 当前未复现 `TOTAL 56% / Coverage failure: total of 56 is less than fail-under=57`
+  - `yaml.safe_load` 已完成 `prometheus.yml`、`alert_rules.yml`、`alertmanager.yml` 结构检查
+  - 活跃区残留扫描已确认 `mine_energy_backend`、`mine_mqtt_*`、`mine-backend` 与 `*.mine-energy.*` 观测 / 联调命名已清空（Grafana 冻结区除外）
+- 已确认第五轮未触碰：
+  - Grafana 面板体系重构
+  - 外部告警平台重配
+  - 历史归档材料批量清洗
+  - 联调环境重建
+  - 数据库 / MQTT 基础连接契约
+- 已确认五轮已经覆盖本主题最初锁定的全部范围，当前剩余问题已超出“运行时命名契约迁移”的原定最小边界。
+- 已确认若继续推进，将自然滑向 Grafana 面板体系重构、外部告警平台重配、联调环境重建或更广泛的历史材料清洗。
+- 已确认当前主题应阶段收口，但暂不迁 archive，并继续保留在 `docs/plans/` 作为近期成果主题。
+- 已完成第四轮代码改动：
+  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 已将 `POSTGRES_DB`、数据库健康检查与容器内 `DATABASE_URL` 统一收敛到 `campus_energy`
+  - `env.example`、`env.local.example` 与活跃开发/部署文档中的数据库连接示例已统一切到 `campus_energy`
+  - `backup.sh`、`restore.sh`、`restore_drill.sh`、`start_dev_env.sh` 中直接写死的数据库名与连接检查口径已同步更新
+  - 活跃 README、新手指南、系统启动与部署文档中的数据库名 / 连接串说明已完成最小收口
+- 已完成第四轮最小验证：
+  - `docker compose config -q`
+  - `docker compose -f docker-compose.dev.yml config -q`
+  - `docker compose -f docker-compose.prod.yml config -q`
+  - `bash -n scripts/shell/backup.sh scripts/shell/restore.sh scripts/shell/restore_drill.sh scripts/shell/start_dev_env.sh scripts/shell/check_mac_env.sh`
+  - `py_compile` 覆盖 `app/core/settings.py`
+  - `./venv/bin/python -c ... Settings(... database_url='postgresql://admin:password123@db:5432/campus_energy')` 已验证应用配置层接受新连接串
+  - 活跃区 `mine_energy` 残留扫描已清空；剩余历史命名继续只落在 `docs/archive/`、`docs/plans/` 与环境运行态
+- 已确认第四轮未触碰：
+  - 数据目录
+  - 卷名
+  - 备份恢复流程口径本身
+  - MQTT 契约
+  - Prometheus / Alertmanager / 域名联调契约
 
 ## 当前剩余风险
-- 如果直接把 `--fail-under` 从 50 拉高，而不先收敛 coverage 统计口径，CI 噪音会放大，且无法反映真实 `app/` 风险。
-- 如果只补零散测试、不先锁关键链路名单，测试会继续热点化堆积，难以形成长期门槛。
-- 如果第一轮把前后端测试一起纳入，会把主题扩大成全仓测试体系重构，降低闭环速度。
-- 如果 `55%` 的第一阶段门槛没有和第一批关键链路补测绑定，后端线程最容易退回“调参数过线”而不是真实保护增强。
-- `app/core/database.py` 虽已从 `13%` 提升到 `41%`，但仍有大量运行时 schema sync SQL 分支未被穷举，本轮只做到第一批最小保护。
-- 如果第二轮只抬 `fail-under` 数字、不真正补 `device_service` / `energy_service` 关键分支，仍会退回“参数过线”而不是保护增强。
-- `release_readiness.sh` 与 `pilot_readiness.sh` 已最小复用统一 coverage 脚本，但当前还没有做整条 readiness 流程的全链路演练；本轮验证以统一 coverage 入口可执行和 shell 语法通过为主。
-- 如果第三轮顺手把 readiness / pilot 演练扩成新一轮大补测或新脚本体系，最容易偏离“统一入口生效验证”这个最小目标。
-- `pilot_readiness.sh` 若直接使用 `env.prod.example`，仍会在 `production_readiness` 阶段因占位符配置失败；这说明 coverage gate 的实战演练需要合格 env 文件，但不构成统一入口失效。
-- 当前返工复核虽未复现 `TOTAL 56%`，但若验收线程仍能在其他工作区快照稳定复现该结果，需要一并记录当时的工作区差异或测试集差异。
+- 若后续误把 Grafana 面板体系、外部告警平台、联调环境重建或历史材料清洗继续挂在本主题下推进，会重新造成主题越界。
+- 若主区不及时切到下一个主主题，后续线程容易误判“本主题仍在执行中”。
+- 当前冻结残留若要继续处理，应独立判断是否新开主题，而不是回到本主题内扩张。

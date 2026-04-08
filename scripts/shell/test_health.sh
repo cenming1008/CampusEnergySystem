@@ -73,7 +73,7 @@ fi
 
 echo ""
 echo "5️⃣  测试 Docker 健康检查..."
-CONTAINER_HEALTH=$(docker inspect mine_backend --format='{{.State.Health.Status}}' 2>/dev/null)
+CONTAINER_HEALTH=$(docker inspect campus_backend --format='{{.State.Health.Status}}' 2>/dev/null)
 
 if [ "$CONTAINER_HEALTH" = "healthy" ]; then
     echo -e "${GREEN}✅ Docker 容器健康检查: healthy${NC}"

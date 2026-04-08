@@ -65,7 +65,7 @@ class TestMqttProcessor(unittest.TestCase):
             timestamp="2026-01-01 08:00:00",
         )
 
-        message = process_payload_dict({"device_id": 7, "power": 4.56}, topic="mine/telemetry")
+        message = process_payload_dict({"device_id": 7, "power": 4.56}, topic="campus/telemetry")
 
         self.assertIsNotNone(message)
         self.assertEqual(message.type, "telemetry_update")

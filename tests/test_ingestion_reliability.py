@@ -74,7 +74,7 @@ class TestMqttProcessorReliability(unittest.TestCase):
     ):
         mock_resolve_device_id.return_value = 7
 
-        result = process_payload_dict({"device_id": 7}, topic="mine/telemetry")
+        result = process_payload_dict({"device_id": 7}, topic="campus/telemetry")
 
         self.assertIsNone(result)
         mock_persist_device_data.assert_not_called()
@@ -101,7 +101,7 @@ class TestMqttProcessorReliability(unittest.TestCase):
 
         result = process_integrated_payload_dict(
             {"device_id": 7, "power": 4.56, "timestamp": "2026-03-25T10:00:00"},
-            topic="mine/telemetry",
+            topic="campus/telemetry",
         )
 
         self.assertIsNone(result)

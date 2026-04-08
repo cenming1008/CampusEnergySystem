@@ -50,7 +50,7 @@ def _publish_control_command_sync(device_id: int, action: str, wait_timeout: flo
     """同步发送控制指令，并等待 MQTT publish ack。"""
     try:
         pub = _get_publisher()
-        topic = f"mine/control/{device_id}"
+        topic = f"{settings.mqtt_control_topic_prefix}{device_id}"
         payload = json.dumps({"command": action, "device_id": device_id})
         info = pub.publish(topic, payload, qos=1)
         info.wait_for_publish(timeout=wait_timeout)

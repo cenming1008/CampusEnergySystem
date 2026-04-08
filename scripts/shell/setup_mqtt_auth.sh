@@ -10,8 +10,8 @@ set -euo pipefail
 
 PROJECT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 PASSWD_FILE="$PROJECT_DIR/mosquitto/config/passwd"
-USERNAME="${1:-mine_mqtt}"
-PASSWORD="${2:-mine_mqtt_secret_2026}"
+USERNAME="${1:-campus_mqtt}"
+PASSWORD="${2:-campus_mqtt_secret_2026}"
 FORCE_OVERWRITE="${3:-}"
 
 if [ -f "$PASSWD_FILE" ] && [ "$FORCE_OVERWRITE" != "--force" ]; then

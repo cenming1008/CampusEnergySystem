@@ -25,9 +25,9 @@ import paho.mqtt.client as mqtt
 # MQTT 配置
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME = os.getenv("MQTT_USERNAME", "mine_mqtt")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "mine_mqtt_secret_2026")
-MQTT_TOPIC = "mine/telemetry"
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "campus_mqtt")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "campus_mqtt_secret_2026")
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "campus/telemetry")
 
 # 设备配置文件路径（可选）：环境变量 > 项目根 config/gateway_devices.json > 代码内默认
 def _project_root():

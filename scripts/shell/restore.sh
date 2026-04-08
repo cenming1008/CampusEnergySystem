@@ -12,9 +12,9 @@ set -euo pipefail
 # 配置
 PROJECT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 BACKUP_DIR="$PROJECT_DIR/backups"
-DB_CONTAINER="mine_energy_db_prod"
+DB_CONTAINER="campus_energy_db_prod"
 DB_USER="admin"
-DB_NAME="mine_energy"
+DB_NAME="campus_energy"
 AUTO_CONFIRM="false"
 VERIFY_ONLY="false"
 BACKUP_KIND=""
@@ -44,10 +44,10 @@ done
 
 if [ -n "${DB_CONTAINER_OVERRIDE:-}" ]; then
     DB_CONTAINER="$DB_CONTAINER_OVERRIDE"
-elif docker ps --format '{{.Names}}' | grep -q '^mine_energy_db_prod$'; then
-    DB_CONTAINER="mine_energy_db_prod"
-elif docker ps --format '{{.Names}}' | grep -q '^mine_energy_db_dev$'; then
-    DB_CONTAINER="mine_energy_db_dev"
+elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_prod$'; then
+    DB_CONTAINER="campus_energy_db_prod"
+elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_dev$'; then
+    DB_CONTAINER="campus_energy_db_dev"
 fi
 
 # 检查参数
@@ -109,10 +109,10 @@ if [[ "$BACKUP_FILE" == *.enc ]]; then
     fi
     case "$BACKUP_FILE" in
         *.dump.enc)
-            DECRYPTED_TEMP=$(mktemp "${TMPDIR:-/tmp}/mine_restore_XXXXXX.dump")
+            DECRYPTED_TEMP=$(mktemp "${TMPDIR:-/tmp}/campus_restore_XXXXXX.dump")
             ;;
         *.sql.gz.enc)
-            DECRYPTED_TEMP=$(mktemp "${TMPDIR:-/tmp}/mine_restore_XXXXXX.sql.gz")
+            DECRYPTED_TEMP=$(mktemp "${TMPDIR:-/tmp}/campus_restore_XXXXXX.sql.gz")
             ;;
     esac
     openssl enc -d -aes-256-cbc -pbkdf2 \

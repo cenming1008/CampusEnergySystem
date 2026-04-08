@@ -149,15 +149,21 @@ class Settings(BaseSettings):
     )
     
     mqtt_topic: str = Field(
-        default="mine/telemetry",
+        default="campus/telemetry",
         env="MQTT_TOPIC",
         description="MQTT订阅主题"
     )
     
     mqtt_topic_wildcard: str = Field(
-        default="mine/device/+/telemetry",
+        default="campus/device/+/telemetry",
         env="MQTT_TOPIC_WILDCARD",
         description="MQTT通配符主题"
+    )
+
+    mqtt_control_topic_prefix: str = Field(
+        default="campus/control/",
+        env="MQTT_CONTROL_TOPIC_PREFIX",
+        description="MQTT控制指令主题前缀"
     )
 
     mqtt_consumer_enabled: bool = Field(

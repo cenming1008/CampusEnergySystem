@@ -29,11 +29,11 @@ contains_running_container() {
 }
 
 detect_env() {
-    if contains_running_container '^mine_.*_prod$|^ems_redis_prod$'; then
+    if contains_running_container '^campus_.*_prod$'; then
         echo "prod"
-    elif contains_running_container '^mine_energy_db_dev$|^mine_mqtt_dev$|^ems_redis_dev$'; then
+    elif contains_running_container '^campus_energy_db_dev$|^campus_mqtt_dev$|^campus_redis_dev$'; then
         echo "dev"
-    elif contains_running_container '^mine_backend$|^mine_energy_db$|^mine_mqtt$|^ems_redis$'; then
+    elif contains_running_container '^campus_backend$|^campus_energy_db$|^campus_mqtt$|^campus_redis$'; then
         echo "default"
     else
         echo "default"
@@ -95,13 +95,13 @@ configure_env() {
     case "$selected" in
         default)
             COMPOSE_LABEL="default"
-            CONTAINERS=(mine_backend mine_mqtt_ingest_worker mine_energy_db ems_redis mine_mqtt)
+            CONTAINERS=(campus_backend campus_mqtt_ingest_worker campus_energy_db campus_redis campus_mqtt)
             SERVICE_SPECS=(
-                "后端API|container|mine_backend"
-                "MQTT ingest worker|container|mine_mqtt_ingest_worker"
-                "数据库|container|mine_energy_db"
-                "Redis|container|ems_redis"
-                "MQTT|container|mine_mqtt"
+                "后端API|container|campus_backend"
+                "MQTT ingest worker|container|campus_mqtt_ingest_worker"
+                "数据库|container|campus_energy_db"
+                "Redis|container|campus_redis"
+                "MQTT|container|campus_mqtt"
                 "后端健康检查|http|http://localhost:8088/health/live"
             )
             ;;
@@ -113,11 +113,11 @@ configure_env() {
             LOG_HINT="docker compose -f docker-compose.dev.yml logs -f [服务名]"
             RESTART_HINT="docker compose -f docker-compose.dev.yml restart [服务名]"
             PS_HINT="docker compose -f docker-compose.dev.yml ps"
-            CONTAINERS=(mine_energy_db_dev ems_redis_dev mine_mqtt_dev)
+            CONTAINERS=(campus_energy_db_dev campus_redis_dev campus_mqtt_dev)
             SERVICE_SPECS=(
-                "数据库|container|mine_energy_db_dev"
-                "Redis|container|ems_redis_dev"
-                "MQTT|container|mine_mqtt_dev"
+                "数据库|container|campus_energy_db_dev"
+                "Redis|container|campus_redis_dev"
+                "MQTT|container|campus_mqtt_dev"
                 "本地后端健康检查|http|http://localhost:8088/health/live"
             )
             ;;
@@ -127,16 +127,16 @@ configure_env() {
             LOG_HINT="docker compose -f docker-compose.prod.yml logs -f [服务名]"
             RESTART_HINT="docker compose -f docker-compose.prod.yml restart [服务名]"
             PS_HINT="docker compose -f docker-compose.prod.yml ps"
-            CONTAINERS=(mine_backend_prod mine_mqtt_ingest_worker_prod mine_energy_db_prod ems_redis_prod mine_mqtt_prod mine_nginx_prod mine_prometheus_prod mine_alertmanager_prod)
+            CONTAINERS=(campus_backend_prod campus_mqtt_ingest_worker_prod campus_energy_db_prod campus_redis_prod campus_mqtt_prod campus_nginx_prod campus_prometheus_prod campus_alertmanager_prod)
             SERVICE_SPECS=(
-                "生产后端|container|mine_backend_prod"
-                "生产 MQTT ingest worker|container|mine_mqtt_ingest_worker_prod"
-                "生产数据库|container|mine_energy_db_prod"
-                "生产Redis|container|ems_redis_prod"
-                "生产MQTT|container|mine_mqtt_prod"
-                "生产Nginx|container|mine_nginx_prod"
-                "生产Prometheus|container|mine_prometheus_prod"
-                "生产Alertmanager|container|mine_alertmanager_prod"
+                "生产后端|container|campus_backend_prod"
+                "生产 MQTT ingest worker|container|campus_mqtt_ingest_worker_prod"
+                "生产数据库|container|campus_energy_db_prod"
+                "生产Redis|container|campus_redis_prod"
+                "生产MQTT|container|campus_mqtt_prod"
+                "生产Nginx|container|campus_nginx_prod"
+                "生产Prometheus|container|campus_prometheus_prod"
+                "生产Alertmanager|container|campus_alertmanager_prod"
             )
             ;;
         *)
@@ -161,6 +161,8 @@ configure_env "$TARGET_ENV"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}  园区综合能源管理系统服务状态 (${COMPOSE_LABEL})${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo "提示：docker compose logs/restart/ps 使用服务名（如 backend/db/mqtt）；docker exec/inspect 使用 campus_* 容器名。"
 echo ""
 
 echo "🐳 容器状态："

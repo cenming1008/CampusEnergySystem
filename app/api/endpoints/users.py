@@ -11,11 +11,21 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.api.deps import ADMIN_ONLY, get_current_user
-from app.core.audit import audit_log
+from app.application.users import (
+    change_my_password_use_case,
+    change_user_password_use_case,
+    create_user_use_case,
+    list_users_use_case,
+    revoke_user_sessions_use_case,
+    set_force_password_reset_use_case,
+    unlock_user_use_case,
+    update_user_location_scope_use_case,
+    update_user_role_use_case,
+    update_user_status_use_case,
+)
 from app.core.database import get_session
 from app.core.response import success_response
 from app.models.tables import User, UserRole
-from app.services.user_service import UserService
 
 router = APIRouter()
 
@@ -86,14 +96,13 @@ def change_my_password(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    UserService.change_own_password(
+    result = change_my_password_use_case(
         session=session,
-        user_id=current_user.id,
+        current_user=current_user,
         current_password=request.current_password,
         new_password=request.new_password,
     )
-    audit_log("user.change_own_password", current_user.username, f"user:{current_user.username}")
-    return success_response(message="密码已更新")
+    return success_response(message=result.message)
 
 
 @router.get("/", response_model=List[UserResponse])
@@ -101,8 +110,7 @@ def list_users(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    audit_log("user.list", current_user.username, "user:*", role=current_user.role)
-    return UserService.list_users(session)
+    return list_users_use_case(session, current_user)
 
 
 @router.post("/", response_model=UserResponse)
@@ -111,16 +119,15 @@ def create_user(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.create_user(
+    return create_user_use_case(
         session=session,
+        current_user=current_user,
         username=request.username,
         password=request.password,
         role=request.role,
         is_active=request.is_active,
         location_scope=request.location_scope,
     )
-    audit_log("user.create", current_user.username, f"user:{user.username}", role=request.role)
-    return user
 
 
 @router.put("/{user_id}/role", response_model=UserResponse)
@@ -130,14 +137,7 @@ def update_user_role(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.update_user_role(
-        session=session,
-        user_id=user_id,
-        role=request.role,
-        acting_user=current_user,
-    )
-    audit_log("user.update_role", current_user.username, f"user:{user.username}", role=request.role)
-    return user
+    return update_user_role_use_case(session, current_user, user_id, request.role)
 
 
 @router.put("/{user_id}/status", response_model=UserResponse)
@@ -147,14 +147,7 @@ def update_user_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.set_user_active(
-        session=session,
-        user_id=user_id,
-        is_active=request.is_active,
-        acting_user=current_user,
-    )
-    audit_log("user.update_status", current_user.username, f"user:{user.username}", is_active=request.is_active)
-    return user
+    return update_user_status_use_case(session, current_user, user_id, request.is_active)
 
 
 @router.put("/{user_id}/scope", response_model=UserResponse)
@@ -164,13 +157,7 @@ def update_user_location_scope(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.update_location_scope(
-        session=session,
-        user_id=user_id,
-        location_scope=request.location_scope,
-    )
-    audit_log("user.update_scope", current_user.username, f"user:{user.username}", location_scope=request.location_scope)
-    return user
+    return update_user_location_scope_use_case(session, current_user, user_id, request.location_scope)
 
 
 @router.put("/{user_id}/password")
@@ -180,13 +167,13 @@ def change_user_password(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.change_password(
+    result = change_user_password_use_case(
         session=session,
+        current_user=current_user,
         user_id=user_id,
         new_password=request.new_password,
     )
-    audit_log("user.change_password", current_user.username, f"user:{user.username}")
-    return success_response(message=f"用户 {user.username} 密码已更新")
+    return success_response(message=result.message)
 
 
 @router.post("/{user_id}/revoke-sessions")
@@ -195,9 +182,8 @@ def revoke_user_sessions(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.revoke_user_tokens(session=session, user_id=user_id)
-    audit_log("user.revoke_sessions", current_user.username, f"user:{user.username}")
-    return success_response(message=f"用户 {user.username} 已被强制下线")
+    result = revoke_user_sessions_use_case(session, current_user, user_id)
+    return success_response(message=result.message)
 
 
 @router.put("/{user_id}/force-password-reset", response_model=UserResponse)
@@ -207,18 +193,12 @@ def force_password_reset(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.set_force_password_reset(
-        session=session,
-        user_id=user_id,
-        must_change_password=request.must_change_password,
+    return set_force_password_reset_use_case(
+        session,
+        current_user,
+        user_id,
+        request.must_change_password,
     )
-    audit_log(
-        "user.force_password_reset",
-        current_user.username,
-        f"user:{user.username}",
-        must_change_password=request.must_change_password,
-    )
-    return user
 
 
 @router.post("/{user_id}/unlock", response_model=UserResponse)
@@ -227,6 +207,4 @@ def unlock_user(
     session: Session = Depends(get_session),
     current_user: User = Depends(ADMIN_ONLY),
 ):
-    user = UserService.unlock_user(session=session, user_id=user_id)
-    audit_log("user.unlock", current_user.username, f"user:{user.username}")
-    return user
+    return unlock_user_use_case(session, current_user, user_id)

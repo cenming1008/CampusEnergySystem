@@ -11,15 +11,20 @@ from sqlmodel import Session
 
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
 from app.api.deps import MAINTAINER_OR_ADMIN, OPERATOR_OR_ADMIN, get_current_user
+from app.application.device_management import (
+    create_device_legacy_use_case,
+    create_device_smart_use_case,
+    delete_device_use_case,
+    toggle_device_status_use_case,
+    update_device_profile_use_case,
+)
 from app.core.access_control import ensure_device_access, filter_devices_by_scope
-from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.response import success_response
 from app.core.settings import settings
 from app.models.tables import Device, User
 from app.services.device_service import DeviceService
-from app.services.mqtt_publisher import publish_control_command_async
 
 from .shared import DeviceCreateRequest, DeviceUpdateRequest
 
@@ -63,8 +68,9 @@ def create_device_smart(
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     try:
-        result = DeviceService.create_device_smart(
+        return create_device_smart_use_case(
             session=session,
+            current_user=current_user,
             name=req.name,
             sn=req.sn,
             device_type=req.device_type,
@@ -72,8 +78,6 @@ def create_device_smart(
             description=req.description,
             rated_capacity=req.rated_capacity,
         )
-        audit_log("device.create", current_user.username, f"device:{result.id}", role=current_user.role)
-        return result
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
     except Exception as exc:
@@ -87,9 +91,7 @@ def create_device_legacy(
     session: Session = Depends(get_session),
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    result = DeviceService.create_device(session, device)
-    audit_log("device.create_legacy", current_user.username, f"device:{result.id}", role=current_user.role)
-    return result
+    return create_device_legacy_use_case(session, current_user, device)
 
 
 @router.get("/{device_id}", response_model=Device)
@@ -119,17 +121,15 @@ def update_device(
     session: Session = Depends(get_session),
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    ensure_device_access(session, current_user, device_id)
-    result = DeviceService.update_device(
-        session,
-        device_id,
+    return update_device_profile_use_case(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
         name=req.name,
         location=req.location,
         description=req.description,
         rated_capacity=req.rated_capacity,
     )
-    audit_log("device.update", current_user.username, f"device:{device_id}", role=current_user.role)
-    return result
 
 
 @router.delete("/{device_id}")
@@ -138,11 +138,8 @@ def delete_device(
     session: Session = Depends(get_session),
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    ensure_device_access(session, current_user, device_id)
-    device = DeviceService.get_device_by_id(session, device_id)
-    DeviceService.delete_device(session, device_id)
-    audit_log("device.delete", current_user.username, f"device:{device_id}", role=current_user.role)
-    return success_response(message=f"设备 {device.name} 已删除")
+    result = delete_device_use_case(session, current_user, device_id)
+    return success_response(message=result.message)
 
 
 @router.post("/{device_id}/toggle")
@@ -160,22 +157,10 @@ def toggle_device_status(
         )
     ),
 ):
-    ensure_device_access(session, current_user, device_id)
-    device = DeviceService.toggle_device_status(
-        session,
-        device_id,
-        active,
-        operator=current_user.username,
-        reason=reason,
-        command_source="api",
-    )
-    publish_control_command_async(device.id, "start" if active else "stop")
-    audit_log(
-        "device.toggle",
-        current_user.username,
-        f"device:{device.id}",
+    return toggle_device_status_use_case(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
         active=active,
         reason=reason,
-        role=current_user.role,
     )
-    return device

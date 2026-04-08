@@ -164,8 +164,8 @@ echo ""
 # 8. 检查 Docker 容器状态（如果 Docker 正在运行）
 if docker info &> /dev/null; then
     echo "📦 Docker 容器状态："
-    if docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -q "mine_energy_db\|mine_mqtt\|ems_redis\|mine_backend"; then
-        docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -E "mine_energy_db|mine_mqtt|ems_redis|mine_backend"
+    if docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -q "campus_energy_db\|campus_mqtt\|campus_redis\|campus_backend"; then
+        docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -E "campus_energy_db|campus_mqtt|campus_redis|campus_backend"
         echo ""
         echo "   运行 'docker compose ps' 查看详细状态"
     else

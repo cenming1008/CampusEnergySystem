@@ -135,8 +135,8 @@ cd frontend && npm run dev
 docker ps
 
 # 查看容器日志
-docker logs mine_backend
-docker logs mine_energy_db_dev
+docker logs campus_backend
+docker logs campus_energy_db_dev
 ```
 
 ---
@@ -222,11 +222,11 @@ bash ./scripts/shell/load_baseline.sh
 
 ```bash
 # 后端日志
-docker logs mine_backend
-docker logs -f mine_backend  # 实时查看
+docker logs campus_backend
+docker logs -f campus_backend  # 实时查看
 
 # 数据库日志
-docker logs mine_energy_db_dev
+docker logs campus_energy_db_dev
 
 # 本地日志文件
 tail -f logs/app.log
@@ -252,7 +252,7 @@ kill -9 <PID>
 docker ps -a
 
 # 重启特定容器
-docker restart mine_backend
+docker restart campus_backend
 
 # 删除容器重建
 docker-compose down

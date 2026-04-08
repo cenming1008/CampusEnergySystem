@@ -8,7 +8,7 @@ set -euo pipefail
 PROJECT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$PROJECT_DIR"
 
-DB_CONTAINER="${DB_CONTAINER_OVERRIDE:-mine_energy_db_prod}"
+DB_CONTAINER="${DB_CONTAINER_OVERRIDE:-campus_energy_db_prod}"
 LABEL="${DRILL_LABEL:-restore_drill_$(date +%Y%m%d_%H%M%S)}"
 BACKUP_FORMAT="${BACKUP_FORMAT:-custom}"
 REPORT_DIR="$PROJECT_DIR/backups/restore_drills"
@@ -41,9 +41,9 @@ echo -e "${YELLOW}3/4 执行恢复演练...${NC}"
 DB_CONTAINER_OVERRIDE="$DB_CONTAINER" bash ./scripts/shell/restore.sh --yes "$BACKUP_FILE"
 
 echo -e "${YELLOW}4/4 执行恢复后烟雾校验...${NC}"
-TABLE_COUNT=$(docker exec "$DB_CONTAINER" psql -U admin -d mine_energy -tAc "select count(*) from information_schema.tables where table_schema='public';" | tr -d '[:space:]')
-TIMESCALE_EXISTS=$(docker exec "$DB_CONTAINER" psql -U admin -d mine_energy -tAc "select count(*) from pg_extension where extname='timescaledb';" | tr -d '[:space:]')
-ENERGY_ROWS=$(docker exec "$DB_CONTAINER" psql -U admin -d mine_energy -tAc "select count(*) from public.energydata;" | tr -d '[:space:]')
+TABLE_COUNT=$(docker exec "$DB_CONTAINER" psql -U admin -d campus_energy -tAc "select count(*) from information_schema.tables where table_schema='public';" | tr -d '[:space:]')
+TIMESCALE_EXISTS=$(docker exec "$DB_CONTAINER" psql -U admin -d campus_energy -tAc "select count(*) from pg_extension where extname='timescaledb';" | tr -d '[:space:]')
+ENERGY_ROWS=$(docker exec "$DB_CONTAINER" psql -U admin -d campus_energy -tAc "select count(*) from public.energydata;" | tr -d '[:space:]')
 
 REPORT_FILE="$REPORT_DIR/${LABEL}.md"
 cat > "$REPORT_FILE" <<EOF

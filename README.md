@@ -287,7 +287,7 @@ FORCE_HTTPS=True
 bash ./scripts/shell/backup.sh --label manual
 
 # 指定容器做演练（如开发库）
-DB_CONTAINER_OVERRIDE=mine_energy_db_dev bash ./scripts/shell/backup.sh --label drill
+DB_CONTAINER_OVERRIDE=campus_energy_db_dev bash ./scripts/shell/backup.sh --label drill
 
 # 仅校验备份文件完整性
 bash ./scripts/shell/restore.sh --verify-only backups/backup_xxx.sql.gz
@@ -431,7 +431,7 @@ npm run dev
 **环境变量**（自动使用本地配置）：
 ```bash
 # 本地开发时，连接 Docker 中的基础服务
-DATABASE_URL=postgresql://admin:password123@localhost:5433/mine_energy
+DATABASE_URL=postgresql://admin:password123@localhost:5433/campus_energy
 REDIS_URL=redis://localhost:6379/0
 MQTT_BROKER=localhost
 MQTT_PORT=1883
@@ -540,13 +540,22 @@ open http://localhost:8088/docs
 **环境变量**（在 `docker-compose.yml` 中配置）：
 ```yaml
 environment:
-  - DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+  - DATABASE_URL=postgresql://admin:password123@db:5432/campus_energy
   - REDIS_URL=redis://redis:6379/0
   - MQTT_BROKER=mqtt
+  - MQTT_USERNAME=campus_mqtt
+  - MQTT_TOPIC=campus/telemetry
+  - MQTT_TOPIC_WILDCARD=campus/device/+/telemetry
+  - MQTT_CONTROL_TOPIC_PREFIX=campus/control/
   - SECRET_KEY=your-secret-key-change-me  # ⚠️ 必须修改
   - DEBUG=False
   - LOG_LEVEL=INFO
 ```
+
+说明：
+- `docker compose logs/restart/ps` 继续使用服务名 `backend`、`db`、`redis`、`mqtt`
+- `docker exec/logs/inspect` 这类直接按容器操作的命令使用 `campus_backend`、`campus_energy_db`、`campus_mqtt`
+- 容器内互联继续走 `db`、`redis`、`mqtt`，数据库连接串和 MQTT 契约都已按当前运行时命名收口
 
 **⚠️ 生产环境安全配置**：
 ```bash
@@ -559,7 +568,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 # 编辑 docker-compose.yml 中的 POSTGRES_PASSWORD
 
 # 4. 创建管理员账号（首次部署）
-docker exec -it mine_backend python scripts/python/create_admin.py
+docker exec -it campus_backend python scripts/python/create_admin.py
 ```
 
 #### 常用管理命令
@@ -591,19 +600,19 @@ docker-compose up -d --build
 
 ```bash
 # 备份数据库
-docker exec mine_energy_db pg_dump -U admin mine_energy > backup_$(date +%Y%m%d).sql
+docker exec campus_energy_db pg_dump -U admin campus_energy > backup_$(date +%Y%m%d).sql
 
 # 备份并压缩
-docker exec mine_energy_db pg_dump -U admin mine_energy | gzip > backup.sql.gz
+docker exec campus_energy_db pg_dump -U admin campus_energy | gzip > backup.sql.gz
 
 # 恢复数据库
-docker exec -i mine_energy_db psql -U admin mine_energy < backup.sql
+docker exec -i campus_energy_db psql -U admin campus_energy < backup.sql
 ```
 
 #### 生产环境 Nginx 配置（可选）
 
 ```nginx
-# /etc/nginx/sites-available/mine-energy
+# /etc/nginx/sites-available/campus-energy
 server {
     listen 80;
     server_name api.yourdomain.com;
@@ -679,13 +688,13 @@ curl http://localhost:8088/health
 open http://localhost:8088/docs
 
 # 3. 测试数据库连接
-docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT version();"
+docker exec -it campus_energy_db psql -U admin -d campus_energy -c "SELECT version();"
 
 # 4. 测试 Redis
-docker exec -it ems_redis redis-cli ping
+docker exec -it campus_redis redis-cli ping
 
 # 5. 测试 MQTT
-docker exec -it mine_mqtt mosquitto_sub -h localhost -t 'mine/#' -v
+docker exec -it campus_mqtt mosquitto_sub -h localhost -t 'campus/#' -v
 ```
 
 ### 管理员账号
@@ -757,7 +766,7 @@ cat scripts/README.md
 
 #### 设备数据上报
 ```
-设备传感器 → MQTT (mine/telemetry) → mqtt_worker.py → 
+设备传感器 → MQTT (campus/telemetry) → mqtt_worker.py → 
 data_processor.py (报警检测) → TimescaleDB (存储) → 
 WebSocket (实时推送) → 前端大屏
 ```
@@ -765,7 +774,7 @@ WebSocket (实时推送) → 前端大屏
 #### 远程控制
 ```
 前端操作 → HTTP API (/devices/{id}/control) → 
-mqtt_publisher.py → MQTT (mine/control/{id}) → 
+mqtt_publisher.py → MQTT (campus/control/{id}) → 
 设备接收指令 → 执行动作
 ```
 
@@ -1035,27 +1044,27 @@ docker compose up -d --build
 
 ```bash
 # 备份
-docker exec mine_energy_db pg_dump -U admin mine_energy > backup_$(date +%Y%m%d).sql
+docker exec campus_energy_db pg_dump -U admin campus_energy > backup_$(date +%Y%m%d).sql
 
 # 压缩备份
-docker exec mine_energy_db pg_dump -U admin mine_energy | gzip > backup.sql.gz
+docker exec campus_energy_db pg_dump -U admin campus_energy | gzip > backup.sql.gz
 ```
 
 #### 恢复数据库
 
 ```bash
 # 恢复
-docker exec -i mine_energy_db psql -U admin mine_energy < backup.sql
+docker exec -i campus_energy_db psql -U admin campus_energy < backup.sql
 
 # 从压缩文件恢复
-gunzip -c backup.sql.gz | docker exec -i mine_energy_db psql -U admin mine_energy
+gunzip -c backup.sql.gz | docker exec -i campus_energy_db psql -U admin campus_energy
 ```
 
 #### 清理历史数据
 
 ```bash
 # 进入数据库
-docker exec -it mine_energy_db psql -U admin -d mine_energy
+docker exec -it campus_energy_db psql -U admin -d campus_energy
 
 # 删除 30 天前的数据
 DELETE FROM devicedata WHERE timestamp < NOW() - INTERVAL '30 days';
@@ -1070,7 +1079,7 @@ DELETE FROM devicedata WHERE timestamp < NOW() - INTERVAL '30 days';
 docker stats
 
 # 数据库性能
-docker exec -it mine_energy_db psql -U admin -d mine_energy -c "
+docker exec -it campus_energy_db psql -U admin -d campus_energy -c "
 SELECT * FROM pg_stat_statements 
 ORDER BY mean_exec_time DESC LIMIT 10;
 "
@@ -1081,7 +1090,7 @@ ORDER BY mean_exec_time DESC LIMIT 10;
 #### Nginx 反向代理
 
 ```nginx
-# /etc/nginx/sites-available/mine-energy
+# /etc/nginx/sites-available/campus-energy
 server {
     listen 80;
     server_name api.yourdomain.com;
@@ -1218,7 +1227,7 @@ docker compose logs backend
 curl http://localhost:8088/health
 
 # 4. 检查后端是否在监听
-docker exec mine_backend netstat -tln | grep 8088
+docker exec campus_backend netstat -tln | grep 8088
 ```
 
 **解决方案**:
@@ -1244,7 +1253,7 @@ docker compose logs -f backend
 **检查步骤**:
 ```bash
 # 测试数据库连接
-docker exec -it mine_energy_db psql -U admin -d mine_energy -c "SELECT 1;"
+docker exec -it campus_energy_db psql -U admin -d campus_energy -c "SELECT 1;"
 
 # 查看数据库日志
 docker compose logs db
@@ -1368,7 +1377,7 @@ docker compose up -d --build
 
 ```bash
 # 数据库配置
-DATABASE_URL=postgresql://admin:password123@db:5432/mine_energy
+DATABASE_URL=postgresql://admin:password123@db:5432/campus_energy
 
 # Redis 配置
 REDIS_URL=redis://redis:6379/0
@@ -1379,6 +1388,9 @@ SECRET_KEY=your-secret-key-min-32-chars
 # MQTT 配置
 MQTT_BROKER=mqtt
 MQTT_PORT=1883
+MQTT_USERNAME=campus_mqtt
+MQTT_TOPIC=campus/telemetry
+MQTT_TOPIC_WILDCARD=campus/device/+/telemetry
 
 # 日志配置
 LOG_LEVEL=INFO
@@ -1426,13 +1438,13 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 **使用 Docker 运行（推荐）⭐**
 ```bash
 # 模拟设备数据上报
-docker exec -it mine_backend python scripts/python/simulator_unified.py
+docker exec -it campus_backend python scripts/python/simulator_unified.py
 
 # 压力测试
-docker exec -it mine_backend python scripts/python/stress_test.py
+docker exec -it campus_backend python scripts/python/stress_test.py
 
 # 初始化设备
-docker exec -it mine_backend python scripts/python/init_devices.py
+docker exec -it campus_backend python scripts/python/init_devices.py
 ```
 
 **本地运行（需要先安装依赖）**

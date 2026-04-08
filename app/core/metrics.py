@@ -121,14 +121,14 @@ except Exception:
 registry = CollectorRegistry()
 
 http_requests_total = Counter(
-    "mine_http_requests_total",
+    "campus_http_requests_total",
     "Total HTTP requests handled by the API.",
     labelnames=("method", "path", "status"),
     registry=registry,
 )
 
 http_request_duration_seconds = Histogram(
-    "mine_http_request_duration_seconds",
+    "campus_http_request_duration_seconds",
     "HTTP request latency in seconds.",
     labelnames=("method", "path"),
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
@@ -136,14 +136,14 @@ http_request_duration_seconds = Histogram(
 )
 
 mqtt_messages_total = Counter(
-    "mine_mqtt_messages_total",
+    "campus_mqtt_messages_total",
     "MQTT messages processed by status.",
     labelnames=("status",),
     registry=registry,
 )
 
 mqtt_processing_duration_seconds = Histogram(
-    "mine_mqtt_processing_duration_seconds",
+    "campus_mqtt_processing_duration_seconds",
     "MQTT message processing latency in seconds.",
     labelnames=("status",),
     buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
@@ -151,28 +151,28 @@ mqtt_processing_duration_seconds = Histogram(
 )
 
 scheduler_job_runs_total = Counter(
-    "mine_scheduler_job_runs_total",
+    "campus_scheduler_job_runs_total",
     "Scheduler job executions by outcome.",
     labelnames=("job_id", "outcome"),
     registry=registry,
 )
 
 runtime_service_status = Gauge(
-    "mine_runtime_service_status",
+    "campus_runtime_service_status",
     "Runtime service status as a numeric gauge (healthy=1, degraded=0.5, stopped/unknown=0, unhealthy=-1).",
     labelnames=("service",),
     registry=registry,
 )
 
 runtime_counter_gauge = Gauge(
-    "mine_runtime_counter_value",
+    "campus_runtime_counter_value",
     "Runtime counters mirrored as gauges for Prometheus scraping.",
     labelnames=("counter_name",),
     registry=registry,
 )
 
 frontend_errors_total = Counter(
-    "mine_frontend_errors_total",
+    "campus_frontend_errors_total",
     "Frontend errors reported by category.",
     labelnames=("category",),
     registry=registry,

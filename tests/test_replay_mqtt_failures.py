@@ -19,7 +19,7 @@ class _FakeSession:
 class ReplayMqttFailuresTest(unittest.TestCase):
     def test_replay_record_marks_success_only_when_message_generated(self):
         session = _FakeSession()
-        record = SimpleNamespace(id=1, raw_payload='{"device_id": 7}', topic="mine/telemetry")
+        record = SimpleNamespace(id=1, raw_payload='{"device_id": 7}', topic="campus/telemetry")
         refreshed = SimpleNamespace(id=1)
 
         with patch.object(replay_mqtt_failures, "parse_payload", return_value={"device_id": 7}):
@@ -37,7 +37,7 @@ class ReplayMqttFailuresTest(unittest.TestCase):
 
     def test_replay_record_marks_failure_when_no_event_generated(self):
         session = _FakeSession()
-        record = SimpleNamespace(id=2, raw_payload='{"device_id": 8}', topic="mine/telemetry")
+        record = SimpleNamespace(id=2, raw_payload='{"device_id": 8}', topic="campus/telemetry")
         refreshed = SimpleNamespace(id=2)
 
         with patch.object(replay_mqtt_failures, "parse_payload", return_value={"device_id": 8}):
@@ -56,8 +56,8 @@ class ReplayMqttFailuresTest(unittest.TestCase):
     def test_main_prints_json_summary(self):
         session = _FakeSession()
         records = [
-            SimpleNamespace(id=1, raw_payload='{"device_id": 7}', topic="mine/telemetry"),
-            SimpleNamespace(id=2, raw_payload=None, topic="mine/telemetry"),
+            SimpleNamespace(id=1, raw_payload='{"device_id": 7}', topic="campus/telemetry"),
+            SimpleNamespace(id=2, raw_payload=None, topic="campus/telemetry"),
         ]
 
         class _SessionFactory:

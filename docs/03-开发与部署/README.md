@@ -292,17 +292,17 @@ docker image prune -a
 docker compose logs --tail=100 backend
 
 # 进入容器调试
-docker exec -it mine_backend bash
+docker exec -it campus_backend bash
 ```
 
 ### 数据管理
 
 ```bash
 # 备份数据库
-docker exec mine_energy_db pg_dump -U admin mine_energy > backup.sql
+docker exec campus_energy_db pg_dump -U admin campus_energy > backup.sql
 
 # 恢复数据库
-cat backup.sql | docker exec -i mine_energy_db psql -U admin mine_energy
+cat backup.sql | docker exec -i campus_energy_db psql -U admin campus_energy
 
 # 清除所有数据（危险！）
 docker compose down -v

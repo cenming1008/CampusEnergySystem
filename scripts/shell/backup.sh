@@ -15,9 +15,9 @@ PROJECT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 BACKUP_DIR="$PROJECT_DIR/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=30
-DB_CONTAINER="mine_energy_db_prod"
+DB_CONTAINER="campus_energy_db_prod"
 DB_USER="admin"
-DB_NAME="mine_energy"
+DB_NAME="campus_energy"
 LABEL="${BACKUP_LABEL:-manual}"
 BACKUP_FORMAT="${BACKUP_FORMAT:-custom}"
 KEEP_PLAINTEXT_BACKUP="${KEEP_PLAINTEXT_BACKUP:-false}"
@@ -55,10 +55,10 @@ done
 
 if [ -n "${DB_CONTAINER_OVERRIDE:-}" ]; then
     DB_CONTAINER="$DB_CONTAINER_OVERRIDE"
-elif docker ps --format '{{.Names}}' | grep -q '^mine_energy_db_prod$'; then
-    DB_CONTAINER="mine_energy_db_prod"
-elif docker ps --format '{{.Names}}' | grep -q '^mine_energy_db_dev$'; then
-    DB_CONTAINER="mine_energy_db_dev"
+elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_prod$'; then
+    DB_CONTAINER="campus_energy_db_prod"
+elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_dev$'; then
+    DB_CONTAINER="campus_energy_db_dev"
 fi
 
 echo -e "${GREEN}📦 开始备份数据库...${NC}"

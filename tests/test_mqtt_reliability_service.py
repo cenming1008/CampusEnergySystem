@@ -57,7 +57,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             fingerprint="fp-2",
             payload_hash="hash-2",
             device_id=7,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
             status=MqttIngestionStatus.SUCCESS,
         )
@@ -69,7 +69,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             payload_hash="hash-2",
             raw_payload='{"device_id":7,"power":1.2}',
             device_id=7,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
         )
 
@@ -82,7 +82,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             fingerprint="fp-3",
             payload_hash="hash-3",
             device_id=9,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
             status=MqttIngestionStatus.PROCESSING,
         )
@@ -100,7 +100,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             fingerprint="fp-dead",
             payload_hash="hash-dead",
             device_id=9,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
             status=MqttIngestionStatus.FAILED,
             retry_count=2,
@@ -121,7 +121,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             payload_hash="hash-raw",
             raw_payload='{"device_id":7}',
             device_id=7,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
         )
 
@@ -134,7 +134,7 @@ class TestMqttReliabilityService(unittest.TestCase):
             fingerprint="fp-r",
             payload_hash="hash-r",
             device_id=7,
-            topic="mine/telemetry",
+            topic="campus/telemetry",
             telemetry_timestamp=datetime(2026, 3, 25, 10, 0, 0),
             status=MqttIngestionStatus.FAILED,
         )
