@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from sqlmodel import Session
 
-from app.core.access_control import ensure_device_access
+from app.core.access_control import ensure_device_access, ensure_location_access, get_allowed_device_ids
 from app.services.analysis_service import AnalysisService
 
 
@@ -48,3 +50,32 @@ def analyze_device_use_case(session: Session, current_user, device_id: int):
         "today_cost": round(snapshot["today_cost"], 2),
         "analysis_boundary": "multi_energy_first_batch",
     }
+
+
+def get_energy_analysis_overview_use_case(
+    session: Session,
+    current_user,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    location_id: int | None = None,
+    energy_type: str | None = None,
+    top_n: int = 5,
+):
+    """统一能耗分析主页面聚合入口。"""
+    if location_id is not None:
+        ensure_location_access(session, current_user, location_id)
+
+    window_end = end_time or datetime.now()
+    window_start = start_time or (window_end - timedelta(days=7))
+    if window_start > window_end:
+        raise ValueError("start_time 不能晚于 end_time")
+
+    return AnalysisService.get_energy_analysis_overview(
+        session=session,
+        start_time=window_start,
+        end_time=window_end,
+        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        location_id=location_id,
+        energy_type=energy_type,
+        top_n=top_n,
+    )

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.application.analysis import analyze_device_use_case
+from app.application.analysis import analyze_device_use_case, get_energy_analysis_overview_use_case
 from app.application.device_reporting import report_device_data_use_case
 from app.application.device_reporting import (
     get_device_data_use_case,
@@ -178,6 +178,45 @@ class TestApplicationUseCases(unittest.TestCase):
         self.assertEqual(result["today_consumption_unit"], "m³")
         mock_ensure_access.assert_called_once_with(session, current_user, 7)
         mock_analyze_device.assert_called_once_with(session, 7)
+
+    @patch("app.application.analysis.AnalysisService.get_energy_analysis_overview")
+    @patch("app.application.analysis.get_allowed_device_ids")
+    @patch("app.application.analysis.ensure_location_access")
+    def test_energy_analysis_overview_use_case_checks_scope_and_delegates(
+        self,
+        mock_ensure_location_access,
+        mock_get_allowed_device_ids,
+        mock_get_overview,
+    ):
+        session = MagicMock()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        start_time = datetime(2026, 4, 1, 0, 0, 0)
+        end_time = datetime(2026, 4, 8, 0, 0, 0)
+        mock_get_allowed_device_ids.return_value = {1, 2, 3}
+        mock_get_overview.return_value = {"summary": {"device_count": 3}}
+
+        result = get_energy_analysis_overview_use_case(
+            session=session,
+            current_user=current_user,
+            start_time=start_time,
+            end_time=end_time,
+            location_id=9,
+            energy_type="electricity",
+            top_n=6,
+        )
+
+        self.assertEqual(result["summary"]["device_count"], 3)
+        mock_ensure_location_access.assert_called_once_with(session, current_user, 9)
+        mock_get_allowed_device_ids.assert_called_once_with(session, current_user)
+        mock_get_overview.assert_called_once_with(
+            session=session,
+            start_time=start_time,
+            end_time=end_time,
+            allowed_device_ids={1, 2, 3},
+            location_id=9,
+            energy_type="electricity",
+            top_n=6,
+        )
 
     @patch("app.application.reporting.ReportService.list_energy_report_rows")
     def test_list_energy_report_rows_use_case_delegates_to_report_service(self, mock_list_rows):

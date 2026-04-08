@@ -117,7 +117,7 @@ docker compose up -d --build
 ## 📂 目录结构说明
 
 ```
-MineEnergySystem/
+CampusEnergySystem/
 ├── bin/                    # 🚀 常用快捷脚本（本目录，3 个）
 │   ├── fast_start.sh      # 日常快速启动（包装正式实现，偏快捷）
 │   ├── fast_start_dev.sh  # 开发模式快捷启动

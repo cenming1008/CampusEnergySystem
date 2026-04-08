@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { echarts } from '@/shared/lib/echarts'
 import {
@@ -27,6 +28,7 @@ import { getDevices, type Device } from '@/api/device'
 import { usePermissions } from '@/shared/composables/usePermissions'
 
 const { canManageForecast, canTrainModels } = usePermissions()
+const router = useRouter()
 
 // --- 状态 ---
 const loading = ref(false)
@@ -377,7 +379,15 @@ onUnmounted(() => {
 <template>
   <div class="forecast-page">
     <div class="page-header">
-      <h2>负荷预测</h2>
+      <div class="header-copy">
+        <h2>预测 / 模型工具</h2>
+        <p>这里保留预测生成、模型训练、版本比较和调度配置，不再承担园区运营分析主页面角色。</p>
+      </div>
+      <div class="header-actions">
+        <el-button @click="router.push('/forecast')">
+          返回能耗分析主页面
+        </el-button>
+      </div>
       <div class="type-selector">
         <el-radio-group
           v-model="predictionType"
@@ -920,13 +930,31 @@ onUnmounted(() => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 20px;
+}
+
+.header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .page-header h2 {
   margin: 0;
   color: var(--text-primary);
+}
+
+.header-copy p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.header-actions {
+  margin-left: auto;
 }
 
 .main-content {

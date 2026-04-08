@@ -1,6 +1,6 @@
 # scripts 目录说明
 
-`scripts/` 是项目的“正式实现层 + 完整工具集”。和 [bin/](/Users/todo/MineEnergySystem/bin/README.md) 的快捷入口不同，这里放的是仓库级正式脚本、调试工具和已降级历史脚本。
+`scripts/` 是项目的“正式实现层 + 完整工具集”。和 [bin/](../bin/README.md) 的快捷入口不同，这里放的是仓库级正式脚本、调试工具和已降级历史脚本。
 
 ## 目录职责
 
@@ -16,26 +16,26 @@
 - Python 脚本：24 个
 - 已归档脚本：2 个
 
-以上数量以 [SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md) 为事实来源。
+以上数量以 [SCRIPT_LIST.md](./SCRIPT_LIST.md) 为事实来源。
 
 ## 推荐使用方式
 
 ### 1. 日常执行先看快捷参考
 
-- [QUICK_REFERENCE.md](/Users/todo/MineEnergySystem/scripts/QUICK_REFERENCE.md)
+- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)
 
 适合“我现在要做一件事，直接给我命令”。
 
 ### 2. 需要确认事实来源时看完整清单
 
-- [SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
+- [SCRIPT_LIST.md](./SCRIPT_LIST.md)
 
 适合“我想知道这个目录里到底都有什么，不重复地看一遍”。
 
 ### 3. 需要按职责查看时看子目录文档
 
-- [shell/README.md](/Users/todo/MineEnergySystem/scripts/shell/README.md)
-- [python/README.md](/Users/todo/MineEnergySystem/scripts/python/README.md)
+- [shell/README.md](./shell/README.md)
+- [python/README.md](./python/README.md)
 
 ## 入口优先级
 
@@ -49,23 +49,23 @@
 
 ### Shell
 
-- [start.sh](/Users/todo/MineEnergySystem/scripts/shell/start.sh)：启动整套 Docker 服务
-- [start_dev_env.sh](/Users/todo/MineEnergySystem/scripts/shell/start_dev_env.sh)：启动开发环境中间件
-- [status.sh](/Users/todo/MineEnergySystem/scripts/shell/status.sh)：查看系统状态
-- [test_health.sh](/Users/todo/MineEnergySystem/scripts/shell/test_health.sh)：健康检查
-- [pilot_smoke_test.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_smoke_test.sh)：试点联调冒烟检查
-- [pilot_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_readiness.sh)：试点前总检查并输出证据目录
-- [pilot_drill.sh](/Users/todo/MineEnergySystem/scripts/shell/pilot_drill.sh)：串联 readiness、容量基线和冒烟
-- [load_baseline.sh](/Users/todo/MineEnergySystem/scripts/shell/load_baseline.sh)：生成容量基线和 Markdown 验收摘要
+- [start.sh](./shell/start.sh)：启动整套 Docker 服务
+- [start_dev_env.sh](./shell/start_dev_env.sh)：启动开发环境中间件
+- [status.sh](./shell/status.sh)：查看系统状态
+- [test_health.sh](./shell/test_health.sh)：健康检查
+- [pilot_smoke_test.sh](./shell/pilot_smoke_test.sh)：试点联调冒烟检查
+- [pilot_readiness.sh](./shell/pilot_readiness.sh)：试点前总检查并输出证据目录
+- [pilot_drill.sh](./shell/pilot_drill.sh)：串联 readiness、容量基线和冒烟
+- [load_baseline.sh](./shell/load_baseline.sh)：生成容量基线和 Markdown 验收摘要
 
 ### Python
 
-- [init_complete_system.py](/Users/todo/MineEnergySystem/scripts/python/init_complete_system.py)：初始化整套演示/开发数据
-- [create_admin.py](/Users/todo/MineEnergySystem/scripts/python/create_admin.py)：创建管理员
-- [simulator_unified.py](/Users/todo/MineEnergySystem/scripts/python/simulator_unified.py)：统一设备模拟器
-- [device_gateway.py](/Users/todo/MineEnergySystem/scripts/python/device_gateway.py)：真实设备网关采集器
-- [check_config.py](/Users/todo/MineEnergySystem/scripts/python/check_config.py)：配置检查
-- [send_test_alert.py](/Users/todo/MineEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
+- [init_complete_system.py](./python/init_complete_system.py)：初始化整套演示/开发数据
+- [create_admin.py](./python/create_admin.py)：创建管理员
+- [simulator_unified.py](./python/simulator_unified.py)：统一设备模拟器
+- [device_gateway.py](./python/device_gateway.py)：真实设备网关采集器
+- [check_config.py](./python/check_config.py)：配置检查
+- [send_test_alert.py](./python/send_test_alert.py)：验证告警通知通道
 
 ## 脚本分类
 
@@ -137,12 +137,12 @@
 
 ## 与 bin 的关系
 
-`bin/` 是最常用命令的短入口，`scripts/` 是正式实现层。
+`bin/` 是高频快捷壳，`scripts/` 是仓库级正式实现层与事实来源。
 
 例如：
 
-- [bin/fast_start.sh](/Users/todo/MineEnergySystem/bin/fast_start.sh) 对应 [scripts/shell/start.sh](/Users/todo/MineEnergySystem/scripts/shell/start.sh)
-- [bin/run_simulator.sh](/Users/todo/MineEnergySystem/bin/run_simulator.sh) 对应 [scripts/python/simulator_unified.py](/Users/todo/MineEnergySystem/scripts/python/simulator_unified.py)
+- [bin/fast_start.sh](../bin/fast_start.sh) 对应 [scripts/shell/start.sh](./shell/start.sh)
+- [bin/run_simulator.sh](../bin/run_simulator.sh) 对应 [scripts/python/simulator_unified.py](./python/simulator_unified.py)
 
 ## 整理原则
 

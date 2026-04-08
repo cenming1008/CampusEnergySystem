@@ -18,6 +18,7 @@ import {
   ElIcon,
   ElInput,
   ElInputNumber,
+  ElLoadingDirective,
   ElMain,
   ElMenu,
   ElMenuItem,
@@ -183,6 +184,8 @@ for (const component of elementComponents) {
 for (const [key, component] of Object.entries(icons)) {
   app.component(key, component)
 }
+
+app.directive('loading', ElLoadingDirective)
 
 app.use(createPinia())
 app.use(router)

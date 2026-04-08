@@ -1,237 +1,58 @@
 # Current Status
 
 ## 当前总目标
-- 当前主区不再处于 `运行时命名契约迁移专题` 执行中状态。
-- 当前主区只保留：`运行时命名契约迁移专题` 已阶段收口、暂不迁 archive、继续保留在 `docs/plans/` 作为近期成果主题，并等待下一个主主题切换。
-- 上一主题 `application use case 分层收口专题` 已正式阶段收口，允许退出主区，但暂不迁入 archive，后续追溯仍以其原 PLAN 为准。
+- 当前主主题：`等待下一个主主题`
+- 当前总目标：`位置管理页展示重构专题` 已重新验收通过、阶段收口并退出主区；当前主区等待下一个主主题。
 
 ---
 
 ## 当前阶段
-- [x] 已确认当前任务不属于旧主主题，必须独立立项
-- [x] 已正式锁定新主题名称：`运行时命名契约迁移专题`
-- [x] 已建立正式 PLAN：[PLAN-20260407-runtime-naming-contract-migration.md](/Users/todo/CampusEnergySystem/docs/plans/PLAN-20260407-runtime-naming-contract-migration.md)
-- [x] 已完成主区切换：
-  - 旧主题 `application use case 分层收口专题` 已阶段收口并退出主区
-  - 旧主题暂不迁 archive
-  - 当前主区只服务新主题
-- [x] 已锁定第一轮范围只处理：
-  - `container_name`
-  - 直接依赖容器名的脚本
-  - 直接依赖容器名的文档
-  - nginx upstream 内部别名
-- [x] 已锁定后续轮次候选范围：
-  - 第二轮：运行时数据 / 连接契约
-  - 第三轮：MQTT 用户名 / topic / wildcard
-  - 第四轮：数据库名本体 `mine_energy` / `DATABASE_URL`
-  - 第五轮：Prometheus / Alertmanager / 域名联调契约
-- [x] 已锁定第一轮冻结边界：
-  - 不改数据库名 / `DATABASE_URL`
-  - 不改 MQTT 用户名 / topic / wildcard
-  - 不改 Prometheus / Alertmanager / 域名联调口径
-  - 不顺手做 nginx / Docker / scripts 全面重构
-- [x] 后端 / 脚本线程已按第一轮边界完成最小实现
-- [x] 验收线程已确认第一轮 Docker 可见命名迁移通过
-- [x] 已锁定第二轮只处理：
-  - 内部连接契约
-  - 直接依赖连接口径的脚本 / 文档说明
-- [x] 已锁定第二轮明确不处理：
-  - 数据库名本体 `mine_energy`
-  - `DATABASE_URL`
-  - MQTT 用户名 / topic / wildcard
-  - Prometheus / Alertmanager / 域名联调契约
-  - 本机运行环境切换清理动作
-- [x] 后端 / 脚本线程已按第二轮边界完成最小实现
-- [x] 验收线程已确认第二轮“内部连接契约与脚本 / 文档依赖口径最小收口”通过
-- [x] 已锁定第三轮优先处理：
-  - MQTT 用户名
-  - MQTT topic
-  - MQTT wildcard
-  - 设备联调、worker 订阅、发送脚本与实时链路直接依赖的 MQTT 契约口径
-- [x] 已锁定第三轮明确不处理：
-  - 数据库名本体 `mine_energy`
-  - `DATABASE_URL`
-  - 数据目录、卷名、备份恢复口径
-  - Prometheus / Alertmanager / 域名联调契约
-- [x] 后端 / 脚本线程已按第三轮边界完成最小实现
-- [x] 验收线程已确认第三轮 MQTT 契约收口通过
-- [x] 已锁定第四轮正式处理：
-  - 数据库名本体 `mine_energy`
-  - `DATABASE_URL`
-  - 及其直接依赖口径
-- [x] 已锁定第四轮明确不处理：
-  - 数据目录、卷名、备份恢复口径
-  - MQTT 契约
-  - Prometheus / Alertmanager / 域名联调契约
-  - 本机运行环境切换清理动作
-- [x] 后端 / 脚本线程已按第四轮边界完成最小实现
-- [x] 验收线程已确认第四轮数据库命名 / `DATABASE_URL` 契约收口通过
-- [x] 已锁定第五轮正式处理：
-  - Prometheus `rule group` / `expr` / `job` 口径
-  - Alertmanager 相关活跃联调口径
-  - 活跃文档中的观测 / 域名联调命名
-- [x] 已锁定第五轮明确不处理：
-  - Grafana 面板体系重构
-  - 外部告警平台重配
-  - 历史归档材料批量清洗
-  - 联调环境重建
-- [x] 后端 / 脚本线程已按第五轮边界完成最小实现
-- [x] 验收线程已确认第五轮观测 / 联调契约收口通过
-- [x] 已确认当前主题正式达到阶段收口条件
-- [x] 已确认当前主题不再继续进入新的实现轮次
-- [x] 已确认当前主题暂不迁 archive
-- [x] 已确认当前主题继续保留在 `docs/plans/` 作为近期成果主题
-- [ ] 待切换到下一个主主题
+- [x] 已确认原页面路由 `/locations` 与后端接口代理前缀 `/locations` 冲突，是“园区空间打不开”的直接根因
+- [x] 已确认 `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过
+- [x] 已确认后端 `GET /campus/overview`、`GET /locations/tree`、`GET /locations/roots` 在当前登录态下可正常返回
+- [x] 已确认此前“阶段收口”结论缺少浏览器运行态打开验证，收口条件不成立
+- [x] 已完成最终运行态修复：
+  - 前端页面路径改为 `/spaces`
+  - `vite.config.ts` 已补齐 `/campus` 代理
+  - `v-loading` 指令已注册
+- [x] 已通过浏览器级 Playwright 回归验证 `/spaces` 可打开
+- [x] 已确认本主题重新达到阶段完成
+- [x] 已确认本主题重新达到阶段收口条件
+- [ ] 待规范线程锁定下一个主主题并切换主区
 
 ---
 
 ## 当前阻塞
-- 当前无本主题继续执行阻塞；本主题已完成阶段收口判断。
-- 当前无仓库代码实现阻塞；当前等待的是下一个主主题确认与主区切换。
-- 本机开发中间件当前已切换到 `campus_energy_db_dev`、`campus_redis_dev`、`campus_mqtt_dev` 运行态；旧 `mine_energy_db_dev` 与 `ems_redis_dev` 残留已清理。
+- 当前无执行阻塞。
+- 当前主区仅等待下一个主主题被锁定。
 
 ## 当前待办
-- [x] 正式启用 `运行时命名契约迁移专题`
-- [x] 新建并启用正式 PLAN
-- [x] 将 `current-status.md` 与 `handoff.md` 从旧主题切换到新主题
-- [x] 由后端 / 脚本线程只在第一轮允许范围内完成迁移
-- [x] 由验收线程确认第一轮达到阶段完成
-- [x] 由后端 / 脚本线程只在第二轮允许范围内推进最小收口
-- [x] 由验收线程确认第二轮达到阶段完成
-- [x] 由后端 / 脚本线程只在第三轮允许范围内推进 MQTT 契约最小收口
-- [x] 由验收线程确认第三轮达到阶段完成
-- [x] 由后端 / 脚本线程只在第四轮允许范围内推进数据库命名 / 连接串契约最小收口
-- [x] 由验收线程确认第四轮达到阶段完成
-- [x] 由后端 / 脚本线程只在第五轮允许范围内推进观测 / 联调契约最小收口
-- [x] 由验收线程确认第五轮达到阶段完成
-- [x] 由规范 / 验收线程确认当前主题达到阶段收口条件
-- [ ] 由规范 / 验收线程切换到下一个主主题
+- [x] 已完成“园区空间打不开”运行态排障
+- [x] 已完成重新验收并确认本主题重新达到阶段完成
+- [x] 已确认本主题退出主区并暂不迁 archive
+- [ ] 由规范线程锁定下一个主主题
+- [ ] 主区切换到下一个主主题
 
 ## 当前验证结论
-- 已确认当前任务是高风险运行时命名 / 契约迁移，不应一次性全文替换。
-- 已确认迁移命中至少分三层：
-  - Docker 可见命名
-  - 运行时数据 / 连接契约
-  - 观测与联调契约
-- 已确认第一轮应只做 Docker 可见命名与其直接依赖，不应提前碰数据库名 / `DATABASE_URL`、MQTT topic、Prometheus / Alertmanager / 域名联调口径。
-- 已确认整体更适合拆成 5 轮，而不是一次性完成。
-- 已确认本轮推荐路径固定为：`规范 -> 后端/脚本 -> 验收`
-- 已确认每轮都必须独立验收，不允许多轮糊在一起推进。
-- 已完成第一轮代码改动：
-  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 中的 `mine_*` Docker 可见容器名已收敛为 `campus_*`
-  - nginx upstream 内部别名已从 `mine_backend_upstream` 收敛为 `campus_backend_upstream`
-  - 直接依赖容器名的脚本、README 与活跃开发/运维文档已同步更新
-- 已完成第一轮最小验证：
-  - `docker compose config -q`
-  - `docker compose -f docker-compose.dev.yml config -q`
-  - `docker compose -f docker-compose.prod.yml config -q`
-  - 基于临时证书的 nginx `default.conf` / `default.ssl.conf.example` 语法检查
-  - `campus_mqtt_dev` 已创建并启动，容器内 MQTT 健康探测 smoke 通过
-  - `status.sh dev` 已按新容器名识别 `campus_mqtt_dev`
-  - 当前开发环境已完成切换，`campus_energy_db_dev`、`campus_redis_dev`、`campus_mqtt_dev` 均可正常启动
-- 已确认第一轮验收通过，当前进入第二轮前的规范收敛。
-- 已确认第二轮只处理“内部连接契约与脚本 / 文档依赖口径”的最小收口，不触碰数据库名本体 `mine_energy`，也不触碰 `DATABASE_URL`。
-- 已确认“仓库代码 / 文档 / 脚本改动”与“本机运行环境切换清理”必须分开；后者只作为验证风险记录，不属于第二轮交付物。
-- 已确认当前残留的 `mine_*` 仅位于冻结非目标：
-  - 数据库名 / `DATABASE_URL`
-  - MQTT 用户名 / 密码默认值 / topic
-  - Alertmanager 临时文件名
-- 已完成第二轮代码改动：
-  - compose 注释已明确区分“容器内互联继续使用 service 名”和“`campus_*` 仅用于可见容器名”
-  - `status.sh`、`start_dev_env.sh`、`run_simulator.sh` 已补齐 service 名 / 容器名使用说明
-  - README、新手指南与 Docker 脚本文档已补齐 `docker compose` 用服务名、`docker exec/logs/inspect` 用 `campus_*` 的口径说明
-- 已完成第二轮最小验证：
-  - `docker compose config -q`
-  - `docker compose -f docker-compose.dev.yml config -q`
-  - `docker compose -f docker-compose.prod.yml config -q`
-  - `bash -n scripts/shell/status.sh scripts/shell/start_dev_env.sh bin/run_simulator.sh`
-  - `bash ./scripts/shell/status.sh dev` 已显示新的 service 名 / 容器名提示语
-  - 文档与脚本抽样复核已确认：
-    - `docker compose` 继续使用 `backend` / `db` / `redis` / `mqtt`
-    - `docker exec` / `docker inspect` 继续使用 `campus_*`
-    - 容器内互联仍使用 `db` / `redis` / `mqtt`
-- 已确认第二轮未触碰：
-  - 数据库名本体 `mine_energy`
-  - `DATABASE_URL`
-  - 数据目录、卷名、备份恢复口径
-  - MQTT 用户名 / topic / wildcard
-  - Prometheus / Alertmanager / 域名联调契约
-- 已确认第二轮验收通过，当前进入第三轮前的规范收敛。
-- 已确认第三轮应优先处理 MQTT 用户名 / topic / wildcard，而不是数据库名本体 `mine_energy` 与 `DATABASE_URL`。
-- 已确认数据库名本体与 `DATABASE_URL` 会直接牵动数据目录、备份恢复、连接串和本机运行态切换，不适合作为当前下一轮。
-- 已确认 MQTT 契约虽然会影响设备联调、worker 订阅、发送脚本与实时链路，但更适合作为单轮、可独立验收、可独立回滚的下一轮。
-- 已完成第三轮代码改动：
-  - `app/core/settings.py` 已将 MQTT 默认 topic / wildcard 收敛为 `campus/telemetry`、`campus/device/+/telemetry`，并新增 `MQTT_CONTROL_TOPIC_PREFIX=campus/control/`
-  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 已同步收敛 MQTT 用户名、健康检查鉴权、topic、wildcard 与控制 topic 前缀
-  - `setup_mqtt_auth.sh`、`start_dev_env.sh`、`mqtt_send_test.py`、`device_gateway.py`、`simulator_unified.py`、`mqtt_subscriber_template.py`、`run_simulator.sh` 已同步切到新 MQTT 契约
-  - `mqtt_publisher.py` 已切到 `campus/control/{id}` 控制主题前缀
-  - 活跃 MQTT 联调文档、真实设备接入文档、调试指南与企业部署文档已同步更新
-- 已完成第三轮最小验证：
-  - `docker compose config -q`
-  - `docker compose -f docker-compose.dev.yml config -q`
-  - `docker compose -f docker-compose.prod.yml config -q`
-  - `./venv/bin/python -m unittest tests.test_mqtt_contracts tests.test_mqtt_processor tests.test_mqtt_reliability_service tests.test_ingestion_reliability tests.test_replay_mqtt_failures tests.test_mqtt_realtime_bridge`
-  - `py_compile` 覆盖 settings、publisher、worker、bridge、发送脚本、网关、模拟器与新增测试
-  - 验证时本机执行 `setup_mqtt_auth.sh campus_mqtt ... --force` 与 `docker restart campus_mqtt_dev`，随后用 `mqtt_send_test.py` 发布到 `campus/telemetry`，并由 `mosquitto_sub` 成功收到消息
-- 已确认第三轮未触碰：
-  - 数据库名本体 `mine_energy`
-  - `DATABASE_URL`
-  - 数据目录、卷名、备份恢复口径
-  - Prometheus / Alertmanager / 域名联调契约
-- 已确认第三轮活跃区内剩余 `mine_*` 已只落在冻结非目标：
-  - 监控指标名前缀 `mine_mqtt_*`
-  - 历史计划 / archive 材料
-- 已确认第三轮验收通过，当前进入第四轮前的规范收敛。
-- 已确认第四轮正式处理数据库名本体 `mine_energy`、`DATABASE_URL` 及其直接依赖口径。
-- 已确认数据目录、卷名、备份恢复口径继续冻结，不纳入第四轮。
-- 已确认本机旧库停机、端口腾挪、容器清理等环境切换动作必须继续与仓库改动分离；前者只作为环境动作记录，不属于第四轮交付物。
-- 已确认第四轮验收通过，当前进入第五轮前的规范收敛。
-- 已确认第五轮正式处理 Prometheus / Alertmanager / 域名联调契约及其直接依赖口径。
-- 已确认 Grafana 面板体系重构、外部告警平台重配、历史归档材料批量清洗与联调环境重建继续冻结，不纳入第五轮。
-- 已确认若第五轮按边界完成并通过验收，整个 `运行时命名契约迁移专题` 将具备阶段收口判断条件。
-- 已确认第五轮验收通过，当前主题正式进入阶段收口判断。
-- 已完成第五轮代码改动：
-  - `monitoring/prometheus/prometheus.yml` 已将活跃 scrape job 从 `mine-backend` 收敛为 `campus-backend`
-  - `monitoring/prometheus/alert_rules.yml` 已将活跃 rule group、alert 名称与 `expr` 中的 HTTP / MQTT / scheduler / runtime 指标口径统一收敛到 `campus_*`
-  - `app/core/metrics.py` 已将活跃 Prometheus 指标从 `mine_*` 收敛到 `campus_*`
-  - `env.prod.example`、`nginx/conf.d/default.conf`、`README.md` 与 `docs/03-开发与部署/企业部署完整指南.md` 中的活跃 Alertmanager / 域名联调命名已同步改为 `campus-*`
-  - `scripts/shell/release_readiness.sh` 中的 Alertmanager 演练 URL 与临时文件命名已同步收敛
-- 已完成第五轮最小验证：
-  - `env PYTHONPYCACHEPREFIX=/Users/todo/CampusEnergySystem/.pycache ./venv/bin/python -m py_compile app/core/metrics.py scripts/python/check_production_readiness.py`
-  - `./venv/bin/python -m unittest tests.test_metrics`
-  - `bash ./scripts/shell/release_readiness.sh`
-  - `yaml.safe_load` 已完成 `prometheus.yml`、`alert_rules.yml`、`alertmanager.yml` 结构检查
-  - 活跃区残留扫描已确认 `mine_energy_backend`、`mine_mqtt_*`、`mine-backend` 与 `*.mine-energy.*` 观测 / 联调命名已清空（Grafana 冻结区除外）
-- 已确认第五轮未触碰：
-  - Grafana 面板体系重构
-  - 外部告警平台重配
-  - 历史归档材料批量清洗
-  - 联调环境重建
-  - 数据库 / MQTT 基础连接契约
-- 已确认五轮已经覆盖本主题最初锁定的全部范围，当前剩余问题已超出“运行时命名契约迁移”的原定最小边界。
-- 已确认若继续推进，将自然滑向 Grafana 面板体系重构、外部告警平台重配、联调环境重建或更广泛的历史材料清洗。
-- 已确认当前主题应阶段收口，但暂不迁 archive，并继续保留在 `docs/plans/` 作为近期成果主题。
-- 已完成第四轮代码改动：
-  - `docker-compose.yml`、`docker-compose.dev.yml`、`docker-compose.prod.yml` 已将 `POSTGRES_DB`、数据库健康检查与容器内 `DATABASE_URL` 统一收敛到 `campus_energy`
-  - `env.example`、`env.local.example` 与活跃开发/部署文档中的数据库连接示例已统一切到 `campus_energy`
-  - `backup.sh`、`restore.sh`、`restore_drill.sh`、`start_dev_env.sh` 中直接写死的数据库名与连接检查口径已同步更新
-  - 活跃 README、新手指南、系统启动与部署文档中的数据库名 / 连接串说明已完成最小收口
-- 已完成第四轮最小验证：
-  - `docker compose config -q`
-  - `docker compose -f docker-compose.dev.yml config -q`
-  - `docker compose -f docker-compose.prod.yml config -q`
-  - `bash -n scripts/shell/backup.sh scripts/shell/restore.sh scripts/shell/restore_drill.sh scripts/shell/start_dev_env.sh scripts/shell/check_mac_env.sh`
-  - `py_compile` 覆盖 `app/core/settings.py`
-  - `./venv/bin/python -c ... Settings(... database_url='postgresql://admin:password123@db:5432/campus_energy')` 已验证应用配置层接受新连接串
-  - 活跃区 `mine_energy` 残留扫描已清空；剩余历史命名继续只落在 `docs/archive/`、`docs/plans/` 与环境运行态
-- 已确认第四轮未触碰：
-  - 数据目录
-  - 卷名
-  - 备份恢复流程口径本身
-  - MQTT 契约
-  - Prometheus / Alertmanager / 域名联调契约
+- 已确认此前对 `位置管理页展示重构专题` 的收口结论过早，原因是仅完成了静态范围与构建验证，未完成浏览器运行态打开验证。
+- 已确认本轮真实根因有两层：
+  - 前端页面路由 `/locations` 与后端接口代理前缀 `/locations` 冲突
+  - 首屏依赖的 `/campus/overview` 缺少 Vite 代理，导致 `Promise.all` 在开发环境中整体失败
+- 已完成对应修复：
+  - 页面路由调整为 `/spaces`
+  - [vite.config.ts](/Users/todo/CampusEnergySystem/frontend/vite.config.ts) 已补齐 `/campus` 代理
+  - [main.ts](/Users/todo/CampusEnergySystem/frontend/src/main.ts) 已注册 `v-loading` 指令
+- 已完成重新验收所需验证：
+  - `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过
+  - `npx playwright test tests/e2e/location-manager-open.spec.ts` 通过
+- 已确认 `位置管理页展示重构专题` 重新达到阶段完成：
+  - [LocationManager.vue](/Users/todo/CampusEnergySystem/frontend/src/views/LocationManager.vue) 已保持“园区空间主视图”
+  - 浏览器运行态下“园区空间”可稳定打开
+  - 本轮未越界到 3D 场景重构、后端接口新增或跨页重构
+- 已确认当前没有足够明确、足够独立的后续最小可控范围。
+- 已确认本主题重新达到阶段收口条件，并暂不迁 archive。
 
 ## 当前剩余风险
-- 若后续误把 Grafana 面板体系、外部告警平台、联调环境重建或历史材料清洗继续挂在本主题下推进，会重新造成主题越界。
-- 若主区不及时切到下一个主主题，后续线程容易误判“本主题仍在执行中”。
-- 当前冻结残留若要继续处理，应独立判断是否新开主题，而不是回到本主题内扩张。
+- 当前主区已空出，若下一个主主题迟迟未锁定，会短暂停留在等待状态。
+- 若后续重新使用与后端代理前缀重名的前端页面路径，问题可能再次复发。
+- 若忽略这次运行态排障经验，后续仍可能出现“静态通过但页面打不开”的过早收口。

@@ -97,10 +97,6 @@ docs/
 │   ├── merged/
 │   └── pending-delete/
 │
-├── 07-快速参考/               ← 速查
-│   ├── README.md
-│   └── 根目录结构说明.md
-│
 └── README.md                  ← 您在这里
 ```
 

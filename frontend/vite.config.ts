@@ -87,6 +87,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
+      '/campus': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
       '/device-groups': {
         target: backendTarget,
         changeOrigin: true,

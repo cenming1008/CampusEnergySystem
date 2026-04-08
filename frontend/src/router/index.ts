@@ -48,7 +48,7 @@ const router = createRouter({
           meta: { title: '实时监控' }
         },
         {
-          path: 'locations',
+          path: 'spaces',
           name: 'Locations',
           component: () => import('@/views/LocationManager.vue'),
           meta: { title: '园区空间' }
@@ -73,9 +73,15 @@ const router = createRouter({
         },
         {
           path: 'forecast',
+          name: 'EnergyAnalysis',
+          component: () => import('@/views/EnergyAnalysis.vue'),
+          meta: { title: '能耗分析' }
+        },
+        {
+          path: 'forecast-tools',
           name: 'Forecast',
           component: () => import('@/views/Forecast.vue'),
-          meta: { title: '能耗分析' }
+          meta: { title: '预测 / 模型工具' }
         },
         {
           path: 'fdd',

@@ -106,7 +106,7 @@ const handleSettingsClick = async () => {
         </el-menu-item>
 
         <div class="menu-header">运行与运维</div>
-        <el-menu-item index="/locations">
+        <el-menu-item index="/spaces">
           <el-icon><Location /></el-icon>
           <span>园区空间</span>
         </el-menu-item>
