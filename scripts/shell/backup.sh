@@ -16,6 +16,8 @@ BACKUP_DIR="$PROJECT_DIR/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=30
 DB_CONTAINER="campus_energy_db_prod"
+DB_COMPOSE_FILE=""
+DB_SERVICE=""
 DB_USER="admin"
 DB_NAME="campus_energy"
 LABEL="${BACKUP_LABEL:-manual}"
@@ -57,8 +59,9 @@ if [ -n "${DB_CONTAINER_OVERRIDE:-}" ]; then
     DB_CONTAINER="$DB_CONTAINER_OVERRIDE"
 elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_prod$'; then
     DB_CONTAINER="campus_energy_db_prod"
-elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_dev$'; then
-    DB_CONTAINER="campus_energy_db_dev"
+elif [ -n "$(docker compose -f docker-compose.dev.yml ps -q db 2>/dev/null)" ]; then
+    DB_COMPOSE_FILE="docker-compose.dev.yml"
+    DB_SERVICE="db"
 fi
 
 echo -e "${GREEN}📦 开始备份数据库...${NC}"
@@ -67,7 +70,12 @@ echo -e "${GREEN}📦 开始备份数据库...${NC}"
 mkdir -p "$BACKUP_DIR"
 
 # 检查容器是否存在
-if ! docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
+if [ -n "$DB_COMPOSE_FILE" ]; then
+    if [ -z "$(docker compose -f "$DB_COMPOSE_FILE" ps -q "$DB_SERVICE" 2>/dev/null)" ]; then
+        echo -e "${YELLOW}⚠️  数据库服务未运行，跳过备份${NC}"
+        exit 0
+    fi
+elif ! docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
     echo -e "${YELLOW}⚠️  数据库容器未运行，跳过备份${NC}"
     exit 0
 fi
@@ -89,9 +97,17 @@ CONFIG_ARCHIVE="$BACKUP_DIR/config_${DATE}_${LABEL}.tar.gz"
 echo "备份文件: $BACKUP_FILE"
 
 if [ "$BACKUP_FORMAT" = "custom" ]; then
-    docker exec "$DB_CONTAINER" pg_dump -Fc -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
+    if [ -n "$DB_COMPOSE_FILE" ]; then
+        docker compose -f "$DB_COMPOSE_FILE" exec -T "$DB_SERVICE" pg_dump -Fc -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
+    else
+        docker exec "$DB_CONTAINER" pg_dump -Fc -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
+    fi
 else
-    docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
+    if [ -n "$DB_COMPOSE_FILE" ]; then
+        docker compose -f "$DB_COMPOSE_FILE" exec -T "$DB_SERVICE" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
+    else
+        docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
+    fi
     gzip -t "$BACKUP_FILE"
 fi
 
@@ -149,7 +165,7 @@ cat > "$MANIFEST_FILE" <<EOF
   "label": "$LABEL",
   "created_at": "$DATE",
   "database": "$DB_NAME",
-  "db_container": "$DB_CONTAINER",
+  "db_container": "${DB_CONTAINER:-compose:$DB_SERVICE}",
   "db_user": "$DB_USER",
   "sha256": "$SHA256",
   "encrypted": $( [ -n "$BACKUP_ENCRYPTION_PASSPHRASE" ] && echo "true" || echo "false" ),

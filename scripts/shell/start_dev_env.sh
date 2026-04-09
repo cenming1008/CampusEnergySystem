@@ -19,6 +19,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+COMPOSE_CMD=(docker compose -f docker-compose.dev.yml)
 
 # 检查 Docker 是否运行
 echo -e "${YELLOW}➜${NC} 检查 Docker 状态..."
@@ -42,7 +43,7 @@ fi
 
 # 启动 Docker 服务
 echo -e "${YELLOW}➜${NC} 启动 Docker 服务 (TimescaleDB, MQTT, Redis)..."
-docker compose -f docker-compose.dev.yml up -d
+"${COMPOSE_CMD[@]}" up -d
 
 # 等待服务启动
 echo ""
@@ -52,8 +53,8 @@ sleep 5
 # 检查服务状态
 echo ""
 echo -e "${YELLOW}➜${NC} 检查服务状态..."
-docker compose -f docker-compose.dev.yml ps
-echo "提示：compose 子命令继续使用服务名 db/redis/mqtt；直接 docker exec/logs 时使用 campus_*_dev 容器名。"
+"${COMPOSE_CMD[@]}" ps
+echo "提示：开发环境统一使用 compose 服务名 db/redis/mqtt，不再依赖固定容器名。"
 
 # 测试服务连接
 echo ""
@@ -63,7 +64,7 @@ echo "=========================================="
 
 # 测试数据库
 echo -e "${YELLOW}➜${NC} 测试 TimescaleDB 连接..."
-if docker exec campus_energy_db_dev pg_isready -U admin -d campus_energy > /dev/null 2>&1; then
+if "${COMPOSE_CMD[@]}" exec -T db pg_isready -U admin -d campus_energy > /dev/null 2>&1; then
     echo -e "${GREEN}✔${NC} TimescaleDB 连接成功 (localhost:5432)"
 else
     echo -e "${RED}✖${NC} TimescaleDB 连接失败"
@@ -71,7 +72,7 @@ fi
 
 # 测试 Redis
 echo -e "${YELLOW}➜${NC} 测试 Redis 连接..."
-if docker exec campus_redis_dev redis-cli ping > /dev/null 2>&1; then
+if "${COMPOSE_CMD[@]}" exec -T redis redis-cli ping > /dev/null 2>&1; then
     echo -e "${GREEN}✔${NC} Redis 连接成功 (localhost:6379)"
 else
     echo -e "${RED}✖${NC} Redis 连接失败"
@@ -79,7 +80,7 @@ fi
 
 # 测试 MQTT（简单检查容器是否运行）
 echo -e "${YELLOW}➜${NC} 测试 MQTT 服务..."
-if docker ps | grep campus_mqtt_dev > /dev/null 2>&1; then
+if [ -n "$("${COMPOSE_CMD[@]}" ps -q mqtt 2>/dev/null)" ]; then
     echo -e "${GREEN}✔${NC} MQTT 服务正在运行 (localhost:1883)"
 else
     echo -e "${RED}✖${NC} MQTT 服务未运行"

@@ -13,6 +13,8 @@ set -euo pipefail
 PROJECT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 BACKUP_DIR="$PROJECT_DIR/backups"
 DB_CONTAINER="campus_energy_db_prod"
+DB_COMPOSE_FILE=""
+DB_SERVICE=""
 DB_USER="admin"
 DB_NAME="campus_energy"
 AUTO_CONFIRM="false"
@@ -46,8 +48,9 @@ if [ -n "${DB_CONTAINER_OVERRIDE:-}" ]; then
     DB_CONTAINER="$DB_CONTAINER_OVERRIDE"
 elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_prod$'; then
     DB_CONTAINER="campus_energy_db_prod"
-elif docker ps --format '{{.Names}}' | grep -q '^campus_energy_db_dev$'; then
-    DB_CONTAINER="campus_energy_db_dev"
+elif [ -n "$(docker compose -f docker-compose.dev.yml ps -q db 2>/dev/null)" ]; then
+    DB_COMPOSE_FILE="docker-compose.dev.yml"
+    DB_SERVICE="db"
 fi
 
 # 检查参数
@@ -163,8 +166,13 @@ if [ "$AUTO_CONFIRM" != "true" ]; then
     fi
 fi
 
-# 检查容器是否存在
-if ! docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
+# 检查容器/服务是否存在
+if [ -n "$DB_COMPOSE_FILE" ]; then
+    if [ -z "$(docker compose -f "$DB_COMPOSE_FILE" ps -q "$DB_SERVICE" 2>/dev/null)" ]; then
+        echo -e "${RED}❌ 错误: 数据库服务未运行${NC}"
+        exit 1
+    fi
+elif ! docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
     echo -e "${RED}❌ 错误: 数据库容器未运行${NC}"
     exit 1
 fi
@@ -174,16 +182,32 @@ bash "$PROJECT_DIR/scripts/shell/backup.sh" --label pre_restore
 
 # 恢复数据库
 echo -e "${GREEN}📥 开始恢复数据库...${NC}"
+if [ -n "$DB_COMPOSE_FILE" ]; then
+docker compose -f "$DB_COMPOSE_FILE" exec -T "$DB_SERVICE" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" <<'SQL'
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO public;
+SQL
+else
 docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" <<'SQL'
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
 GRANT ALL ON SCHEMA public TO public;
 SQL
+fi
 
 if [ "$BACKUP_KIND" = "custom" ]; then
-    cat "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" pg_restore -v -U "$DB_USER" -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges
+    if [ -n "$DB_COMPOSE_FILE" ]; then
+        cat "$BACKUP_FILE" | docker compose -f "$DB_COMPOSE_FILE" exec -T "$DB_SERVICE" pg_restore -v -U "$DB_USER" -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges
+    else
+        cat "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" pg_restore -v -U "$DB_USER" -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges
+    fi
 else
-    gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" "$DB_NAME"
+    if [ -n "$DB_COMPOSE_FILE" ]; then
+        gunzip -c "$BACKUP_FILE" | docker compose -f "$DB_COMPOSE_FILE" exec -T "$DB_SERVICE" psql -v ON_ERROR_STOP=1 -U "$DB_USER" "$DB_NAME"
+    else
+        gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" "$DB_NAME"
+    fi
 fi
 
 echo -e "${GREEN}✅ 数据库恢复完成${NC}"

@@ -1,58 +1,49 @@
 # Current Status
 
 ## 当前总目标
-- 当前主主题：`等待下一个主主题`
-- 当前总目标：`位置管理页展示重构专题` 已重新验收通过、阶段收口并退出主区；当前主区等待下一个主主题。
+- 当前主主题：`告警中心 UI 重设计专题`
+- 当前总目标：在不改后端接口语义的前提下，完成告警中心页面的信息架构重组与视觉升级，提升值守与处置效率。
 
 ---
 
 ## 当前阶段
-- [x] 已确认原页面路由 `/locations` 与后端接口代理前缀 `/locations` 冲突，是“园区空间打不开”的直接根因
-- [x] 已确认 `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过
-- [x] 已确认后端 `GET /campus/overview`、`GET /locations/tree`、`GET /locations/roots` 在当前登录态下可正常返回
-- [x] 已确认此前“阶段收口”结论缺少浏览器运行态打开验证，收口条件不成立
-- [x] 已完成最终运行态修复：
-  - 前端页面路径改为 `/spaces`
-  - `vite.config.ts` 已补齐 `/campus` 代理
-  - `v-loading` 指令已注册
-- [x] 已通过浏览器级 Playwright 回归验证 `/spaces` 可打开
-- [x] 已确认本主题重新达到阶段完成
-- [x] 已确认本主题重新达到阶段收口条件
-- [ ] 待规范线程锁定下一个主主题并切换主区
+- [x] 已确认当前主区可切换到新主题
+- [x] 已定位当前页面入口为 `/alarms`，实现文件为 `frontend/src/views/AlarmCenter.vue`
+- [x] 已确认当前问题主要在前端信息层级与视觉表达，而不是接口缺失
+- [x] 已建立本轮正式执行依据 `PLAN-20260409-alarm-center-ui-redesign.md`
+- [x] 已完成告警中心页面首轮 UI 重设计实现
+- [x] 已完成前端构建验证
+- [x] 已完成本轮阶段验收结论
 
 ---
 
 ## 当前阻塞
 - 当前无执行阻塞。
-- 当前主区仅等待下一个主主题被锁定。
+- 当前已具备阶段收口判断条件。
 
 ## 当前待办
-- [x] 已完成“园区空间打不开”运行态排障
-- [x] 已完成重新验收并确认本主题重新达到阶段完成
-- [x] 已确认本主题退出主区并暂不迁 archive
-- [ ] 由规范线程锁定下一个主主题
-- [ ] 主区切换到下一个主主题
+- [x] 锁定新主主题并切换主区
+- [x] 完成告警中心页面首轮视觉重构
+- [x] 执行 `cd /Users/todo/CampusEnergySystem/frontend && npm run build`
+- [x] 根据验证结果补充验收结论与交接建议
+- [ ] 判断本主题是否直接进入阶段收口
 
 ## 当前验证结论
-- 已确认此前对 `位置管理页展示重构专题` 的收口结论过早，原因是仅完成了静态范围与构建验证，未完成浏览器运行态打开验证。
-- 已确认本轮真实根因有两层：
-  - 前端页面路由 `/locations` 与后端接口代理前缀 `/locations` 冲突
-  - 首屏依赖的 `/campus/overview` 缺少 Vite 代理，导致 `Promise.all` 在开发环境中整体失败
-- 已完成对应修复：
-  - 页面路由调整为 `/spaces`
-  - [vite.config.ts](/Users/todo/CampusEnergySystem/frontend/vite.config.ts) 已补齐 `/campus` 代理
-  - [main.ts](/Users/todo/CampusEnergySystem/frontend/src/main.ts) 已注册 `v-loading` 指令
-- 已完成重新验收所需验证：
-  - `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过
-  - `npx playwright test tests/e2e/location-manager-open.spec.ts` 通过
-- 已确认 `位置管理页展示重构专题` 重新达到阶段完成：
-  - [LocationManager.vue](/Users/todo/CampusEnergySystem/frontend/src/views/LocationManager.vue) 已保持“园区空间主视图”
-  - 浏览器运行态下“园区空间”可稳定打开
-  - 本轮未越界到 3D 场景重构、后端接口新增或跨页重构
-- 已确认当前没有足够明确、足够独立的后续最小可控范围。
-- 已确认本主题重新达到阶段收口条件，并暂不迁 archive。
+- 已确认当前告警中心旧版页面仅具备基础标题、筛选和表格，缺少首屏告警态势表达。
+- 已确认本轮前端改动保持在页面层，不涉及后端接口、字段和权限语义调整。
+- 已完成首轮重设计实现，当前页面已新增：
+  - 顶部告警态势区
+  - 活跃告警 / 高优先级 / 影响设备 / 已恢复摘要卡
+  - 更清晰的状态切换筛选
+  - 更强调优先级与处理记录的告警工作台列表
+- 已确认本轮视觉方向仍属于园区 EMS 后台管理页，不是驾驶舱大屏化改造。
+- 已执行 `cd /Users/todo/CampusEnergySystem/frontend && npm run build`，通过。
+- 已确认本轮达到阶段完成：
+  - 页面重设计已落地到 `AlarmCenter.vue`
+  - 前端构建通过
+  - 主区文档与正式 PLAN 已同步
 
 ## 当前剩余风险
-- 当前主区已空出，若下一个主主题迟迟未锁定，会短暂停留在等待状态。
-- 若后续重新使用与后端代理前缀重名的前端页面路径，问题可能再次复发。
-- 若忽略这次运行态排障经验，后续仍可能出现“静态通过但页面打不开”的过早收口。
+- 当前摘要指标基于当前查询结果集，不代表全局独立聚合指标。
+- 若后续需要更细粒度的告警生命周期表达，仍需单独后端专题支撑。
+- 若后续要求与具体 Figma frame 1:1 对齐，仍需补充对应 Figma 文件或节点链接。

@@ -20,18 +20,26 @@ START_HINT="./scripts/shell/start.sh"
 LOG_HINT="docker compose logs -f [服务名]"
 RESTART_HINT="docker compose restart [服务名]"
 PS_HINT="docker compose ps"
-CONTAINERS=()
-SERVICE_SPECS=()
+declare -a CONTAINERS=()
+declare -a SERVICE_SPECS=()
 
 contains_running_container() {
     local pattern="$1"
     docker ps --format '{{.Names}}' | grep -Eq "$pattern"
 }
 
+compose_service_container() {
+    local compose_file="$1"
+    local service="$2"
+    docker compose -f "$compose_file" ps -q "$service" 2>/dev/null | head -n 1
+}
+
 detect_env() {
     if contains_running_container '^campus_.*_prod$'; then
         echo "prod"
-    elif contains_running_container '^campus_energy_db_dev$|^campus_mqtt_dev$|^campus_redis_dev$'; then
+    elif [ -n "$(compose_service_container docker-compose.dev.yml db)" ] \
+      || [ -n "$(compose_service_container docker-compose.dev.yml mqtt)" ] \
+      || [ -n "$(compose_service_container docker-compose.dev.yml redis)" ]; then
         echo "dev"
     elif contains_running_container '^campus_backend$|^campus_energy_db$|^campus_mqtt$|^campus_redis$'; then
         echo "default"
@@ -90,6 +98,39 @@ check_container_service() {
     esac
 }
 
+check_compose_service() {
+    local name="$1"
+    local compose_file="$2"
+    local service="$3"
+    local container
+    container="$(compose_service_container "$compose_file" "$service")"
+
+    if [ -z "$container" ]; then
+        echo -e "   ${RED}❌ ${name}${NC} - 服务未运行 (${service})"
+        return
+    fi
+
+    local health
+    health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container" 2>/dev/null || echo "missing")"
+    case "$health" in
+        healthy)
+            echo -e "   ${GREEN}✅ ${name}${NC} - healthy (${service})"
+            ;;
+        starting)
+            echo -e "   ${YELLOW}⚠️  ${name}${NC} - starting (${service})"
+            ;;
+        unhealthy)
+            echo -e "   ${RED}❌ ${name}${NC} - unhealthy (${service})"
+            ;;
+        none)
+            echo -e "   ${GREEN}✅ ${name}${NC} - 运行中 (${service})"
+            ;;
+        *)
+            echo -e "   ${YELLOW}⚠️  ${name}${NC} - 状态未知 (${service})"
+            ;;
+    esac
+}
+
 configure_env() {
     local selected="$1"
     case "$selected" in
@@ -113,11 +154,11 @@ configure_env() {
             LOG_HINT="docker compose -f docker-compose.dev.yml logs -f [服务名]"
             RESTART_HINT="docker compose -f docker-compose.dev.yml restart [服务名]"
             PS_HINT="docker compose -f docker-compose.dev.yml ps"
-            CONTAINERS=(campus_energy_db_dev campus_redis_dev campus_mqtt_dev)
+            CONTAINERS=()
             SERVICE_SPECS=(
-                "数据库|container|campus_energy_db_dev"
-                "Redis|container|campus_redis_dev"
-                "MQTT|container|campus_mqtt_dev"
+                "数据库|compose|db"
+                "Redis|compose|redis"
+                "MQTT|compose|mqtt"
                 "本地后端健康检查|http|http://localhost:8088/health/live"
             )
             ;;
@@ -162,7 +203,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${BLUE}  园区综合能源管理系统服务状态 (${COMPOSE_LABEL})${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "提示：docker compose logs/restart/ps 使用服务名（如 backend/db/mqtt）；docker exec/inspect 使用 campus_* 容器名。"
+echo "提示：开发环境优先使用 docker compose + 服务名；生产环境仍可能看到固定容器名。"
 echo ""
 
 echo "🐳 容器状态："
@@ -170,15 +211,30 @@ echo "🐳 容器状态："
 echo ""
 
 echo "💻 资源使用："
-RUNNING_CONTAINERS=()
-for container in "${CONTAINERS[@]}"; do
-    if container_running "$container"; then
-        RUNNING_CONTAINERS+=("$container")
-    fi
-done
+declare -a RUNNING_CONTAINERS=()
+if declare -p CONTAINERS >/dev/null 2>&1 && [ "${#CONTAINERS[@]}" -gt 0 ]; then
+    for container in "${CONTAINERS[@]}"; do
+        if container_running "$container"; then
+            RUNNING_CONTAINERS+=("$container")
+        fi
+    done
+fi
 
 if [ "${#RUNNING_CONTAINERS[@]}" -gt 0 ]; then
     docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" "${RUNNING_CONTAINERS[@]}"
+elif [ "$COMPOSE_LABEL" = "dev" ]; then
+    declare -a DEV_RUNNING_CONTAINERS=()
+    for service in db redis mqtt; do
+        container="$(compose_service_container docker-compose.dev.yml "$service")"
+        if [ -n "$container" ]; then
+            DEV_RUNNING_CONTAINERS+=("$container")
+        fi
+    done
+    if [ "${#DEV_RUNNING_CONTAINERS[@]}" -gt 0 ]; then
+        docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" "${DEV_RUNNING_CONTAINERS[@]}"
+    else
+        echo "  当前环境没有检测到运行中的目标容器"
+    fi
 else
     echo "  当前环境没有检测到运行中的目标容器"
 fi
@@ -189,6 +245,8 @@ for spec in "${SERVICE_SPECS[@]}"; do
     IFS='|' read -r service_name service_kind service_target <<<"$spec"
     if [ "$service_kind" = "http" ]; then
         check_http_service "$service_name" "$service_target"
+    elif [ "$service_kind" = "compose" ]; then
+        check_compose_service "$service_name" "docker-compose.dev.yml" "$service_target"
     else
         check_container_service "$service_name" "$service_target"
     fi
