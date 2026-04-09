@@ -4,9 +4,9 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/todo/CampusEnergySystem/frontend",
-      "port": 5173
+      "runtimeArgs": ["run", "dev", "--", "--port", "4099"],
+      "cwd": "/Users/todo/CampusEnergySystem/.claude/worktrees/xenodochial-payne/frontend",
+      "port": 4099
     }
   ]
 }

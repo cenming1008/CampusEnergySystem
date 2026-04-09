@@ -233,3 +233,32 @@ body {
 .footer-copyright {
     text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 40px;
 }
+
+/* ================= 驾驶舱全局工具类 ================= */
+.glass-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(18px) saturate(145%);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 10px 28px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 14px 32px rgba(0, 0, 0, 0.22);
+}
+
+.scrollbar-hidden {
+    scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+}
