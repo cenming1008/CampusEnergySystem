@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useSocketStore } from '@/stores/useSocketStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
+import { useDashboardCharts } from '@/features/dashboard/composables/useDashboardCharts'
 import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
 import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
 import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
@@ -180,6 +181,29 @@ const focusCapacityUtilization = computed(() => {
   if (focusRatedCapacity.value <= 0) return null
   return Math.min(100, Math.max(0, (displayPower.value / focusRatedCapacity.value) * 100))
 })
+
+// ─── ECharts integration ──────────────────────────────────────────────────────
+const warningThreshold = computed(() => {
+  if (focusRatedCapacity.value > 0) return focusRatedCapacity.value * 0.85
+  if (displayPower.value > 0) return Math.max(displayPower.value * 1.5, 50)
+  return 50
+})
+
+const charts = useDashboardCharts({
+  currentDevice: focusDevice,
+  energyTrendData,
+  warningThreshold,
+  displayPower,
+  gaugeValue: onlineRate,
+  gaugeUnit: '%',
+  gaugeMax: 100,
+  energyStats,
+})
+
+// Template ref aliases (Vue 3 <script setup> resolves these automatically)
+const trendChartEl = charts.mainChart.chartRef
+const gaugeChartEl = charts.gaugeChart.chartRef
+const pieChartEl = charts.pieChart.chartRef
 const focusEnergyShare = computed(() => {
   const energyType = focusDevice.value?.energy_type || focusArchive.value?.energy_type
   const total = Number(energyStats[energyType || '']?.total_consumption || 0)
@@ -240,51 +264,6 @@ const trendStats = computed(() => [
   { label: '均值', value: `${formatNumber(trendAverage.value)} kW` }
 ])
 
-const trendPath = computed(() => createSmoothPath(trendValues.value, 920, 260))
-const headerTrendPath = computed(() => createSmoothPath(trendValues.value, 280, 92))
-
-const trendAxisLabels = computed(() => {
-  const times = energyTrendData.times
-  if (times.length <= 6) return times
-  return [times[0], times[Math.floor(times.length * 0.25)], times[Math.floor(times.length * 0.5)], times[Math.floor(times.length * 0.75)], times.at(-1) || '']
-})
-
-const energyMixItems = computed(() => {
-  const items = [
-    { key: 'electricity', color: '#00e0b0', value: energyStats.electricity?.total_consumption || 0 },
-    { key: 'water', color: '#5bc0ff', value: energyStats.water?.total_consumption || 0 },
-    { key: 'gas', color: '#ffb86b', value: energyStats.gas?.total_consumption || 0 },
-    { key: 'heat', color: '#ff7b9c', value: energyStats.heat?.total_consumption || 0 },
-    { key: 'cooling', color: '#b390ff', value: energyStats.cooling?.total_consumption || 0 }
-  ].filter((item) => item.value > 0)
-
-  const total = items.reduce((sum, item) => sum + item.value, 0)
-  return {
-    total,
-    items: items.map((item) => ({
-      ...item,
-      label: energyNameMap[item.key],
-      percent: total > 0 ? (item.value / total) * 100 : 0
-    }))
-  }
-})
-
-const energyMixRingStyle = computed(() => {
-  if (energyMixItems.value.items.length === 0) {
-    return { background: 'conic-gradient(from 180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))' }
-  }
-
-  let cursor = 0
-  const segments = energyMixItems.value.items.map((item) => {
-    const start = cursor
-    cursor += item.percent
-    return `${item.color} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`
-  })
-
-  return {
-    background: `conic-gradient(from 180deg, ${segments.join(', ')})`
-  }
-})
 
 const unresolvedAlarms = computed(() => (
   alarmList.value.slice(0, 4).map((alarm) => ({
@@ -530,6 +509,8 @@ onMounted(async () => {
     loadEnergyStats(),
     loadFocusMonitorData()
   ])
+
+  await charts.initCharts()
 })
 
 watch(currentDeviceId, (deviceId, previousId) => {
@@ -604,15 +585,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
             <span class="card-title">园区设备在线率总览</span>
           </div>
           <div class="overview-compact">
-            <div class="overview-rate">
-              <span class="overview-rate__label">当前在线率</span>
-              <strong>{{ onlineRate }}%</strong>
-              <div class="overview-rate__hint">
-                <span>在线 {{ onlineDevices }}</span>
-                <span>离线 {{ offlineDevices }}</span>
-                <span>总数 {{ totalDevices }}</span>
-              </div>
-            </div>
+            <div
+              ref="gaugeChartEl"
+              class="overview-gauge"
+            />
             <div class="overview-split">
               <div class="overview-stat">
                 <div class="overview-stat__label">
@@ -654,44 +630,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
             <span class="card-title">能源介质占比</span>
           </div>
 
-          <div class="energy-mix">
-            <div
-              class="energy-ring"
-              :class="{ 'energy-ring--dense': energyMixItems.items.length >= 4 }"
-              :style="energyMixRingStyle"
-            >
-              <div class="energy-ring__halo" />
-              <div class="energy-ring__core">
-                <span>总能耗</span>
-                <strong>{{ formatNumber(energyMixItems.total) }}</strong>
-                <small>kWh</small>
-              </div>
-            </div>
-
-            <div v-if="energyMixItems.items.length" class="energy-legend energy-legend--grid">
-              <div
-                v-for="item in energyMixItems.items"
-                :key="item.key"
-                class="energy-legend__item"
-              >
-                <div class="energy-legend__topline">
-                  <span class="energy-legend__swatch" :style="{ background: item.color }" />
-                  <span class="energy-legend__name">{{ item.label }}</span>
-                </div>
-                <div class="energy-legend__main">
-                  <strong>{{ item.percent.toFixed(1) }}%</strong>
-                  <div class="energy-legend__value">
-                    <span>{{ formatNumber(item.value) }}</span>
-                    <small>kWh</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-else class="card-empty">
-              当前暂无有效能耗分布数据
-            </div>
-          </div>
+          <div
+            ref="pieChartEl"
+            class="energy-pie-chart"
+          />
 
           <div class="energy-summary">
             <div class="energy-summary__item">
@@ -771,37 +713,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
             </div>
           </div>
 
-          <div class="trend-canvas">
-            <svg viewBox="0 0 920 260" preserveAspectRatio="none" class="trend-svg" aria-hidden="true">
-              <defs>
-                <linearGradient id="loadAreaGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                  <stop offset="0%" stop-color="#7fb4ff" stop-opacity="0.22" />
-                  <stop offset="65%" stop-color="#7fb4ff" stop-opacity="0.08" />
-                  <stop offset="100%" stop-color="#7fb4ff" stop-opacity="0" />
-                </linearGradient>
-                <linearGradient id="loadStrokeGradient" x1="0%" x2="100%" y1="0%" y2="0%">
-                  <stop offset="0%" stop-color="#8dc5ff" />
-                  <stop offset="55%" stop-color="#5d97f7" />
-                  <stop offset="100%" stop-color="#4d82dc" />
-                </linearGradient>
-              </defs>
-
-              <g class="trend-grid">
-                <line x1="0" y1="32" x2="920" y2="32" />
-                <line x1="0" y1="98" x2="920" y2="98" />
-                <line x1="0" y1="164" x2="920" y2="164" />
-                <line x1="0" y1="230" x2="920" y2="230" />
-              </g>
-
-              <path :d="trendPath.area" fill="url(#loadAreaGradient)" />
-              <path :d="trendPath.line" fill="none" stroke="url(#loadStrokeGradient)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
-              <path :d="trendPath.line" fill="none" stroke="#d9e7ff" stroke-opacity="0.62" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-
-            <div class="trend-axis">
-              <span v-for="label in trendAxisLabels" :key="label">{{ label || '--:--:--' }}</span>
-            </div>
-          </div>
+          <div
+            ref="trendChartEl"
+            class="trend-echarts"
+          />
         </section>
 
         <section class="glass-card focus-card">
@@ -1387,42 +1302,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
   margin-bottom: 4px;
 }
 
-.overview-rate {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 96px;
-  padding: 10px 12px 8px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
-}
-
-.overview-rate__label {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.overview-rate strong {
-  display: block;
-  font-size: clamp(34px, 3.3vw, 46px);
-  line-height: 0.92;
-  letter-spacing: -0.07em;
-  color: #78bcff;
-}
-
-.overview-rate__hint {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  max-width: 100%;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.46);
+.overview-gauge {
+  width: 100%;
+  height: 160px;
+  flex-shrink: 0;
 }
 
 .overview-split {
@@ -1494,95 +1377,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
   font-size: 14px;
 }
 
-.energy-mix {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  align-items: stretch;
-  min-height: 0;
+.energy-pie-chart {
   flex: 1 1 auto;
-}
-
-.energy-ring {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  min-width: 140px;
-  min-height: 140px;
-  max-width: 140px;
-  max-height: 140px;
-  margin: 0 auto;
-  flex: 0 0 140px;
-  border-radius: 999px;
-  padding: 6px;
-  box-sizing: border-box;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 6px 14px rgba(0, 0, 0, 0.08);
-}
-
-.energy-ring::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  opacity: 0.28;
-}
-
-.energy-ring--dense::before {
-  inset: -4px;
-  border-color: rgba(255, 255, 255, 0.06);
-}
-
-.energy-ring::after {
-  content: '';
-  position: absolute;
-  inset: 24%;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.045), transparent 54%),
-    rgba(10, 10, 10, 0.94);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    inset 0 8px 18px rgba(255, 255, 255, 0.02);
-}
-
-.energy-ring__halo {
-  position: absolute;
-  inset: 4px;
-  border-radius: 999px;
-  box-shadow:
-    inset 0 0 0 4px rgba(255, 255, 255, 0.012),
-    inset 0 0 8px rgba(255, 255, 255, 0.018);
-  pointer-events: none;
-}
-
-.energy-ring__core {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-.energy-ring__core span,
-.energy-ring__core small {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.energy-ring__core strong {
-  font-size: 18px;
-  color: #f8fffd;
-  letter-spacing: -0.05em;
-}
-
-.energy-ring__core span,
-.energy-ring__core small {
-  font-size: 9px;
+  min-height: 200px;
+  width: 100%;
 }
 
 .energy-legend {
@@ -1840,35 +1638,10 @@ watch(currentDeviceId, (deviceId, previousId) => {
   letter-spacing: -0.03em;
 }
 
-.trend-canvas {
+.trend-echarts {
   flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-
-.trend-svg {
+  min-height: 220px;
   width: 100%;
-  height: 100%;
-  min-height: 148px;
-}
-
-.trend-grid line {
-  stroke: rgba(255, 255, 255, 0.06);
-  stroke-width: 1;
-}
-
-.trend-axis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.trend-axis span {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.36);
 }
 
 .trend-axis span:nth-child(2),
