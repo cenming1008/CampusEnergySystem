@@ -14,11 +14,19 @@ export function useDashboardCharts(options: {
   energyTrendData: { times: string[]; values: number[] }
   warningThreshold: ComputedRef<number>
   displayPower: ComputedRef<number>
+  /** Override the value shown in the gauge (defaults to displayPower) */
+  gaugeValue?: ComputedRef<number>
+  /** Unit suffix shown in gauge detail, e.g. '%' */
+  gaugeUnit?: string
+  /** Upper bound of the gauge scale (defaults to 100) */
+  gaugeMax?: number
   energyStats: Record<string, EnergyStatistics>
 }) {
   const mainChart = useECharts()
   const gaugeChart = useECharts()
   const pieChart = useECharts()
+
+  const _gaugeMax = options.gaugeMax ?? 100
 
   const renderGauge = async (value: number) => {
     await gaugeChart.setOptions({
@@ -28,7 +36,7 @@ export function useDashboardCharts(options: {
         startAngle: 220,
         endAngle: -40,
         min: 0,
-        max: 100,
+        max: _gaugeMax,
         progress: {
           show: true,
           width: 12,
@@ -59,9 +67,12 @@ export function useDashboardCharts(options: {
           fontFamily: 'DIN, Monaco, monospace',
           color: '#fff',
           offsetCenter: [0, '10%'],
-          formatter: (currentValue: number) => currentValue.toFixed(1)
+          formatter: (currentValue: number) =>
+            options.gaugeUnit
+              ? `${currentValue.toFixed(0)}${options.gaugeUnit}`
+              : currentValue.toFixed(1)
         },
-        data: [{ value: Math.min(value, 100) }]
+        data: [{ value: Math.min(value, _gaugeMax) }]
       }]
     })
   }
@@ -260,8 +271,9 @@ export function useDashboardCharts(options: {
       pieChart.initChart()
     ])
 
-    await renderGauge(0)
+    await renderGauge(options.gaugeValue?.value ?? options.displayPower.value)
     await renderPieChart()
+    await renderMainChart()
   }
 
   const trendChartSource = computed(() => ({
@@ -279,7 +291,8 @@ export function useDashboardCharts(options: {
     options.energyStats.cooling?.total_consumption || 0
   ])
 
-  watch(() => options.displayPower.value, (value) => {
+  const _gaugeSource = computed(() => options.gaugeValue?.value ?? options.displayPower.value)
+  watch(_gaugeSource, (value) => {
     void renderGauge(Math.abs(value))
   })
 
