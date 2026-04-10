@@ -153,8 +153,8 @@ async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
 test('unauthenticated user is redirected to login when opening dashboard', async ({ page }) => {
   await stubWebSocket(page)
   await page.goto('/dashboard')
-  await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByRole('heading', { name: '访问终端' })).toBeVisible()
+  await expect(page).toHaveURL(/\/login(\?redirect=%2Fdashboard|\?redirect=\/dashboard)?$/)
+  await expect(page.getByRole('heading', { name: '登录系统' })).toBeVisible()
 })
 
 test('authenticated user can open report center and export csv', async ({ page }) => {
