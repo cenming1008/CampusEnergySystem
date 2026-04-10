@@ -3,6 +3,15 @@ import type { Device } from '@/api/device'
 import type { EnergyStatistics } from '@/api/energy'
 import { useECharts } from '@/shared/composables/useECharts'
 
+const ENERGY_MIX_ITEMS = [
+  { key: 'electricity', name: '电力',  color: '#5eead4' },
+  { key: 'water',       name: '水',    color: '#7ab8ff' },
+  { key: 'gas',         name: '燃气',  color: '#f7b267' },
+  { key: 'heat',        name: '热力',  color: '#fb7185' },
+  { key: 'cooling',     name: '冷气',  color: '#b794f6' },
+  { key: 'steam',       name: '蒸汽',  color: '#a78bfa' },
+] as const
+
 interface TrendTooltipParam {
   axisValue: string
   value: number
@@ -166,13 +175,13 @@ export function useDashboardCharts(options: {
   }
 
   const renderPieChart = async () => {
-    const data = [
-      { value: options.energyStats.electricity?.total_consumption || 0, name: '电力', itemStyle: { color: '#5eead4' } },
-      { value: options.energyStats.water?.total_consumption || 0, name: '水', itemStyle: { color: '#7ab8ff' } },
-      { value: options.energyStats.gas?.total_consumption || 0, name: '燃气', itemStyle: { color: '#f7b267' } },
-      { value: options.energyStats.heat?.total_consumption || 0, name: '热力', itemStyle: { color: '#fb7185' } },
-      { value: options.energyStats.cooling?.total_consumption || 0, name: '冷气', itemStyle: { color: '#b794f6' } }
-    ].filter((item) => item.value > 0)
+    const data = ENERGY_MIX_ITEMS
+      .map(({ key, name, color }) => ({
+        value: options.energyStats[key]?.total_consumption || 0,
+        name,
+        itemStyle: { color }
+      }))
+      .filter((item) => item.value > 0)
     const total = data.reduce((sum, item) => sum + item.value, 0)
     const hasDistributionData = total > 0
 
@@ -283,13 +292,9 @@ export function useDashboardCharts(options: {
     values: [...options.energyTrendData.values]
   }))
 
-  const pieChartSource = computed(() => [
-    options.energyStats.electricity?.total_consumption || 0,
-    options.energyStats.water?.total_consumption || 0,
-    options.energyStats.gas?.total_consumption || 0,
-    options.energyStats.heat?.total_consumption || 0,
-    options.energyStats.cooling?.total_consumption || 0
-  ])
+  const pieChartSource = computed(() =>
+    ENERGY_MIX_ITEMS.map(({ key }) => options.energyStats[key]?.total_consumption || 0)
+  )
 
   const _gaugeSource = computed(() => options.gaugeValue?.value ?? options.displayPower.value)
   watch(_gaugeSource, (value) => {
