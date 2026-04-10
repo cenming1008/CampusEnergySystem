@@ -11,13 +11,6 @@ const ENERGY_MIX_ITEMS = [
   { key: 'cooling',     name: '冷气',  color: '#b794f6' },
   { key: 'steam',       name: '蒸汽',  color: '#a78bfa' },
 ] as const
-
-interface TrendTooltipParam {
-  axisValue: string
-  value: number
-  dataIndex: number
-}
-
 export function useDashboardCharts(options: {
   currentDevice: ComputedRef<Device | undefined>
   energyTrendData: { times: string[]; values: number[] }
@@ -96,11 +89,15 @@ export function useDashboardCharts(options: {
         backgroundColor: 'rgba(0,0,0,0.8)',
         borderColor: '#5eead4',
         textStyle: { color: '#fff' },
-        formatter: (params: TrendTooltipParam[]) => {
-          const point = params[0]
+        formatter: (params) => {
+          const point = Array.isArray(params) ? params[0] : params
+          const axisValue = 'axisValueLabel' in point ? point.axisValueLabel : String(point.name ?? '')
+          const rawValue = Array.isArray(point.value) ? point.value[1] ?? point.value[0] : point.value
+          const value = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
+
           return `<div style="padding:5px">
-            <div style="color:#8892b0">${point.axisValue}</div>
-            <div style="color:#5eead4;font-size:16px;font-weight:bold">${point.value} kW</div>
+            <div style="color:#8892b0">${axisValue}</div>
+            <div style="color:#5eead4;font-size:16px;font-weight:bold">${value} kW</div>
             <div style="color:#7dd3fc;font-size:12px;margin-top:4px">预警阈值 ${options.warningThreshold.value.toFixed(1)} kW</div>
           </div>`
         }
@@ -197,10 +194,11 @@ export function useDashboardCharts(options: {
         formatter: '{b}: {c} ({d}%)'
       },
       legend: {
+        show: hasDistributionData,
         orient: 'vertical',
         right: 0,
         top: 'center',
-        textStyle: { color: '#9fb0c7', fontSize: 11 },
+        textStyle: { color: '#9fb0c7', fontSize: 12 },
         itemWidth: 12,
         itemHeight: 12,
         formatter: (name: string) => {
@@ -211,18 +209,31 @@ export function useDashboardCharts(options: {
         }
       },
       graphic: !hasDistributionData
-        ? {
-            type: 'text',
-            left: 'center',
-            top: '46%',
-            style: {
-              text: '当前时段暂无有效数据\n请检查采集状态或切换时间范围',
-              fill: '#7f8ea7',
-              textAlign: 'center',
-              lineHeight: 18,
-              fontSize: 12
+        ? [
+            {
+              type: 'text',
+              left: '35%',
+              top: '44%',
+              style: {
+                text: '暂无数据',
+                fill: '#8ea2bc',
+                align: 'center',
+                fontSize: 12,
+                fontWeight: 600
+              }
+            },
+            {
+              type: 'text',
+              left: '35%',
+              top: '55%',
+              style: {
+                text: '采集状态异常',
+                fill: '#5a7191',
+                align: 'center',
+                fontSize: 11
+              }
             }
-          }
+          ]
         : [
             {
               type: 'text',
@@ -231,7 +242,7 @@ export function useDashboardCharts(options: {
               style: {
                 text: '总能耗',
                 fill: '#8ea2bc',
-                textAlign: 'center',
+                align: 'center',
                 fontSize: 12
               }
             },
@@ -242,7 +253,7 @@ export function useDashboardCharts(options: {
               style: {
                 text: total.toFixed(1),
                 fill: '#f7fbff',
-                textAlign: 'center',
+                align: 'center',
                 fontSize: 22,
                 fontWeight: 700
               }
@@ -254,7 +265,7 @@ export function useDashboardCharts(options: {
               style: {
                 text: 'kWh',
                 fill: '#8ea2bc',
-                textAlign: 'center',
+                align: 'center',
                 fontSize: 11
               }
             }
