@@ -54,14 +54,14 @@ function fmt(v: number, d = 1) {
 }
 
 .card-eyebrow {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.38);
 }
 
 .card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -91,7 +91,7 @@ function fmt(v: number, d = 1) {
 }
 
 .energy-total-item span {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.44);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -104,14 +104,14 @@ function fmt(v: number, d = 1) {
 }
 
 .energy-total-item__value strong {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: #eef5ff;
 }
 
 .energy-total-item__value small {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.42);
 }
 
