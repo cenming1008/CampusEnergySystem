@@ -45,7 +45,7 @@ function onSelect(id: number | undefined) {
       <span class="scada-board__summary">{{ onlineCount }}/{{ totalCount }} 在线</span>
     </div>
 
-    <div class="scada-scroll scrollbar-hidden">
+    <div class="scada-scroll">
       <details
         v-for="group in groups"
         :key="group.key"
@@ -140,6 +140,29 @@ function onSelect(id: number | undefined) {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
+}
+
+.scada-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.scada-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scada-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+.scada-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Firefox */
+.scada-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 .scada-group {

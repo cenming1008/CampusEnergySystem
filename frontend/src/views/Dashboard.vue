@@ -408,7 +408,7 @@ watch(currentDeviceId, (deviceId, previousId) => {
 .ems-cockpit {
   position: relative;
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
