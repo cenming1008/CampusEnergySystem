@@ -11,6 +11,15 @@ const ENERGY_MIX_ITEMS = [
   { key: 'cooling',     name: '冷气',  color: '#b794f6' },
   { key: 'steam',       name: '蒸汽',  color: '#a78bfa' },
 ] as const
+
+type EnergyMixChartItem = {
+  value: number
+  name: string
+  itemStyle: {
+    color: string
+  }
+}
+
 export function useDashboardCharts(options: {
   currentDevice: ComputedRef<Device | undefined>
   energyTrendData: { times: string[]; values: number[] }
@@ -172,7 +181,7 @@ export function useDashboardCharts(options: {
   }
 
   const renderPieChart = async () => {
-    const data = ENERGY_MIX_ITEMS
+    const data: EnergyMixChartItem[] = ENERGY_MIX_ITEMS
       .map(({ key, name, color }) => ({
         value: options.energyStats[key]?.total_consumption || 0,
         name,
