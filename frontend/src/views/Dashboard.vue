@@ -18,6 +18,7 @@ import DeviceSpotlight from '@/features/dashboard/components/DeviceSpotlight.vue
 import ScadaBoard from '@/features/dashboard/components/ScadaBoard.vue'
 import RegionRanking from '@/features/dashboard/components/RegionRanking.vue'
 import type { Device } from '@/api/device'
+import type { DeviceAnalysis } from '@/api/telemetry'
 import {
   getDeviceMonitorOverview,
   getDeviceMonitorStatusHistory,
@@ -49,6 +50,16 @@ const {
 
 const monitorOverview = ref<MonitorOverview | null>(null)
 const monitorStatusHistory = ref<DeviceStatusEvent[]>([])
+const focusCardDevice = ref<Device | undefined>(undefined)
+const focusCardOverview = ref<MonitorOverview | null>(null)
+const focusCardAnalysis = ref<DeviceAnalysis | null>(null)
+const focusCardRealtime = ref({
+  power: 0,
+  energy: 0,
+  current: 0,
+  voltage: 0
+})
+const focusCardSwitching = ref(false)
 const locationScope = computed(() => authStore.locationScope?.trim() || '')
 
 const energyNameMap: Record<string, string> = {
@@ -102,6 +113,21 @@ function formatNumber(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : '0.0'
 }
 
+function formatCompactDateTime(value?: string | null) {
+  if (!value) return '--'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
 function resolvePreferredDeviceId() {
   const devices = selectableDevices.value
   const exactHeatMeter = devices.find((device) => device.name?.includes('1号热量表'))
@@ -112,6 +138,18 @@ function resolvePreferredDeviceId() {
 
   const fallback = devices.find((device) => device.device_type === 'load')
   return fallback?.id || devices[0]?.id
+}
+
+function syncFocusCardState() {
+  focusCardDevice.value = currentDevice.value || focusDevice.value
+  focusCardOverview.value = monitorOverview.value
+  focusCardAnalysis.value = analysisSnapshot.value
+  focusCardRealtime.value = {
+    power: realTimeData.power,
+    energy: realTimeData.energy,
+    current: realTimeData.current,
+    voltage: realTimeData.voltage
+  }
 }
 
 const onlineRate = computed(() => {
@@ -126,34 +164,69 @@ const focusDevice = computed<Device | undefined>(() => {
   return selectableDevices.value.find((device) => device.id === resolvePreferredDeviceId())
 })
 
-const focusDeviceName = computed(() => focusDevice.value?.name || '1号热量表')
-const focusDeviceType = computed(() => deviceTypeMap[focusDevice.value?.device_type || ''] || focusDevice.value?.device_type || '热量表')
-const focusEnergyType = computed(() => energyNameMap[focusDevice.value?.energy_type || ''] || focusDevice.value?.energy_type || '热力')
-const focusArchive = computed(() => monitorOverview.value?.archive)
-const focusRuntime = computed(() => monitorOverview.value?.runtime_status)
-const focusIngestion = computed<Record<string, unknown>>(() => (monitorOverview.value?.ingestion_health as Record<string, unknown>) || {})
-const focusStatusLabel = computed(() => focusRuntime.value?.label || (focusDevice.value?.is_active ? '在线运行' : '离线待机'))
+const focusArchive = computed(() => focusCardOverview.value?.archive)
+const focusIdentity = computed(() => focusArchive.value || focusCardDevice.value || focusDevice.value)
+const focusDeviceName = computed(() => focusIdentity.value?.name || '1号热量表')
+const focusDeviceType = computed(() => deviceTypeMap[focusIdentity.value?.device_type || ''] || focusIdentity.value?.device_type || '热量表')
+const focusEnergyType = computed(() => energyNameMap[focusIdentity.value?.energy_type || ''] || focusIdentity.value?.energy_type || '热力')
+const focusRuntime = computed(() => focusCardOverview.value?.runtime_status)
+const focusIngestion = computed<Record<string, unknown>>(() => (focusCardOverview.value?.ingestion_health as Record<string, unknown>) || {})
+const focusStatusLabel = computed(() => {
+  if (focusDevice.value?.is_active === false || focusRuntime.value?.is_active === false) {
+    return '离线待机'
+  }
+
+  if (focusRuntime.value?.code === 'alarm') {
+    return focusRuntime.value?.label || '告警中'
+  }
+
+  if (focusRuntime.value?.code === 'degraded') {
+    return focusRuntime.value?.label || '运行波动'
+  }
+
+  return '在线运行'
+})
+
 const focusStatusTone = computed((): 'online' | 'offline' | 'alarm' => {
-  const code = focusRuntime.value?.code
-  if (code === 'offline' || code === 'stopped') return 'offline'
-  if (code === 'alarm') return 'alarm'
+  if (focusDevice.value?.is_active === false || focusRuntime.value?.is_active === false) {
+    return 'offline'
+  }
+
+  if (focusRuntime.value?.code === 'alarm') {
+    return 'alarm'
+  }
+
   return 'online'
 })
 const focusRatedCapacity = computed(() => Number(focusArchive.value?.rated_capacity || focusDevice.value?.rated_capacity || 0))
 const focusCapacityUtilization = computed(() => {
   if (focusRatedCapacity.value <= 0) return null
-  return Math.min(100, Math.max(0, (displayPower.value / focusRatedCapacity.value) * 100))
+  return Math.min(100, Math.max(0, (Math.abs(focusCardRealtime.value.power) / focusRatedCapacity.value) * 100))
 })
 
 const warningThreshold = computed(() => {
   if (focusRatedCapacity.value > 0) return focusRatedCapacity.value * 0.85
-  if (displayPower.value > 0) return Math.max(displayPower.value * 1.5, 50)
+  if (Math.abs(focusCardRealtime.value.power) > 0) return Math.max(Math.abs(focusCardRealtime.value.power) * 1.5, 50)
   return 50
 })
 
-const focusMeasurementLabel = computed(() => analysisSnapshot.value?.current_value_label || '当前瞬时值')
-const focusMeasurementUnit = computed(() => analysisSnapshot.value?.current_value_unit || focusArchive.value?.unit || 'kW')
-const focusTodayUnit = computed(() => analysisSnapshot.value?.today_consumption_unit || 'kWh')
+const focusMeasurementLabel = computed(() => focusCardAnalysis.value?.current_value_label || '当前瞬时值')
+const focusMeasurementUnit = computed(() => focusCardAnalysis.value?.current_value_unit || focusArchive.value?.unit || 'kW')
+const focusTodayUnit = computed(() => focusCardAnalysis.value?.today_consumption_unit || 'kWh')
+const focusSummaryItems = computed(() => {
+  const latestReportAt = focusRuntime.value?.latest_timestamp || focusRuntime.value?.last_success_at || focusRuntime.value?.last_message_at
+  const alarmCount = focusRuntime.value?.unresolved_alarm_count || 0
+  const communicationValue = focusRuntime.value?.is_online
+    ? '正常'
+    : (focusRuntime.value?.is_active === false ? '停用' : '待确认')
+
+  return [
+    { label: '最近上报', value: formatCompactDateTime(latestReportAt) },
+    { label: '通讯状态', value: communicationValue, tone: focusRuntime.value?.is_online ? 'good' as const : 'warn' as const },
+    { label: '今日告警', value: `${alarmCount} 条`, tone: alarmCount > 0 ? 'warn' as const : 'good' as const },
+    { label: '安装位置', value: focusIdentity.value?.location?.trim() || '未标注' }
+  ]
+})
 
 const charts = useDashboardCharts({
   currentDevice: focusDevice,
@@ -178,6 +251,10 @@ const trendAverage = computed(() => {
   if (trendValues.value.length === 0) return 0
   return trendValues.value.reduce((sum, value) => sum + value, 0) / trendValues.value.length
 })
+
+const hasEnergyDistributionData = computed(() => (
+  Object.values(energyStats).some((item) => (item?.total_consumption || 0) > 0)
+))
 
 const trendStats = computed(() => [
   { label: '当前值', value: `${formatNumber(trendCurrent.value)} kW` },
@@ -242,7 +319,7 @@ const regionRankings = computed(() => {
 
 const statusLabel = computed(() => (isConnected.value ? '系统正常运行' : '通讯链路中断'))
 const dashboardSubtitle = computed(() => {
-  if (!locationScope.value) return '面向园区、区域、楼栋与设备表计的综合能源驾驶舱'
+  if (!locationScope.value) return '面向园区、区域、楼栋与设备表计的综合能源管理平台'
   return `当前范围：${locationScope.value}`
 })
 
@@ -281,14 +358,39 @@ onMounted(async () => {
     loadFocusMonitorData()
   ])
 
+  syncFocusCardState()
+
   await charts.initCharts()
 })
 
-watch(currentDeviceId, (deviceId, previousId) => {
+watch(currentDeviceId, async (deviceId, previousId) => {
   if (!deviceId || deviceId === previousId) return
-  void loadDeviceData()
-  void loadFocusMonitorData()
+
+  focusCardSwitching.value = true
+
+  try {
+    await Promise.all([
+      loadDeviceData(),
+      loadFocusMonitorData()
+    ])
+    if (currentDeviceId.value === deviceId) {
+      syncFocusCardState()
+    }
+  } finally {
+    if (currentDeviceId.value === deviceId) {
+      focusCardSwitching.value = false
+    }
+  }
 })
+
+watch(
+  [analysisSnapshot, monitorOverview, () => realTimeData.power, () => realTimeData.energy, () => realTimeData.current, () => realTimeData.voltage],
+  () => {
+    if (focusCardSwitching.value) return
+    if (!currentDeviceId.value) return
+    syncFocusCardState()
+  }
+)
 </script>
 
 <template>
@@ -350,6 +452,7 @@ watch(currentDeviceId, (deviceId, previousId) => {
         <EnergyMix
           :today-energy="todayEnergy"
           :monthly-energy="monthlyEnergy"
+          :has-distribution-data="hasEnergyDistributionData"
         >
           <template #chart>
             <div ref="pieChartEl" class="chart-mount" />
@@ -373,16 +476,17 @@ watch(currentDeviceId, (deviceId, previousId) => {
           :energy-type="focusEnergyType"
           :status-label="focusStatusLabel"
           :status-tone="focusStatusTone"
-          :current-value="displayPower"
+          :current-value="Math.abs(focusCardRealtime.power)"
           :current-unit="focusMeasurementUnit"
           :measurement-label="focusMeasurementLabel"
-          :today-value="displayEnergy"
+          :today-value="Math.abs(focusCardRealtime.energy)"
           :today-unit="focusTodayUnit"
           :rated-capacity="focusRatedCapacity"
           :capacity-utilization="focusCapacityUtilization"
+          :summary-items="focusSummaryItems"
           :selectable-devices="selectableDevices"
           :current-device-id="currentDeviceId"
-          :loading="realtimeLoading.device"
+          :loading="focusCardSwitching"
           @device-change="selectDevice"
         />
       </section>
@@ -408,12 +512,14 @@ watch(currentDeviceId, (deviceId, previousId) => {
 .ems-cockpit {
   position: relative;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: #f5f7fa;
   background:
     radial-gradient(circle at top left, rgba(107, 184, 255, 0.08), transparent 28%),
@@ -439,17 +545,19 @@ watch(currentDeviceId, (deviceId, previousId) => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 16px;
+  min-height: 108px;
+  padding: 22px 22px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(20px) saturate(135%);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.18);
+  box-sizing: border-box;
 }
 
 .brand-block {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -457,9 +565,9 @@ watch(currentDeviceId, (deviceId, previousId) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: rgba(107, 184, 255, 0.12);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
@@ -467,8 +575,8 @@ watch(currentDeviceId, (deviceId, previousId) => {
 }
 
 .brand-mark__dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #6bb8ff;
 }
@@ -476,13 +584,13 @@ watch(currentDeviceId, (deviceId, previousId) => {
 .brand-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
 .brand-kicker {
   margin: 0;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.46);
@@ -490,24 +598,24 @@ watch(currentDeviceId, (deviceId, previousId) => {
 
 .brand-text h1 {
   margin: 0;
-  font-size: clamp(16px, 1.5vw, 20px);
-  font-weight: 650;
-  line-height: 1;
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 700;
+  line-height: 1.02;
   letter-spacing: -0.04em;
 }
 
 .brand-subtitle {
   margin: 0;
-  font-size: 10px;
+  font-size: 12px;
   color: rgba(255,255,255,0.48);
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .header-right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -519,15 +627,15 @@ watch(currentDeviceId, (deviceId, previousId) => {
 }
 
 .time-panel__date {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.44);
 }
 
 .time-panel__clock {
-  font-size: clamp(14px, 1.2vw, 18px);
-  font-weight: 600;
+  font-size: clamp(20px, 1.7vw, 24px);
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -572,6 +680,7 @@ watch(currentDeviceId, (deviceId, previousId) => {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1.8fr) minmax(200px, 0.82fr);
+  grid-template-rows: 1fr;
   gap: 12px;
 }
 

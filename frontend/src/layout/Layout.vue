@@ -82,7 +82,7 @@ const handleSettingsClick = async () => {
         <div class="menu-header">园区主线</div>
         <el-menu-item index="/dashboard">
           <el-icon><DataLine /></el-icon>
-          <span>首页驾驶舱</span>
+          <span>首页总览</span>
         </el-menu-item>
         <el-menu-item index="/campus-overview">
           <el-icon><OfficeBuilding /></el-icon>
