@@ -38,6 +38,11 @@ wheels/
 .vscode/
 *.code-workspace
 
+# Claude/Codex worktree 临时目录
+/.claude/worktrees/
+/.claude/settings.local.json
+/.cursor/
+
 # ============================================
 # 环境配置和敏感信息
 # ============================================
