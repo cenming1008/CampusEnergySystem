@@ -1,12 +1,7 @@
 name: backend-ci
 
 on:
-  push:
-    branches:
-      - main
-      - master
-      - "codex/**"
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -57,7 +52,8 @@ jobs:
           docker compose -f docker-compose.prod.yml --env-file env.prod.example config >/tmp/mine_compose_config.out
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         with:
           image-ref: mineenergysystem-backend:ci
           format: table

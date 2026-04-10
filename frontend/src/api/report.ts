@@ -14,7 +14,7 @@ export interface ReportDownloadParams {
 
 function resolveReportDateSegment(params: ReportDownloadParams) {
   const raw = params.end_time || params.start_time || new Date().toISOString()
-  return raw.slice(0, 10).replaceAll('-', '')
+  return raw.slice(0, 10).replace(/-/g, '')
 }
 
 export function buildReportDownloadName(params: ReportDownloadParams) {
