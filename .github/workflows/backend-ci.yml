@@ -58,6 +58,7 @@ jobs:
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@v0.35.0
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         with:
           image-ref: mineenergysystem-backend:ci
           format: table

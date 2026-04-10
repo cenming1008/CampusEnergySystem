@@ -47,6 +47,14 @@ async function stubWebSocket(page: Parameters<typeof test>[0]['page']) {
 }
 
 async function mockAuthenticatedApis(page: Parameters<typeof test>[0]['page']) {
+  await page.route('**/auth/login', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(sessionPayload),
+    })
+  })
+
   await page.route('**/users/me', async (route) => {
     await route.fulfill({
       status: 200,
@@ -159,14 +167,13 @@ test('unauthenticated user is redirected to login when opening dashboard', async
 
 test('authenticated user can open report center and export csv', async ({ page }) => {
   await stubWebSocket(page)
-  await page.addInitScript(({ session }) => {
-    window.localStorage.setItem('access_token', session.access_token)
-    window.localStorage.setItem('refresh_token', session.refresh_token)
-    window.localStorage.setItem('username', 'admin')
-    window.localStorage.setItem('user_role', session.role)
-    window.localStorage.setItem('must_change_password', 'false')
-  }, { session: sessionPayload })
   await mockAuthenticatedApis(page)
+
+  await page.goto('/login')
+  await page.locator('#username').fill('admin')
+  await page.locator('#password').fill('123456')
+  await page.getByRole('button', { name: /进入园区 EMS|登录中/ }).click()
+  await page.waitForURL(/\/dashboard$/, { timeout: 15000 })
 
   const downloadPromise = page.waitForEvent('download')
   await page.goto('/report')
