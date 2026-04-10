@@ -188,10 +188,11 @@ export function useDashboardCharts(options: {
         formatter: '{b}: {c} ({d}%)'
       },
       legend: {
+        show: hasDistributionData,
         orient: 'vertical',
         right: 0,
         top: 'center',
-        textStyle: { color: '#9fb0c7', fontSize: 11 },
+        textStyle: { color: '#9fb0c7', fontSize: 12 },
         itemWidth: 12,
         itemHeight: 12,
         formatter: (name: string) => {
@@ -202,18 +203,31 @@ export function useDashboardCharts(options: {
         }
       },
       graphic: !hasDistributionData
-        ? {
-            type: 'text',
-            left: 'center',
-            top: '46%',
-            style: {
-              text: '当前时段暂无有效数据\n请检查采集状态或切换时间范围',
-              fill: '#7f8ea7',
-              textAlign: 'center',
-              lineHeight: 18,
-              fontSize: 12
+        ? [
+            {
+              type: 'text',
+              left: '35%',
+              top: '44%',
+              style: {
+                text: '暂无数据',
+                fill: '#8ea2bc',
+                textAlign: 'center',
+                fontSize: 12,
+                fontWeight: 600
+              }
+            },
+            {
+              type: 'text',
+              left: '35%',
+              top: '55%',
+              style: {
+                text: '采集状态异常',
+                fill: '#5a7191',
+                textAlign: 'center',
+                fontSize: 11
+              }
             }
-          }
+          ]
         : [
             {
               type: 'text',
