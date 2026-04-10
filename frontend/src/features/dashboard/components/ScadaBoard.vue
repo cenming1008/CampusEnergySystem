@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ElScrollbar } from 'element-plus'
+
 interface DeviceItem {
   id?: number
   name?: string
@@ -45,7 +47,7 @@ function onSelect(id: number | undefined) {
       <span class="scada-board__summary">{{ onlineCount }}/{{ totalCount }} 在线</span>
     </div>
 
-    <div class="scada-scroll scrollbar-hidden">
+    <ElScrollbar class="scada-scroll" always>
       <details
         v-for="group in groups"
         :key="group.key"
@@ -83,17 +85,20 @@ function onSelect(id: number | undefined) {
           </button>
         </div>
       </details>
-    </div>
+    </ElScrollbar>
   </section>
 </template>
 
 <style scoped>
 .scada-board {
   padding: 14px;
+  height: 100%;
+  max-height: clamp(360px, calc(100vh - 290px), 620px);
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
+  overflow: hidden;
 }
 
 .scada-board__head {
@@ -134,12 +139,34 @@ function onSelect(id: number | undefined) {
 }
 
 .scada-scroll {
-  flex: 1 1 auto;
-  overflow-y: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.scada-scroll :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden;
+}
+
+.scada-scroll :deep(.el-scrollbar__view) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-height: 0;
+  min-height: 100%;
+  padding-right: 6px;
+}
+
+.scada-scroll :deep(.el-scrollbar__bar.is-vertical) {
+  width: 8px;
+  right: 0;
+}
+
+.scada-scroll :deep(.el-scrollbar__thumb) {
+  background: rgba(125, 211, 252, 0.28);
+  border-radius: 999px;
+}
+
+.scada-scroll :deep(.el-scrollbar__thumb:hover) {
+  background: rgba(125, 211, 252, 0.4);
 }
 
 .scada-group {

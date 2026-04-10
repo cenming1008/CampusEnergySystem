@@ -10,6 +10,12 @@ interface Device {
   is_active?: boolean
 }
 
+interface SpotlightSummaryItem {
+  label: string
+  value: string
+  tone?: 'default' | 'good' | 'warn'
+}
+
 const props = defineProps<{
   deviceName: string
   deviceType: string
@@ -23,6 +29,7 @@ const props = defineProps<{
   todayUnit: string
   ratedCapacity: number
   capacityUtilization: number | null
+  summaryItems: SpotlightSummaryItem[]
   selectableDevices: Device[]
   currentDeviceId: number | undefined
   loading: boolean
@@ -83,13 +90,13 @@ function fmt(v: number, d = 1) {
       <div class="spotlight-hero">
         <span class="spotlight-hero__label">{{ measurementLabel }}</span>
         <div class="spotlight-hero__value">
-          <strong :class="{ loading: loading }">{{ loading ? '—' : fmt(currentValue) }}</strong>
+          <strong :class="{ loading: loading }">{{ fmt(currentValue) }}</strong>
           <span>{{ currentUnit }}</span>
         </div>
       </div>
 
       <div class="spotlight-secondary">
-        <div class="spotlight-metric">
+        <div class="spotlight-metric spotlight-metric--primary">
           <span>今日累计</span>
           <strong>{{ fmt(todayValue) }}</strong>
           <small>{{ todayUnit }}</small>
@@ -103,6 +110,18 @@ function fmt(v: number, d = 1) {
           <span>利用率</span>
           <strong>{{ capacityUtilization.toFixed(0) }}</strong>
           <small>%</small>
+        </div>
+      </div>
+
+      <div class="spotlight-summary-grid">
+        <div
+          v-for="item in summaryItems"
+          :key="item.label"
+          class="spotlight-summary-card"
+          :class="item.tone ? `spotlight-summary-card--${item.tone}` : ''"
+        >
+          <span class="spotlight-summary-card__label">{{ item.label }}</span>
+          <strong class="spotlight-summary-card__value">{{ item.value }}</strong>
         </div>
       </div>
     </div>
@@ -229,7 +248,7 @@ function fmt(v: number, d = 1) {
 
 .spotlight-metrics {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 220px 120px minmax(220px, 1fr);
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -237,12 +256,14 @@ function fmt(v: number, d = 1) {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
   margin-bottom: 10px;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .spotlight-hero {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .spotlight-hero__label {
@@ -256,19 +277,24 @@ function fmt(v: number, d = 1) {
   display: flex;
   align-items: baseline;
   gap: 5px;
+  min-width: 0;
 }
 
 .spotlight-hero__value strong {
+  display: inline-block;
+  width: 4.8ch;
   font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.05em;
   color: #38bdf8;
   line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   transition: opacity 0.2s ease;
 }
 
 .spotlight-hero__value strong.loading {
-  opacity: 0.4;
+  opacity: 0.72;
 }
 
 .spotlight-hero__value span {
@@ -282,6 +308,11 @@ function fmt(v: number, d = 1) {
   gap: 6px;
   padding-left: 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.07);
+  min-width: 0;
+}
+
+.spotlight-metric--primary {
+  margin-bottom: 2px;
 }
 
 .spotlight-metric {
@@ -305,6 +336,47 @@ function fmt(v: number, d = 1) {
 .spotlight-metric small {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.38);
+}
+
+.spotlight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.spotlight-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 58px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.spotlight-summary-card--good {
+  background: rgba(52, 211, 153, 0.06);
+  border-color: rgba(52, 211, 153, 0.14);
+}
+
+.spotlight-summary-card--warn {
+  background: rgba(251, 146, 60, 0.06);
+  border-color: rgba(251, 146, 60, 0.14);
+}
+
+.spotlight-summary-card__label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.spotlight-summary-card__value {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #e7f1ff;
 }
 
 .spotlight-link {

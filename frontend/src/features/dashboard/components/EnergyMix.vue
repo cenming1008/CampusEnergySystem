@@ -2,6 +2,7 @@
 defineProps<{
   todayEnergy: number
   monthlyEnergy: number
+  hasDistributionData: boolean
 }>()
 
 function fmt(v: number, d = 1) {
@@ -16,8 +17,13 @@ function fmt(v: number, d = 1) {
       <span class="card-title">能源介质占比</span>
     </div>
 
-    <div class="pie-wrap">
+    <div class="pie-wrap" :class="{ 'pie-wrap--empty': !hasDistributionData }">
       <slot name="chart" />
+    </div>
+
+    <div v-if="!hasDistributionData" class="energy-mix-empty-state">
+      <strong>暂无数据</strong>
+      <span>采集状态异常</span>
     </div>
 
     <div class="energy-totals">
@@ -70,6 +76,31 @@ function fmt(v: number, d = 1) {
   flex: 1 1 auto;
   min-height: 160px;
   width: 100%;
+}
+
+.pie-wrap--empty {
+  min-height: 144px;
+}
+
+.energy-mix-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: -8px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.energy-mix-empty-state strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8ea2bc;
+}
+
+.energy-mix-empty-state span {
+  font-size: 11px;
+  color: #5a7191;
 }
 
 .energy-totals {

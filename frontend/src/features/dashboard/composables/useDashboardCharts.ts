@@ -218,31 +218,7 @@ export function useDashboardCharts(options: {
         }
       },
       graphic: !hasDistributionData
-        ? [
-            {
-              type: 'text',
-              left: '35%',
-              top: '44%',
-              style: {
-                text: '暂无数据',
-                fill: '#8ea2bc',
-                align: 'center',
-                fontSize: 12,
-                fontWeight: 600
-              }
-            },
-            {
-              type: 'text',
-              left: '35%',
-              top: '55%',
-              style: {
-                text: '采集状态异常',
-                fill: '#5a7191',
-                align: 'center',
-                fontSize: 11
-              }
-            }
-          ]
+        ? []
         : [
             {
               type: 'text',
