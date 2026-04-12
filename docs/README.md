@@ -107,8 +107,8 @@ docs/
 如果你不是在查“怎么使用系统”，而是在决定“文档该怎么写、计划该怎么做、协作该遵守什么边界”，请先看：
 
 - [规范指南](./guides/README.md) - 长期稳定规则、文档落点和计划规范
-- [AI 多线程协作 SOP](./guides/ai-collaboration-sop.md) - 多线程协作的正式执行流程、daily 归档与主题收口规则
-- [Codex 五线程 Vibe Coding 框架](./guides/five-thread-vibe-coding-framework.md) - 五线程在高频开发中的分流、切换、并行边界与最小闭环
+- [AI 多角色协作 SOP](./guides/ai-collaboration-sop.md) - 多角色协作的正式执行流程、daily 归档与主题收口规则
+- [Codex 五角色 Vibe Coding 框架](./guides/five-thread-vibe-coding-framework.md) - 五角色在高频开发中的分流、切换、并行边界与最小闭环
 - [计划目录](./plans/README.md) - 具体改动计划、模板和执行记录
 - [根目录 AGENTS.md](../AGENTS.md) - 协作者与智能体的统一执行约定
 - [文档归档区](./archive/README.md) - 历史材料、已合并来源和待删除候选

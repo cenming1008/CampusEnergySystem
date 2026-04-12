@@ -77,6 +77,7 @@ def create_device_smart(
             location=req.location,
             description=req.description,
             rated_capacity=req.rated_capacity,
+            svg_operations=req.svg_operations.model_dump(exclude_none=True) if req.svg_operations else None,
         )
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
@@ -129,6 +130,7 @@ def update_device(
         location=req.location,
         description=req.description,
         rated_capacity=req.rated_capacity,
+        svg_operations=req.svg_operations.model_dump(exclude_none=True) if req.svg_operations else None,
     )
 
 

@@ -38,6 +38,7 @@ export interface DeviceRealtime {
   voltage?: number | null
   current?: number | null
   power_factor?: number | null
+  reactive_power?: number | null
   pressure?: number | null
   temperature?: number | null
 }

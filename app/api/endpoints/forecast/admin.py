@@ -23,12 +23,13 @@ def get_scheduler_jobs(
     current_user: User = Depends(ADMIN_ONLY),
 ):
     try:
-        from app.services.scheduler_service import get_jobs
+        from app.services.scheduler_service import get_jobs, get_scheduler_status
 
         jobs = get_jobs()
+        scheduler_status = get_scheduler_status()
         audit_log("forecast.scheduler.list_jobs", current_user.username, "scheduler:*")
         return success_response(
-            data={"jobs": jobs, "count": len(jobs)},
+            data={"jobs": jobs, "count": len(jobs), "scheduler": scheduler_status},
             message="获取定时任务列表成功",
         )
     except Exception as exc:

@@ -82,5 +82,10 @@ class RuntimeState:
         with self._lock:
             return deepcopy(self._state)
 
+    def get_service(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            payload = self._state["services"].get(name, self._service_payload("unknown"))
+            return deepcopy(payload)
+
 
 runtime_state = RuntimeState()

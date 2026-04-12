@@ -52,6 +52,45 @@ class RedisClient:
             # 关闭阶段不再向外抛异常
             pass
 
+    @classmethod
+    async def acquire_lease(cls, key: str, owner_token: str, ttl_seconds: int) -> bool:
+        """尝试获取 lease；仅在 key 不存在时成功。"""
+        client = cls.get_client()
+        result = await client.set(key, owner_token, nx=True, ex=ttl_seconds)
+        return bool(result)
+
+    @classmethod
+    async def renew_lease(cls, key: str, owner_token: str, ttl_seconds: int) -> bool:
+        """仅在当前 owner 匹配时续租 lease。"""
+        client = cls.get_client()
+        script = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('expire', KEYS[1], ARGV[2])
+end
+return 0
+"""
+        result = await client.eval(script, 1, key, owner_token, ttl_seconds)
+        return bool(result)
+
+    @classmethod
+    async def release_lease(cls, key: str, owner_token: str) -> bool:
+        """仅在当前 owner 匹配时释放 lease。"""
+        client = cls.get_client()
+        script = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0
+"""
+        result = await client.eval(script, 1, key, owner_token)
+        return bool(result)
+
+    @classmethod
+    async def get_value(cls, key: str) -> Optional[str]:
+        """读取 Redis 字符串值。"""
+        client = cls.get_client()
+        return await client.get(key)
+
 
 async def get_redis() -> redis.Redis:
     """FastAPI 依赖注入：获取 Redis 客户端。"""

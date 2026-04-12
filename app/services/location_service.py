@@ -111,6 +111,37 @@ class LocationService:
         """根据编码获取位置"""
         statement = select(Location).where(Location.code == code)
         return session.exec(statement).first()
+
+    @staticmethod
+    def resolve_location_reference(session: Session, raw_value: Optional[str]) -> Optional[Location]:
+        """根据位置文本解析 Location，优先 full_path / code / name。"""
+        normalized = raw_value.strip() if raw_value else ""
+        if not normalized:
+            return None
+
+        by_full_path = session.exec(
+            select(Location).where(Location.full_path == normalized)
+        ).first()
+        if by_full_path:
+            return by_full_path
+
+        by_code = session.exec(
+            select(Location).where(Location.code == normalized)
+        ).first()
+        if by_code:
+            return by_code
+
+        by_name = list(
+            session.exec(
+                select(Location)
+                .where(Location.name == normalized)
+                .order_by(Location.level.desc(), Location.id.desc())
+            ).all()
+        )
+        if len(by_name) == 1:
+            return by_name[0]
+
+        return None
     
     @staticmethod
     def get_all_locations(

@@ -55,8 +55,8 @@ async def startup() -> None:
     _bridge_task = asyncio.create_task(bridge_loop(_bridge_stop_event, manager.broadcast))
 
     try:
-        start_scheduler()
-        logger.info("✅ 定时任务调度器启动完成")
+        scheduler_result = await start_scheduler()
+        logger.info(f"✅ 定时任务调度器启动完成: {scheduler_result.get('status')}")
     except Exception as exc:
         logger.warning(f"⚠️ 定时任务调度器启动失败: {exc}")
 
@@ -69,8 +69,8 @@ async def shutdown() -> None:
     logger.info("🛑 应用关闭中...")
 
     try:
-        stop_scheduler()
-        logger.info("✅ 定时任务调度器已停止")
+        scheduler_result = await stop_scheduler()
+        logger.info(f"✅ 定时任务调度器已停止: {scheduler_result.get('status')}")
     except Exception as exc:
         runtime_state.mark_service("scheduler", "unhealthy", str(exc))
         logger.warning(f"⚠️ 定时任务调度器停止失败: {exc}")

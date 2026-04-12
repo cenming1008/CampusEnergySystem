@@ -1,4 +1,4 @@
-本模板用于输出“下一棒 prompt”的统一骨架，适合总控线程在确定接棒对象后直接复制使用。
+本模板用于输出“下一棒 prompt”的统一骨架，适合总控角色在确定接棒对象后直接复制使用。
 
 # 当前主题
 
@@ -6,12 +6,12 @@
 
 # 当前路径判断
 
-- 当前线程路径：{{thread_path}}
+- 当前角色路径：{{role_path}}
 - 当前任务归属：{{task_judgement}}
 
-# 下一棒线程
+# 下一棒角色
 
-- 下一线程：{{next_thread}}
+- 下一角色：{{next_role}}
 - 交接原因：{{handoff_reason}}
 
 # 当前允许范围
@@ -28,4 +28,4 @@
 
 # 下一棒 prompt
 
-{{next_thread_prompt}}
+{{next_role_prompt}}

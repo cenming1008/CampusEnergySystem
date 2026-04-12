@@ -43,6 +43,14 @@ def extract_device_code(data: dict[str, Any], topic: Optional[str]) -> Optional[
 
 def infer_device_type(data: dict[str, Any]) -> str:
     """根据遥测字段推断设备类型，用于未知设备自动注册。"""
+    # SVG 专属字段优先判断
+    if any(
+        data.get(f) is not None
+        for f in ("svg_reactive_output", "igbt_temp", "module_fault", "output_direction",
+                  "overvoltage_fault", "undervoltage_fault", "dc_bus_voltage")
+    ):
+        return "svg"
+
     if data.get("flow_rate") is not None or (
         data.get("consumption") is not None
         and data.get("voltage") is None

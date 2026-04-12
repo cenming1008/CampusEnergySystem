@@ -122,6 +122,36 @@ class Settings(BaseSettings):
         env="REDIS_PASSWORD",
         description="Redis密码（如果需要）"
     )
+
+    scheduler_enabled: bool = Field(
+        default=True,
+        env="SCHEDULER_ENABLED",
+        description="是否启用进程内 scheduler"
+    )
+
+    scheduler_mode: str = Field(
+        default="auto",
+        env="SCHEDULER_MODE",
+        description="scheduler 模式：auto/local/redis_owner"
+    )
+
+    scheduler_lease_key: str = Field(
+        default="campus:scheduler:owner",
+        env="SCHEDULER_LEASE_KEY",
+        description="scheduler owner 竞争使用的 Redis lease key"
+    )
+
+    scheduler_lease_ttl_seconds: int = Field(
+        default=30,
+        env="SCHEDULER_LEASE_TTL_SECONDS",
+        description="scheduler owner lease TTL（秒）"
+    )
+
+    scheduler_lease_renew_interval_seconds: int = Field(
+        default=10,
+        env="SCHEDULER_LEASE_RENEW_INTERVAL_SECONDS",
+        description="scheduler owner lease 续租间隔（秒）"
+    )
     
     # ==================== MQTT配置 ====================
     mqtt_broker: str = Field(
@@ -571,6 +601,14 @@ class Settings(BaseSettings):
             raise ValueError(f"RATE_LIMIT_BACKEND 必须是 {sorted(allowed)} 之一")
         return normalized
 
+    @validator("scheduler_mode")
+    def validate_scheduler_mode(cls, v):
+        normalized = str(v).lower().strip()
+        allowed = {"auto", "local", "redis_owner"}
+        if normalized not in allowed:
+            raise ValueError(f"SCHEDULER_MODE 必须是 {sorted(allowed)} 之一")
+        return normalized
+
     @validator("websocket_auth_mode")
     def validate_websocket_auth_mode(cls, v):
         normalized = str(v).lower().strip()
@@ -786,6 +824,12 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @property
+    def scheduler_effective_mode(self) -> str:
+        if self.scheduler_mode != "auto":
+            return self.scheduler_mode
+        return "redis_owner" if self.is_production else "local"
 
 
 # 创建全局配置实例

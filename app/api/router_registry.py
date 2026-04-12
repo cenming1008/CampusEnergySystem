@@ -28,6 +28,7 @@ from app.api.endpoints import (
     reports,
     users,
 )
+from app.api.endpoints.svg import router as svg_router
 
 
 PUBLIC_ROUTERS = (
@@ -53,6 +54,7 @@ PROTECTED_ROUTERS = (
     (device_groups.router, "/device-groups", ("设备分组",)),
     (data_cleanup.router, "/data-cleanup", ("数据清理",)),
     (inspection.router, "/inspection", ("巡检运维",)),
+    (svg_router, "/svg", ("SVG 静止无功发生器",)),
 )
 
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
     import { ref, reactive, onMounted, computed, unref } from 'vue'
-	    import { useRouter } from 'vue-router'
-	    import { usePermissions } from '@/shared/composables/usePermissions'
+    import { useRouter } from 'vue-router'
+    import { usePermissions } from '@/shared/composables/usePermissions'
+    import { buildDeviceTypeLabelMap } from '@/shared/deviceTypeLabels'
+    import { getSVGOperationsProfile } from '@/api/svg'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
       getDeviceTypes,
-      type Device, type DeviceTypeConfig 
+      type Device, type DeviceTypeConfig, type DeviceWritePayload
     } from '@/api/device'
     import { ElMessage, ElMessageBox } from 'element-plus'
     import { Plus, Search, Refresh, Delete, Edit, Monitor } from '@element-plus/icons-vue'
@@ -27,11 +29,7 @@
     
     // 设备类型映射 (用于表格展示，动态计算)
     const deviceTypeMap = computed(() => {
-      const map: Record<string, string> = {}
-      deviceTypes.value.forEach(t => {
-        map[t.device_type] = `${t.icon} ${t.name_zh}`
-      })
-      return map
+      return buildDeviceTypeLabelMap(deviceTypes.value)
     })
     
     // 表单数据模型
@@ -43,6 +41,25 @@
       is_active: true,
       description: ''
     })
+    const svgOperations = reactive({
+      model_number: '',
+      rated_voltage: undefined as number | undefined,
+      rated_frequency: undefined as number | undefined,
+      comm_address: '',
+      module_count: undefined as number | undefined,
+      single_module_capacity: undefined as number | undefined,
+      asset_number: '',
+      distribution_room: '',
+      distribution_cabinet: '',
+      circuit: '',
+      om_responsible: '',
+      contact_phone: '',
+      install_date: '',
+      commission_date: '',
+      device_alias: '',
+      display_name: ''
+    })
+    const isSvgDeviceType = computed(() => formData.device_type === 'svg')
     
     // 表单校验规则
     const rules = {
@@ -67,15 +84,60 @@
     }
     
     // --- 2. 新增 / 编辑 ---
-    const openDialog = (row?: Device | null) => {
+    const resetSvgOperations = () => {
+      svgOperations.model_number = ''
+      svgOperations.rated_voltage = undefined
+      svgOperations.rated_frequency = undefined
+      svgOperations.comm_address = ''
+      svgOperations.module_count = undefined
+      svgOperations.single_module_capacity = undefined
+      svgOperations.asset_number = ''
+      svgOperations.distribution_room = ''
+      svgOperations.distribution_cabinet = ''
+      svgOperations.circuit = ''
+      svgOperations.om_responsible = ''
+      svgOperations.contact_phone = ''
+      svgOperations.install_date = ''
+      svgOperations.commission_date = ''
+      svgOperations.device_alias = ''
+      svgOperations.display_name = ''
+    }
+
+    const openDialog = async (row?: Device | null) => {
       if (!canManageDevicesValue.value) {
         ElMessage.warning('当前账号无权新增或编辑设备')
         return
       }
+      resetSvgOperations()
       if (row && typeof row === 'object' && 'name' in row) {
         dialogTitle.value = '编辑设备'
         // 复制数据到表单 (注意深拷贝或 Object.assign)
         Object.assign(formData, row)
+        if (row.device_type === 'svg' && row.id) {
+          try {
+            const profile = await getSVGOperationsProfile(row.id)
+            Object.assign(svgOperations, {
+              model_number: profile.model_number || '',
+              rated_voltage: profile.rated_voltage ?? undefined,
+              rated_frequency: profile.rated_frequency ?? undefined,
+              comm_address: profile.comm_address || '',
+              module_count: profile.module_count ?? undefined,
+              single_module_capacity: profile.single_module_capacity ?? undefined,
+              asset_number: profile.asset_number || '',
+              distribution_room: profile.distribution_room || '',
+              distribution_cabinet: profile.distribution_cabinet || '',
+              circuit: profile.circuit || '',
+              om_responsible: profile.om_responsible || '',
+              contact_phone: profile.contact_phone || '',
+              install_date: profile.install_date || '',
+              commission_date: profile.commission_date || '',
+              device_alias: profile.device_alias || '',
+              display_name: profile.display_name || '',
+            })
+          } catch {
+            // 允许编辑设备主档时 SVG 运维档案为空
+          }
+        }
       } else {
         dialogTitle.value = '新增设备'
         // 重置表单
@@ -97,13 +159,21 @@
         if (valid) {
           formLoading.value = true
           try {
+            const payload: DeviceWritePayload = {
+              ...formData,
+            }
+            if (isSvgDeviceType.value) {
+              payload.svg_operations = Object.fromEntries(
+                Object.entries(svgOperations).filter(([, value]) => value !== '' && value !== undefined && value !== null)
+              )
+            }
             if (formData.id) {
               // 编辑模式
-              await updateDevice(formData.id, formData)
+              await updateDevice(formData.id, payload)
               ElMessage.success('设备更新成功')
             } else {
               // 新增模式
-              await createDevice(formData)
+              await createDevice(payload)
               ElMessage.success('设备创建成功')
             }
             dialogVisible.value = false
@@ -200,6 +270,8 @@
           { device_type: 'heat_meter', name_zh: '热量表', icon: '🌡️', category: 'heat_meter', energy_type: 'heat', name_en: 'Heat Meter', unit: 'GJ/h', default_capacity: 10, required_fields: [], optional_fields: [], color: '#E91E63' },
           { device_type: 'cooling_meter', name_zh: '冷量表', icon: '❄️', category: 'cooling_meter', energy_type: 'cooling', name_en: 'Cooling Meter', unit: 'kW', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00BCD4' },
           { device_type: 'steam_meter', name_zh: '蒸汽表', icon: '💨', category: 'heat_meter', energy_type: 'steam', name_en: 'Steam Meter', unit: 't/h', default_capacity: 5, required_fields: [], optional_fields: [], color: '#607D8B' },
+          { device_type: 'reactive_power_compensator', name_zh: '无功功率补偿器', icon: '⚖️', category: 'load', energy_type: 'electricity', name_en: 'Reactive Power Compensator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00ACC1' },
+          { device_type: 'svg', name_zh: '静止无功发生器', icon: '⚡', category: 'load', energy_type: 'electricity', name_en: 'Static Var Generator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#FF6F00' },
         ]
       }
     }
@@ -402,10 +474,10 @@
             <el-option 
               v-for="t in deviceTypes" 
               :key="t.device_type" 
-              :label="`${t.icon} ${t.name_zh} (${t.unit})`" 
+              :label="`${t.name_zh} (${t.unit})`" 
               :value="t.device_type"
             >
-              <span style="float: left">{{ t.icon }} {{ t.name_zh }}</span>
+              <span style="float: left">{{ t.name_zh }}</span>
               <span style="float: right; color: #8492a6; font-size: 12px">{{ t.energy_type }} | {{ t.unit }}</span>
             </el-option>
           </el-select>
@@ -430,6 +502,58 @@
             type="textarea"
           />
         </el-form-item>
+
+        <template v-if="isSvgDeviceType">
+          <el-divider content-position="left">SVG 运维档案</el-divider>
+          <el-form-item label="设备型号">
+            <el-input v-model="svgOperations.model_number" placeholder="例如: SVG-400/0.4" />
+          </el-form-item>
+          <el-form-item label="额定电压">
+            <el-input-number v-model="svgOperations.rated_voltage" :min="0" :precision="1" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="额定频率">
+            <el-input-number v-model="svgOperations.rated_frequency" :min="0" :precision="2" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="通信地址">
+            <el-input v-model="svgOperations.comm_address" placeholder="例如: 01" />
+          </el-form-item>
+          <el-form-item label="模块数量">
+            <el-input-number v-model="svgOperations.module_count" :min="0" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="单模块容量">
+            <el-input-number v-model="svgOperations.single_module_capacity" :min="0" :precision="1" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="资产编号">
+            <el-input v-model="svgOperations.asset_number" />
+          </el-form-item>
+          <el-form-item label="所属配电室">
+            <el-input v-model="svgOperations.distribution_room" />
+          </el-form-item>
+          <el-form-item label="所属配电柜">
+            <el-input v-model="svgOperations.distribution_cabinet" />
+          </el-form-item>
+          <el-form-item label="所属回路">
+            <el-input v-model="svgOperations.circuit" />
+          </el-form-item>
+          <el-form-item label="运维负责人">
+            <el-input v-model="svgOperations.om_responsible" />
+          </el-form-item>
+          <el-form-item label="联系电话">
+            <el-input v-model="svgOperations.contact_phone" />
+          </el-form-item>
+          <el-form-item label="安装日期">
+            <el-date-picker v-model="svgOperations.install_date" type="date" value-format="YYYY-MM-DD" placeholder="选择安装日期" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="投运日期">
+            <el-date-picker v-model="svgOperations.commission_date" type="date" value-format="YYYY-MM-DD" placeholder="选择投运日期" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="设备别名">
+            <el-input v-model="svgOperations.device_alias" />
+          </el-form-item>
+          <el-form-item label="上位机名称">
+            <el-input v-model="svgOperations.display_name" />
+          </el-form-item>
+        </template>
       </el-form>
           
       <template #footer>

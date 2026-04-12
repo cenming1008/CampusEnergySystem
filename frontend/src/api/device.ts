@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 import type { SuccessResponse } from '@/types/api'
+import type { SVGOperationsProfile } from '@/api/svg'
 
 // 对应后端 Device 模型
 export interface Device {
@@ -17,6 +18,10 @@ export interface Device {
   description?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface DeviceWritePayload extends Partial<Device> {
+  svg_operations?: Partial<SVGOperationsProfile>
 }
 
 // 设备类型配置（来自后端注册表）
@@ -47,13 +52,13 @@ export function getDevices() {
 }
 
 // 2. 新增设备（智能创建）
-export function createDevice(data: Partial<Device>) {
-  return request.post<Partial<Device>, Device>('/devices/', data)
+export function createDevice(data: DeviceWritePayload) {
+  return request.post<DeviceWritePayload, Device>('/devices/', data)
 }
 
 // 3. 修改设备 (Put)
-export function updateDevice(id: number, data: Partial<Device>) {
-  return request.put<Partial<Device>, Device>(`/devices/${id}`, data)
+export function updateDevice(id: number, data: DeviceWritePayload) {
+  return request.put<DeviceWritePayload, Device>(`/devices/${id}`, data)
 }
 
 // 4. 删除设备

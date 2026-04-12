@@ -16,6 +16,7 @@ import AlarmFeed from '@/features/dashboard/components/AlarmFeed.vue'
 import TrendPanel from '@/features/dashboard/components/TrendPanel.vue'
 import DeviceSpotlight from '@/features/dashboard/components/DeviceSpotlight.vue'
 import ScadaBoard from '@/features/dashboard/components/ScadaBoard.vue'
+import { DEVICE_TYPE_LABELS, getDeviceTypeLabel } from '@/shared/deviceTypeLabels'
 import RegionRanking from '@/features/dashboard/components/RegionRanking.vue'
 import type { Device } from '@/api/device'
 import type { DeviceAnalysis } from '@/api/telemetry'
@@ -70,26 +71,8 @@ const energyNameMap: Record<string, string> = {
   cooling: '冷量'
 }
 
-const deviceTypeMap: Record<string, string> = {
-  load: '负荷设备',
-  electricity: '电表',
-  water: '水表',
-  gas: '气表',
-  heat: '热量表',
-  cooling: '冷量表',
-  storage: '储能设备'
-}
-
 const deviceCategoryMap: Record<string, string> = {
-  load: '负荷设备',
-  solar: '光伏发电',
-  wind: '风力发电',
-  storage: '储能设备',
-  charger: '充电桩',
-  water_meter: '水表',
-  gas_meter: '燃气表',
-  heat_meter: '热量表',
-  cooling_meter: '冷量表'
+  ...DEVICE_TYPE_LABELS,
 }
 
 function formatAlarmTime(timestamp: string) {
@@ -167,7 +150,7 @@ const focusDevice = computed<Device | undefined>(() => {
 const focusArchive = computed(() => focusCardOverview.value?.archive)
 const focusIdentity = computed(() => focusArchive.value || focusCardDevice.value || focusDevice.value)
 const focusDeviceName = computed(() => focusIdentity.value?.name || '1号热量表')
-const focusDeviceType = computed(() => deviceTypeMap[focusIdentity.value?.device_type || ''] || focusIdentity.value?.device_type || '热量表')
+const focusDeviceType = computed(() => getDeviceTypeLabel(focusIdentity.value?.device_type) || '热量表')
 const focusEnergyType = computed(() => energyNameMap[focusIdentity.value?.energy_type || ''] || focusIdentity.value?.energy_type || '热力')
 const focusRuntime = computed(() => focusCardOverview.value?.runtime_status)
 const focusIngestion = computed<Record<string, unknown>>(() => (focusCardOverview.value?.ingestion_health as Record<string, unknown>) || {})
@@ -276,7 +259,7 @@ const scadaDeviceGroups = computed(() => {
 
   for (const device of selectableDevices.value) {
     const categoryKey = (device.device_category || device.device_type || 'uncategorized').trim()
-    const categoryLabel = deviceCategoryMap[categoryKey] || deviceTypeMap[categoryKey] || categoryKey || '未分类设备'
+    const categoryLabel = deviceCategoryMap[categoryKey] || getDeviceTypeLabel(categoryKey) || categoryKey || '未分类设备'
     const existing = groups.get(categoryKey)
 
     if (existing) {

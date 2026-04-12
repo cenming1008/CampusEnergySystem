@@ -63,11 +63,16 @@ ENERGY_SEMANTICS = {
         "consumption_label": "累计电量",
         "consumption_semantics": "cumulative_meter_reading",
         "consumption_stat_basis": "period_delta_from_cumulative_reading",
-        "flow_label": "实时功率",
+        "flow_label": "实时有功功率",
         "flow_semantics": "instantaneous_power",
         "flow_stat_basis": "average_and_peak_of_instantaneous_samples",
         "supports_electrical_quality": True,
         "carbon_scope": 2,
+        # 无功功率扩展字段语义
+        "reactive_power_label": "无功功率",
+        "reactive_power_unit": "kVAR",
+        "reactive_power_semantics": "instantaneous_reactive_power",
+        "reactive_power_sign_convention": "正值=感性负载吸收，负值=容性补偿输出",
     },
     EnergyType.WATER: {
         "label": "水",

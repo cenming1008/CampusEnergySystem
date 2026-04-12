@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from enum import Enum
 
@@ -271,6 +271,7 @@ class EnergyData(SQLModel, table=True):
     voltage: Optional[float] = Field(default=None, description="电压(V)")
     current: Optional[float] = Field(default=None, description="电流(A)")
     power_factor: Optional[float] = Field(default=None, description="功率因数")
+    reactive_power: Optional[float] = Field(default=None, description="无功功率(kVAR)，正值=感性，负值=容性补偿输出")
     
     # 水/气/蒸汽常用扩展字段
     pressure: Optional[float] = Field(default=None, description="压力(MPa/kPa)")
@@ -630,3 +631,138 @@ class DeviceGroupMembership(SQLModel, table=True):
     group_id: int = Field(primary_key=True, foreign_key="device_group.id")
     joined_at: datetime = Field(default_factory=datetime.now)
     note: Optional[str] = Field(default=None, description="备注")
+
+
+# ==================== SVG 静止无功发生器专属表 ====================
+
+
+class SVGConfig(SQLModel, table=True):
+    """SVG 静态设备参数（每台设备一条）。"""
+
+    __tablename__ = "svg_config"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", unique=True, index=True, description="关联设备ID")
+
+    # 基础设备参数
+    model_number: Optional[str] = Field(default=None, description="设备型号")
+    rated_voltage: Optional[float] = Field(default=None, description="额定电压 (V)")
+    rated_frequency: Optional[float] = Field(default=None, description="额定频率 (Hz)")
+    comm_address: Optional[str] = Field(default=None, description="通信地址")
+    software_version: Optional[str] = Field(default=None, description="软件版本")
+    hardware_version: Optional[str] = Field(default=None, description="硬件版本")
+    protocol_version: Optional[str] = Field(default=None, description="协议版本")
+    module_count: Optional[int] = Field(default=None, description="模块数量")
+    single_module_capacity: Optional[float] = Field(default=None, description="单模块容量 (kVAR)")
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class SVGTelemetry(SQLModel, table=True):
+    """SVG 时序扩展数据（与 EnergyData 同频写入）。"""
+
+    __tablename__ = "svg_telemetry"
+
+    device_id: int = Field(foreign_key="device.id", primary_key=True, description="关联设备ID")
+    timestamp: datetime = Field(primary_key=True, description="数据时间戳")
+
+    # 三相电压 (V)
+    voltage_a: Optional[float] = Field(default=None, description="A相电压 (V)")
+    voltage_b: Optional[float] = Field(default=None, description="B相电压 (V)")
+    voltage_c: Optional[float] = Field(default=None, description="C相电压 (V)")
+
+    # 三相电流 (A)
+    current_a: Optional[float] = Field(default=None, description="A相电流 (A)")
+    current_b: Optional[float] = Field(default=None, description="B相电流 (A)")
+    current_c: Optional[float] = Field(default=None, description="C相电流 (A)")
+
+    frequency: Optional[float] = Field(default=None, description="频率 (Hz)")
+    svg_reactive_output: Optional[float] = Field(default=None, description="SVG当前输出无功 (kVAR)")
+    capacity_utilization: Optional[float] = Field(default=None, description="容量利用率 (%)")
+    output_direction: Optional[str] = Field(default=None, description="输出方向：inductive/capacitive")
+
+    # 状态位
+    run_status: Optional[bool] = Field(default=None, description="运行状态")
+    stop_status: Optional[bool] = Field(default=None, description="停机状态")
+    auto_mode: Optional[bool] = Field(default=None, description="自动模式 (True=自动, False=手动)")
+    local_mode: Optional[bool] = Field(default=None, description="本地模式 (True=本地, False=远方)")
+    breaker_status: Optional[bool] = Field(default=None, description="断路器状态")
+    module_status: Optional[bool] = Field(default=None, description="模块状态")
+    fan_status: Optional[bool] = Field(default=None, description="风机状态")
+    comm_status: Optional[bool] = Field(default=None, description="通信状态")
+
+    # 告警故障位
+    overvoltage_fault: Optional[bool] = Field(default=None, description="过压故障")
+    undervoltage_fault: Optional[bool] = Field(default=None, description="欠压故障")
+    overcurrent_fault: Optional[bool] = Field(default=None, description="过流故障")
+    overtemp_fault: Optional[bool] = Field(default=None, description="过温故障")
+    module_fault: Optional[bool] = Field(default=None, description="模块故障")
+    fan_fault: Optional[bool] = Field(default=None, description="风机故障")
+    comm_fault: Optional[bool] = Field(default=None, description="通信故障")
+    current_fault_code: Optional[str] = Field(default=None, description="当前故障代码")
+    current_alarm_code: Optional[str] = Field(default=None, description="当前告警代码")
+
+    # 温度和内部量
+    cabinet_temp: Optional[float] = Field(default=None, description="柜内温度 (°C)")
+    module_temp: Optional[float] = Field(default=None, description="模块温度 (°C)")
+    igbt_temp: Optional[float] = Field(default=None, description="IGBT温度 (°C)")
+    dc_bus_voltage: Optional[float] = Field(default=None, description="直流母线电压 (V)")
+    heatsink_temp: Optional[float] = Field(default=None, description="散热器温度 (°C)")
+
+
+class SVGAssetProfile(SQLModel, table=True):
+    """SVG 运维档案（运维人员维护，每台设备一条）。"""
+
+    __tablename__ = "svg_asset_profile"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", unique=True, index=True, description="关联设备ID")
+
+    # 基础设备参数（原 svg_config，现并入统一运维档案）
+    model_number: Optional[str] = Field(default=None, description="设备型号")
+    rated_voltage: Optional[float] = Field(default=None, description="额定电压 (V)")
+    rated_frequency: Optional[float] = Field(default=None, description="额定频率 (Hz)")
+    comm_address: Optional[str] = Field(default=None, description="通信地址")
+    software_version: Optional[str] = Field(default=None, description="软件版本")
+    hardware_version: Optional[str] = Field(default=None, description="硬件版本")
+    protocol_version: Optional[str] = Field(default=None, description="协议版本")
+    module_count: Optional[int] = Field(default=None, description="模块数量")
+    single_module_capacity: Optional[float] = Field(default=None, description="单模块容量 (kVAR)")
+
+    # 资产管理类
+    device_label_zh: Optional[str] = Field(default=None, description="设备中文标签")
+    asset_number: Optional[str] = Field(default=None, description="资产编号")
+    fixed_asset_code: Optional[str] = Field(default=None, description="固定资产编码")
+    qr_code_number: Optional[str] = Field(default=None, description="设备二维码编号")
+    asset_group: Optional[str] = Field(default=None, description="所属资产组")
+
+    # 现场安装类
+    distribution_room: Optional[str] = Field(default=None, description="所属配电室")
+    distribution_cabinet: Optional[str] = Field(default=None, description="所属配电柜")
+    circuit: Optional[str] = Field(default=None, description="所属回路")
+    area: Optional[str] = Field(default=None, description="所属区域")
+    building: Optional[str] = Field(default=None, description="所属楼栋")
+    install_date: Optional[date] = Field(default=None, description="安装日期")
+    commission_date: Optional[date] = Field(default=None, description="投运日期")
+    field_number: Optional[str] = Field(default=None, description="现场编号")
+
+    # 管理责任类
+    om_responsible: Optional[str] = Field(default=None, description="运维负责人")
+    inspection_responsible: Optional[str] = Field(default=None, description="巡检负责人")
+    department: Optional[str] = Field(default=None, description="所属部门")
+    management_unit: Optional[str] = Field(default=None, description="管理单位")
+    contact_phone: Optional[str] = Field(default=None, description="联系电话")
+    warranty_expiry: Optional[date] = Field(default=None, description="保修到期时间")
+    maintenance_cycle_days: Optional[int] = Field(default=None, description="维护周期（天）")
+
+    # 平台建模类
+    device_group: Optional[str] = Field(default=None, description="设备分组")
+    device_tree_level: Optional[str] = Field(default=None, description="设备树层级")
+    monitor_screen_position: Optional[str] = Field(default=None, description="监控画面位置")
+    alarm_policy: Optional[str] = Field(default=None, description="告警归属策略")
+    device_alias: Optional[str] = Field(default=None, description="设备别名")
+    display_name: Optional[str] = Field(default=None, description="上位机显示名称")
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)

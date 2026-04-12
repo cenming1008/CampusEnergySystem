@@ -90,6 +90,30 @@ def _sync_runtime_schema() -> None:
                 logger.info("Schema sync: adding mqtt_ingestion_record.last_replayed_at")
                 session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN last_replayed_at TIMESTAMP NULL"))
 
+        if "energydata" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("energydata")}
+            if "reactive_power" not in existing_columns:
+                logger.info("Schema sync: adding energydata.reactive_power")
+                session.exec(text("ALTER TABLE energydata ADD COLUMN reactive_power DOUBLE PRECISION NULL"))
+
+        if "svg_asset_profile" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("svg_asset_profile")}
+            svg_profile_column_sql = {
+                "model_number": "ALTER TABLE svg_asset_profile ADD COLUMN model_number VARCHAR NULL",
+                "rated_voltage": "ALTER TABLE svg_asset_profile ADD COLUMN rated_voltage DOUBLE PRECISION NULL",
+                "rated_frequency": "ALTER TABLE svg_asset_profile ADD COLUMN rated_frequency DOUBLE PRECISION NULL",
+                "comm_address": "ALTER TABLE svg_asset_profile ADD COLUMN comm_address VARCHAR NULL",
+                "software_version": "ALTER TABLE svg_asset_profile ADD COLUMN software_version VARCHAR NULL",
+                "hardware_version": "ALTER TABLE svg_asset_profile ADD COLUMN hardware_version VARCHAR NULL",
+                "protocol_version": "ALTER TABLE svg_asset_profile ADD COLUMN protocol_version VARCHAR NULL",
+                "module_count": "ALTER TABLE svg_asset_profile ADD COLUMN module_count INTEGER NULL",
+                "single_module_capacity": "ALTER TABLE svg_asset_profile ADD COLUMN single_module_capacity DOUBLE PRECISION NULL",
+            }
+            for column_name, sql in svg_profile_column_sql.items():
+                if column_name not in existing_columns:
+                    logger.info(f"Schema sync: adding svg_asset_profile.{column_name}")
+                    session.exec(text(sql))
+
         if "user" in table_names:
             existing_columns = {column["name"] for column in inspector.get_columns("user")}
             if "role" not in existing_columns:
@@ -183,6 +207,18 @@ def _assert_required_columns_present() -> None:
     """生产模式下验证关键表字段已通过 migration 到位。"""
     inspector = inspect(engine)
     required_columns = {
+        "energydata": {"reactive_power"},
+        "svg_asset_profile": {
+            "model_number",
+            "rated_voltage",
+            "rated_frequency",
+            "comm_address",
+            "software_version",
+            "hardware_version",
+            "protocol_version",
+            "module_count",
+            "single_module_capacity",
+        },
         "alarm": {
             "severity",
             "category",

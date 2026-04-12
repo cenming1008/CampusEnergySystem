@@ -21,6 +21,12 @@ import {
 } from '@/api/deviceMonitor'
 
 import { usePermissions } from '@/shared/composables/usePermissions'
+import {
+  getSVGTelemetryLatest,
+  getSVGOperationsProfile,
+  type SVGTelemetry,
+  type SVGOperationsProfile,
+} from '@/api/svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,6 +52,10 @@ const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
 const realtime = computed(() => overview.value?.realtime)
 
+const isSVG = computed(() => archive.value?.device_type === 'svg')
+const svgTelemetry = ref<SVGTelemetry | null>(null)
+const svgOperationsProfile = ref<SVGOperationsProfile | null>(null)
+
 const chartMetricOptions = [
   { label: '功率/流量', value: 'flow_rate' as const },
   { label: '电压', value: 'voltage' as const },
@@ -59,12 +69,22 @@ const timeShortcuts = [
   { text: '近 7 天', value: () => buildRecentRange(24 * 7) },
 ]
 
-const metricCards = computed(() => [
-  { label: '实时功率/流量', value: formatMetric(realtime.value?.flow_rate), unit: archive.value?.unit || '--' },
-  { label: '累计读数', value: formatMetric(realtime.value?.consumption), unit: inferConsumptionUnit() },
-  { label: '电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
-  { label: '电流', value: formatMetric(realtime.value?.current), unit: 'A' },
-])
+const metricCards = computed(() => {
+  if (isSVG.value) {
+    return [
+      { label: '实时有功功率', value: formatMetric(realtime.value?.flow_rate), unit: 'kW' },
+      { label: '无功功率', value: formatMetric(realtime.value?.reactive_power), unit: 'kVAR' },
+      { label: '功率因数', value: formatMetric(realtime.value?.power_factor), unit: '' },
+      { label: '综合电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
+    ]
+  }
+  return [
+    { label: '实时功率/流量', value: formatMetric(realtime.value?.flow_rate), unit: archive.value?.unit || '--' },
+    { label: '累计读数', value: formatMetric(realtime.value?.consumption), unit: inferConsumptionUnit() },
+    { label: '电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
+    { label: '电流', value: formatMetric(realtime.value?.current), unit: 'A' },
+  ]
+})
 
 const chartUnit = computed(() => {
   if (chartMetric.value === 'voltage') return 'V'
@@ -271,6 +291,17 @@ async function loadTrendAndTables() {
   }
 }
 
+async function loadSVGData() {
+  if (!isSVG.value) return
+  const id = deviceId.value
+  const results = await Promise.allSettled([
+    getSVGTelemetryLatest(id),
+    getSVGOperationsProfile(id),
+  ])
+  if (results[0].status === 'fulfilled') svgTelemetry.value = results[0].value
+  if (results[1].status === 'fulfilled') svgOperationsProfile.value = results[1].value
+}
+
 async function loadPage(showLoading: boolean = true) {
   if (!deviceId.value) return
   if (showLoading) loading.value = true
@@ -278,7 +309,7 @@ async function loadPage(showLoading: boolean = true) {
   try {
     const overviewRes = await getDeviceMonitorOverview(deviceId.value)
     overview.value = overviewRes
-    await loadTrendAndTables()
+    await Promise.all([loadTrendAndTables(), loadSVGData()])
   } catch (error) {
     ElMessage.error('设备监控数据加载失败')
   } finally {
@@ -316,7 +347,7 @@ async function refreshRealtime() {
     }
     trend.value = trendRes
     await renderTrendChart()
-    await loadStatusHistory()
+    await Promise.all([loadStatusHistory(), loadSVGData()])
   } catch {
     // 由各子函数处理
   }
@@ -490,6 +521,77 @@ onBeforeUnmount(() => {
             v-loading="chartLoading"
             class="trend-chart"
           />
+        </div>
+
+        <!-- SVG 遥测扩展面板 -->
+        <div
+          v-if="isSVG && svgTelemetry"
+          class="panel svg-telemetry-panel"
+        >
+          <div class="panel-head">
+            <div>
+              <h3>SVG 实时遥测</h3>
+              <span>三相数据 · 状态位 · 温度 · 故障</span>
+            </div>
+            <span class="muted-text">{{ svgTelemetry.timestamp ? formatTime(svgTelemetry.timestamp) : '--' }}</span>
+          </div>
+
+          <!-- 三相电量 -->
+          <div class="svg-section-title">三相电量</div>
+          <div class="svg-metric-grid">
+            <div class="svg-metric-card"><span>Ua</span><strong>{{ svgTelemetry.voltage_a?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
+            <div class="svg-metric-card"><span>Ub</span><strong>{{ svgTelemetry.voltage_b?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
+            <div class="svg-metric-card"><span>Uc</span><strong>{{ svgTelemetry.voltage_c?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
+            <div class="svg-metric-card"><span>Ia</span><strong>{{ svgTelemetry.current_a?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
+            <div class="svg-metric-card"><span>Ib</span><strong>{{ svgTelemetry.current_b?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
+            <div class="svg-metric-card"><span>Ic</span><strong>{{ svgTelemetry.current_c?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
+            <div class="svg-metric-card"><span>频率</span><strong>{{ svgTelemetry.frequency?.toFixed(2) ?? '--' }}</strong><small>Hz</small></div>
+            <div class="svg-metric-card"><span>无功输出</span><strong>{{ svgTelemetry.svg_reactive_output?.toFixed(1) ?? '--' }}</strong><small>kVAR</small></div>
+            <div class="svg-metric-card"><span>容量利用率</span><strong>{{ svgTelemetry.capacity_utilization?.toFixed(1) ?? '--' }}</strong><small>%</small></div>
+            <div class="svg-metric-card"><span>输出方向</span><strong>{{ svgTelemetry.output_direction === 'inductive' ? '感性' : svgTelemetry.output_direction === 'capacitive' ? '容性' : '--' }}</strong><small></small></div>
+          </div>
+
+          <!-- 温度和内部量 -->
+          <div class="svg-section-title">温度 / 内部量</div>
+          <div class="svg-metric-grid">
+            <div class="svg-metric-card"><span>柜内温度</span><strong>{{ svgTelemetry.cabinet_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
+            <div class="svg-metric-card"><span>模块温度</span><strong>{{ svgTelemetry.module_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
+            <div class="svg-metric-card"><span>IGBT温度</span><strong>{{ svgTelemetry.igbt_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
+            <div class="svg-metric-card"><span>散热器温度</span><strong>{{ svgTelemetry.heatsink_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
+            <div class="svg-metric-card"><span>直流母线电压</span><strong>{{ svgTelemetry.dc_bus_voltage?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
+          </div>
+
+          <!-- 运行状态位 -->
+          <div class="svg-section-title">运行状态</div>
+          <div class="svg-status-grid">
+            <el-tag :type="svgTelemetry.run_status ? 'success' : 'info'" size="small">{{ svgTelemetry.run_status ? '运行中' : '未运行' }}</el-tag>
+            <el-tag :type="svgTelemetry.stop_status ? 'danger' : 'info'" size="small">{{ svgTelemetry.stop_status ? '已停机' : '未停机' }}</el-tag>
+            <el-tag :type="svgTelemetry.auto_mode ? 'success' : 'warning'" size="small">{{ svgTelemetry.auto_mode === null ? '--' : svgTelemetry.auto_mode ? '自动' : '手动' }}</el-tag>
+            <el-tag :type="svgTelemetry.local_mode ? 'info' : 'primary'" size="small">{{ svgTelemetry.local_mode === null ? '--' : svgTelemetry.local_mode ? '本地' : '远方' }}</el-tag>
+            <el-tag :type="svgTelemetry.breaker_status ? 'success' : 'danger'" size="small">断路器 {{ svgTelemetry.breaker_status === null ? '--' : svgTelemetry.breaker_status ? '合' : '分' }}</el-tag>
+            <el-tag :type="svgTelemetry.module_status ? 'success' : 'warning'" size="small">模块 {{ svgTelemetry.module_status === null ? '--' : svgTelemetry.module_status ? '正常' : '异常' }}</el-tag>
+            <el-tag :type="svgTelemetry.fan_status ? 'success' : 'warning'" size="small">风机 {{ svgTelemetry.fan_status === null ? '--' : svgTelemetry.fan_status ? '正常' : '异常' }}</el-tag>
+            <el-tag :type="svgTelemetry.comm_status ? 'success' : 'danger'" size="small">通信 {{ svgTelemetry.comm_status === null ? '--' : svgTelemetry.comm_status ? '正常' : '中断' }}</el-tag>
+          </div>
+
+          <!-- 故障位 -->
+          <div class="svg-section-title">故障告警</div>
+          <div class="svg-status-grid">
+            <el-tag :type="svgTelemetry.overvoltage_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.overvoltage_fault ? '⚠ 过压' : '过压正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.undervoltage_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.undervoltage_fault ? '⚠ 欠压' : '欠压正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.overcurrent_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.overcurrent_fault ? '⚠ 过流' : '过流正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.overtemp_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.overtemp_fault ? '⚠ 过温' : '温度正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.module_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.module_fault ? '⚠ 模块故障' : '模块正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.fan_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.fan_fault ? '⚠ 风机故障' : '风机正常' }}</el-tag>
+            <el-tag :type="svgTelemetry.comm_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.comm_fault ? '⚠ 通信故障' : '通信正常' }}</el-tag>
+          </div>
+          <div
+            v-if="svgTelemetry.current_fault_code || svgTelemetry.current_alarm_code"
+            class="svg-code-row"
+          >
+            <span v-if="svgTelemetry.current_fault_code">故障代码：<strong>{{ svgTelemetry.current_fault_code }}</strong></span>
+            <span v-if="svgTelemetry.current_alarm_code">告警代码：<strong>{{ svgTelemetry.current_alarm_code }}</strong></span>
+          </div>
         </div>
 
         <div class="panel">
@@ -721,6 +823,56 @@ onBeforeUnmount(() => {
             </div>
             <div class="archive-row">
               <span>描述</span><strong>{{ archive?.description || '--' }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="isSVG && svgOperationsProfile"
+          class="panel"
+        >
+          <div class="panel-head">
+            <div>
+              <h3>SVG 运维档案</h3>
+              <span>基础参数与运维维护信息</span>
+            </div>
+          </div>
+          <div class="archive-list">
+            <div
+              v-for="[label, val] in [
+                ['设备型号', svgOperationsProfile.model_number],
+                ['额定电压', svgOperationsProfile.rated_voltage != null ? svgOperationsProfile.rated_voltage + ' V' : null],
+                ['额定频率', svgOperationsProfile.rated_frequency != null ? svgOperationsProfile.rated_frequency + ' Hz' : null],
+                ['通信地址', svgOperationsProfile.comm_address],
+                ['软件版本', svgOperationsProfile.software_version],
+                ['硬件版本', svgOperationsProfile.hardware_version],
+                ['协议版本', svgOperationsProfile.protocol_version],
+                ['模块数量', svgOperationsProfile.module_count != null ? svgOperationsProfile.module_count + ' 个' : null],
+                ['单模块容量', svgOperationsProfile.single_module_capacity != null ? svgOperationsProfile.single_module_capacity + ' kVAR' : null],
+                ['设备标签', svgOperationsProfile.device_label_zh],
+                ['资产编号', svgOperationsProfile.asset_number],
+                ['固定资产编码', svgOperationsProfile.fixed_asset_code],
+                ['所属配电室', svgOperationsProfile.distribution_room],
+                ['所属配电柜', svgOperationsProfile.distribution_cabinet],
+                ['所属回路', svgOperationsProfile.circuit],
+                ['所属楼栋', svgOperationsProfile.building],
+                ['所属区域', svgOperationsProfile.area],
+                ['现场编号', svgOperationsProfile.field_number],
+                ['安装日期', svgOperationsProfile.install_date],
+                ['投运日期', svgOperationsProfile.commission_date],
+                ['运维负责人', svgOperationsProfile.om_responsible],
+                ['巡检负责人', svgOperationsProfile.inspection_responsible],
+                ['所属部门', svgOperationsProfile.department],
+                ['联系电话', svgOperationsProfile.contact_phone],
+                ['保修到期', svgOperationsProfile.warranty_expiry],
+                ['维护周期', svgOperationsProfile.maintenance_cycle_days != null ? svgOperationsProfile.maintenance_cycle_days + ' 天' : null],
+                ['设备别名', svgOperationsProfile.device_alias],
+                ['上位机名称', svgOperationsProfile.display_name],
+              ].filter(([, v]) => v != null)"
+              :key="label as string"
+              class="archive-row"
+            >
+              <span>{{ label }}</span><strong>{{ val }}</strong>
             </div>
           </div>
         </div>
@@ -961,6 +1113,71 @@ onBeforeUnmount(() => {
   }
 }
 
+/* SVG 遥测面板 */
+.svg-section-title {
+  font-size: 11px;
+  color: #8ea0bc;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 14px 0 8px;
+}
+
+.svg-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.svg-metric-card {
+  background: #162130;
+  border: 1px solid #243244;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.svg-metric-card span {
+  font-size: 11px;
+  color: #8ea0bc;
+}
+
+.svg-metric-card strong {
+  font-size: 18px;
+  color: #f8fafc;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.svg-metric-card small {
+  font-size: 11px;
+  color: #8ea0bc;
+}
+
+.svg-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.svg-code-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  color: #8ea0bc;
+}
+
+.svg-code-row strong {
+  color: #f59e0b;
+}
+
+@media (max-width: 1280px) {
+  .svg-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .page-head {
     flex-direction: column;
@@ -975,6 +1192,10 @@ onBeforeUnmount(() => {
 
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .svg-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

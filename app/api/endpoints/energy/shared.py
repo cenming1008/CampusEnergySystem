@@ -21,6 +21,7 @@ class EnergyDataCreate(BaseModel):
     voltage: Optional[float] = None
     current: Optional[float] = None
     power_factor: Optional[float] = None
+    reactive_power: Optional[float] = None
     pressure: Optional[float] = None
     temperature: Optional[float] = None
     supply_temp: Optional[float] = None
@@ -88,6 +89,7 @@ ENERGY_DATA_OPTIONAL_FIELDS = (
     "voltage",
     "current",
     "power_factor",
+    "reactive_power",
     "pressure",
     "temperature",
     "supply_temp",

@@ -328,6 +328,79 @@ class AlarmService:
         return recovered_count
 
     @staticmethod
+    def check_svg_faults(
+        session: Session,
+        device_id: int,
+        svg_data: dict,
+        timestamp: datetime,
+    ) -> list:
+        """
+        检查 SVG 遥测数据中的故障位并触发/恢复告警。
+
+        故障位为 True 时创建/刷新告警；为 False 时恢复告警。
+        当前告警代码非空也视为故障。
+        """
+        # (字段名, category, severity, 消息模板)
+        FAULT_RULES: list[tuple[str, str, str, str]] = [
+            ("overvoltage_fault",  "svg_overvoltage",  "critical", "SVG 过压故障"),
+            ("undervoltage_fault", "svg_undervoltage",  "critical", "SVG 欠压故障"),
+            ("overcurrent_fault",  "svg_overcurrent",   "critical", "SVG 过流故障"),
+            ("overtemp_fault",     "svg_overtemp",      "warning",  "SVG 过温告警"),
+            ("module_fault",       "svg_module_fault",  "critical", "SVG 模块故障"),
+            ("fan_fault",          "svg_fan_fault",     "warning",  "SVG 风机故障"),
+            ("comm_fault",         "svg_comm_fault",    "warning",  "SVG 通信故障"),
+        ]
+
+        alarms: list = []
+        active_instance_keys: set[str] = set()
+        managed_categories: set[str] = {rule[1] for rule in FAULT_RULES} | {"svg_fault_code"}
+
+        for field, category, severity, base_msg in FAULT_RULES:
+            value = svg_data.get(field)
+            if value is True:
+                alarm, created = AlarmService.upsert_active_alarm(
+                    session=session,
+                    device_id=device_id,
+                    message=base_msg,
+                    timestamp=timestamp,
+                    severity=severity,
+                    category=category,
+                    source="svg_telemetry",
+                )
+                active_instance_keys.add(alarm.instance_key or "")
+                if created:
+                    alarms.append(alarm)
+                    logger.warning(f"SVG 设备 {device_id} {base_msg}")
+
+        # 当前故障代码非空视为有效故障
+        fault_code = svg_data.get("current_fault_code")
+        if fault_code:
+            msg = f"SVG 故障代码: {fault_code}"
+            alarm, created = AlarmService.upsert_active_alarm(
+                session=session,
+                device_id=device_id,
+                message=msg,
+                timestamp=timestamp,
+                severity="critical",
+                category="svg_fault_code",
+                source="svg_telemetry",
+            )
+            active_instance_keys.add(alarm.instance_key or "")
+            if created:
+                alarms.append(alarm)
+
+        AlarmService.mark_recovered_alarms(
+            session=session,
+            device_id=device_id,
+            active_instance_keys={k for k in active_instance_keys if k},
+            timestamp=timestamp,
+            categories=managed_categories,
+            source="svg_telemetry",
+        )
+
+        return alarms
+
+    @staticmethod
     def infer_severity(message: str) -> str:
         if any(keyword in message for keyword in ("故障", "中断", "离线")):
             return "critical"

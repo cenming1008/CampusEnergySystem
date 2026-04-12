@@ -221,8 +221,56 @@ class DeviceRegistry:
             color="#9C27B0"
         ))
         
+        # 无功功率补偿器（SVG/SVC/电容补偿柜）
+        self.register(DeviceTypeConfig(
+            device_type="reactive_power_compensator",
+            category=DeviceCategory.LOAD,
+            energy_type=EnergyType.ELECTRICITY,
+            name_zh="无功功率补偿器",
+            name_en="Reactive Power Compensator",
+            unit="kVAR",
+            default_capacity=200.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="power_quality_point",
+            measurement_subject="reactive_power_compensation",
+            rated_capacity_unit="kVAR",
+            consumption_unit="kWh",
+            flow_unit="kW",
+            required_fields=["consumption", "reactive_power"],
+            optional_fields=["voltage", "current", "power_factor", "flow_rate"],
+            specialized_fields=["voltage", "current", "power_factor", "reactive_power"],
+            compatible_aliases={"power": "flow_rate", "kvar": "reactive_power"},
+            icon="⚖️",
+            color="#00ACC1"
+        ))
+
+        # 静止无功发生器（SVG）
+        self.register(DeviceTypeConfig(
+            device_type="svg",
+            category=DeviceCategory.LOAD,
+            energy_type=EnergyType.ELECTRICITY,
+            name_zh="静止无功发生器",
+            name_en="Static Var Generator",
+            unit="kVAR",
+            default_capacity=200.0,
+            object_role="equipment",
+            metering_role="embedded_measurement",
+            point_kind="power_quality_point",
+            measurement_subject="reactive_power_compensation",
+            rated_capacity_unit="kVAR",
+            consumption_unit="kWh",
+            flow_unit="kW",
+            required_fields=["reactive_power"],
+            optional_fields=["consumption", "flow_rate", "voltage", "current", "power_factor"],
+            specialized_fields=["voltage", "current", "power_factor", "reactive_power"],
+            compatible_aliases={"kvar": "reactive_power", "power": "flow_rate", "active_power": "flow_rate"},
+            icon="⚡",
+            color="#FF6F00"
+        ))
+
         # ==================== 水系统 ====================
-        
+
         # 水表
         self.register(DeviceTypeConfig(
             device_type="water_meter",

@@ -25,7 +25,7 @@ from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_device_resolver import resolve_device_id
 from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastMessage
 from app.services.mqtt_reliability_service import MqttReliabilityService
-from app.models.tables import MqttIngestionRecord
+from app.models.tables import Device, MqttIngestionRecord, SVGTelemetry
 
 
 FIELD_ALIASES = {
@@ -42,6 +42,55 @@ FIELD_ALIASES = {
     "cum_value": "consumption",
     "pf": "power_factor",
     "temp": "temperature",
+    # 无功功率别名（兼容多种厂商字段名）
+    "kvar": "reactive_power",
+    "q_power": "reactive_power",
+    "react_pwr": "reactive_power",
+    "var": "reactive_power",
+    "reactive_q": "reactive_power",
+    # SVG 专属字段别名
+    "svg_output": "svg_reactive_output",
+    "svg_kvar": "svg_reactive_output",
+    "reactive_output": "svg_reactive_output",
+    "cap_util": "capacity_utilization",
+    "capacity_util": "capacity_utilization",
+    "dir": "output_direction",
+    "output_dir": "output_direction",
+    # 三相电压
+    "ua": "voltage_a",
+    "ub": "voltage_b",
+    "uc": "voltage_c",
+    "van": "voltage_a",
+    "vbn": "voltage_b",
+    "vcn": "voltage_c",
+    # 三相电流
+    "ia": "current_a",
+    "ib": "current_b",
+    "ic": "current_c",
+    # 故障位别名
+    "fault_ov": "overvoltage_fault",
+    "fault_uv": "undervoltage_fault",
+    "fault_oc": "overcurrent_fault",
+    "fault_ot": "overtemp_fault",
+    "fault_mod": "module_fault",
+    "fault_fan": "fan_fault",
+    "fault_com": "comm_fault",
+    "fault_code": "current_fault_code",
+    "alarm_code": "current_alarm_code",
+    # 温度别名
+    "temp_cab": "cabinet_temp",
+    "temp_module": "module_temp",
+    "temp_igbt": "igbt_temp",
+    "temp_sink": "heatsink_temp",
+    "vdc": "dc_bus_voltage",
+    "dc_voltage": "dc_bus_voltage",
+    # 状态位别名
+    "run": "run_status",
+    "stop": "stop_status",
+    "auto": "auto_mode",
+    "local": "local_mode",
+    "breaker": "breaker_status",
+    "freq": "frequency",
 }
 
 MEANINGFUL_FIELDS = (
@@ -54,6 +103,7 @@ MEANINGFUL_FIELDS = (
     "current",
     "pressure",
     "temperature",
+    "reactive_power",
 )
 
 
@@ -159,12 +209,23 @@ def normalize_metrics(data: dict[str, Any]) -> tuple[float, float, float, float]
 def build_data_dict(data: dict[str, Any], voltage: float, current: float, power: float, energy: float) -> dict[str, Any]:
     """构建统一入库数据，保留 0 值并过滤 None。"""
     consumption = energy if energy > 0 else data.get("consumption", data.get("energy", 0.0))
+
+    # reactive_power 允许负值（容性补偿为负），需单独解析以保留 0
+    reactive_power_raw = data.get("reactive_power")
+    reactive_power: Optional[float] = None
+    if reactive_power_raw is not None:
+        try:
+            reactive_power = parse_numeric(reactive_power_raw, "reactive_power")
+        except ValueError:
+            reactive_power = None
+
     payload = {
         "consumption": parse_numeric(consumption, "consumption", default=0.0),
         "power": power,
         "voltage": voltage,
         "current": current,
         "power_factor": data.get("power_factor"),
+        "reactive_power": reactive_power,
         "pressure": data.get("pressure"),
         "temperature": data.get("temperature"),
         "flow_rate": data.get("flow_rate"),
@@ -178,8 +239,38 @@ def build_data_dict(data: dict[str, Any], voltage: float, current: float, power:
     return {key: value for key, value in payload.items() if value is not None}
 
 
-def persist_device_data(device_id: int, data_dict: dict[str, Any], timestamp: datetime) -> TelemetryBroadcastData:
-    """执行遥测接入用例并生成 WebSocket 广播数据。"""
+_SVG_TELEMETRY_FIELDS = (
+    "voltage_a", "voltage_b", "voltage_c",
+    "current_a", "current_b", "current_c",
+    "frequency", "svg_reactive_output", "capacity_utilization", "output_direction",
+    "run_status", "stop_status", "auto_mode", "local_mode",
+    "breaker_status", "module_status", "fan_status", "comm_status",
+    "overvoltage_fault", "undervoltage_fault", "overcurrent_fault", "overtemp_fault",
+    "module_fault", "fan_fault", "comm_fault",
+    "current_fault_code", "current_alarm_code",
+    "cabinet_temp", "module_temp", "igbt_temp", "dc_bus_voltage", "heatsink_temp",
+)
+
+
+def extract_svg_telemetry(data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """从 payload 提取 SVGTelemetry 字段，无任何 SVG 专属字段时返回 None。"""
+    extracted = {field: data[field] for field in _SVG_TELEMETRY_FIELDS if field in data and data[field] is not None}
+    return extracted if extracted else None
+
+
+def _is_svg_device(device_id: int, session: Session) -> bool:
+    """判断设备是否为 svg 类型。"""
+    device = session.get(Device, device_id)
+    return device is not None and device.device_type == "svg"
+
+
+def persist_device_data(
+    device_id: int,
+    data_dict: dict[str, Any],
+    timestamp: datetime,
+    raw_data: Optional[dict[str, Any]] = None,
+) -> TelemetryBroadcastData:
+    """执行遥测接入用例并生成 WebSocket 广播数据。对 svg 设备额外写入 SVGTelemetry。"""
     with Session(engine) as session:
         result = ingest_telemetry_use_case(
             session=session,
@@ -187,6 +278,19 @@ def persist_device_data(device_id: int, data_dict: dict[str, Any], timestamp: da
             data=data_dict,
             timestamp=timestamp,
         )
+
+        if raw_data is not None and _is_svg_device(device_id, session):
+            svg_fields = extract_svg_telemetry(raw_data)
+            if svg_fields:
+                from app.services.alarm_service import AlarmService
+                telemetry = SVGTelemetry(
+                    device_id=device_id,
+                    timestamp=timestamp,
+                    **svg_fields,
+                )
+                session.add(telemetry)
+                AlarmService.check_svg_faults(session, device_id, svg_fields, timestamp)
+
         session.commit()
         return result.broadcast_data
 
@@ -246,7 +350,7 @@ def process_payload_dict(
         timestamp = validate_timestamp(timestamp)
         voltage, current, power, energy = normalize_metrics(data)
         data_dict = build_data_dict(data, voltage, current, power, energy)
-        ws_data = persist_device_data(device_id, data_dict, timestamp)
+        ws_data = persist_device_data(device_id, data_dict, timestamp, raw_data=data)
         with Session(engine) as session:
             record = session.exec(
                 select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)

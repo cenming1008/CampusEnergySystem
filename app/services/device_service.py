@@ -14,15 +14,30 @@ from app.domain.device_payloads import (
     get_device_type_config,
     normalize_device_report_payload,
 )
-from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog
+from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog, SVGAssetProfile, SVGConfig, SVGTelemetry
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 from app.core.device_registry import device_registry
 from app.repositories.device_repository import DeviceRepository
 from app.services.energy_service import EnergyService
+from app.services.location_service import LocationService
 
 
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
+
+    @staticmethod
+    def _resolve_location_fields(
+        session: Session,
+        location: Optional[str],
+    ) -> Dict[str, Any]:
+        """将兼容的 location 文本尽量解析为规范的 location_id/full_path。"""
+        resolved = LocationService.resolve_location_reference(session, location)
+        if not resolved:
+            return {"location": location, "location_id": None}
+        return {
+            "location": resolved.full_path or resolved.name,
+            "location_id": resolved.id,
+        }
     
     # ==================== 设备管理 ====================
     
@@ -96,15 +111,18 @@ class DeviceService:
         if existing:
             logger.warning(f"设备序列号 {sn} 已存在，返回现有设备")
             return existing
+
+        location_fields = DeviceService._resolve_location_fields(session, location)
         
         device = Device(
             **build_device_create_fields(
                 name=name,
                 sn=sn,
                 device_type=device_type,
-                location=location,
+                location=location_fields["location"],
                 description=description,
                 rated_capacity=rated_capacity,
+                location_id=location_fields["location_id"],
                 **extra_fields,
             )
         )
@@ -168,7 +186,9 @@ class DeviceService:
         if name is not None:
             device.name = name
         if location is not None:
-            device.location = location
+            location_fields = DeviceService._resolve_location_fields(session, location)
+            device.location = location_fields["location"]
+            device.location_id = location_fields["location_id"]
         if description is not None:
             device.description = description
         if rated_capacity is not None:
@@ -182,6 +202,25 @@ class DeviceService:
     def delete_device(session: Session, device_id: int) -> None:
         """删除设备"""
         device = DeviceService.get_device_by_id(session, device_id)
+        if device.device_type == "svg":
+            svg_profile = session.exec(
+                select(SVGAssetProfile).where(SVGAssetProfile.device_id == device_id)
+            ).first()
+            if svg_profile:
+                session.delete(svg_profile)
+
+            legacy_svg_config = session.exec(
+                select(SVGConfig).where(SVGConfig.device_id == device_id)
+            ).first()
+            if legacy_svg_config:
+                session.delete(legacy_svg_config)
+
+            svg_telemetry_rows = session.exec(
+                select(SVGTelemetry).where(SVGTelemetry.device_id == device_id)
+            ).all()
+            for row in svg_telemetry_rows:
+                session.delete(row)
+
         DeviceRepository.delete(session, device)
     
     @staticmethod
