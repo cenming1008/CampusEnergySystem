@@ -2,11 +2,11 @@
     import { ref, reactive, onMounted, computed, unref } from 'vue'
     import { useRouter } from 'vue-router'
     import { usePermissions } from '@/shared/composables/usePermissions'
-    import { buildDeviceTypeLabelMap } from '@/shared/deviceTypeLabels'
+    import { buildDeviceTypeLabelMap, getDeviceCategoryLabel } from '@/shared/deviceTypeLabels'
     import { getSVGOperationsProfile } from '@/api/svg'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
-      getDeviceTypes,
+      FALLBACK_DEVICE_TYPE_CONFIGS, getDeviceTypes, notifyDevicesUpdated,
       type Device, type DeviceTypeConfig, type DeviceWritePayload
     } from '@/api/device'
     import { ElMessage, ElMessageBox } from 'element-plus'
@@ -31,6 +31,10 @@
     const deviceTypeMap = computed(() => {
       return buildDeviceTypeLabelMap(deviceTypes.value)
     })
+
+    const getCategoryLabel = (category?: string | null) => {
+      return getDeviceCategoryLabel(category, deviceTypes.value) || '未分类设备'
+    }
     
     // 表单数据模型
     const formData = reactive<Device>({
@@ -171,10 +175,12 @@
               // 编辑模式
               await updateDevice(formData.id, payload)
               ElMessage.success('设备更新成功')
+              notifyDevicesUpdated({ source: 'device-manager', action: 'update', deviceId: formData.id })
             } else {
               // 新增模式
-              await createDevice(payload)
+              const createdDevice = await createDevice(payload)
               ElMessage.success('设备创建成功')
+              notifyDevicesUpdated({ source: 'device-manager', action: 'create', deviceId: createdDevice.id })
             }
             dialogVisible.value = false
             fetchData() // 刷新列表
@@ -202,6 +208,7 @@
           if (row.id) {
             await deleteDevice(row.id)
             ElMessage.success('删除成功')
+            notifyDevicesUpdated({ source: 'device-manager', action: 'delete', deviceId: row.id })
             fetchData()
           }
         } catch {
@@ -232,6 +239,7 @@
             if (row.id) {
               // 调用 API
               await toggleDeviceStatus(row.id, newVal)
+              notifyDevicesUpdated({ source: 'device-manager', action: 'toggle', deviceId: row.id, active: newVal })
               ElMessage({
                 message: `指令下发成功: 设备已${actionName}`,
                 type: 'success',
@@ -258,21 +266,7 @@
           deviceTypes.value = res
         }
       } catch {
-        // 降级：使用默认类型
-        deviceTypes.value = [
-          { device_type: 'load', name_zh: '用电设备', icon: '⚡', category: 'load', energy_type: 'electricity', name_en: 'Load', unit: 'kW', default_capacity: 100, required_fields: [], optional_fields: [], color: '#FF9800' },
-          { device_type: 'solar', name_zh: '光伏发电', icon: '☀️', category: 'solar', energy_type: 'electricity', name_en: 'Solar', unit: 'kW', default_capacity: 50, required_fields: [], optional_fields: [], color: '#FFC107' },
-          { device_type: 'wind', name_zh: '风力发电', icon: '💨', category: 'wind', energy_type: 'electricity', name_en: 'Wind Turbine', unit: 'kW', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00BFFF' },
-          { device_type: 'storage', name_zh: '储能设备', icon: '🔋', category: 'storage', energy_type: 'electricity', name_en: 'Energy Storage', unit: 'kWh', default_capacity: 500, required_fields: [], optional_fields: [], color: '#4CAF50' },
-          { device_type: 'charger', name_zh: '充电桩', icon: '🔌', category: 'charger', energy_type: 'electricity', name_en: 'EV Charger', unit: 'kW', default_capacity: 60, required_fields: [], optional_fields: [], color: '#9C27B0' },
-          { device_type: 'water_meter', name_zh: '水表', icon: '💧', category: 'water_meter', energy_type: 'water', name_en: 'Water Meter', unit: 'm³/h', default_capacity: 50, required_fields: [], optional_fields: [], color: '#2196F3' },
-          { device_type: 'gas_meter', name_zh: '燃气表', icon: '🔥', category: 'gas_meter', energy_type: 'gas', name_en: 'Gas Meter', unit: 'm³/h', default_capacity: 30, required_fields: [], optional_fields: [], color: '#FF5722' },
-          { device_type: 'heat_meter', name_zh: '热量表', icon: '🌡️', category: 'heat_meter', energy_type: 'heat', name_en: 'Heat Meter', unit: 'GJ/h', default_capacity: 10, required_fields: [], optional_fields: [], color: '#E91E63' },
-          { device_type: 'cooling_meter', name_zh: '冷量表', icon: '❄️', category: 'cooling_meter', energy_type: 'cooling', name_en: 'Cooling Meter', unit: 'kW', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00BCD4' },
-          { device_type: 'steam_meter', name_zh: '蒸汽表', icon: '💨', category: 'heat_meter', energy_type: 'steam', name_en: 'Steam Meter', unit: 't/h', default_capacity: 5, required_fields: [], optional_fields: [], color: '#607D8B' },
-          { device_type: 'reactive_power_compensator', name_zh: '无功功率补偿器', icon: '⚖️', category: 'load', energy_type: 'electricity', name_en: 'Reactive Power Compensator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00ACC1' },
-          { device_type: 'svg', name_zh: '静止无功发生器', icon: '⚡', category: 'load', energy_type: 'electricity', name_en: 'Static Var Generator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#FF6F00' },
-        ]
+        deviceTypes.value = FALLBACK_DEVICE_TYPE_CONFIGS
       }
     }
     
@@ -352,11 +346,11 @@
     
       <el-table-column
         prop="device_type"
-        label="设备类型"
-        width="140"
+        label="设备分类"
+        width="160"
       >
         <template #default="{ row }">
-          {{ deviceTypeMap[row.device_type] || row.device_type }}
+          <span>{{ getCategoryLabel(row.device_category) }}</span>
         </template>
       </el-table-column>
     
@@ -478,7 +472,7 @@
               :value="t.device_type"
             >
               <span style="float: left">{{ t.name_zh }}</span>
-              <span style="float: right; color: #8492a6; font-size: 12px">{{ t.energy_type }} | {{ t.unit }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px">{{ getCategoryLabel(t.category) }} | {{ t.unit }}</span>
             </el-option>
           </el-select>
         </el-form-item>

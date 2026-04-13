@@ -136,6 +136,8 @@ function fmt(v: number, d = 1) {
 .spotlight-card {
   padding: 14px;
   gap: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .spotlight-header {
@@ -144,6 +146,8 @@ function fmt(v: number, d = 1) {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .spotlight-identity {
@@ -194,6 +198,8 @@ function fmt(v: number, d = 1) {
   align-items: flex-end;
   gap: 6px;
   flex-shrink: 0;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .spotlight-status {
@@ -230,7 +236,9 @@ function fmt(v: number, d = 1) {
   color: rgba(255, 255, 255, 0.75);
   font-size: 11px;
   cursor: pointer;
+  width: min(100%, 130px);
   max-width: 130px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -248,7 +256,7 @@ function fmt(v: number, d = 1) {
 
 .spotlight-metrics {
   display: grid;
-  grid-template-columns: 220px 120px minmax(220px, 1fr);
+  grid-template-columns: minmax(160px, 1.05fr) minmax(96px, 0.68fr) minmax(0, 1.55fr);
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -283,7 +291,7 @@ function fmt(v: number, d = 1) {
 .spotlight-hero__value strong {
   display: inline-block;
   width: 4.8ch;
-  font-size: 32px;
+  font-size: 38px;
   font-weight: 700;
   letter-spacing: -0.05em;
   color: #38bdf8;
@@ -306,7 +314,7 @@ function fmt(v: number, d = 1) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-left: 12px;
+  padding-left: 8px;
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   min-width: 0;
 }
@@ -377,6 +385,8 @@ function fmt(v: number, d = 1) {
   font-weight: 600;
   line-height: 1.2;
   color: #e7f1ff;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .spotlight-link {
@@ -393,5 +403,47 @@ function fmt(v: number, d = 1) {
 
 .spotlight-link:hover {
   color: #38bdf8;
+}
+
+@media (max-width: 1100px) {
+  .spotlight-metrics {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+  }
+
+  .spotlight-summary-grid {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .spotlight-header {
+    align-items: stretch;
+  }
+
+  .spotlight-controls {
+    width: 100%;
+    align-items: stretch;
+    margin-left: 0;
+  }
+
+  .device-switcher {
+    width: 100%;
+    max-width: none;
+  }
+
+  .spotlight-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spotlight-secondary {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .spotlight-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

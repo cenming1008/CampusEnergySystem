@@ -20,6 +20,51 @@ from app.services.ingestion_health_service import IngestionHealthService
 class DeviceMonitorService:
     """聚合设备监控页所需的状态、实时值、趋势、告警与控制记录。"""
 
+    _COMPENSATOR_REALTIME_FIELDS = (
+        "flow_rate",
+        "reactive_power",
+        "power_factor",
+        "voltage",
+        "current",
+        "timestamp",
+    )
+
+    @staticmethod
+    def _build_empty_realtime(device: Device, device_id: int) -> dict[str, Any]:
+        payload = {
+            "device_id": device_id,
+            "timestamp": None,
+            "energy_type": device.energy_type,
+            "consumption": None,
+            "flow_rate": None,
+            "voltage": None,
+            "current": None,
+            "power_factor": None,
+            "pressure": None,
+            "temperature": None,
+        }
+        if device.device_type == "reactive_power_compensator":
+            payload["reactive_power"] = None
+        return payload
+
+    @staticmethod
+    def _build_realtime_payload(device: Device, latest) -> dict[str, Any]:
+        payload = {
+            "device_id": latest.device_id,
+            "timestamp": latest.timestamp,
+            "energy_type": latest.energy_type,
+            "consumption": latest.consumption,
+            "flow_rate": latest.flow_rate,
+            "voltage": latest.voltage,
+            "current": latest.current,
+            "power_factor": latest.power_factor,
+            "pressure": latest.pressure,
+            "temperature": latest.temperature,
+        }
+        if device.device_type == "reactive_power_compensator":
+            payload["reactive_power"] = latest.reactive_power
+        return payload
+
     @staticmethod
     def record_control_action(
         session: Session,
@@ -48,31 +93,9 @@ class DeviceMonitorService:
         device = DeviceService.get_device_by_id(session, device_id)
         latest = EnergyRepository.get_latest_energy_data(session, device_id, device.energy_type)
         if latest is None:
-            return {
-                "device_id": device_id,
-                "timestamp": None,
-                "energy_type": device.energy_type,
-                "consumption": None,
-                "flow_rate": None,
-                "voltage": None,
-                "current": None,
-                "power_factor": None,
-                "pressure": None,
-                "temperature": None,
-            }
+            return DeviceMonitorService._build_empty_realtime(device, device_id)
 
-        return {
-            "device_id": latest.device_id,
-            "timestamp": latest.timestamp,
-            "energy_type": latest.energy_type,
-            "consumption": latest.consumption,
-            "flow_rate": latest.flow_rate,
-            "voltage": latest.voltage,
-            "current": latest.current,
-            "power_factor": latest.power_factor,
-            "pressure": latest.pressure,
-            "temperature": latest.temperature,
-        }
+        return DeviceMonitorService._build_realtime_payload(device, latest)
 
     @staticmethod
     def get_runtime_status(session: Session, device_id: int) -> dict[str, Any]:

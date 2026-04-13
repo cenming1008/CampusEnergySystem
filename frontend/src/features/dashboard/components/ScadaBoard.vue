@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus'
+import type { DeviceTypeConfig } from '@/api/device'
 import { getDeviceTypeLabel } from '@/shared/deviceTypeLabels'
 
 interface DeviceItem {
@@ -23,6 +24,7 @@ const props = defineProps<{
   currentDeviceId: number | undefined
   onlineCount: number
   totalCount: number
+  deviceTypes: DeviceTypeConfig[]
 }>()
 
 const emit = defineEmits<{
@@ -78,7 +80,7 @@ function onSelect(id: number | undefined) {
           >
             <span class="scada-item__dot" :class="device.is_active ? 'scada-item__dot--on' : 'scada-item__dot--off'" />
             <span class="scada-item__name">{{ device.name }}</span>
-            <span class="scada-item__tag">{{ getDeviceTypeLabel(device.device_type) }}</span>
+            <span class="scada-item__tag">{{ getDeviceTypeLabel(device.device_type, props.deviceTypes) }}</span>
           </button>
         </div>
       </details>

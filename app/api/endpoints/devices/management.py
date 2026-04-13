@@ -102,7 +102,7 @@ def get_device(
     current_user: User = Depends(get_current_user),
 ):
     ensure_device_access(session, current_user, device_id)
-    return DeviceService.get_device_by_id(session, device_id)
+    return DeviceService.get_device_for_read(session, device_id)
 
 
 @router.get("/{device_id}/semantic-profile")

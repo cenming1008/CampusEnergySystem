@@ -49,6 +49,31 @@ class TestDeviceEndpointSemantics(unittest.TestCase):
         mock_ensure_access.assert_called_once_with(session, current_user, 7)
         self.assertEqual(result["data"]["object_role"], "meter")
 
+    @patch("app.api.endpoints.devices.management.ensure_device_access")
+    @patch("app.api.endpoints.devices.management.DeviceService.get_device_for_read")
+    def test_get_device_endpoint_uses_normalized_read_service(
+        self,
+        mock_get_device_for_read,
+        mock_ensure_access,
+    ):
+        session = object()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        mock_get_device_for_read.return_value = SimpleNamespace(
+            id=8,
+            device_type="svg",
+            device_category="compensation",
+        )
+
+        result = management.get_device(
+            device_id=8,
+            session=session,
+            current_user=current_user,
+        )
+
+        mock_ensure_access.assert_called_once_with(session, current_user, 8)
+        mock_get_device_for_read.assert_called_once_with(session, 8)
+        self.assertEqual(result.device_category, "compensation")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.core.exceptions import DatabaseException, ResourceNotFoundException
+from app.models.tables import Device
 from app.services.device_service import DeviceService
 
 
@@ -75,6 +76,33 @@ class DeviceServiceRound2Test(unittest.TestCase):
         self.assertEqual(device.rated_capacity, 9.5)
         mock_save.assert_called_once_with(session, device)
 
+    def test_create_device_normalizes_legacy_load_category_for_compensation_device(self):
+        session = MagicMock()
+        device = SimpleNamespace(
+            sn="SVG-001",
+            device_type="svg",
+            device_category="load",
+            energy_type=None,
+            unit=None,
+            rated_capacity=None,
+        )
+        config = SimpleNamespace(
+            category=SimpleNamespace(value="compensation"),
+            energy_type=SimpleNamespace(value="electricity"),
+            unit="kVAR",
+            default_capacity=200.0,
+        )
+
+        with patch("app.services.device_service.device_registry.get", return_value=config):
+            with patch("app.services.device_service.DeviceRepository.save", return_value=device):
+                result = DeviceService.create_device(session, device)
+
+        self.assertIs(result, device)
+        self.assertEqual(device.device_category, "compensation")
+        self.assertEqual(device.energy_type, "electricity")
+        self.assertEqual(device.unit, "kVAR")
+        self.assertEqual(device.rated_capacity, 200.0)
+
     def test_create_device_returns_existing_on_duplicate_after_rollback(self):
         session = MagicMock()
         device = SimpleNamespace(sn="AUTO-002", device_type="load")
@@ -100,19 +128,25 @@ class DeviceServiceRound2Test(unittest.TestCase):
         )
 
         with patch.object(DeviceService, "get_device_by_id", return_value=device):
-            with patch("app.services.device_service.DeviceRepository.save", return_value=device) as mock_save:
-                result = DeviceService.update_device(
-                    session=session,
-                    device_id=3,
-                    name="新设备",
-                    location="新位置",
-                    description="新描述",
-                    rated_capacity=2.5,
-                )
+            with patch.object(
+                DeviceService,
+                "_resolve_location_fields",
+                return_value={"location": "新位置", "location_id": 12},
+            ):
+                with patch("app.services.device_service.DeviceRepository.save", return_value=device) as mock_save:
+                    result = DeviceService.update_device(
+                        session=session,
+                        device_id=3,
+                        name="新设备",
+                        location="新位置",
+                        description="新描述",
+                        rated_capacity=2.5,
+                    )
 
         self.assertIs(result, device)
         self.assertEqual(device.name, "新设备")
         self.assertEqual(device.location, "新位置")
+        self.assertEqual(device.location_id, 12)
         self.assertEqual(device.description, "新描述")
         self.assertEqual(device.rated_capacity, 2.5)
         self.assertIsInstance(device.updated_at, datetime)
@@ -155,6 +189,78 @@ class DeviceServiceRound2Test(unittest.TestCase):
             result = DeviceService.get_device_type_info("unknown")
 
         self.assertIsNone(result)
+
+    def test_get_device_types_exposes_compensation_category_for_svg_and_compensator(self):
+        result = DeviceService.get_device_types()
+        by_type = {item["device_type"]: item for item in result}
+
+        self.assertEqual(by_type["svg"]["category"], "compensation")
+        self.assertEqual(by_type["reactive_power_compensator"]["category"], "compensation")
+
+    def test_get_all_devices_normalizes_legacy_compensation_devices(self):
+        legacy_svg = SimpleNamespace(id=1, device_type="svg", device_category="load", energy_type="electricity", is_active=True)
+        normal_load = SimpleNamespace(id=2, device_type="load", device_category="load", energy_type="electricity", is_active=True)
+
+        with patch("app.services.device_service.DeviceRepository.list_devices", return_value=[legacy_svg, normal_load]):
+            result = DeviceService.get_all_devices(session=MagicMock())
+
+        self.assertEqual(result[0].device_category, "compensation")
+        self.assertEqual(result[1].device_category, "load")
+        self.assertEqual(legacy_svg.device_category, "load")
+
+    def test_get_all_devices_filters_with_normalized_category_contract(self):
+        legacy_compensator = SimpleNamespace(id=1, device_type="reactive_power_compensator", device_category="load", energy_type="electricity", is_active=True)
+        compensation_device = SimpleNamespace(id=2, device_type="svg", device_category="compensation", energy_type="electricity", is_active=True)
+        load_device = SimpleNamespace(id=3, device_type="load", device_category="load", energy_type="electricity", is_active=True)
+
+        with patch("app.services.device_service.DeviceRepository.list_devices", return_value=[legacy_compensator, compensation_device, load_device]):
+            compensation_result = DeviceService.get_all_devices(session=MagicMock(), category="compensation")
+            load_result = DeviceService.get_all_devices(session=MagicMock(), category="load")
+
+        self.assertEqual([device.id for device in compensation_result], [1, 2])
+        self.assertEqual([device.id for device in load_result], [3])
+
+    def test_get_device_for_read_normalizes_legacy_load_category(self):
+        legacy_svg = SimpleNamespace(id=9, device_type="svg", device_category="load")
+
+        with patch.object(DeviceService, "get_device_by_id", return_value=legacy_svg):
+            result = DeviceService.get_device_for_read(session=MagicMock(), device_id=9)
+
+        self.assertEqual(result.device_category, "compensation")
+        self.assertEqual(legacy_svg.device_category, "load")
+
+    def test_get_device_for_read_normalizes_sqlmodel_without_copy_crash(self):
+        legacy_compensator = Device(
+            id=16,
+            name="补偿器1",
+            sn="RPC-001",
+            device_type="reactive_power_compensator",
+            device_category="load",
+            energy_type="electricity",
+            is_active=True,
+        )
+
+        with patch.object(DeviceService, "get_device_by_id", return_value=legacy_compensator):
+            result = DeviceService.get_device_for_read(session=MagicMock(), device_id=16)
+
+        self.assertEqual(result.device_category, "compensation")
+        self.assertEqual(legacy_compensator.device_category, "load")
+
+    def test_get_device_semantic_profile_uses_normalized_category(self):
+        legacy_svg = SimpleNamespace(
+            id=9,
+            name="SVG 设备",
+            device_type="svg",
+            device_category="compensation",
+            energy_type="electricity",
+            unit="kVAR",
+            rated_capacity=200.0,
+        )
+
+        with patch.object(DeviceService, "get_device_for_read", return_value=legacy_svg):
+            result = DeviceService.get_device_semantic_profile(session=MagicMock(), device_id=9)
+
+        self.assertEqual(result["device_category"], "compensation")
 
 
 if __name__ == "__main__":

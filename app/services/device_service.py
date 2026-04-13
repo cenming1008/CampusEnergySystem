@@ -1,6 +1,6 @@
 """
 设备管理服务层 - 统一的设备和能源数据管理
-封装设备相关的业务逻辑，整合能源数据处理
+封装设备相关的业务逻辑，整合设备主数据与能源数据处理
 """
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -25,6 +25,8 @@ from app.services.location_service import LocationService
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
 
+    _COMPENSATION_DEVICE_TYPES = {"reactive_power_compensator", "svg"}
+
     @staticmethod
     def _resolve_location_fields(
         session: Session,
@@ -38,6 +40,42 @@ class DeviceService:
             "location": resolved.full_path or resolved.name,
             "location_id": resolved.id,
         }
+
+    @staticmethod
+    def _normalize_device_category(
+        device_type: Optional[str],
+        current_category: Optional[str],
+    ) -> Optional[str]:
+        """兼容旧数据读取：补偿器/SVG 不再对外暴露为 load。"""
+        if device_type not in DeviceService._COMPENSATION_DEVICE_TYPES:
+            return current_category
+        if current_category == DeviceCategory.COMPENSATION.value:
+            return current_category
+        if current_category in (None, "", DeviceCategory.LOAD.value):
+            return DeviceCategory.COMPENSATION.value
+        return current_category
+
+    @staticmethod
+    def _with_normalized_device_category(device: Any) -> Any:
+        """返回补偿类设备类别已归一的只读副本。"""
+        normalized_category = DeviceService._normalize_device_category(
+            getattr(device, "device_type", None),
+            getattr(device, "device_category", None),
+        )
+        if normalized_category == getattr(device, "device_category", None):
+            return device
+
+        # SQLModel/Pydantic v2 实例在当前运行态下不支持 copy.copy / model_copy，
+        # 否则会触发 `__pydantic_extra__` 访问错误并导致设备读接口 500。
+        if hasattr(device, "model_dump"):
+            payload = device.model_dump()
+            payload["device_category"] = normalized_category
+            return type(device)(**payload)
+
+        normalized_device = type("NormalizedDeviceView", (), {})()
+        normalized_device.__dict__.update(getattr(device, "__dict__", {}))
+        normalized_device.device_category = normalized_category
+        return normalized_device
     
     # ==================== 设备管理 ====================
     
@@ -57,12 +95,23 @@ class DeviceService:
             category: 设备类别筛选
             is_active: 状态筛选
         """
-        return DeviceRepository.list_devices(
+        devices = DeviceRepository.list_devices(
             session,
             energy_type=energy_type,
-            category=category,
+            category=None,
             is_active=is_active,
         )
+        normalized_devices = [
+            DeviceService._with_normalized_device_category(device)
+            for device in devices
+        ]
+        if category:
+            normalized_devices = [
+                device
+                for device in normalized_devices
+                if getattr(device, "device_category", None) == category
+            ]
+        return normalized_devices
     
     @staticmethod
     def get_device_by_id(session: Session, device_id: int) -> Device:
@@ -71,6 +120,13 @@ class DeviceService:
         if not device:
             raise ResourceNotFoundException("设备", device_id)
         return device
+
+    @staticmethod
+    def get_device_for_read(session: Session, device_id: int) -> Device:
+        """读取设备详情时对外暴露已归一的类别口径。"""
+        return DeviceService._with_normalized_device_category(
+            DeviceService.get_device_by_id(session, device_id)
+        )
     
     @staticmethod
     def get_device_by_sn(session: Session, sn: str) -> Optional[Device]:
@@ -151,8 +207,14 @@ class DeviceService:
             if device.device_type:
                 config = device_registry.get(device.device_type)
                 if config:
+                    normalized_category = DeviceService._normalize_device_category(
+                        device.device_type,
+                        device.device_category,
+                    )
                     # 自动填充未设置的字段
-                    if not device.device_category:
+                    if normalized_category:
+                        device.device_category = normalized_category
+                    elif not device.device_category:
                         device.device_category = config.category.value
                     if not device.energy_type:
                         device.energy_type = config.energy_type.value
@@ -394,7 +456,7 @@ class DeviceService:
     @staticmethod
     def get_device_semantic_profile(session: Session, device_id: int) -> Dict[str, Any]:
         """返回单个设备的第一批兼容语义。"""
-        device = DeviceService.get_device_by_id(session, device_id)
+        device = DeviceService.get_device_for_read(session, device_id)
         device_type_profile = describe_device_type_semantics(device.device_type)
         return {
             "device_id": device.id,

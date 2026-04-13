@@ -224,7 +224,7 @@ class DeviceRegistry:
         # 无功功率补偿器（SVG/SVC/电容补偿柜）
         self.register(DeviceTypeConfig(
             device_type="reactive_power_compensator",
-            category=DeviceCategory.LOAD,
+            category=DeviceCategory.COMPENSATION,
             energy_type=EnergyType.ELECTRICITY,
             name_zh="无功功率补偿器",
             name_en="Reactive Power Compensator",
@@ -248,7 +248,7 @@ class DeviceRegistry:
         # 静止无功发生器（SVG）
         self.register(DeviceTypeConfig(
             device_type="svg",
-            category=DeviceCategory.LOAD,
+            category=DeviceCategory.COMPENSATION,
             energy_type=EnergyType.ELECTRICITY,
             name_zh="静止无功发生器",
             name_en="Static Var Generator",

@@ -16,7 +16,7 @@ import AlarmFeed from '@/features/dashboard/components/AlarmFeed.vue'
 import TrendPanel from '@/features/dashboard/components/TrendPanel.vue'
 import DeviceSpotlight from '@/features/dashboard/components/DeviceSpotlight.vue'
 import ScadaBoard from '@/features/dashboard/components/ScadaBoard.vue'
-import { DEVICE_TYPE_LABELS, getDeviceTypeLabel } from '@/shared/deviceTypeLabels'
+import { getDeviceTypeLabel, resolveDeviceGroupMeta } from '@/shared/deviceTypeLabels'
 import RegionRanking from '@/features/dashboard/components/RegionRanking.vue'
 import type { Device } from '@/api/device'
 import type { DeviceAnalysis } from '@/api/telemetry'
@@ -32,7 +32,7 @@ const authStore = useAuthStore()
 const { latestMessage, isConnected } = storeToRefs(socketStore)
 const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
-const { currentDevice, currentDeviceId, deviceList, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
+const { currentDevice, currentDeviceId, deviceList, deviceTypes, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
 const { energyStats, todayEnergy, monthlyEnergy, loadEnergyStats } = useDashboardEnergyStats()
 const {
   analysisSnapshot,
@@ -69,10 +69,6 @@ const energyNameMap: Record<string, string> = {
   gas: '燃气',
   heat: '热力',
   cooling: '冷量'
-}
-
-const deviceCategoryMap: Record<string, string> = {
-  ...DEVICE_TYPE_LABELS,
 }
 
 function formatAlarmTime(timestamp: string) {
@@ -150,7 +146,7 @@ const focusDevice = computed<Device | undefined>(() => {
 const focusArchive = computed(() => focusCardOverview.value?.archive)
 const focusIdentity = computed(() => focusArchive.value || focusCardDevice.value || focusDevice.value)
 const focusDeviceName = computed(() => focusIdentity.value?.name || '1号热量表')
-const focusDeviceType = computed(() => getDeviceTypeLabel(focusIdentity.value?.device_type) || '热量表')
+const focusDeviceType = computed(() => getDeviceTypeLabel(focusIdentity.value?.device_type, deviceTypes.value) || '热量表')
 const focusEnergyType = computed(() => energyNameMap[focusIdentity.value?.energy_type || ''] || focusIdentity.value?.energy_type || '热力')
 const focusRuntime = computed(() => focusCardOverview.value?.runtime_status)
 const focusIngestion = computed<Record<string, unknown>>(() => (focusCardOverview.value?.ingestion_health as Record<string, unknown>) || {})
@@ -258,18 +254,17 @@ const scadaDeviceGroups = computed(() => {
   const groups = new Map<string, { key: string; label: string; devices: typeof selectableDevices.value }>()
 
   for (const device of selectableDevices.value) {
-    const categoryKey = (device.device_category || device.device_type || 'uncategorized').trim()
-    const categoryLabel = deviceCategoryMap[categoryKey] || getDeviceTypeLabel(categoryKey) || categoryKey || '未分类设备'
-    const existing = groups.get(categoryKey)
+    const groupMeta = resolveDeviceGroupMeta(device, deviceTypes.value)
+    const existing = groups.get(groupMeta.key)
 
     if (existing) {
       existing.devices.push(device)
       continue
     }
 
-    groups.set(categoryKey, {
-      key: categoryKey,
-      label: categoryLabel,
+    groups.set(groupMeta.key, {
+      key: groupMeta.key,
+      label: groupMeta.label,
       devices: [device]
     })
   }
@@ -481,6 +476,7 @@ watch(
           :current-device-id="currentDeviceId"
           :online-count="onlineDevices"
           :total-count="totalDevices"
+          :device-types="deviceTypes"
           @select-device="selectDevice"
         />
 

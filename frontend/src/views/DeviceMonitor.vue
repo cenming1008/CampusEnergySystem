@@ -53,6 +53,7 @@ const runtimeStatus = computed(() => overview.value?.runtime_status)
 const realtime = computed(() => overview.value?.realtime)
 
 const isSVG = computed(() => archive.value?.device_type === 'svg')
+const isReactivePowerCompensator = computed(() => archive.value?.device_type === 'reactive_power_compensator')
 const svgTelemetry = ref<SVGTelemetry | null>(null)
 const svgOperationsProfile = ref<SVGOperationsProfile | null>(null)
 
@@ -84,6 +85,21 @@ const metricCards = computed(() => {
     { label: '电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
     { label: '电流', value: formatMetric(realtime.value?.current), unit: 'A' },
   ]
+})
+
+const compensationRealtimeCards = computed(() => [
+  { label: '功率因数', value: formatMetric(realtime.value?.power_factor), unit: '' },
+  { label: '线电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
+  { label: '线电流', value: formatMetric(realtime.value?.current), unit: 'A' },
+  { label: '有功功率', value: formatMetric(realtime.value?.flow_rate), unit: 'kW' },
+  { label: '最近时间', value: formatTime(realtime.value?.timestamp), unit: '' },
+])
+
+const hasReactivePowerField = computed(() => Object.prototype.hasOwnProperty.call(realtime.value || {}, 'reactive_power'))
+const compensationReactivePowerHint = computed(() => {
+  if (!hasReactivePowerField.value) return '当前接口未返回无功功率字段'
+  if (realtime.value?.reactive_power === null) return '当前无实时无功功率数据'
+  return '实时采集值'
 })
 
 const chartUnit = computed(() => {
@@ -466,7 +482,50 @@ onBeforeUnmount(() => {
 
     <div class="monitor-grid">
       <section class="main-column">
-        <div class="metric-grid">
+        <div
+          v-if="isReactivePowerCompensator"
+          class="panel compensation-panel"
+        >
+          <div class="panel-head">
+            <div>
+              <h3>补偿器实时监控</h3>
+              <span>仅展示实时采集语义，不混入人工维护字段</span>
+            </div>
+          </div>
+          <div class="compensation-grid">
+            <div class="compensation-hero">
+              <span class="compensation-hero__label">无功功率</span>
+              <div class="compensation-hero__value">
+                <strong>{{ formatMetric(realtime?.reactive_power) }}</strong>
+                <small>kVAR</small>
+              </div>
+              <span class="compensation-hero__hint">
+                {{ compensationReactivePowerHint }}
+              </span>
+            </div>
+            <div class="compensation-card-grid">
+              <div
+                v-for="item in compensationRealtimeCards"
+                :key="item.label"
+                class="compensation-card"
+              >
+                <span class="compensation-card__label">{{ item.label }}</span>
+                <strong class="compensation-card__value">{{ item.value }}</strong>
+                <small
+                  v-if="item.unit"
+                  class="compensation-card__unit"
+                >
+                  {{ item.unit }}
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="metric-grid"
+        >
           <div
             v-for="item in metricCards"
             :key="item.label"
@@ -976,6 +1035,88 @@ onBeforeUnmount(() => {
   padding: 16px;
 }
 
+.compensation-panel {
+  padding: 18px;
+}
+
+.compensation-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.compensation-hero,
+.compensation-card {
+  background: #162130;
+  border: 1px solid #243244;
+  border-radius: 12px;
+}
+
+.compensation-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+}
+
+.compensation-hero__label,
+.compensation-card__label {
+  font-size: 12px;
+  color: #8ea0bc;
+}
+
+.compensation-hero__value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.compensation-hero__value strong {
+  font-size: 40px;
+  line-height: 1;
+  color: #38bdf8;
+  font-family: 'DIN', 'Monaco', monospace;
+}
+
+.compensation-hero__value small {
+  font-size: 14px;
+  color: #8ea0bc;
+}
+
+.compensation-hero__hint {
+  font-size: 12px;
+  color: #8ea0bc;
+}
+
+.compensation-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compensation-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 92px;
+  padding: 14px 16px;
+}
+
+.compensation-card__value {
+  font-size: 24px;
+  color: #f8fafc;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.compensation-card__unit {
+  font-size: 11px;
+  color: #8ea0bc;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -1111,6 +1252,10 @@ onBeforeUnmount(() => {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .compensation-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* SVG 遥测面板 */
@@ -1191,6 +1336,10 @@ onBeforeUnmount(() => {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compensation-card-grid {
     grid-template-columns: 1fr;
   }
 

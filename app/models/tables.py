@@ -24,6 +24,7 @@ class EnergyType(str, Enum):
 class DeviceCategory(str, Enum):
     """设备类别枚举"""
     LOAD = "load"                # 用电设备
+    COMPENSATION = "compensation"  # 无功补偿/电能质量设备
     SOLAR = "solar"              # 光伏发电
     WIND = "wind"                # 风力发电
     WATER_METER = "water_meter"  # 水表
