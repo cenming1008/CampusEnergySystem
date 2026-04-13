@@ -12,9 +12,7 @@ export interface SVGOperationsProfile {
   protocol_version?: string | null
   module_count?: number | null
   single_module_capacity?: number | null
-  created_at?: string
-  updated_at?: string
-    device_label_zh?: string | null
+  device_label_zh?: string | null
     asset_number?: string | null
   fixed_asset_code?: string | null
   qr_code_number?: string | null
@@ -49,7 +47,7 @@ export interface SVGOperationsProfile {
 
 export function getSVGOperationsProfile(deviceId: number) {
   return request
-    .get<never, SVGOperationsProfile>(`/svg/${deviceId}/operations-profile`)
+    .get<never, SVGOperationsProfile>(`/svg/${deviceId}/operations-profile`, { silent: true })
 }
 
 export function upsertSVGOperationsProfile(deviceId: number, data: Partial<SVGOperationsProfile>) {
@@ -103,7 +101,7 @@ export interface SVGTelemetry {
 
 export function getSVGTelemetryLatest(deviceId: number) {
   return request
-    .get<never, SVGTelemetry>(`/svg/${deviceId}/telemetry/latest`)
+    .get<never, SVGTelemetry>(`/svg/${deviceId}/telemetry/latest`, { silent: true })
 }
 
 export function getSVGTelemetryHistory(
@@ -111,5 +109,5 @@ export function getSVGTelemetryHistory(
   params?: { start?: string; end?: string; limit?: number },
 ) {
   return request
-    .get<never, SVGTelemetry[]>(`/svg/${deviceId}/telemetry`, { params })
+    .get<never, SVGTelemetry[]>(`/svg/${deviceId}/telemetry`, { params, silent: true })
 }

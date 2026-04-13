@@ -93,6 +93,8 @@ export interface TrendPoint {
   consumption?: number | null
   voltage?: number | null
   current?: number | null
+  reactive_power?: number | null
+  power_factor?: number | null
 }
 
 export interface TrendSummary {

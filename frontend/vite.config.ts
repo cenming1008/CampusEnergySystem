@@ -67,6 +67,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
+      '/svg': {
+        target: backendTarget,
+        changeOrigin: true,
+        secure: false
+      },
       '/data-generator': {
         target: backendTarget,
         changeOrigin: true,

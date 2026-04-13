@@ -21,6 +21,13 @@ import {
   type MonitorOverview,
   type TrendPoint,
 } from '@/api/deviceMonitor'
+import {
+  getSVGOperationsProfile,
+  getSVGTelemetryHistory,
+  getSVGTelemetryLatest,
+  type SVGOperationsProfile,
+  type SVGTelemetry,
+} from '@/api/svg'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
 import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
@@ -28,6 +35,7 @@ import CompensationEventTimeline from '@/features/device-monitor/components/comp
 import CompensationStatusSummary from '@/features/device-monitor/components/compensation/CompensationStatusSummary.vue'
 import CompensationDeviceProfile from '@/features/device-monitor/components/compensation/CompensationDeviceProfile.vue'
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
+import CompensationThreePhasePanel from '@/features/device-monitor/components/compensation/CompensationThreePhasePanel.vue'
 import type {
   CompensationEventItem,
   CompensationHeaderModel,
@@ -60,6 +68,9 @@ const chartMetric = ref<'flow_rate' | 'voltage' | 'current'>('flow_rate')
 const alarmFilter = ref<'all' | 'unresolved' | 'resolved'>('all')
 const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
 const compensationTrendTab = ref<CompensationTrendTab>('effect')
+const svgTelemetry = ref<SVGTelemetry | null>(null)
+const svgProfile = ref<SVGOperationsProfile | null>(null)
+const svgTelemetryHistory = ref<SVGTelemetry[]>([])
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const archive = computed(() => overview.value?.archive)
@@ -121,23 +132,42 @@ const timelineHours = computed(() => {
 })
 
 const fallbackCompensation = computed(() => {
-  const currentLevel = 4
-  const totalLevel = 8
+  const tel = svgTelemetry.value
+  const prof = svgProfile.value
+
+  // 控制模式：优先从 svg_telemetry.auto_mode/local_mode 读取
+  const controlMode =
+    tel?.auto_mode === true ? '自动' : tel?.auto_mode === false ? '手动' : isDeviceActive.value ? '自动' : '手动'
+
+  // 模块总数：优先从 svg_asset_profile.module_count 读取
+  const totalLevel = prof?.module_count ?? 8
+
+  // 补偿容量利用率：优先从 svg_telemetry.capacity_utilization 读取
   const ratedCapacity = Number(archive.value?.rated_capacity || 0)
   const reactivePower = realtime.value?.reactive_power
   const usage =
-    ratedCapacity > 0 && reactivePower !== null && reactivePower !== undefined
-      ? Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
-      : (currentLevel / totalLevel) * 100
+    tel?.capacity_utilization != null
+      ? tel.capacity_utilization
+      : ratedCapacity > 0 && reactivePower !== null && reactivePower !== undefined
+        ? Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
+        : 0
+
+  // 当前投入组数：由容量利用率和总模块数推算
+  const currentLevel = Math.round((usage / 100) * totalLevel)
+
+  // 柜内温度：优先从 svg_telemetry.cabinet_temp 读取
+  const cabinetTemperature = tel?.cabinet_temp ?? realtime.value?.temperature ?? 36.8
+
+  const controlSource = controlMode === '自动' ? 'EMS 自动策略' : '现场手动'
 
   return {
-    controlMode: isDeviceActive.value ? '自动' : '手动',
+    controlMode,
     compensationLevelCurrent: currentLevel,
     compensationLevelTotal: totalLevel,
     compensationCapacityUsage: usage,
-    controlSource: isDeviceActive.value ? 'EMS 自动策略' : '现场手动',
+    controlSource,
     switchPermission: canControlDevices.value && runtimeStatus.value?.is_online !== false,
-    cabinetTemperature: realtime.value?.temperature ?? 36.8,
+    cabinetTemperature,
     targetPowerFactor: 0.98,
     dailySwitchCount: 12,
     hourlySwitchCount: 2,
@@ -286,8 +316,15 @@ const compensationExtendedHint = computed(() => {
 const compensationTrendModel = computed<CompensationTrendModel>(() => {
   const labels = buildTrendLabels()
   if (compensationTrendTab.value === 'effect') {
-    const qSeries = buildMockSeries(labels.length, 318, 22)
-    const pfSeries = buildMockSeries(labels.length, 0.95, 0.03, 2)
+    const points = trend.value?.points || []
+    const hasRealQ = points.some((p) => p.reactive_power != null)
+    const hasRealPf = points.some((p) => p.power_factor != null)
+    const qSeries = hasRealQ
+      ? points.map((p) => p.reactive_power ?? null)
+      : buildMockSeries(labels.length, 318, 22)
+    const pfSeries = hasRealPf
+      ? points.map((p) => p.power_factor ?? null)
+      : buildMockSeries(labels.length, 0.95, 0.03, 2)
     return {
       labels,
       legend: ['无功功率 Q', '功率因数 PF'],
@@ -306,8 +343,8 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
       ],
       empty: false,
       emptyText: '暂无补偿效果趋势数据',
-      hint: '默认围绕补偿效果展示，当前采用演示曲线承载后续真实趋势接入。',
-      isMock: true,
+      hint: hasRealQ || hasRealPf ? '展示历史采集的无功功率与功率因数走势。' : '当前采用演示曲线承载后续真实趋势接入。',
+      isMock: !hasRealQ && !hasRealPf,
     }
   }
 
@@ -349,10 +386,15 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
     })
   }
 
-  const healthTemp = buildMockSeries(labels.length, fallbackCompensation.value.cabinetTemperature, 4)
-  const healthScore = buildMockSeries(labels.length, 92, 6)
+  const histPoints = svgTelemetryHistory.value
+  const hasCabinetTemp = histPoints.some((p) => p.cabinet_temp != null)
+  const healthLabels = hasCabinetTemp ? histPoints.map((p) => toShortTime(p.timestamp)) : labels
+  const healthTemp = hasCabinetTemp
+    ? histPoints.map((p) => p.cabinet_temp ?? null)
+    : buildMockSeries(labels.length, fallbackCompensation.value.cabinetTemperature, 4)
+  const healthScore = buildMockSeries(healthLabels.length, 92, 6)
   return {
-    labels,
+    labels: healthLabels,
     legend: ['柜内温度', '健康度'],
     axes: [
       { name: '°C' },
@@ -369,8 +411,8 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
     ],
     empty: false,
     emptyText: '暂无温度与健康度趋势数据',
-    hint: '当前温度/健康度趋势使用演示占位，用于承接后续真实健康度算法接入。',
-    isMock: true,
+    hint: hasCabinetTemp ? '展示采集的柜内温度历史走势。' : '当前温度/健康度趋势使用演示占位，用于承接后续真实健康度算法接入。',
+    isMock: !hasCabinetTemp,
   }
 })
 
@@ -394,49 +436,103 @@ const compensationEvents = computed<CompensationEventItem[]>(() => {
   ]
 })
 
-const compensationStatusItems = computed<CompensationStatusItem[]>(() => [
-  {
-    label: '设备状态',
-    value: runtimeStatus.value?.label || '状态未知',
-    tone: runtimeStatus.value?.is_active ? 'success' : 'warning',
-  },
-  {
-    label: '在线状态',
-    value: runtimeStatus.value?.is_online ? '在线' : '离线',
-    tone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
-  },
-  {
-    label: '当前模式',
-    value: fallbackCompensation.value.controlMode,
-    tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
-  },
-  {
-    label: '未处理告警',
-    value: `${runtimeStatus.value?.unresolved_alarm_count ?? 0} 条`,
-    tone: (runtimeStatus.value?.unresolved_alarm_count || 0) > 0 ? 'warning' : 'success',
-  },
-  {
-    label: '控制来源',
-    value: fallbackCompensation.value.controlSource,
-    tone: 'info',
-  },
-  {
-    label: '是否允许投切',
-    value: fallbackCompensation.value.switchPermission ? '允许投切' : '禁止投切',
-    tone: fallbackCompensation.value.switchPermission ? 'success' : 'danger',
-    hint: canControlDevices.value ? '基于当前权限与在线状态判定' : '当前账号无设备控制权限',
-  },
-])
+const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
+  const tel = svgTelemetry.value
+  const items: CompensationStatusItem[] = [
+    {
+      label: '设备状态',
+      value: runtimeStatus.value?.label || '状态未知',
+      tone: runtimeStatus.value?.is_active ? 'success' : 'warning',
+    },
+    {
+      label: '在线状态',
+      value: runtimeStatus.value?.is_online ? '在线' : '离线',
+      tone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
+    },
+    {
+      label: '当前模式',
+      value: fallbackCompensation.value.controlMode,
+      tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+    },
+    {
+      label: '未处理告警',
+      value: `${runtimeStatus.value?.unresolved_alarm_count ?? 0} 条`,
+      tone: (runtimeStatus.value?.unresolved_alarm_count || 0) > 0 ? 'warning' : 'success',
+    },
+    {
+      label: '控制来源',
+      value: fallbackCompensation.value.controlSource,
+      tone: 'info',
+    },
+    {
+      label: '是否允许投切',
+      value: fallbackCompensation.value.switchPermission ? '允许投切' : '禁止投切',
+      tone: fallbackCompensation.value.switchPermission ? 'success' : 'danger',
+      hint: canControlDevices.value ? '基于当前权限与在线状态判定' : '当前账号无设备控制权限',
+    },
+  ]
+  if (tel) {
+    items.push(
+      {
+        label: '断路器状态',
+        value: tel.breaker_status === true ? '已合闸' : tel.breaker_status === false ? '已分闸' : '未知',
+        tone: tel.breaker_status === true ? 'success' : tel.breaker_status === false ? 'warning' : 'neutral',
+      },
+      {
+        label: '模块状态',
+        value: tel.module_status === true ? '正常' : tel.module_status === false ? '故障' : '未知',
+        tone: tel.module_status === true ? 'success' : tel.module_status === false ? 'danger' : 'neutral',
+      },
+      {
+        label: '风机状态',
+        value: tel.fan_status === true ? '运行' : tel.fan_status === false ? '停止/故障' : '未知',
+        tone: tel.fan_status === true ? 'success' : tel.fan_status === false ? 'warning' : 'neutral',
+      },
+    )
+    const faults = [
+      tel.overvoltage_fault && '过压',
+      tel.undervoltage_fault && '欠压',
+      tel.overcurrent_fault && '过流',
+      tel.overtemp_fault && '过温',
+      tel.module_fault && '模块故障',
+      tel.fan_fault && '风机故障',
+      tel.comm_fault && '通讯故障',
+    ].filter(Boolean) as string[]
+    items.push({
+      label: '当前故障',
+      value: faults.length > 0 ? faults.join(' / ') : '无故障',
+      tone: faults.length > 0 ? 'danger' : 'success',
+    })
+  }
+  return items
+})
 
-const compensationProfileItems = computed<CompensationProfileItem[]>(() => [
-  { label: '设备名称', value: archive.value?.name || '补偿器1' },
-  { label: '序列号', value: archive.value?.sn || 'SN2323' },
-  { label: '设备类型', value: '无功功率补偿器' },
-  { label: '能源类型', value: archive.value?.energy_type || '电' },
-  { label: '安装位置', value: archive.value?.location || '未配置安装位置' },
-  { label: '额定容量', value: archive.value?.rated_capacity ? `${archive.value.rated_capacity} kVar` : '未配置' },
-  { label: '描述', value: archive.value?.description || '用于无功补偿与功率因数优化的柜体设备。' },
-])
+const compensationProfileItems = computed<CompensationProfileItem[]>(() => {
+  const prof = svgProfile.value
+  const items: CompensationProfileItem[] = [
+    { label: '设备名称', value: archive.value?.name || '补偿器1' },
+    { label: '序列号', value: archive.value?.sn || 'SN2323' },
+    { label: '设备类型', value: '无功功率补偿器' },
+    { label: '能源类型', value: archive.value?.energy_type || '电' },
+    { label: '安装位置', value: archive.value?.location || '未配置安装位置' },
+    { label: '额定容量', value: archive.value?.rated_capacity ? `${archive.value.rated_capacity} kVar` : '未配置' },
+    { label: '描述', value: archive.value?.description || '用于无功补偿与功率因数优化的柜体设备。' },
+  ]
+  if (prof) {
+    if (prof.model_number) items.push({ label: '产品型号', value: prof.model_number })
+    if (prof.rated_voltage) items.push({ label: '额定电压', value: `${prof.rated_voltage} V` })
+    if (prof.module_count) items.push({ label: '模块数量', value: `${prof.module_count} 组` })
+    if (prof.distribution_room) items.push({ label: '配电房', value: prof.distribution_room })
+    if (prof.building) items.push({ label: '所在楼栋', value: prof.building })
+    if (prof.circuit) items.push({ label: '所在回路', value: prof.circuit })
+    if (prof.om_responsible) items.push({ label: '运维负责人', value: prof.om_responsible })
+    if (prof.inspection_responsible) items.push({ label: '巡检负责人', value: prof.inspection_responsible })
+    if (prof.maintenance_cycle_days) items.push({ label: '维保周期', value: `${prof.maintenance_cycle_days} 天` })
+    if (prof.commission_date) items.push({ label: '投运日期', value: prof.commission_date })
+    if (prof.warranty_expiry) items.push({ label: '质保到期', value: prof.warranty_expiry })
+  }
+  return items
+})
 
 const genericStatusItems = computed(() => [
   { label: '设备状态', value: runtimeStatus.value?.label || '状态未知' },
@@ -540,13 +636,43 @@ async function loadTrendAndTables() {
   }
 }
 
+async function loadSVGTelemetry() {
+  try {
+    svgTelemetry.value = await getSVGTelemetryLatest(deviceId.value)
+  } catch {
+    svgTelemetry.value = null
+  }
+  try {
+    const [start, end] = timeRange.value || defaultTimeRange()
+    svgTelemetryHistory.value = await getSVGTelemetryHistory(deviceId.value, {
+      start: toApiDate(start),
+      end: toApiDate(end),
+      limit: 200,
+    })
+  } catch {
+    svgTelemetryHistory.value = []
+  }
+}
+
+async function loadSVGProfile() {
+  try {
+    svgProfile.value = await getSVGOperationsProfile(deviceId.value)
+  } catch {
+    svgProfile.value = null
+  }
+}
+
 async function loadPage(showLoading: boolean = true) {
   if (!deviceId.value) return
   if (showLoading) loading.value = true
 
   try {
     overview.value = await getDeviceMonitorOverview(deviceId.value)
-    await Promise.all([loadTrendAndTables(), loadStatusHistory()])
+    const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
+    if (isReactivePowerCompensator.value) {
+      extraTasks.push(loadSVGTelemetry(), loadSVGProfile())
+    }
+    await Promise.all(extraTasks)
   } catch {
     ElMessage.error('设备监控数据加载失败')
   } finally {
@@ -586,6 +712,9 @@ async function refreshRealtime() {
     trend.value = trendRes
     await renderTrendChart()
     await loadStatusHistory()
+    if (isReactivePowerCompensator.value) {
+      await loadSVGTelemetry()
+    }
   } catch {
     // axios 统一处理
   }
@@ -594,8 +723,11 @@ async function refreshRealtime() {
 async function handleRangeChange() {
   if (!overview.value) return
   try {
-    await loadTrendAndTables()
-    await loadStatusHistory()
+    const tasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
+    if (isReactivePowerCompensator.value) {
+      tasks.push(loadSVGTelemetry())
+    }
+    await Promise.all(tasks)
   } catch {
     ElMessage.error('筛选数据加载失败')
   }
@@ -867,6 +999,8 @@ function statusTagType(code?: string) {
             :level="compensationLevelModel"
             :extended-hint="compensationExtendedHint"
           />
+
+          <CompensationThreePhasePanel :telemetry="svgTelemetry" />
 
           <CompensationTrendPanel
             v-model:active-tab="compensationTrendTab"

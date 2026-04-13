@@ -187,6 +187,8 @@ class DeviceMonitorService:
                     "consumption": point.consumption,
                     "voltage": point.voltage,
                     "current": point.current,
+                    "reactive_power": point.reactive_power,
+                    "power_factor": point.power_factor,
                 }
                 for point in points
             ],
