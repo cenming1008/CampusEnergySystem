@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Refresh, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Refresh, SwitchButton, Warning } from '@element-plus/icons-vue'
 import { useECharts } from '@/shared/composables/useECharts'
+import { usePermissions } from '@/shared/composables/usePermissions'
 import { resolveAlarm } from '@/api/alarm'
 import { toggleDeviceStatus } from '@/api/device'
 import {
@@ -16,17 +17,29 @@ import {
   type DeviceAlarmRecord,
   type DeviceControlLog,
   type DeviceStatusEvent,
-  type MonitorOverview,
   type DeviceTrendResponse,
+  type MonitorOverview,
+  type TrendPoint,
 } from '@/api/deviceMonitor'
-
-import { usePermissions } from '@/shared/composables/usePermissions'
-import {
-  getSVGTelemetryLatest,
-  getSVGOperationsProfile,
-  type SVGTelemetry,
-  type SVGOperationsProfile,
-} from '@/api/svg'
+import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
+import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
+import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
+import CompensationEventTimeline from '@/features/device-monitor/components/compensation/CompensationEventTimeline.vue'
+import CompensationStatusSummary from '@/features/device-monitor/components/compensation/CompensationStatusSummary.vue'
+import CompensationDeviceProfile from '@/features/device-monitor/components/compensation/CompensationDeviceProfile.vue'
+import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
+import type {
+  CompensationEventItem,
+  CompensationHeaderModel,
+  CompensationLevelModel,
+  CompensationMetric,
+  CompensationProfileItem,
+  CompensationStatusItem,
+  CompensationTone,
+  CompensationTrendModel,
+  CompensationTrendOption,
+  CompensationTrendTab,
+} from '@/features/device-monitor/components/compensation/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,32 +48,37 @@ const { canControlDevices } = usePermissions()
 
 const deviceId = computed(() => Number(route.params.id))
 const loading = ref(false)
+const chartLoading = ref(false)
+const toggleSubmitting = ref(false)
+const alarmActionId = ref<number | null>(null)
 const overview = ref<MonitorOverview | null>(null)
+const trend = ref<DeviceTrendResponse | null>(null)
 const alarms = ref<DeviceAlarmRecord[]>([])
 const controlLogs = ref<DeviceControlLog[]>([])
 const statusHistory = ref<DeviceStatusEvent[]>([])
-const trend = ref<DeviceTrendResponse | null>(null)
 const chartMetric = ref<'flow_rate' | 'voltage' | 'current'>('flow_rate')
-const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
-const chartLoading = ref(false)
-const alarmActionId = ref<number | null>(null)
-const toggleSubmitting = ref(false)
 const alarmFilter = ref<'all' | 'unresolved' | 'resolved'>('all')
+const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
+const compensationTrendTab = ref<CompensationTrendTab>('effect')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
 const realtime = computed(() => overview.value?.realtime)
 
-const isSVG = computed(() => archive.value?.device_type === 'svg')
 const isReactivePowerCompensator = computed(() => archive.value?.device_type === 'reactive_power_compensator')
-const svgTelemetry = ref<SVGTelemetry | null>(null)
-const svgOperationsProfile = ref<SVGOperationsProfile | null>(null)
 
 const chartMetricOptions = [
   { label: '功率/流量', value: 'flow_rate' as const },
   { label: '电压', value: 'voltage' as const },
   { label: '电流', value: 'current' as const },
+]
+
+const compensationTrendTabs: CompensationTrendOption[] = [
+  { label: '补偿效果', value: 'effect' },
+  { label: '电压', value: 'voltage' },
+  { label: '电流', value: 'current' },
+  { label: '温度/健康度', value: 'health' },
 ]
 
 const timeShortcuts = [
@@ -70,160 +88,386 @@ const timeShortcuts = [
   { text: '近 7 天', value: () => buildRecentRange(24 * 7) },
 ]
 
-const metricCards = computed(() => {
-  if (isSVG.value) {
-    return [
-      { label: '实时有功功率', value: formatMetric(realtime.value?.flow_rate), unit: 'kW' },
-      { label: '无功功率', value: formatMetric(realtime.value?.reactive_power), unit: 'kVAR' },
-      { label: '功率因数', value: formatMetric(realtime.value?.power_factor), unit: '' },
-      { label: '综合电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
-    ]
-  }
-  return [
-    { label: '实时功率/流量', value: formatMetric(realtime.value?.flow_rate), unit: archive.value?.unit || '--' },
-    { label: '累计读数', value: formatMetric(realtime.value?.consumption), unit: inferConsumptionUnit() },
-    { label: '电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
-    { label: '电流', value: formatMetric(realtime.value?.current), unit: 'A' },
-  ]
-})
-
-const compensationRealtimeCards = computed(() => [
-  { label: '功率因数', value: formatMetric(realtime.value?.power_factor), unit: '' },
-  { label: '线电压', value: formatMetric(realtime.value?.voltage), unit: 'V' },
-  { label: '线电流', value: formatMetric(realtime.value?.current), unit: 'A' },
-  { label: '有功功率', value: formatMetric(realtime.value?.flow_rate), unit: 'kW' },
-  { label: '最近时间', value: formatTime(realtime.value?.timestamp), unit: '' },
+const metricCards = computed(() => [
+  { label: '实时功率/流量', value: displayNumber(realtime.value?.flow_rate), unit: archive.value?.unit || 'kW' },
+  { label: '累计读数', value: displayNumber(realtime.value?.consumption), unit: inferConsumptionUnit() },
+  { label: '电压', value: displayNumber(realtime.value?.voltage), unit: 'V' },
+  { label: '电流', value: displayNumber(realtime.value?.current), unit: 'A' },
 ])
-
-const hasReactivePowerField = computed(() => Object.prototype.hasOwnProperty.call(realtime.value || {}, 'reactive_power'))
-const compensationReactivePowerHint = computed(() => {
-  if (!hasReactivePowerField.value) return '当前接口未返回无功功率字段'
-  if (realtime.value?.reactive_power === null) return '当前无实时无功功率数据'
-  return '实时采集值'
-})
-
-const chartUnit = computed(() => {
-  if (chartMetric.value === 'voltage') return 'V'
-  if (chartMetric.value === 'current') return 'A'
-  return archive.value?.unit || '--'
-})
 
 const trendSummary = computed(() => {
   const values = (trend.value?.points || [])
-    .map(point => getTrendMetricValue(point, chartMetric.value))
+    .map((point) => getTrendMetricValue(point, chartMetric.value))
     .filter((value): value is number => value !== null && value !== undefined)
 
   if (!values.length) {
     return { latest: null, peak: null, valley: null, average: null }
   }
 
-  const latest = values[values.length - 1]
-  const peak = Math.max(...values)
-  const valley = Math.min(...values)
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length
-
   return {
-    latest,
-    peak,
-    valley,
-    average,
+    latest: values[values.length - 1],
+    peak: Math.max(...values),
+    valley: Math.min(...values),
+    average: values.reduce((sum, value) => sum + value, 0) / values.length,
   }
 })
 
 const isDeviceActive = computed(() => runtimeStatus.value?.is_active ?? false)
-const toggleActionLabel = computed(() => isDeviceActive.value ? '停止设备' : '启动设备')
-const toggleButtonType = computed(() => isDeviceActive.value ? 'danger' : 'success')
+const toggleActionLabel = computed(() => (isDeviceActive.value ? '停止设备' : '启动设备'))
+const toggleButtonType = computed(() => (isDeviceActive.value ? 'danger' : 'success'))
 const timelineHours = computed(() => {
   const [start, end] = timeRange.value || defaultTimeRange()
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (60 * 60 * 1000)))
 })
 
-function formatMetric(value?: number | null) {
-  if (value === null || value === undefined) return '--'
-  return Number(value).toFixed(1)
-}
+const fallbackCompensation = computed(() => {
+  const currentLevel = 4
+  const totalLevel = 8
+  const ratedCapacity = Number(archive.value?.rated_capacity || 0)
+  const reactivePower = realtime.value?.reactive_power
+  const usage =
+    ratedCapacity > 0 && reactivePower !== null && reactivePower !== undefined
+      ? Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
+      : (currentLevel / totalLevel) * 100
 
-function inferConsumptionUnit() {
-  const type = archive.value?.energy_type
-  if (type === 'water' || type === 'gas') return 'm³'
-  if (type === 'heat') return 'GJ'
-  return 'kWh'
-}
-
-function formatTime(value?: string | null) {
-  if (!value) return '--'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
-
-function severityTagType(severity?: string) {
-  if (severity === 'critical') return 'danger'
-  if (severity === 'warning') return 'warning'
-  return 'info'
-}
-
-function statusTagType(code?: string) {
-  if (code === 'running') return 'success'
-  if (code === 'alarm' || code === 'offline') return 'danger'
-  if (code === 'degraded') return 'warning'
-  return 'info'
-}
-
-function historyTagType(status?: string) {
-  if (status === 'success' || status === 'resolved') return 'success'
-  if (status === 'active' || status === 'failed') return 'danger'
-  return 'info'
-}
-
-function historyNodeType(eventType?: string) {
-  if (eventType === 'alarm') return 'danger'
-  if (eventType === 'alarm_resolution') return 'success'
-  if (eventType === 'control') return 'warning'
-  return 'primary'
-}
-
-function buildRecentRange(hours: number): [Date, Date] {
-  const end = new Date()
-  const start = new Date(end.getTime() - hours * 60 * 60 * 1000)
-  return [start, end]
-}
-
-function defaultTimeRange(): [Date, Date] {
-  return buildRecentRange(24)
-}
-
-function toApiDate(value: Date) {
-  return value.toISOString()
-}
-
-function buildRangeParams(limit: number = 300) {
-  const [start, end] = timeRange.value || defaultTimeRange()
   return {
-    start_time: toApiDate(start),
-    end_time: toApiDate(end),
-    limit,
+    controlMode: isDeviceActive.value ? '自动' : '手动',
+    compensationLevelCurrent: currentLevel,
+    compensationLevelTotal: totalLevel,
+    compensationCapacityUsage: usage,
+    controlSource: isDeviceActive.value ? 'EMS 自动策略' : '现场手动',
+    switchPermission: canControlDevices.value && runtimeStatus.value?.is_online !== false,
+    cabinetTemperature: realtime.value?.temperature ?? 36.8,
+    targetPowerFactor: 0.98,
+    dailySwitchCount: 12,
+    hourlySwitchCount: 2,
+    thd: 3.2,
+    runningHours: 3280,
   }
-}
+})
 
-function getTrendMetricValue(point: DeviceTrendResponse['points'][number], metric: typeof chartMetric.value) {
-  if (metric === 'voltage') return point.voltage ?? null
-  if (metric === 'current') return point.current ?? null
-  return point.value ?? null
-}
+const compensationStatusText = computed(() => {
+  const pf = realtime.value?.power_factor
+  if (!runtimeStatus.value?.is_online) return '离线'
+  if (pf === null || pf === undefined) return '待判断'
+  if (pf < 0.9) return '欠补偿'
+  if (pf > 0.99) return '过补偿'
+  return '正常补偿'
+})
 
-function metricLabel(metric: typeof chartMetric.value) {
-  if (metric === 'voltage') return '电压'
-  if (metric === 'current') return '电流'
-  return '功率/流量'
-}
+const compensationStatusTone = computed<CompensationTone>(() => {
+  if (!runtimeStatus.value?.is_online) return 'neutral'
+  if (compensationStatusText.value === '欠补偿') return 'warning'
+  if (compensationStatusText.value === '过补偿') return 'danger'
+  if (compensationStatusText.value === '正常补偿') return 'success'
+  return 'info'
+})
+
+const compensationHeaderModel = computed<CompensationHeaderModel>(() => ({
+  title: archive.value?.name || '补偿器1',
+  serial: archive.value?.sn || 'SN2323',
+  location: archive.value?.location || '未配置安装位置',
+  deviceStatus: runtimeStatus.value?.label || statusText(runtimeStatus.value?.is_online, '运行状态未知'),
+  deviceStatusTone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
+  tags: [
+    {
+      label: fallbackCompensation.value.controlMode,
+      tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+    },
+    {
+      label: compensationStatusText.value,
+      tone: compensationStatusTone.value,
+    },
+  ],
+}))
+
+const hasReactivePowerField = computed(() =>
+  Object.prototype.hasOwnProperty.call(realtime.value || {}, 'reactive_power'),
+)
+
+const compensationReactiveHint = computed(() => {
+  if (!hasReactivePowerField.value) return '当前接口未返回无功功率字段'
+  if (realtime.value?.reactive_power === null) return '当前无实时无功功率数据'
+  return '实时采集值'
+})
+
+const compensationCoreMetric = computed<CompensationMetric>(() => ({
+  key: 'reactivePower',
+  label: '当前无功功率',
+  value: displayValueWithState(realtime.value?.reactive_power, '暂无数据'),
+  unit: 'kVar',
+  hint: compensationReactiveHint.value,
+  state: realtime.value?.reactive_power === null || realtime.value?.reactive_power === undefined ? 'missing' : 'live',
+  emphasized: true,
+}))
+
+const compensationPfMetric = computed<CompensationMetric>(() => ({
+  key: 'powerFactor',
+  label: '功率因数',
+  value: displayValueWithState(realtime.value?.power_factor, '暂无数据', 2),
+  unit: '',
+  hint: realtime.value?.power_factor == null ? '实时值缺失' : `目标 PF ${fallbackCompensation.value.targetPowerFactor.toFixed(2)}`,
+  tone: compensationStatusTone.value,
+  state: realtime.value?.power_factor == null ? 'missing' : 'live',
+  emphasized: true,
+}))
+
+const compensationMetrics = computed<CompensationMetric[]>(() => {
+  const temperature = fallbackCompensation.value.cabinetTemperature
+  return [
+    {
+      key: 'busVoltage',
+      label: '母线电压',
+      value: displayValueWithState(realtime.value?.voltage, '通讯中断'),
+      unit: 'V',
+      hint: realtime.value?.voltage == null ? '实时电压未采集' : '当前母线测量值',
+      state: realtime.value?.voltage == null ? 'missing' : 'live',
+    },
+    {
+      key: 'lineCurrent',
+      label: '线电流',
+      value: displayValueWithState(realtime.value?.current, '通讯中断'),
+      unit: 'A',
+      hint: realtime.value?.current == null ? '实时电流未采集' : '当前线电流测量值',
+      state: realtime.value?.current == null ? 'missing' : 'live',
+    },
+    {
+      key: 'activePower',
+      label: '有功功率',
+      value: displayValueWithState(realtime.value?.flow_rate, '暂无数据'),
+      unit: 'kW',
+      hint: realtime.value?.flow_rate == null ? '实时有功功率未采集' : '当前柜体有功功率',
+      state: realtime.value?.flow_rate == null ? 'missing' : 'live',
+    },
+    {
+      key: 'capacityUsage',
+      label: '补偿容量利用率',
+      value: `${fallbackCompensation.value.compensationCapacityUsage.toFixed(1)}`,
+      unit: '%',
+      hint: archive.value?.rated_capacity ? '按额定容量换算' : '演示占位，待真实容量策略接入',
+      tone: fallbackCompensation.value.compensationCapacityUsage >= 90 ? 'warning' : 'success',
+      state: archive.value?.rated_capacity ? 'live' : 'mock',
+    },
+    {
+      key: 'controlMode',
+      label: '控制模式',
+      value: fallbackCompensation.value.controlMode,
+      unit: '',
+      hint: '支持自动 / 手动模式切换',
+      tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+      state: 'mock',
+    },
+    {
+      key: 'cabinetTemperature',
+      label: '柜内温度',
+      value: displayValueWithState(temperature, '暂无数据'),
+      unit: '°C',
+      hint: temperature >= 45 ? '温度偏高，请关注通风散热' : temperature >= 40 ? '温度轻微预警' : '柜内温度正常',
+      tone: temperature >= 45 ? 'danger' : temperature >= 40 ? 'warning' : 'success',
+      state: realtime.value?.temperature == null ? 'mock' : 'live',
+    },
+  ]
+})
+
+const compensationLevelModel = computed<CompensationLevelModel>(() => ({
+  current: fallbackCompensation.value.compensationLevelCurrent,
+  total: fallbackCompensation.value.compensationLevelTotal,
+  hint: `当前投入 ${fallbackCompensation.value.compensationLevelCurrent} 组，单小时投切 ${fallbackCompensation.value.hourlySwitchCount} 次`,
+  state: runtimeStatus.value?.is_online ? 'live' : 'offline',
+}))
+
+const compensationExtendedHint = computed(() => {
+  const messages: string[] = []
+  if (!archive.value?.rated_capacity) messages.push('额定容量暂未接入，补偿容量利用率先按演示占位显示。')
+  if (realtime.value?.temperature == null) messages.push('柜内温度当前使用演示占位，待真实采集点接入。')
+  return messages.join(' ')
+})
+
+const compensationTrendModel = computed<CompensationTrendModel>(() => {
+  const labels = buildTrendLabels()
+  if (compensationTrendTab.value === 'effect') {
+    const qSeries = buildMockSeries(labels.length, 318, 22)
+    const pfSeries = buildMockSeries(labels.length, 0.95, 0.03, 2)
+    return {
+      labels,
+      legend: ['无功功率 Q', '功率因数 PF'],
+      axes: [
+        { name: 'kVar' },
+        { name: 'PF', min: 0.8, max: 1, position: 'right' },
+      ],
+      series: [
+        { name: '无功功率 Q', data: qSeries, color: '#38bdf8', area: true },
+        { name: '功率因数 PF', data: pfSeries, color: '#4ade80', yAxisIndex: 1 },
+      ],
+      summary: [
+        { label: '当前 Q', value: `${displayValueWithState(realtime.value?.reactive_power, '暂无数据')} kVar` },
+        { label: '当前 PF', value: compensationPfMetric.value.value },
+        { label: '目标 PF', value: fallbackCompensation.value.targetPowerFactor.toFixed(2) },
+      ],
+      empty: false,
+      emptyText: '暂无补偿效果趋势数据',
+      hint: '默认围绕补偿效果展示，当前采用演示曲线承载后续真实趋势接入。',
+      isMock: true,
+    }
+  }
+
+  if (compensationTrendTab.value === 'voltage') {
+    const voltageSeries = buildTrendSeriesFromPoints('voltage')
+    return trendModelFromSingleSeries({
+      labels,
+      name: '母线电压',
+      unit: 'V',
+      color: '#60a5fa',
+      values: voltageSeries.values,
+      summaryItems: [
+        { label: '当前电压', value: `${displayValueWithState(realtime.value?.voltage, '暂无数据')} V` },
+        { label: '峰值', value: `${displayValueWithState(voltageSeries.peak, '暂无数据')} V` },
+        { label: '谷值', value: `${displayValueWithState(voltageSeries.valley, '暂无数据')} V` },
+      ],
+      isMock: voltageSeries.isMock,
+      hint: voltageSeries.isMock ? '当前电压趋势使用演示占位，待历史曲线更完整接入。' : '展示最近时间范围内的母线电压走势。',
+      emptyText: '暂无电压趋势数据',
+    })
+  }
+
+  if (compensationTrendTab.value === 'current') {
+    const currentSeries = buildTrendSeriesFromPoints('current')
+    return trendModelFromSingleSeries({
+      labels,
+      name: '线电流',
+      unit: 'A',
+      color: '#f59e0b',
+      values: currentSeries.values,
+      summaryItems: [
+        { label: '当前电流', value: `${displayValueWithState(realtime.value?.current, '暂无数据')} A` },
+        { label: '峰值', value: `${displayValueWithState(currentSeries.peak, '暂无数据')} A` },
+        { label: '谷值', value: `${displayValueWithState(currentSeries.valley, '暂无数据')} A` },
+      ],
+      isMock: currentSeries.isMock,
+      hint: currentSeries.isMock ? '当前电流趋势使用演示占位，待历史曲线更完整接入。' : '展示最近时间范围内的线电流走势。',
+      emptyText: '暂无电流趋势数据',
+    })
+  }
+
+  const healthTemp = buildMockSeries(labels.length, fallbackCompensation.value.cabinetTemperature, 4)
+  const healthScore = buildMockSeries(labels.length, 92, 6)
+  return {
+    labels,
+    legend: ['柜内温度', '健康度'],
+    axes: [
+      { name: '°C' },
+      { name: '分', min: 0, max: 100, position: 'right' },
+    ],
+    series: [
+      { name: '柜内温度', data: healthTemp, color: '#fb7185', area: true },
+      { name: '健康度', data: healthScore, color: '#22c55e', yAxisIndex: 1 },
+    ],
+    summary: [
+      { label: '柜内温度', value: `${displayValueWithState(fallbackCompensation.value.cabinetTemperature, '暂无数据')} °C` },
+      { label: 'THD', value: `${fallbackCompensation.value.thd.toFixed(1)} %` },
+      { label: '累计运行', value: `${fallbackCompensation.value.runningHours} h` },
+    ],
+    empty: false,
+    emptyText: '暂无温度与健康度趋势数据',
+    hint: '当前温度/健康度趋势使用演示占位，用于承接后续真实健康度算法接入。',
+    isMock: true,
+  }
+})
+
+const compensationEvents = computed<CompensationEventItem[]>(() => {
+  if (statusHistory.value.length) {
+    return statusHistory.value.slice(0, 6).map((item) => ({
+      time: formatTimeOnly(item.timestamp),
+      title: item.title,
+      detail: item.detail || '无附加说明',
+      tone: historyTone(item.status, item.event_type),
+      tag: historyTag(item.status),
+    }))
+  }
+
+  return [
+    { time: '14:25', title: '自动投入第 1 组', detail: '检测到无功需求上升，系统自动投入补偿组。', tone: 'info', tag: '自动' },
+    { time: '14:27', title: '自动投入第 2 组', detail: '功率因数仍低于目标值，继续追加补偿。', tone: 'info', tag: '自动' },
+    { time: '14:35', title: '功率因数恢复正常', detail: '补偿效果稳定，功率因数回到目标区间。', tone: 'success', tag: '恢复' },
+    { time: '14:42', title: '检测到轻微欠补偿', detail: '运行曲线显示轻微欠补偿，请关注负荷波动。', tone: 'warning', tag: '关注' },
+    { time: '14:50', title: '通讯恢复', detail: '数据采集链路恢复，实时监控重新上线。', tone: 'success', tag: '通信' },
+  ]
+})
+
+const compensationStatusItems = computed<CompensationStatusItem[]>(() => [
+  {
+    label: '设备状态',
+    value: runtimeStatus.value?.label || '状态未知',
+    tone: runtimeStatus.value?.is_active ? 'success' : 'warning',
+  },
+  {
+    label: '在线状态',
+    value: runtimeStatus.value?.is_online ? '在线' : '离线',
+    tone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
+  },
+  {
+    label: '当前模式',
+    value: fallbackCompensation.value.controlMode,
+    tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+  },
+  {
+    label: '未处理告警',
+    value: `${runtimeStatus.value?.unresolved_alarm_count ?? 0} 条`,
+    tone: (runtimeStatus.value?.unresolved_alarm_count || 0) > 0 ? 'warning' : 'success',
+  },
+  {
+    label: '控制来源',
+    value: fallbackCompensation.value.controlSource,
+    tone: 'info',
+  },
+  {
+    label: '是否允许投切',
+    value: fallbackCompensation.value.switchPermission ? '允许投切' : '禁止投切',
+    tone: fallbackCompensation.value.switchPermission ? 'success' : 'danger',
+    hint: canControlDevices.value ? '基于当前权限与在线状态判定' : '当前账号无设备控制权限',
+  },
+])
+
+const compensationProfileItems = computed<CompensationProfileItem[]>(() => [
+  { label: '设备名称', value: archive.value?.name || '补偿器1' },
+  { label: '序列号', value: archive.value?.sn || 'SN2323' },
+  { label: '设备类型', value: '无功功率补偿器' },
+  { label: '能源类型', value: archive.value?.energy_type || '电' },
+  { label: '安装位置', value: archive.value?.location || '未配置安装位置' },
+  { label: '额定容量', value: archive.value?.rated_capacity ? `${archive.value.rated_capacity} kVar` : '未配置' },
+  { label: '描述', value: archive.value?.description || '用于无功补偿与功率因数优化的柜体设备。' },
+])
+
+const genericStatusItems = computed(() => [
+  { label: '设备状态', value: runtimeStatus.value?.label || '状态未知' },
+  { label: '在线状态', value: runtimeStatus.value?.is_online ? '在线' : '离线' },
+  { label: '未处理告警', value: `${runtimeStatus.value?.unresolved_alarm_count ?? 0} 条` },
+  { label: '最近消息', value: formatDateTime(runtimeStatus.value?.last_message_at) },
+  { label: '最近成功入库', value: formatDateTime(runtimeStatus.value?.last_success_at) },
+])
+
+watch(
+  () => chart.chartRef.value,
+  async () => {
+    if (!chart.chartRef.value || isReactivePowerCompensator.value) return
+    await chart.initChart()
+    await renderTrendChart()
+  },
+)
+
+watch(
+  () => chartMetric.value,
+  async () => {
+    if (isReactivePowerCompensator.value) return
+    await renderTrendChart()
+  },
+)
 
 async function renderTrendChart() {
-  if (!trend.value) return
+  if (isReactivePowerCompensator.value || !trend.value) return
 
   const points = trend.value.points || []
-  const seriesData = points.map(point => getTrendMetricValue(point, chartMetric.value) ?? 0)
-  const threshold = archive.value?.rated_capacity && chartMetric.value === 'flow_rate'
-    ? Number(archive.value.rated_capacity)
-    : null
+  const seriesData = points.map((point) => getTrendMetricValue(point, chartMetric.value) ?? 0)
 
   await chart.setOptions({
     tooltip: {
@@ -235,13 +479,13 @@ async function renderTrendChart() {
     grid: { left: 48, right: 16, top: 24, bottom: 28 },
     xAxis: {
       type: 'category',
-      data: points.map(point => new Date(point.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })),
+      data: points.map((point) => toShortTime(point.timestamp)),
       axisLine: { lineStyle: { color: '#314055' } },
       axisLabel: { color: '#8ea0bc', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
-      name: chartUnit.value,
+      name: chartUnit(chartMetric.value),
       nameTextStyle: { color: '#8ea0bc', padding: [0, 0, 0, 8] },
       axisLabel: { color: '#8ea0bc', fontSize: 11 },
       splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
@@ -264,18 +508,6 @@ async function renderTrendChart() {
             ],
           },
         },
-        markPoint: {
-          symbolSize: 40,
-          data: [{ type: 'max', name: '峰值' }, { type: 'min', name: '谷值' }],
-          itemStyle: { color: '#1d2938', borderColor: '#38bdf8', borderWidth: 1 },
-          label: { color: '#e5edf7', fontSize: 10 },
-        },
-        markLine: threshold ? {
-          symbol: 'none',
-          label: { color: '#f59e0b', formatter: '额定阈值' },
-          lineStyle: { color: '#f59e0b', type: 'dashed' },
-          data: [{ yAxis: threshold }],
-        } : undefined,
       },
     ],
   }, { notMerge: true })
@@ -292,6 +524,7 @@ async function loadTrendAndTables() {
         : alarmFilter.value === 'resolved'
           ? true
           : false
+
     const [trendRes, alarmsRes, logsRes] = await Promise.all([
       getDeviceMonitorTrend(deviceId.value, params),
       getDeviceMonitorAlarms(deviceId.value, { ...params, resolved }),
@@ -307,26 +540,14 @@ async function loadTrendAndTables() {
   }
 }
 
-async function loadSVGData() {
-  if (!isSVG.value) return
-  const id = deviceId.value
-  const results = await Promise.allSettled([
-    getSVGTelemetryLatest(id),
-    getSVGOperationsProfile(id),
-  ])
-  if (results[0].status === 'fulfilled') svgTelemetry.value = results[0].value
-  if (results[1].status === 'fulfilled') svgOperationsProfile.value = results[1].value
-}
-
 async function loadPage(showLoading: boolean = true) {
   if (!deviceId.value) return
   if (showLoading) loading.value = true
 
   try {
-    const overviewRes = await getDeviceMonitorOverview(deviceId.value)
-    overview.value = overviewRes
-    await Promise.all([loadTrendAndTables(), loadSVGData()])
-  } catch (error) {
+    overview.value = await getDeviceMonitorOverview(deviceId.value)
+    await Promise.all([loadTrendAndTables(), loadStatusHistory()])
+  } catch {
     ElMessage.error('设备监控数据加载失败')
   } finally {
     loading.value = false
@@ -342,7 +563,7 @@ async function loadStatusHistory() {
     })
     statusHistory.value = response.items
   } catch {
-    // 由 axios 拦截器统一提示
+    // axios 统一处理
   }
 }
 
@@ -353,6 +574,7 @@ async function refreshRealtime() {
       getDeviceMonitorRealtime(deviceId.value),
       getDeviceMonitorTrend(deviceId.value, buildRangeParams()),
     ])
+
     overview.value = {
       ...overview.value,
       realtime: realtimeRes,
@@ -363,9 +585,9 @@ async function refreshRealtime() {
     }
     trend.value = trendRes
     await renderTrendChart()
-    await Promise.all([loadStatusHistory(), loadSVGData()])
+    await loadStatusHistory()
   } catch {
-    // 由各子函数处理
+    // axios 统一处理
   }
 }
 
@@ -409,7 +631,7 @@ async function handleToggleDevice() {
         confirmButtonText: nextActive ? '确认启动' : '确认停止',
         cancelButtonText: '取消',
         inputPlaceholder: '例如：例行巡检后恢复运行',
-      }
+      },
     )
     toggleSubmitting.value = true
     await toggleDeviceStatus(deviceId.value, nextActive, value)
@@ -426,13 +648,197 @@ async function handleToggleDevice() {
 onMounted(async () => {
   await chart.initChart()
   await loadPage(true)
-  await loadStatusHistory()
   refreshTimer = setInterval(refreshRealtime, 10000)
 })
 
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
 })
+
+function displayNumber(value?: number | null, digits: number = 1) {
+  if (value === null || value === undefined) return '--'
+  return Number(value).toFixed(digits)
+}
+
+function displayValueWithState(value: number | string | null | undefined, emptyText: string, digits: number = 1) {
+  if (value === null || value === undefined || value === '') return emptyText
+  if (typeof value === 'number') return Number(value).toFixed(digits)
+  return String(value)
+}
+
+function inferConsumptionUnit() {
+  const type = archive.value?.energy_type
+  if (type === 'water' || type === 'gas') return 'm³'
+  if (type === 'heat') return 'GJ'
+  return 'kWh'
+}
+
+function buildRecentRange(hours: number): [Date, Date] {
+  const end = new Date()
+  const start = new Date(end.getTime() - hours * 60 * 60 * 1000)
+  return [start, end]
+}
+
+function defaultTimeRange(): [Date, Date] {
+  return buildRecentRange(24)
+}
+
+function toApiDate(value: Date) {
+  return value.toISOString()
+}
+
+function buildRangeParams(limit: number = 300) {
+  const [start, end] = timeRange.value || defaultTimeRange()
+  return {
+    start_time: toApiDate(start),
+    end_time: toApiDate(end),
+    limit,
+  }
+}
+
+function getTrendMetricValue(point: TrendPoint, metric: 'flow_rate' | 'voltage' | 'current') {
+  if (metric === 'voltage') return point.voltage ?? null
+  if (metric === 'current') return point.current ?? null
+  return point.value ?? null
+}
+
+function metricLabel(metric: 'flow_rate' | 'voltage' | 'current') {
+  if (metric === 'voltage') return '电压'
+  if (metric === 'current') return '电流'
+  return '功率/流量'
+}
+
+function chartUnit(metric: 'flow_rate' | 'voltage' | 'current') {
+  if (metric === 'voltage') return 'V'
+  if (metric === 'current') return 'A'
+  return archive.value?.unit || 'kW'
+}
+
+function toShortTime(timestamp?: string | null) {
+  if (!timestamp) return '--'
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '暂无数据'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatTimeOnly(value?: string | null) {
+  if (!value) return '--:--'
+  return new Date(value).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+function statusText(flag: boolean | undefined, offlineText: string) {
+  return flag ? '运行中' : offlineText
+}
+
+function historyTone(status?: string, eventType?: string): CompensationTone {
+  if (status === 'success' || status === 'resolved') return 'success'
+  if (status === 'active' || status === 'failed') return 'danger'
+  if (eventType === 'control') return 'info'
+  return 'warning'
+}
+
+function historyTag(status?: string) {
+  if (status === 'resolved') return '已恢复'
+  if (status === 'success') return '成功'
+  if (status === 'active') return '告警'
+  return '事件'
+}
+
+function buildTrendLabels() {
+  const points = trend.value?.points || []
+  if (points.length) {
+    return points.map((point) => toShortTime(point.timestamp))
+  }
+
+  const [start, end] = timeRange.value || defaultTimeRange()
+  const step = Math.max(1, Math.floor((end.getTime() - start.getTime()) / (8 * 60 * 1000)))
+  return Array.from({ length: 8 }).map((_, index) =>
+    new Date(start.getTime() + index * step * 60 * 1000).toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }),
+  )
+}
+
+function buildMockSeries(length: number, base: number, variation: number, digits: number = 1) {
+  return Array.from({ length }).map((_, index) => {
+    const wave = Math.sin(index / 1.6) * variation
+    return Number((base + wave).toFixed(digits))
+  })
+}
+
+function buildTrendSeriesFromPoints(metric: 'voltage' | 'current') {
+  const points = trend.value?.points || []
+  const values = points
+    .map((point) => (metric === 'voltage' ? point.voltage : point.current))
+    .filter((value): value is number => value !== null && value !== undefined)
+
+  if (!values.length) {
+    const base = metric === 'voltage' ? 401 : 48
+    return {
+      values: buildMockSeries(buildTrendLabels().length, base, metric === 'voltage' ? 8 : 5),
+      peak: null,
+      valley: null,
+      isMock: true,
+    }
+  }
+
+  return {
+    values: points.map((point) => (metric === 'voltage' ? point.voltage : point.current) ?? null),
+    peak: Math.max(...values),
+    valley: Math.min(...values),
+    isMock: false,
+  }
+}
+
+function trendModelFromSingleSeries(options: {
+  labels: string[]
+  name: string
+  unit: string
+  color: string
+  values: Array<number | null>
+  summaryItems: Array<{ label: string; value: string }>
+  isMock: boolean
+  hint: string
+  emptyText: string
+}): CompensationTrendModel {
+  return {
+    labels: options.labels,
+    legend: [options.name],
+    axes: [{ name: options.unit }],
+    series: [{ name: options.name, data: options.values, color: options.color, area: true }],
+    summary: options.summaryItems,
+    empty: false,
+    emptyText: options.emptyText,
+    hint: options.hint,
+    isMock: options.isMock,
+  }
+}
+
+function severityTagType(severity?: string) {
+  if (severity === 'critical') return 'danger'
+  if (severity === 'warning') return 'warning'
+  return 'info'
+}
+
+function statusTagType(code?: string) {
+  if (code === 'running') return 'success'
+  if (code === 'alarm' || code === 'offline') return 'danger'
+  if (code === 'degraded') return 'warning'
+  return 'info'
+}
 </script>
 
 <template>
@@ -440,503 +846,216 @@ onBeforeUnmount(() => {
     v-loading="loading"
     class="monitor-page"
   >
-    <div class="page-head">
-      <div class="head-left">
-        <el-button
-          :icon="ArrowLeft"
-          text
-          @click="router.push('/devices')"
-        >
-          返回设备台账
-        </el-button>
-        <div>
-          <h2>{{ archive?.name || '设备监控' }}</h2>
-          <p>{{ archive?.sn || '--' }} · {{ archive?.location || '未设置位置' }}</p>
+    <template v-if="isReactivePowerCompensator">
+      <CompensationHeader
+        :model="compensationHeaderModel"
+        :toggle-action-label="toggleActionLabel"
+        :toggle-button-type="toggleButtonType"
+        :toggle-submitting="toggleSubmitting"
+        :can-control-devices="canControlDevices"
+        @back="router.push('/devices')"
+        @refresh="loadPage(true)"
+        @toggle="handleToggleDevice"
+      />
+
+      <div class="comp-page-grid">
+        <section class="comp-main-column">
+          <CompensationRealtimeOverview
+            :core-metric="compensationCoreMetric"
+            :pf-metric="compensationPfMetric"
+            :metrics="compensationMetrics"
+            :level="compensationLevelModel"
+            :extended-hint="compensationExtendedHint"
+          />
+
+          <CompensationTrendPanel
+            v-model:active-tab="compensationTrendTab"
+            v-model:time-range="timeRange"
+            :tabs="compensationTrendTabs"
+            :model="compensationTrendModel"
+            :shortcuts="timeShortcuts"
+            :loading="chartLoading"
+            @range-change="handleRangeChange"
+          />
+
+          <CompensationAlarmTable
+            :rows="alarms"
+            :action-id="alarmActionId"
+            @resolve="handleResolveAlarm"
+          />
+        </section>
+
+        <aside class="comp-side-column">
+          <CompensationEventTimeline :events="compensationEvents" />
+          <CompensationStatusSummary :items="compensationStatusItems" />
+          <CompensationDeviceProfile :items="compensationProfileItems" />
+        </aside>
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="page-head">
+        <div class="head-left">
+          <el-button
+            :icon="ArrowLeft"
+            text
+            @click="router.push('/devices')"
+          >
+            返回设备台账
+          </el-button>
+          <div>
+            <h2>{{ archive?.name || '设备监控' }}</h2>
+            <p>{{ archive?.sn || '--' }} · {{ archive?.location || '未设置位置' }}</p>
+          </div>
+        </div>
+        <div class="head-right">
+          <el-tag
+            :type="statusTagType(runtimeStatus?.code)"
+            size="large"
+          >
+            {{ runtimeStatus?.label || '状态未知' }}
+          </el-tag>
+          <el-button
+            :type="toggleButtonType"
+            plain
+            :icon="SwitchButton"
+            :loading="toggleSubmitting"
+            :disabled="!canControlDevices"
+            @click="handleToggleDevice"
+          >
+            {{ toggleActionLabel }}
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            @click="loadPage(true)"
+          >
+            刷新
+          </el-button>
         </div>
       </div>
-      <div class="head-right">
-        <el-tag
-          :type="statusTagType(runtimeStatus?.code)"
-          size="large"
-        >
-          {{ runtimeStatus?.label || '状态未知' }}
-        </el-tag>
-        <el-button
-          :type="toggleButtonType"
-          plain
-          :icon="SwitchButton"
-          :loading="toggleSubmitting"
-          :disabled="!canControlDevices"
-          @click="handleToggleDevice"
-        >
-          {{ toggleActionLabel }}
-        </el-button>
-        <el-button
-          :icon="Refresh"
-          @click="loadPage(true)"
-        >
-          刷新
-        </el-button>
-      </div>
-    </div>
 
-    <div class="monitor-grid">
-      <section class="main-column">
-        <div
-          v-if="isReactivePowerCompensator"
-          class="panel compensation-panel"
-        >
-          <div class="panel-head">
-            <div>
-              <h3>补偿器实时监控</h3>
-              <span>仅展示实时采集语义，不混入人工维护字段</span>
-            </div>
-          </div>
-          <div class="compensation-grid">
-            <div class="compensation-hero">
-              <span class="compensation-hero__label">无功功率</span>
-              <div class="compensation-hero__value">
-                <strong>{{ formatMetric(realtime?.reactive_power) }}</strong>
-                <small>kVAR</small>
-              </div>
-              <span class="compensation-hero__hint">
-                {{ compensationReactivePowerHint }}
-              </span>
-            </div>
-            <div class="compensation-card-grid">
-              <div
-                v-for="item in compensationRealtimeCards"
-                :key="item.label"
-                class="compensation-card"
-              >
-                <span class="compensation-card__label">{{ item.label }}</span>
-                <strong class="compensation-card__value">{{ item.value }}</strong>
-                <small
-                  v-if="item.unit"
-                  class="compensation-card__unit"
-                >
-                  {{ item.unit }}
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-else
-          class="metric-grid"
-        >
-          <div
-            v-for="item in metricCards"
-            :key="item.label"
-            class="metric-card"
-          >
-            <span class="metric-label">{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <small>{{ item.unit }}</small>
-          </div>
-        </div>
-
-        <div class="panel trend-panel">
-          <div class="panel-head">
-            <div>
-              <h3>历史趋势</h3>
-              <span>按时间范围查看设备实时曲线</span>
-            </div>
-            <div class="trend-toolbar">
-              <el-radio-group
-                v-model="chartMetric"
-                size="small"
-                @change="renderTrendChart"
-              >
-                <el-radio-button
-                  v-for="item in chartMetricOptions"
-                  :key="item.value"
-                  :value="item.value"
-                >
-                  {{ item.label }}
-                </el-radio-button>
-              </el-radio-group>
-              <el-date-picker
-                v-model="timeRange"
-                type="datetimerange"
-                unlink-panels
-                start-placeholder="开始时间"
-                end-placeholder="结束时间"
-                range-separator="至"
-                :shortcuts="timeShortcuts"
-                @change="handleRangeChange"
-              />
-            </div>
-          </div>
-          <div class="summary-inline">
-            <span>当前 {{ formatMetric(trendSummary.latest) }} {{ chartUnit }}</span>
-            <span>峰值 {{ formatMetric(trendSummary.peak) }} {{ chartUnit }}</span>
-            <span>均值 {{ formatMetric(trendSummary.average) }} {{ chartUnit }}</span>
-            <span>谷值 {{ formatMetric(trendSummary.valley) }} {{ chartUnit }}</span>
-          </div>
-          <div
-            :ref="chart.chartRef"
-            v-loading="chartLoading"
-            class="trend-chart"
-          />
-        </div>
-
-        <!-- SVG 遥测扩展面板 -->
-        <div
-          v-if="isSVG && svgTelemetry"
-          class="panel svg-telemetry-panel"
-        >
-          <div class="panel-head">
-            <div>
-              <h3>SVG 实时遥测</h3>
-              <span>三相数据 · 状态位 · 温度 · 故障</span>
-            </div>
-            <span class="muted-text">{{ svgTelemetry.timestamp ? formatTime(svgTelemetry.timestamp) : '--' }}</span>
-          </div>
-
-          <!-- 三相电量 -->
-          <div class="svg-section-title">三相电量</div>
-          <div class="svg-metric-grid">
-            <div class="svg-metric-card"><span>Ua</span><strong>{{ svgTelemetry.voltage_a?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
-            <div class="svg-metric-card"><span>Ub</span><strong>{{ svgTelemetry.voltage_b?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
-            <div class="svg-metric-card"><span>Uc</span><strong>{{ svgTelemetry.voltage_c?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
-            <div class="svg-metric-card"><span>Ia</span><strong>{{ svgTelemetry.current_a?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
-            <div class="svg-metric-card"><span>Ib</span><strong>{{ svgTelemetry.current_b?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
-            <div class="svg-metric-card"><span>Ic</span><strong>{{ svgTelemetry.current_c?.toFixed(1) ?? '--' }}</strong><small>A</small></div>
-            <div class="svg-metric-card"><span>频率</span><strong>{{ svgTelemetry.frequency?.toFixed(2) ?? '--' }}</strong><small>Hz</small></div>
-            <div class="svg-metric-card"><span>无功输出</span><strong>{{ svgTelemetry.svg_reactive_output?.toFixed(1) ?? '--' }}</strong><small>kVAR</small></div>
-            <div class="svg-metric-card"><span>容量利用率</span><strong>{{ svgTelemetry.capacity_utilization?.toFixed(1) ?? '--' }}</strong><small>%</small></div>
-            <div class="svg-metric-card"><span>输出方向</span><strong>{{ svgTelemetry.output_direction === 'inductive' ? '感性' : svgTelemetry.output_direction === 'capacitive' ? '容性' : '--' }}</strong><small></small></div>
-          </div>
-
-          <!-- 温度和内部量 -->
-          <div class="svg-section-title">温度 / 内部量</div>
-          <div class="svg-metric-grid">
-            <div class="svg-metric-card"><span>柜内温度</span><strong>{{ svgTelemetry.cabinet_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
-            <div class="svg-metric-card"><span>模块温度</span><strong>{{ svgTelemetry.module_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
-            <div class="svg-metric-card"><span>IGBT温度</span><strong>{{ svgTelemetry.igbt_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
-            <div class="svg-metric-card"><span>散热器温度</span><strong>{{ svgTelemetry.heatsink_temp?.toFixed(1) ?? '--' }}</strong><small>°C</small></div>
-            <div class="svg-metric-card"><span>直流母线电压</span><strong>{{ svgTelemetry.dc_bus_voltage?.toFixed(1) ?? '--' }}</strong><small>V</small></div>
-          </div>
-
-          <!-- 运行状态位 -->
-          <div class="svg-section-title">运行状态</div>
-          <div class="svg-status-grid">
-            <el-tag :type="svgTelemetry.run_status ? 'success' : 'info'" size="small">{{ svgTelemetry.run_status ? '运行中' : '未运行' }}</el-tag>
-            <el-tag :type="svgTelemetry.stop_status ? 'danger' : 'info'" size="small">{{ svgTelemetry.stop_status ? '已停机' : '未停机' }}</el-tag>
-            <el-tag :type="svgTelemetry.auto_mode ? 'success' : 'warning'" size="small">{{ svgTelemetry.auto_mode === null ? '--' : svgTelemetry.auto_mode ? '自动' : '手动' }}</el-tag>
-            <el-tag :type="svgTelemetry.local_mode ? 'info' : 'primary'" size="small">{{ svgTelemetry.local_mode === null ? '--' : svgTelemetry.local_mode ? '本地' : '远方' }}</el-tag>
-            <el-tag :type="svgTelemetry.breaker_status ? 'success' : 'danger'" size="small">断路器 {{ svgTelemetry.breaker_status === null ? '--' : svgTelemetry.breaker_status ? '合' : '分' }}</el-tag>
-            <el-tag :type="svgTelemetry.module_status ? 'success' : 'warning'" size="small">模块 {{ svgTelemetry.module_status === null ? '--' : svgTelemetry.module_status ? '正常' : '异常' }}</el-tag>
-            <el-tag :type="svgTelemetry.fan_status ? 'success' : 'warning'" size="small">风机 {{ svgTelemetry.fan_status === null ? '--' : svgTelemetry.fan_status ? '正常' : '异常' }}</el-tag>
-            <el-tag :type="svgTelemetry.comm_status ? 'success' : 'danger'" size="small">通信 {{ svgTelemetry.comm_status === null ? '--' : svgTelemetry.comm_status ? '正常' : '中断' }}</el-tag>
-          </div>
-
-          <!-- 故障位 -->
-          <div class="svg-section-title">故障告警</div>
-          <div class="svg-status-grid">
-            <el-tag :type="svgTelemetry.overvoltage_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.overvoltage_fault ? '⚠ 过压' : '过压正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.undervoltage_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.undervoltage_fault ? '⚠ 欠压' : '欠压正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.overcurrent_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.overcurrent_fault ? '⚠ 过流' : '过流正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.overtemp_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.overtemp_fault ? '⚠ 过温' : '温度正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.module_fault ? 'danger' : 'success'" size="small">{{ svgTelemetry.module_fault ? '⚠ 模块故障' : '模块正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.fan_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.fan_fault ? '⚠ 风机故障' : '风机正常' }}</el-tag>
-            <el-tag :type="svgTelemetry.comm_fault ? 'warning' : 'success'" size="small">{{ svgTelemetry.comm_fault ? '⚠ 通信故障' : '通信正常' }}</el-tag>
-          </div>
-          <div
-            v-if="svgTelemetry.current_fault_code || svgTelemetry.current_alarm_code"
-            class="svg-code-row"
-          >
-            <span v-if="svgTelemetry.current_fault_code">故障代码：<strong>{{ svgTelemetry.current_fault_code }}</strong></span>
-            <span v-if="svgTelemetry.current_alarm_code">告警代码：<strong>{{ svgTelemetry.current_alarm_code }}</strong></span>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>告警记录</h3>
-              <span>支持直接处理未关闭告警</span>
-            </div>
-            <el-segmented
-              v-model="alarmFilter"
-              :options="[
-                { label: '全部', value: 'all' },
-                { label: '未处理', value: 'unresolved' },
-                { label: '已处理', value: 'resolved' },
-              ]"
-              size="small"
-              @change="handleRangeChange"
-            />
-          </div>
-          <el-table
-            :data="alarms"
-            class="dark-table"
-            empty-text="暂无告警记录"
-          >
-            <el-table-column
-              prop="timestamp"
-              label="时间"
-              min-width="170"
-            >
-              <template #default="{ row }">
-                {{ formatTime(row.timestamp) }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="message"
-              label="内容"
-              min-width="260"
-            />
-            <el-table-column
-              prop="severity"
-              label="级别"
-              width="100"
-            >
-              <template #default="{ row }">
-                <el-tag :type="severityTagType(row.severity)">
-                  {{ row.severity || 'info' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="is_resolved"
-              label="状态"
-              width="100"
-            >
-              <template #default="{ row }">
-                <el-tag :type="row.is_resolved ? 'success' : 'danger'">
-                  {{ row.is_resolved ? '已处理' : '未处理' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="操作"
-              width="120"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <el-button
-                  v-if="!row.is_resolved"
-                  type="warning"
-                  link
-                  :icon="Warning"
-                  :loading="alarmActionId === row.id"
-                  @click="handleResolveAlarm(row)"
-                >
-                  处理
-                </el-button>
-                <span
-                  v-else
-                  class="muted-text"
-                >已关闭</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>启停记录</h3>
-              <span>设备启停与控制操作留痕</span>
-            </div>
-          </div>
-          <el-table
-            :data="controlLogs"
-            class="dark-table"
-            empty-text="暂无启停记录"
-          >
-            <el-table-column
-              prop="created_at"
-              label="时间"
-              min-width="170"
-            >
-              <template #default="{ row }">
-                {{ formatTime(row.created_at) }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="action"
-              label="动作"
-              width="100"
-            />
-            <el-table-column
-              prop="result"
-              label="结果"
-              width="100"
-            >
-              <template #default="{ row }">
-                <el-tag :type="row.result === 'success' ? 'success' : 'danger'">
-                  {{ row.result || '--' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="operator"
-              label="操作人"
-              width="120"
-            />
-            <el-table-column
-              prop="reason"
-              label="备注"
-              min-width="220"
-            />
-          </el-table>
-        </div>
-      </section>
-
-      <aside class="side-column">
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>状态时间轴</h3>
-              <span>汇总设备告警与启停事件</span>
-            </div>
-          </div>
-          <div
-            v-if="statusHistory.length"
-            class="timeline-wrap"
-          >
-            <el-timeline>
-              <el-timeline-item
-                v-for="item in statusHistory"
-                :key="`${item.event_type}-${item.timestamp}-${item.title}`"
-                :timestamp="formatTime(item.timestamp)"
-                :type="historyNodeType(item.event_type)"
-                hollow
-              >
-                <div class="timeline-card">
-                  <div class="timeline-head">
-                    <strong>{{ item.title }}</strong>
-                    <el-tag
-                      size="small"
-                      :type="historyTagType(item.status)"
-                    >
-                      {{ item.status }}
-                    </el-tag>
-                  </div>
-                  <p>{{ item.detail || '无附加说明' }}</p>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-          </div>
-          <el-empty
-            v-else
-            description="当前时间范围内暂无状态事件"
-          />
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>运行状态</h3>
-              <span>当前接入与设备状态</span>
-            </div>
-          </div>
-          <div class="status-list">
-            <div class="status-row">
-              <span>设备状态</span><strong>{{ runtimeStatus?.label || '--' }}</strong>
-            </div>
-            <div class="status-row">
-              <span>在线状态</span><strong>{{ runtimeStatus?.is_online ? '在线' : '离线' }}</strong>
-            </div>
-            <div class="status-row">
-              <span>未处理告警</span><strong>{{ runtimeStatus?.unresolved_alarm_count ?? 0 }}</strong>
-            </div>
-            <div class="status-row">
-              <span>最近消息</span><strong>{{ formatTime(runtimeStatus?.last_message_at) }}</strong>
-            </div>
-            <div class="status-row">
-              <span>最近成功入库</span><strong>{{ formatTime(runtimeStatus?.last_success_at) }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>设备档案</h3>
-              <span>基础信息与安装信息</span>
-            </div>
-          </div>
-          <div class="archive-list">
-            <div class="archive-row">
-              <span>设备名称</span><strong>{{ archive?.name || '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>序列号</span><strong>{{ archive?.sn || '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>设备类型</span><strong>{{ archive?.device_type || '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>能源类型</span><strong>{{ archive?.energy_type || '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>安装位置</span><strong>{{ archive?.location || '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>额定容量</span><strong>{{ archive?.rated_capacity ?? '--' }}</strong>
-            </div>
-            <div class="archive-row">
-              <span>描述</span><strong>{{ archive?.description || '--' }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="isSVG && svgOperationsProfile"
-          class="panel"
-        >
-          <div class="panel-head">
-            <div>
-              <h3>SVG 运维档案</h3>
-              <span>基础参数与运维维护信息</span>
-            </div>
-          </div>
-          <div class="archive-list">
+      <div class="monitor-grid">
+        <section class="main-column">
+          <div class="metric-grid">
             <div
-              v-for="[label, val] in [
-                ['设备型号', svgOperationsProfile.model_number],
-                ['额定电压', svgOperationsProfile.rated_voltage != null ? svgOperationsProfile.rated_voltage + ' V' : null],
-                ['额定频率', svgOperationsProfile.rated_frequency != null ? svgOperationsProfile.rated_frequency + ' Hz' : null],
-                ['通信地址', svgOperationsProfile.comm_address],
-                ['软件版本', svgOperationsProfile.software_version],
-                ['硬件版本', svgOperationsProfile.hardware_version],
-                ['协议版本', svgOperationsProfile.protocol_version],
-                ['模块数量', svgOperationsProfile.module_count != null ? svgOperationsProfile.module_count + ' 个' : null],
-                ['单模块容量', svgOperationsProfile.single_module_capacity != null ? svgOperationsProfile.single_module_capacity + ' kVAR' : null],
-                ['设备标签', svgOperationsProfile.device_label_zh],
-                ['资产编号', svgOperationsProfile.asset_number],
-                ['固定资产编码', svgOperationsProfile.fixed_asset_code],
-                ['所属配电室', svgOperationsProfile.distribution_room],
-                ['所属配电柜', svgOperationsProfile.distribution_cabinet],
-                ['所属回路', svgOperationsProfile.circuit],
-                ['所属楼栋', svgOperationsProfile.building],
-                ['所属区域', svgOperationsProfile.area],
-                ['现场编号', svgOperationsProfile.field_number],
-                ['安装日期', svgOperationsProfile.install_date],
-                ['投运日期', svgOperationsProfile.commission_date],
-                ['运维负责人', svgOperationsProfile.om_responsible],
-                ['巡检负责人', svgOperationsProfile.inspection_responsible],
-                ['所属部门', svgOperationsProfile.department],
-                ['联系电话', svgOperationsProfile.contact_phone],
-                ['保修到期', svgOperationsProfile.warranty_expiry],
-                ['维护周期', svgOperationsProfile.maintenance_cycle_days != null ? svgOperationsProfile.maintenance_cycle_days + ' 天' : null],
-                ['设备别名', svgOperationsProfile.device_alias],
-                ['上位机名称', svgOperationsProfile.display_name],
-              ].filter(([, v]) => v != null)"
-              :key="label as string"
-              class="archive-row"
+              v-for="item in metricCards"
+              :key="item.label"
+              class="metric-card"
             >
-              <span>{{ label }}</span><strong>{{ val }}</strong>
+              <span class="metric-label">{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.unit }}</small>
             </div>
           </div>
-        </div>
-      </aside>
-    </div>
+
+          <div class="panel trend-panel">
+            <div class="panel-head">
+              <div>
+                <h3>历史趋势</h3>
+                <span>按时间范围查看设备实时曲线</span>
+              </div>
+              <div class="trend-toolbar">
+                <el-radio-group
+                  v-model="chartMetric"
+                  size="small"
+                >
+                  <el-radio-button
+                    v-for="item in chartMetricOptions"
+                    :key="item.value"
+                    :value="item.value"
+                  >
+                    {{ item.label }}
+                  </el-radio-button>
+                </el-radio-group>
+                <el-date-picker
+                  v-model="timeRange"
+                  type="datetimerange"
+                  unlink-panels
+                  start-placeholder="开始时间"
+                  end-placeholder="结束时间"
+                  range-separator="至"
+                  :shortcuts="timeShortcuts"
+                  @change="handleRangeChange"
+                />
+              </div>
+            </div>
+            <div class="summary-inline">
+              <span>当前 {{ displayNumber(trendSummary.latest) }} {{ chartUnit(chartMetric) }}</span>
+              <span>峰值 {{ displayNumber(trendSummary.peak) }} {{ chartUnit(chartMetric) }}</span>
+              <span>均值 {{ displayNumber(trendSummary.average) }} {{ chartUnit(chartMetric) }}</span>
+              <span>谷值 {{ displayNumber(trendSummary.valley) }} {{ chartUnit(chartMetric) }}</span>
+            </div>
+            <div
+              :ref="chart.chartRef"
+              v-loading="chartLoading"
+              class="trend-chart"
+            />
+          </div>
+
+          <CompensationAlarmTable
+            :rows="alarms"
+            :action-id="alarmActionId"
+            @resolve="handleResolveAlarm"
+          />
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>启停记录</h3>
+                <span>设备启停与控制操作留痕</span>
+              </div>
+            </div>
+            <el-table
+              :data="controlLogs"
+              class="dark-table"
+              empty-text="暂无启停记录"
+            >
+              <el-table-column
+                prop="created_at"
+                label="时间"
+                min-width="170"
+              >
+                <template #default="{ row }">
+                  {{ formatDateTime(row.created_at) }}
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="action"
+                label="动作"
+                width="100"
+              />
+              <el-table-column
+                prop="result"
+                label="结果"
+                width="100"
+              >
+                <template #default="{ row }">
+                  <el-tag :type="row.result === 'success' ? 'success' : 'danger'">
+                    {{ row.result || '--' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="operator"
+                label="操作人"
+                width="120"
+              />
+              <el-table-column
+                prop="reason"
+                label="备注"
+                min-width="220"
+              />
+            </el-table>
+          </div>
+        </section>
+
+        <aside class="side-column">
+          <CompensationEventTimeline :events="compensationEvents" />
+          <CompensationStatusSummary :items="genericStatusItems" />
+          <CompensationDeviceProfile :items="compensationProfileItems" />
+        </aside>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -945,6 +1064,23 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.comp-page-grid,
+.monitor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.95fr) 360px;
+  gap: 16px;
+}
+
+.comp-main-column,
+.comp-side-column,
+.main-column,
+.side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 .page-head {
@@ -980,20 +1116,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.monitor-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) 360px;
-  gap: 16px;
-}
-
-.main-column,
-.side-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
 }
 
 .metric-grid {
@@ -1033,88 +1155,6 @@ onBeforeUnmount(() => {
 
 .panel {
   padding: 16px;
-}
-
-.compensation-panel {
-  padding: 18px;
-}
-
-.compensation-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr);
-  gap: 14px;
-  align-items: stretch;
-}
-
-.compensation-hero,
-.compensation-card {
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 12px;
-}
-
-.compensation-hero {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  padding: 18px;
-}
-
-.compensation-hero__label,
-.compensation-card__label {
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.compensation-hero__value {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.compensation-hero__value strong {
-  font-size: 40px;
-  line-height: 1;
-  color: #38bdf8;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.compensation-hero__value small {
-  font-size: 14px;
-  color: #8ea0bc;
-}
-
-.compensation-hero__hint {
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.compensation-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.compensation-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-  min-height: 92px;
-  padding: 14px 16px;
-}
-
-.compensation-card__value {
-  font-size: 24px;
-  color: #f8fafc;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.compensation-card__unit {
-  font-size: 11px;
-  color: #8ea0bc;
 }
 
 .panel-head {
@@ -1159,191 +1199,23 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.timeline-wrap {
-  max-height: 360px;
-  overflow: auto;
-  padding-right: 6px;
-}
-
-.timeline-card {
-  padding: 10px 12px;
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 10px;
-}
-
-.timeline-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.timeline-head strong {
-  color: #f8fafc;
-  font-size: 13px;
-}
-
-.timeline-card p {
-  margin: 0;
-  color: #8ea0bc;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.muted-text {
-  color: #8ea0bc;
-  font-size: 12px;
-}
-
-.status-list,
-.archive-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.status-row,
-.archive-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 10px;
-}
-
-.status-row span,
-.archive-row span {
-  color: #8ea0bc;
-  font-size: 12px;
-}
-
-.status-row strong,
-.archive-row strong {
-  color: #f8fafc;
-  font-size: 12px;
-  text-align: right;
-}
-
 :deep(.dark-table) {
-  --el-table-bg-color: #131d2b;
-  --el-table-tr-bg-color: #131d2b;
-  --el-table-header-bg-color: #162130;
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(14, 24, 37, 0.92);
   --el-table-border-color: #243244;
-  --el-table-row-hover-bg-color: #162130;
+  --el-table-row-hover-bg-color: rgba(22, 33, 48, 0.92);
   --el-table-text-color: #dbe6f5;
   --el-table-header-text-color: #8ea0bc;
 }
 
-:deep(.el-segmented) {
-  --el-segmented-bg-color: #162130;
-  --el-segmented-item-selected-bg-color: #243244;
-  --el-border-radius-base: 10px;
-}
-
-@media (max-width: 1280px) {
+@media (max-width: 1360px) {
+  .comp-page-grid,
   .monitor-grid {
     grid-template-columns: 1fr;
   }
 
   .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .compensation-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* SVG 遥测面板 */
-.svg-section-title {
-  font-size: 11px;
-  color: #8ea0bc;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 14px 0 8px;
-}
-
-.svg-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.svg-metric-card {
-  background: #162130;
-  border: 1px solid #243244;
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.svg-metric-card span {
-  font-size: 11px;
-  color: #8ea0bc;
-}
-
-.svg-metric-card strong {
-  font-size: 18px;
-  color: #f8fafc;
-  font-family: 'DIN', 'Monaco', monospace;
-}
-
-.svg-metric-card small {
-  font-size: 11px;
-  color: #8ea0bc;
-}
-
-.svg-status-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.svg-code-row {
-  margin-top: 10px;
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: #8ea0bc;
-}
-
-.svg-code-row strong {
-  color: #f59e0b;
-}
-
-@media (max-width: 1280px) {
-  .svg-metric-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .page-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .head-right,
-  .trend-toolbar {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .metric-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .compensation-card-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .svg-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -1,0 +1,93 @@
+export type CompensationTone = 'success' | 'info' | 'warning' | 'danger' | 'neutral'
+export type CompensationDataState = 'live' | 'mock' | 'missing' | 'offline' | 'unconfigured' | 'na'
+export type CompensationTrendTab = 'effect' | 'voltage' | 'current' | 'health'
+
+export interface CompensationTag {
+  label: string
+  tone: CompensationTone
+}
+
+export interface CompensationMetric {
+  key: string
+  label: string
+  value: string
+  unit?: string
+  hint: string
+  tone?: CompensationTone
+  state: CompensationDataState
+  emphasized?: boolean
+}
+
+export interface CompensationLevelModel {
+  current: number
+  total: number
+  hint: string
+  state: CompensationDataState
+}
+
+export interface CompensationHeaderModel {
+  title: string
+  serial: string
+  location: string
+  deviceStatus: string
+  deviceStatusTone: CompensationTone
+  tags: CompensationTag[]
+}
+
+export interface CompensationTrendOption {
+  label: string
+  value: CompensationTrendTab
+}
+
+export interface CompensationTrendAxis {
+  name: string
+  min?: number
+  max?: number
+  position?: 'left' | 'right'
+}
+
+export interface CompensationTrendSeries {
+  name: string
+  data: Array<number | null>
+  color: string
+  yAxisIndex?: number
+  area?: boolean
+}
+
+export interface CompensationTrendSummaryItem {
+  label: string
+  value: string
+}
+
+export interface CompensationTrendModel {
+  labels: string[]
+  legend: string[]
+  axes: CompensationTrendAxis[]
+  series: CompensationTrendSeries[]
+  summary: CompensationTrendSummaryItem[]
+  empty: boolean
+  emptyText: string
+  hint?: string
+  isMock: boolean
+}
+
+export interface CompensationEventItem {
+  time: string
+  title: string
+  detail: string
+  tone: CompensationTone
+  tag?: string
+  isMock?: boolean
+}
+
+export interface CompensationStatusItem {
+  label: string
+  value: string
+  tone?: CompensationTone
+  hint?: string
+}
+
+export interface CompensationProfileItem {
+  label: string
+  value: string
+}
