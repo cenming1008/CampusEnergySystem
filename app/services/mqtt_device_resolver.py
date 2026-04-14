@@ -14,7 +14,7 @@ from app.core.database import engine
 from app.core.device_registry import device_registry
 from app.core.logger import logger
 from app.core.settings import settings
-from app.domain.device_payloads import normalize_device_type_alias
+from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
 from app.models.tables import Device
 from app.services.device_service import DeviceService
 
@@ -52,7 +52,7 @@ def infer_device_type(data: dict[str, Any]) -> str:
     ):
         return "svg"
 
-    # 传统电容补偿控制器 / 电容柜特征
+    # 传统电容补偿控制器 / 电容柜特征（含 JKWF-LCD 特有字段）
     if any(
         data.get(f) is not None
         for f in (
@@ -60,6 +60,8 @@ def infer_device_type(data: dict[str, Any]) -> str:
             "reactive_power_a", "reactive_power_b", "reactive_power_c",
             "active_power_a", "active_power_b", "active_power_c",
             "circuit_status", "step_status", "common_compensation_status",
+            # JKWF-LCD 专属特征字段
+            "apparent_power_a", "voltage_thd_a", "jkwf_status_flags", "circuit_state_reg_1",
         )
     ):
         return "capacitor_bank_controller"
@@ -93,8 +95,12 @@ def ensure_device_for_code(device_code: str, data: dict[str, Any]) -> Optional[i
         if device_id is not None:
             return device_id
 
-        requested_subtype = normalize_device_type_alias(data.get("device_subtype"))
-        device_type = normalize_device_type_alias(data.get("device_type")) or requested_subtype or infer_device_type(data)
+        requested_type = normalize_device_type_alias(data.get("device_type"))
+        requested_subtype = resolve_compensation_subtype(
+            requested_type,
+            data.get("device_subtype"),
+        )
+        device_type = requested_subtype or requested_type or infer_device_type(data)
         if not device_registry.get(device_type):
             device_type = "load"
 

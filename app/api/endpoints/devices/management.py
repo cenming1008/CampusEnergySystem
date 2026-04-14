@@ -26,7 +26,7 @@ from app.core.settings import settings
 from app.models.tables import Device, User
 from app.services.device_service import DeviceService
 
-from .shared import DeviceCreateRequest, DeviceUpdateRequest
+from .schemas import DeviceCreateRequest, DeviceUpdateRequest
 
 router = APIRouter()
 
@@ -68,17 +68,24 @@ def create_device_smart(
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     try:
+        payload = {
+            "session": session,
+            "current_user": current_user,
+            "name": req.name,
+            "sn": req.sn,
+            "device_type": req.device_type,
+            "location": req.location,
+            "description": req.description,
+            "rated_capacity": req.rated_capacity,
+        }
+        device_subtype = getattr(req, "device_subtype", None)
+        if device_subtype is not None:
+            payload["device_subtype"] = device_subtype
+        svg_operations = getattr(req, "svg_operations", None)
+        if svg_operations is not None:
+            payload["svg_operations"] = svg_operations.model_dump(exclude_none=True)
         return create_device_smart_use_case(
-            session=session,
-            current_user=current_user,
-            name=req.name,
-            sn=req.sn,
-            device_type=req.device_type,
-            device_subtype=req.device_subtype,
-            location=req.location,
-            description=req.description,
-            rated_capacity=req.rated_capacity,
-            svg_operations=req.svg_operations.model_dump(exclude_none=True) if req.svg_operations else None,
+            **payload,
         )
     except ValueError as exc:
         raise bad_request_from_value_error(exc) from exc
@@ -123,18 +130,21 @@ def update_device(
     session: Session = Depends(get_session),
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
-    return update_device_profile_use_case(
-        session=session,
-        current_user=current_user,
-        device_id=device_id,
-        device_type=req.device_type,
-        device_subtype=req.device_subtype,
-        name=req.name,
-        location=req.location,
-        description=req.description,
-        rated_capacity=req.rated_capacity,
-        svg_operations=req.svg_operations.model_dump(exclude_none=True) if req.svg_operations else None,
-    )
+    payload = {
+        "session": session,
+        "current_user": current_user,
+        "device_id": device_id,
+        "device_type": getattr(req, "device_type", None),
+        "device_subtype": getattr(req, "device_subtype", None),
+        "name": getattr(req, "name", None),
+        "location": getattr(req, "location", None),
+        "description": getattr(req, "description", None),
+        "rated_capacity": getattr(req, "rated_capacity", None),
+    }
+    svg_operations = getattr(req, "svg_operations", None)
+    if svg_operations is not None:
+        payload["svg_operations"] = svg_operations.model_dump(exclude_none=True)
+    return update_device_profile_use_case(**payload)
 
 
 @router.delete("/{device_id}")

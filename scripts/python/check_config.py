@@ -29,7 +29,7 @@ try:
     if not settings.secret_key:
         print("  ❌ SECRET_KEY: 未设置")
         required_ok = False
-    elif settings.secret_key == "mine-energy-system-secret-key-change-me":
+    elif settings.secret_key == "campus-energy-system-secret-key-change-me":
         print("  ⚠️  SECRET_KEY: 使用默认值（生产环境请修改！）")
     elif len(settings.secret_key) < 32:
         print(f"  ⚠️  SECRET_KEY: 长度不足32字符（当前: {len(settings.secret_key)}）")
@@ -67,4 +67,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-

@@ -9,7 +9,7 @@ const {
   deleteDeviceMock,
   toggleDeviceStatusMock,
   getDeviceTypesMock,
-  getSVGOperationsProfileMock,
+  getCompensationSvgOperationsProfileMock,
   notifyDevicesUpdatedMock,
   successMock,
   errorMock,
@@ -23,7 +23,7 @@ const {
   deleteDeviceMock: vi.fn(),
   toggleDeviceStatusMock: vi.fn(),
   getDeviceTypesMock: vi.fn(),
-  getSVGOperationsProfileMock: vi.fn(),
+  getCompensationSvgOperationsProfileMock: vi.fn(),
   notifyDevicesUpdatedMock: vi.fn(),
   successMock: vi.fn(),
   errorMock: vi.fn(),
@@ -70,8 +70,8 @@ vi.mock('@/api/device', () => ({
   notifyDevicesUpdated: notifyDevicesUpdatedMock,
 }))
 
-vi.mock('@/api/svg', () => ({
-  getSVGOperationsProfile: getSVGOperationsProfileMock,
+vi.mock('@/api/compensation', () => ({
+  getCompensationSvgOperationsProfile: getCompensationSvgOperationsProfileMock,
 }))
 
 vi.mock('vue-router', () => ({
@@ -144,7 +144,7 @@ describe('DeviceManager view', () => {
     deleteDeviceMock.mockReset()
     toggleDeviceStatusMock.mockReset()
     getDeviceTypesMock.mockReset()
-    getSVGOperationsProfileMock.mockReset()
+    getCompensationSvgOperationsProfileMock.mockReset()
     notifyDevicesUpdatedMock.mockReset()
     successMock.mockReset()
     errorMock.mockReset()

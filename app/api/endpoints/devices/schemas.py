@@ -1,56 +1,22 @@
 """
-设备接口共享模型
+设备域通用 schema。
+
+仅放设备域跨子模块复用的请求模型；
+补偿类专属 schema 统一放在 `compensation_schemas.py`。
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
-
-class SVGOperationsProfilePayload(BaseModel):
-    model_number: Optional[str] = None
-    rated_voltage: Optional[float] = None
-    rated_frequency: Optional[float] = None
-    comm_address: Optional[str] = None
-    software_version: Optional[str] = None
-    hardware_version: Optional[str] = None
-    protocol_version: Optional[str] = None
-    module_count: Optional[int] = None
-    single_module_capacity: Optional[float] = None
-    device_label_zh: Optional[str] = None
-    asset_number: Optional[str] = None
-    fixed_asset_code: Optional[str] = None
-    qr_code_number: Optional[str] = None
-    asset_group: Optional[str] = None
-    distribution_room: Optional[str] = None
-    distribution_cabinet: Optional[str] = None
-    circuit: Optional[str] = None
-    area: Optional[str] = None
-    building: Optional[str] = None
-    install_date: Optional[date] = None
-    commission_date: Optional[date] = None
-    field_number: Optional[str] = None
-    om_responsible: Optional[str] = None
-    inspection_responsible: Optional[str] = None
-    department: Optional[str] = None
-    management_unit: Optional[str] = None
-    contact_phone: Optional[str] = None
-    warranty_expiry: Optional[date] = None
-    maintenance_cycle_days: Optional[int] = None
-    device_group: Optional[str] = None
-    device_tree_level: Optional[str] = None
-    monitor_screen_position: Optional[str] = None
-    alarm_policy: Optional[str] = None
-    device_alias: Optional[str] = None
-    display_name: Optional[str] = None
+from .compensation_schemas import SVGOperationsProfilePayload
 
 
 class DeviceCreateRequest(BaseModel):
-    """智能设备创建请求"""
+    """设备主档创建请求。"""
 
     name: str = Field(..., description="设备名称")
     sn: str = Field(..., description="设备序列号")
@@ -63,7 +29,7 @@ class DeviceCreateRequest(BaseModel):
 
 
 class DeviceUpdateRequest(BaseModel):
-    """设备更新请求"""
+    """设备主档更新请求。"""
 
     device_type: Optional[str] = None
     device_subtype: Optional[str] = None
@@ -75,7 +41,7 @@ class DeviceUpdateRequest(BaseModel):
 
 
 class DeviceDataReportRequest(BaseModel):
-    """设备数据上报请求"""
+    """设备通用数据上报请求。"""
 
     consumption: float = Field(..., description="公共层字段：累计量/累计读数")
     flow_rate: Optional[float] = Field(None, description="公共层字段：瞬时量（流量/功率/负荷）")

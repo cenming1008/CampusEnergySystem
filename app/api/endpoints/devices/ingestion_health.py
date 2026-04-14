@@ -1,5 +1,13 @@
 """
-设备接入健康接口
+设备接入健康接口。
+
+职责：
+- 提供设备接入健康状态查询
+- 提供 MQTT 接入记录查询与人工重放入口
+
+不负责：
+- 系统级健康检查
+- MQTT 遥测解析与入库逻辑
 """
 
 from __future__ import annotations
@@ -16,10 +24,12 @@ from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.exceptions import ResourceNotFoundException, ValidationException
 from app.core.response import success_response
-from app.services.ingestion_health_service import IngestionHealthService
-from app.services.mqtt_reliability_service import MqttReliabilityService
 from app.integrations.mqtt.processor import parse_payload, process_payload_dict
 from app.models.tables import MqttIngestionStatus, User
+from app.services.ingestion_health_service import IngestionHealthService
+from app.services.mqtt_reliability_service import MqttReliabilityService
+
+from .health_serializers import serialize_ingestion_record
 
 router = APIRouter()
 
@@ -69,28 +79,7 @@ def list_mqtt_ingestion_records(
             offset=offset,
         )
     )
-    return success_response(
-        data={
-            "items": [
-                {
-                    "id": record.id,
-                    "device_id": record.device_id,
-                    "topic": record.topic,
-                    "status": record.status,
-                    "error_reason": record.error_reason,
-                    "duplicate_count": record.duplicate_count,
-                    "retry_count": record.retry_count,
-                    "next_retry_at": record.next_retry_at.isoformat() if record.next_retry_at else None,
-                    "replay_count": record.replay_count,
-                    "received_at": record.received_at.isoformat(),
-                    "last_seen_at": record.last_seen_at.isoformat(),
-                    "last_replayed_at": record.last_replayed_at.isoformat() if record.last_replayed_at else None,
-                    "telemetry_timestamp": record.telemetry_timestamp.isoformat() if record.telemetry_timestamp else None,
-                }
-                for record in records
-            ]
-        }
-    )
+    return success_response(data={"items": [serialize_ingestion_record(record) for record in records]})
 
 
 @router.get("/{device_id}/ingestion-records")
@@ -114,28 +103,7 @@ def list_device_ingestion_records(
             offset=offset,
         )
     )
-    return success_response(
-        data={
-            "items": [
-                {
-                    "id": record.id,
-                    "device_id": record.device_id,
-                    "topic": record.topic,
-                    "status": record.status,
-                    "error_reason": record.error_reason,
-                    "duplicate_count": record.duplicate_count,
-                    "retry_count": record.retry_count,
-                    "next_retry_at": record.next_retry_at.isoformat() if record.next_retry_at else None,
-                    "replay_count": record.replay_count,
-                    "received_at": record.received_at.isoformat(),
-                    "last_seen_at": record.last_seen_at.isoformat(),
-                    "last_replayed_at": record.last_replayed_at.isoformat() if record.last_replayed_at else None,
-                    "telemetry_timestamp": record.telemetry_timestamp.isoformat() if record.telemetry_timestamp else None,
-                }
-                for record in records
-            ]
-        }
-    )
+    return success_response(data={"items": [serialize_ingestion_record(record) for record in records]})
 
 
 @router.post("/ingestion-records/{record_id}/replay")

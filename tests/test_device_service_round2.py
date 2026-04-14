@@ -198,6 +198,12 @@ class DeviceServiceRound2Test(unittest.TestCase):
 
         self.assertEqual(by_type["svg"]["category"], "compensation")
         self.assertEqual(by_type["capacitor_bank_controller"]["category"], "compensation")
+        self.assertEqual(
+            by_type["svg"]["public_data_fields"],
+            ["timestamp", "voltage", "current", "power_factor", "reactive_power", "flow_rate", "temperature"],
+        )
+        self.assertIn("svg_reactive_output", by_type["svg"]["specialized_fields"])
+        self.assertIn("circuit_state_phase_a", by_type["capacitor_bank_controller"]["specialized_fields"])
 
     def test_get_all_devices_normalizes_legacy_compensation_devices(self):
         legacy_svg = SimpleNamespace(id=1, device_type="svg", device_category="load", energy_type="electricity", is_active=True)
@@ -266,6 +272,14 @@ class DeviceServiceRound2Test(unittest.TestCase):
 
         self.assertEqual(result["device_category"], "compensation")
         self.assertEqual(result["device_subtype"], "svg")
+        self.assertEqual(
+            result["energy_data_fields"]["public_fields"],
+            ["timestamp", "voltage", "current", "power_factor", "reactive_power", "flow_rate", "temperature"],
+        )
+        self.assertEqual(
+            result["energy_data_fields"]["planned_subtypes"],
+            ["apf", "hybrid_compensation"],
+        )
 
 
 if __name__ == "__main__":

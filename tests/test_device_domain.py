@@ -60,6 +60,21 @@ class TestDeviceDomainHelpers(unittest.TestCase):
         self.assertEqual(payload.flow_rate, 1.2)
         self.assertEqual(payload.optional_fields["heat_flow"], 1.2)
 
+    def test_normalize_device_report_payload_keeps_reactive_power(self):
+        payload = normalize_device_report_payload(
+            "capacitor_bank_controller",
+            {
+                "consumption": 5.0,
+                "flow_rate": 1.2,
+                "reactive_power": -24.0,
+                "power_factor": 0.98,
+                "voltage": 220.0,
+                "current": 8.0,
+            },
+        )
+
+        self.assertEqual(payload.optional_fields["reactive_power"], -24.0)
+
     def test_normalize_device_report_payload_requires_required_fields(self):
         with self.assertRaises(ValueError):
             normalize_device_report_payload("water_meter", {"consumption": 5.0})

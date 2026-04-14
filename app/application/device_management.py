@@ -11,6 +11,7 @@ from sqlmodel import Session
 
 from app.core.access_control import ensure_device_access
 from app.core.audit import audit_log
+from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import Device, User
 from app.services.device_service import DeviceService
 from app.services.mqtt_publisher import publish_control_command_async
@@ -51,7 +52,7 @@ def create_device_smart_use_case(
         description=description,
         rated_capacity=rated_capacity,
     )
-    if device.device_type == "svg" and svg_operations:
+    if resolve_compensation_subtype(device.device_type, getattr(device, "device_subtype", None)) == "svg" and svg_operations:
         SVGService.upsert_operations_profile(session, device.id, svg_operations)
     audit_log("device.create", current_user.username, f"device:{device.id}", role=current_user.role)
     return device
@@ -90,7 +91,7 @@ def update_device_profile_use_case(
         description=description,
         rated_capacity=rated_capacity,
     )
-    if updated.device_type == "svg" and svg_operations:
+    if resolve_compensation_subtype(updated.device_type, getattr(updated, "device_subtype", None)) == "svg" and svg_operations:
         SVGService.upsert_operations_profile(session, updated.id, svg_operations)
     audit_log("device.update", current_user.username, f"device:{device_id}", role=current_user.role)
     return updated

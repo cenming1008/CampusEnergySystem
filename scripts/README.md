@@ -122,6 +122,8 @@
 - `device_gateway.py`
 - `send_test_alert.py`
 - `mqtt_send_test.py`
+- `send_svg_telemetry.py`
+- `send_capacitor_bank_telemetry.py`
 - `mqtt_subscriber_template.py`
 - `test_http_device.py`
 - `test_modbus_tcp.py`

@@ -2,8 +2,9 @@
     import { ref, reactive, onMounted, computed, unref, watch } from 'vue'
     import { useRouter } from 'vue-router'
     import { usePermissions } from '@/shared/composables/usePermissions'
+    import { isCompensationDeviceIdentity, normalizeCompensationDevice, resolveCompensationSubtype } from '@/shared/compensationDevices'
     import { getDeviceCategoryLabel, getDeviceSubtypeLabel } from '@/shared/deviceTypeLabels'
-    import { getSVGOperationsProfile } from '@/api/svg'
+    import { getCompensationSvgOperationsProfile } from '@/api/compensation'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
       FALLBACK_DEVICE_TYPE_CONFIGS, getDeviceTypes, notifyDevicesUpdated,
@@ -125,18 +126,14 @@
     }
 
     const inferTypeSelection = (device: Pick<Device, 'device_type' | 'device_category' | 'device_subtype'>) => {
-      if (device.device_category === COMPENSATION_TYPE_KEY || ['svg', 'capacitor_bank_controller', 'reactive_power_compensator'].includes(device.device_type)) {
+      if (isCompensationDeviceIdentity(device)) {
         return COMPENSATION_TYPE_KEY
       }
       return device.device_type
     }
 
     const inferSubtypeSelection = (device: Pick<Device, 'device_type' | 'device_subtype' | 'device_category'>) => {
-      if (device.device_subtype) return device.device_subtype
-      if (device.device_category === COMPENSATION_TYPE_KEY || ['svg', 'capacitor_bank_controller', 'reactive_power_compensator'].includes(device.device_type)) {
-        return device.device_type === 'reactive_power_compensator' ? 'capacitor_bank_controller' : device.device_type
-      }
-      return ''
+      return resolveCompensationSubtype(device.device_type, device.device_subtype) || ''
     }
 
     const resetTypeSelection = () => {
@@ -208,17 +205,18 @@
       }
       resetSvgOperations()
       if (row && typeof row === 'object' && 'name' in row) {
+        const normalizedRow = normalizeCompensationDevice(row)
         dialogTitle.value = '编辑设备'
         // 复制数据到表单 (注意深拷贝或 Object.assign)
-        Object.assign(formData, row)
-        selectedTypeKey.value = inferTypeSelection(row)
-        selectedSubtypeKey.value = inferSubtypeSelection(row)
+        Object.assign(formData, normalizedRow)
+        selectedTypeKey.value = inferTypeSelection(normalizedRow)
+        selectedSubtypeKey.value = inferSubtypeSelection(normalizedRow)
         formData.device_type = selectedTypeKey.value
         formData.device_subtype = selectedSubtypeKey.value || undefined
-        formData.device_category = selectedTypeKey.value === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : row.device_category
-        if (selectedSubtypeKey.value === 'svg' && row.id) {
+        formData.device_category = selectedTypeKey.value === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : normalizedRow.device_category
+        if (selectedSubtypeKey.value === 'svg' && normalizedRow.id) {
           try {
-            const profile = await getSVGOperationsProfile(row.id)
+            const profile = await getCompensationSvgOperationsProfile(normalizedRow.id)
             Object.assign(svgOperations, {
               model_number: profile.model_number || '',
               rated_voltage: profile.rated_voltage ?? undefined,

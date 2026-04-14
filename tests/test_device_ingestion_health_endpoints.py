@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.api.endpoints.devices import health
+from app.api.endpoints.devices import ingestion_health
 
 
 class DeviceIngestionHealthEndpointTest(unittest.TestCase):
@@ -13,13 +13,13 @@ class DeviceIngestionHealthEndpointTest(unittest.TestCase):
         session = object()
         current_user = SimpleNamespace(role="viewer", location_scope="1")
 
-        with patch.object(health, "ensure_device_access") as mock_ensure_access:
+        with patch.object(ingestion_health, "ensure_device_access") as mock_ensure_access:
             with patch.object(
-                health.IngestionHealthService,
+                ingestion_health.IngestionHealthService,
                 "get_device_health",
                 return_value={"device_id": 5, "status": "online"},
             ) as mock_get_health:
-                result = health.get_device_ingestion_health(
+                result = ingestion_health.get_device_ingestion_health(
                     device_id=5,
                     session=session,
                     current_user=current_user,
@@ -38,12 +38,12 @@ class DeviceIngestionHealthEndpointTest(unittest.TestCase):
         ]
 
         with patch.object(
-            health.IngestionHealthService,
+            ingestion_health.IngestionHealthService,
             "list_device_health",
             return_value=items,
         ) as mock_list_health:
-            with patch.object(health, "get_allowed_device_ids", return_value={2}) as mock_allowed_ids:
-                result = health.list_device_ingestion_health(
+            with patch.object(ingestion_health, "get_allowed_device_ids", return_value={2}) as mock_allowed_ids:
+                result = ingestion_health.list_device_ingestion_health(
                     session=session,
                     current_user=current_user,
                 )

@@ -12,10 +12,12 @@ from app.domain.device_payloads import (
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
+    is_compensation_device,
     normalize_device_subtype_alias,
     normalize_device_type_alias,
     normalize_device_report_payload,
     resolve_device_identity,
+    resolve_compensation_subtype,
 )
 from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog, SVGAssetProfile, SVGConfig, SVGTelemetry
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
@@ -28,11 +30,12 @@ from app.services.location_service import LocationService
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
 
-    _COMPENSATION_DEVICE_TYPES = {"svg", "capacitor_bank_controller"}
-
     @staticmethod
     def _effective_device_type(device: Any) -> Optional[str]:
-        subtype = normalize_device_subtype_alias(getattr(device, "device_subtype", None))
+        subtype = resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        )
         if subtype:
             return subtype
         return normalize_device_type_alias(getattr(device, "device_type", None))
@@ -54,11 +57,11 @@ class DeviceService:
     @staticmethod
     def _normalize_device_category(
         device_type: Optional[str],
+        device_subtype: Optional[str],
         current_category: Optional[str],
     ) -> Optional[str]:
         """兼容旧数据读取：补偿器/SVG 不再对外暴露为 load。"""
-        normalized_type = normalize_device_type_alias(device_type)
-        if normalized_type not in DeviceService._COMPENSATION_DEVICE_TYPES:
+        if not is_compensation_device(device_type, device_subtype, current_category):
             return current_category
         if current_category == DeviceCategory.COMPENSATION.value:
             return current_category
@@ -70,7 +73,8 @@ class DeviceService:
     def _with_normalized_device_category(device: Any) -> Any:
         """返回补偿类设备类别已归一的只读副本。"""
         normalized_category = DeviceService._normalize_device_category(
-            DeviceService._effective_device_type(device),
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
             getattr(device, "device_category", None),
         )
         if normalized_category == getattr(device, "device_category", None):
@@ -82,7 +86,10 @@ class DeviceService:
             payload = device.model_dump()
             payload["device_category"] = normalized_category
             effective_subtype = DeviceService._effective_device_type(device)
-            if effective_subtype in DeviceService._COMPENSATION_DEVICE_TYPES:
+            if resolve_compensation_subtype(
+                getattr(device, "device_type", None),
+                getattr(device, "device_subtype", None),
+            ):
                 payload["device_subtype"] = effective_subtype
             return type(device)(**payload)
 
@@ -90,7 +97,10 @@ class DeviceService:
         normalized_device.__dict__.update(getattr(device, "__dict__", {}))
         normalized_device.device_category = normalized_category
         effective_subtype = DeviceService._effective_device_type(device)
-        if effective_subtype in DeviceService._COMPENSATION_DEVICE_TYPES:
+        if resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ):
             normalized_device.device_subtype = effective_subtype
         return normalized_device
     
@@ -231,6 +241,7 @@ class DeviceService:
                 if config:
                     normalized_category = DeviceService._normalize_device_category(
                         effective_type,
+                        getattr(device, "device_subtype", None),
                         device.device_category,
                     )
                     # 自动填充未设置的字段
@@ -244,8 +255,12 @@ class DeviceService:
                         device.unit = config.unit
                     if not device.rated_capacity and config.default_capacity:
                         device.rated_capacity = config.default_capacity
-                    if effective_type in DeviceService._COMPENSATION_DEVICE_TYPES and not getattr(device, "device_subtype", None):
-                        device.device_subtype = effective_type
+                    compensation_subtype = resolve_compensation_subtype(
+                        getattr(device, "device_type", None),
+                        getattr(device, "device_subtype", None),
+                    ) or resolve_compensation_subtype(effective_type)
+                    if compensation_subtype and not getattr(device, "device_subtype", None):
+                        device.device_subtype = compensation_subtype
             
             DeviceRepository.save(session, device)
             return device
@@ -305,7 +320,10 @@ class DeviceService:
     def delete_device(session: Session, device_id: int) -> None:
         """删除设备"""
         device = DeviceService.get_device_by_id(session, device_id)
-        if device.device_type == "svg":
+        if resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ) == "svg":
             svg_profile = session.exec(
                 select(SVGAssetProfile).where(SVGAssetProfile.device_id == device_id)
             ).first()

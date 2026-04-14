@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 import type { SuccessResponse } from '@/types/api'
-import type { SVGOperationsProfile } from '@/api/svg'
+import type { CompensationSvgOperationsProfile } from '@/api/compensation'
+import { normalizeCompensationDevice } from '@/shared/compensationDevices'
 
 // 对应后端 Device 模型
 export interface Device {
@@ -22,7 +23,7 @@ export interface Device {
 }
 
 export interface DeviceWritePayload extends Partial<Device> {
-  svg_operations?: Partial<SVGOperationsProfile>
+  svg_operations?: Partial<CompensationSvgOperationsProfile>
 }
 
 // 设备类型配置（来自后端注册表）
@@ -51,8 +52,6 @@ export interface DeviceTypeConfig {
 
 export const DEVICES_UPDATED_EVENT = 'campus:devices-updated'
 
-const COMPENSATION_DEVICE_TYPES = new Set(['svg', 'capacitor_bank_controller'])
-
 let deviceTypesCache: DeviceTypeConfig[] | null = null
 let deviceTypesPromise: Promise<DeviceTypeConfig[]> | null = null
 
@@ -67,21 +66,68 @@ export const FALLBACK_DEVICE_TYPE_CONFIGS: DeviceTypeConfig[] = [
   { device_type: 'heat_meter', name_zh: '热量表', icon: '🌡️', category: 'heat_meter', energy_type: 'heat', name_en: 'Heat Meter', unit: 'GJ/h', default_capacity: 10, required_fields: [], optional_fields: [], color: '#E91E63' },
   { device_type: 'cooling_meter', name_zh: '冷量表', icon: '❄️', category: 'cooling_meter', energy_type: 'cooling', name_en: 'Cooling Meter', unit: 'kW', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00BCD4' },
   { device_type: 'steam_meter', name_zh: '蒸汽表', icon: '💨', category: 'heat_meter', energy_type: 'steam', name_en: 'Steam Meter', unit: 't/h', default_capacity: 5, required_fields: [], optional_fields: [], color: '#607D8B' },
-  { device_type: 'svg', name_zh: '无功功率补偿设备', subtype_name_zh: 'SVG', icon: '⚡', category: 'compensation', energy_type: 'electricity', name_en: 'Static Var Generator', subtype_name_en: 'Static Var Generator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#FF6F00' },
-  { device_type: 'capacitor_bank_controller', name_zh: '无功功率补偿设备', subtype_name_zh: '电容补偿控制器', icon: '⚙️', category: 'compensation', energy_type: 'electricity', name_en: 'Capacitor Bank Controller', subtype_name_en: 'Capacitor Bank Controller', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#D97706' },
+  {
+    device_type: 'svg',
+    name_zh: '无功功率补偿设备',
+    subtype_name_zh: 'SVG',
+    icon: '⚡',
+    category: 'compensation',
+    energy_type: 'electricity',
+    name_en: 'Static Var Generator',
+    subtype_name_en: 'Static Var Generator',
+    unit: 'kVAR',
+    default_capacity: 200,
+    required_fields: ['reactive_power'],
+    optional_fields: ['consumption', 'flow_rate', 'voltage', 'current', 'power_factor', 'temperature'],
+    public_data_fields: ['timestamp', 'voltage', 'current', 'power_factor', 'reactive_power', 'flow_rate', 'temperature'],
+    specialized_fields: [
+      'svg_reactive_output', 'capacity_utilization', 'output_direction',
+      'run_status', 'stop_status', 'auto_mode', 'local_mode', 'breaker_status',
+      'module_status', 'fan_status', 'comm_status',
+      'overvoltage_fault', 'undervoltage_fault', 'overcurrent_fault', 'overtemp_fault',
+      'module_fault', 'fan_fault', 'comm_fault', 'current_fault_code', 'current_alarm_code',
+      'cabinet_temp', 'module_temp', 'igbt_temp', 'dc_bus_voltage', 'heatsink_temp',
+    ],
+    compatible_aliases: { kvar: 'reactive_power', power: 'flow_rate', active_power: 'flow_rate' },
+    color: '#FF6F00',
+  },
+  {
+    device_type: 'capacitor_bank_controller',
+    name_zh: '无功功率补偿设备',
+    subtype_name_zh: '电容补偿控制器',
+    icon: '⚙️',
+    category: 'compensation',
+    energy_type: 'electricity',
+    name_en: 'Capacitor Bank Controller',
+    subtype_name_en: 'Capacitor Bank Controller',
+    unit: 'kVAR',
+    default_capacity: 200,
+    required_fields: ['reactive_power'],
+    optional_fields: ['consumption', 'flow_rate', 'voltage', 'current', 'power_factor', 'temperature'],
+    public_data_fields: ['timestamp', 'voltage', 'current', 'power_factor', 'reactive_power', 'flow_rate', 'temperature'],
+    specialized_fields: [
+      'power_factor_a', 'power_factor_b', 'power_factor_c',
+      'active_power_a', 'active_power_b', 'active_power_c',
+      'reactive_power_a', 'reactive_power_b', 'reactive_power_c',
+      'apparent_power_a', 'apparent_power_b', 'apparent_power_c',
+      'voltage_thd_a', 'voltage_thd_b', 'voltage_thd_c',
+      'current_harmonic_a', 'current_harmonic_b', 'current_harmonic_c',
+      'leading_a', 'leading_b', 'leading_c',
+      'undercurrent_a', 'undercurrent_b', 'undercurrent_c',
+      'overvoltage_alarm_a', 'overvoltage_alarm_b', 'overvoltage_alarm_c',
+      'voltage_thd_alarm_a', 'voltage_thd_alarm_b', 'voltage_thd_alarm_c',
+      'current_thd_alarm_a', 'current_thd_alarm_b', 'current_thd_alarm_c',
+      'temp_alarm',
+      'circuit_state_phase_a', 'circuit_state_phase_b', 'circuit_state_phase_c',
+      'circuit_state_common_1', 'circuit_state_common_2', 'circuit_state_common_3',
+    ],
+    compatible_aliases: { kvar: 'reactive_power', power: 'flow_rate', active_power: 'flow_rate' },
+    color: '#D97706',
+  },
 ]
 
 export function normalizeDeviceHierarchy(device: Device): Device {
-  const effectiveSubtype = device.device_subtype || (COMPENSATION_DEVICE_TYPES.has(device.device_type) ? device.device_type : undefined)
-  if (!effectiveSubtype) {
-    return device
-  }
-
-  return {
-    ...device,
-    device_subtype: effectiveSubtype,
-    device_category: device.device_category && device.device_category !== 'load' ? device.device_category : 'compensation',
-  }
+  return normalizeCompensationDevice(device)
 }
 
 // 1. 获取所有设备

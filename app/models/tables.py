@@ -714,6 +714,88 @@ class SVGTelemetry(SQLModel, table=True):
     heatsink_temp: Optional[float] = Field(default=None, description="散热器温度 (°C)")
 
 
+class CapacitorBankTelemetry(SQLModel, table=True):
+    """
+    电容补偿控制器（JKWF-LCD）时序扩展数据。
+
+    与 EnergyData 同频写入，存储 JKWF-LCD 协议特有字段：
+    三相功率（有功/无功/视在）、电压/电流 THD、状态标志位、电容回路投切状态。
+    """
+
+    __tablename__ = "capacitor_bank_telemetry"
+
+    device_id: int = Field(foreign_key="device.id", primary_key=True, description="关联设备ID")
+    timestamp: datetime = Field(primary_key=True, description="数据时间戳")
+
+    # 三相电压 (V) / 电流 (A)
+    voltage_a: Optional[float] = Field(default=None, description="A相电压 (V)")
+    voltage_b: Optional[float] = Field(default=None, description="B相电压 (V)")
+    voltage_c: Optional[float] = Field(default=None, description="C相电压 (V)")
+    current_a: Optional[float] = Field(default=None, description="A相电流 (A)")
+    current_b: Optional[float] = Field(default=None, description="B相电流 (A)")
+    current_c: Optional[float] = Field(default=None, description="C相电流 (A)")
+
+    # 三相功率因数
+    power_factor_a: Optional[float] = Field(default=None, description="A相功率因数")
+    power_factor_b: Optional[float] = Field(default=None, description="B相功率因数")
+    power_factor_c: Optional[float] = Field(default=None, description="C相功率因数")
+
+    # 三相有功功率 (kW)
+    active_power_a: Optional[float] = Field(default=None, description="A相有功功率 (kW)")
+    active_power_b: Optional[float] = Field(default=None, description="B相有功功率 (kW)")
+    active_power_c: Optional[float] = Field(default=None, description="C相有功功率 (kW)")
+
+    # 三相无功功率 (kvar)，正值=感性，负值=容性补偿输出
+    reactive_power_a: Optional[float] = Field(default=None, description="A相无功功率 (kvar)")
+    reactive_power_b: Optional[float] = Field(default=None, description="B相无功功率 (kvar)")
+    reactive_power_c: Optional[float] = Field(default=None, description="C相无功功率 (kvar)")
+
+    # 三相视在功率 (kVA)
+    apparent_power_a: Optional[float] = Field(default=None, description="A相视在功率 (kVA)")
+    apparent_power_b: Optional[float] = Field(default=None, description="B相视在功率 (kVA)")
+    apparent_power_c: Optional[float] = Field(default=None, description="C相视在功率 (kVA)")
+
+    # 电压谐波 THD (%)
+    voltage_thd_a: Optional[float] = Field(default=None, description="A相电压THD (%)")
+    voltage_thd_b: Optional[float] = Field(default=None, description="B相电压THD (%)")
+    voltage_thd_c: Optional[float] = Field(default=None, description="C相电压THD (%)")
+
+    # 谐波电流幅值 (A)
+    current_harmonic_a: Optional[float] = Field(default=None, description="A相谐波电流幅值 (A)")
+    current_harmonic_b: Optional[float] = Field(default=None, description="B相谐波电流幅值 (A)")
+    current_harmonic_c: Optional[float] = Field(default=None, description="C相谐波电流幅值 (A)")
+
+    # 系统参数
+    frequency: Optional[float] = Field(default=None, description="系统频率 (Hz)")
+    temperature: Optional[float] = Field(default=None, description="柜内温度 (°C)")
+
+    # 状态标志位（从寄存器 0x00 解码）
+    leading_a: Optional[bool] = Field(default=None, description="A相超前（True=超前/容性，False=滞后/感性）")
+    leading_b: Optional[bool] = Field(default=None, description="B相超前")
+    leading_c: Optional[bool] = Field(default=None, description="C相超前")
+    undercurrent_a: Optional[bool] = Field(default=None, description="A相欠流告警")
+    undercurrent_b: Optional[bool] = Field(default=None, description="B相欠流告警")
+    undercurrent_c: Optional[bool] = Field(default=None, description="C相欠流告警")
+    overvoltage_alarm_a: Optional[bool] = Field(default=None, description="A相过压告警")
+    overvoltage_alarm_b: Optional[bool] = Field(default=None, description="B相过压告警")
+    overvoltage_alarm_c: Optional[bool] = Field(default=None, description="C相过压告警")
+    voltage_thd_alarm_a: Optional[bool] = Field(default=None, description="A相电压谐波超限告警")
+    voltage_thd_alarm_b: Optional[bool] = Field(default=None, description="B相电压谐波超限告警")
+    voltage_thd_alarm_c: Optional[bool] = Field(default=None, description="C相电压谐波超限告警")
+    current_thd_alarm_a: Optional[bool] = Field(default=None, description="A相电流谐波超限告警")
+    current_thd_alarm_b: Optional[bool] = Field(default=None, description="B相电流谐波超限告警")
+    current_thd_alarm_c: Optional[bool] = Field(default=None, description="C相电流谐波超限告警")
+    temp_alarm: Optional[bool] = Field(default=None, description="温度超限告警")
+
+    # 电容回路投切状态（各 8-bit，每个 bit 对应一路，1=已投入，0=已切除）
+    circuit_state_phase_a: Optional[int] = Field(default=None, description="A相分补回路投切状态（bit mask，8路）")
+    circuit_state_phase_b: Optional[int] = Field(default=None, description="B相分补回路投切状态")
+    circuit_state_phase_c: Optional[int] = Field(default=None, description="C相分补回路投切状态")
+    circuit_state_common_1: Optional[int] = Field(default=None, description="公补回路 1-8 投切状态")
+    circuit_state_common_2: Optional[int] = Field(default=None, description="公补回路 9-16 投切状态")
+    circuit_state_common_3: Optional[int] = Field(default=None, description="公补回路 17-24 投切状态")
+
+
 class SVGAssetProfile(SQLModel, table=True):
     """SVG 运维档案（运维人员维护，每台设备一条）。"""
 

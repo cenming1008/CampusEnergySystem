@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-向指定 SVG（静止无功发生器）设备发送模拟 MQTT 遥测数据。
+向指定电容补偿控制器发送模拟 MQTT 遥测数据。
 
 发送内容同时覆盖：
   - 公共层字段：voltage/current/power/reactive_power/power_factor/temperature
-  - SVG 专属字段：三相量、运行状态、故障位、内部温度、电压等
+  - 控制器专属字段：三相功率、电压 THD、谐波电流、状态位、投切状态
 
 用法：
-  # 查看当前系统中的 SVG 设备列表
-  python scripts/python/send_svg_telemetry.py --list
+  # 查看当前系统中的电容补偿控制器列表
+  python scripts/python/send_capacitor_bank_telemetry.py --list
 
   # 向 device_id=1 的设备发送一条 MQTT 数据
-  python scripts/python/send_svg_telemetry.py --id 1
+  python scripts/python/send_capacitor_bank_telemetry.py --id 1
 
   # 持续发送 30 条，每隔 5 秒一条
-  python scripts/python/send_svg_telemetry.py --id 1 --loop 30 --interval 5
+  python scripts/python/send_capacitor_bank_telemetry.py --id 1 --loop 30 --interval 5
 
   # 补发过去 2 小时的历史数据（每分钟一条，共 120 条）
-  python scripts/python/send_svg_telemetry.py --id 1 --backfill 120 --backfill-step 60
+  python scripts/python/send_capacitor_bank_telemetry.py --id 1 --backfill 120 --backfill-step 60
 """
 
 from __future__ import annotations
@@ -68,38 +68,103 @@ def _wave(base: float, amplitude: float, t: float, period: float = 60.0) -> floa
     return base + amplitude * math.sin(2 * math.pi * t / period) + random.uniform(-amplitude * 0.1, amplitude * 0.1)
 
 
+def _build_mask(enabled: int, total: int = 8) -> int:
+    enabled = max(0, min(total, enabled))
+    return sum(1 << i for i in range(enabled))
+
+
 def _build_payload(device: Device, timestamp: datetime, tick: int = 0) -> dict[str, Any]:
     t = float(tick)
 
-    voltage_a = _wave(220.0, 3.0, t, 120)
-    voltage_b = _wave(219.5, 3.2, t + 40, 120)
-    voltage_c = _wave(220.5, 2.8, t + 80, 120)
+    voltage_a = _wave(220.0, 2.6, t, 120)
+    voltage_b = _wave(219.4, 2.8, t + 30, 120)
+    voltage_c = _wave(220.6, 2.5, t + 60, 120)
 
-    current_a = _wave(48.0, 8.0, t, 90)
-    current_b = _wave(47.5, 8.5, t + 30, 90)
-    current_c = _wave(48.5, 7.8, t + 60, 90)
+    current_a = _wave(92.0, 16.0, t, 90)
+    current_b = _wave(88.0, 15.0, t + 25, 90)
+    current_c = _wave(95.0, 14.0, t + 50, 90)
 
-    reactive_output = _wave(320.0, 40.0, t, 90)
-    capacity_utilization = min(100.0, max(0.0, _wave(65.0, 15.0, t, 90)))
-    power_factor = min(0.999, max(0.90, _wave(0.97, 0.025, t, 90)))
-    temperature = _wave(38.0, 5.0, t, 180)
-    module_temp = _wave(45.0, 6.0, t + 20, 180)
-    igbt_temp = _wave(52.0, 7.0, t + 40, 180)
-    heatsink_temp = _wave(42.0, 5.5, t + 10, 180)
-    dc_bus_voltage = _wave(680.0, 10.0, t, 60)
-    power = abs(reactive_output)
+    power_factor_a = min(0.999, max(0.88, _wave(0.972, 0.02, t, 90)))
+    power_factor_b = min(0.999, max(0.88, _wave(0.968, 0.02, t + 15, 90)))
+    power_factor_c = min(0.999, max(0.88, _wave(0.975, 0.02, t + 30, 90)))
+
+    active_power_a = max(8.0, _wave(20.0, 4.0, t, 90))
+    active_power_b = max(8.0, _wave(19.0, 4.0, t + 20, 90))
+    active_power_c = max(8.0, _wave(21.0, 4.0, t + 40, 90))
+
+    reactive_power_a = min(-2.0, _wave(-8.0, 2.2, t, 90))
+    reactive_power_b = min(-2.0, _wave(-7.0, 2.0, t + 20, 90))
+    reactive_power_c = min(-2.0, _wave(-9.0, 2.4, t + 40, 90))
+
+    apparent_power_a = math.sqrt(active_power_a**2 + reactive_power_a**2)
+    apparent_power_b = math.sqrt(active_power_b**2 + reactive_power_b**2)
+    apparent_power_c = math.sqrt(active_power_c**2 + reactive_power_c**2)
+
+    voltage_thd_a = max(1.0, _wave(2.8, 0.5, t, 180))
+    voltage_thd_b = max(1.0, _wave(3.0, 0.4, t + 20, 180))
+    voltage_thd_c = max(1.0, _wave(2.7, 0.5, t + 40, 180))
+    current_harmonic_a = max(0.4, _wave(1.4, 0.35, t, 180))
+    current_harmonic_b = max(0.4, _wave(1.3, 0.30, t + 15, 180))
+    current_harmonic_c = max(0.4, _wave(1.5, 0.35, t + 30, 180))
+    temperature = _wave(37.0, 5.0, t, 180)
+    frequency = _wave(50.0, 0.03, t, 300)
+
+    power = active_power_a + active_power_b + active_power_c
+    reactive_power = reactive_power_a + reactive_power_b + reactive_power_c
+    power_factor = (power_factor_a + power_factor_b + power_factor_c) / 3
+    voltage = (voltage_a + voltage_b + voltage_c) / 3
+    current = (current_a + current_b + current_c) / 3
     energy = round(max(0.0, power) * max(1, tick + 1) / 3600, 4)
+
+    phase_a_groups = round(min(8, max(0, abs(reactive_power_a) / 1.25)))
+    phase_b_groups = round(min(8, max(0, abs(reactive_power_b) / 1.25)))
+    phase_c_groups = round(min(8, max(0, abs(reactive_power_c) / 1.25)))
+    common_1_groups = round(min(8, max(0, (abs(reactive_power) - 18) / 1.5)))
+    common_2_groups = 1 if max(voltage_thd_a, voltage_thd_b, voltage_thd_c) > 3.4 else 0
+    common_3_groups = 1 if temperature > 42.0 else 0
+
+    circuit_state_1 = (_build_mask(phase_a_groups) << 8) | _build_mask(phase_b_groups)
+    circuit_state_2 = (_build_mask(phase_c_groups) << 8) | _build_mask(common_1_groups)
+    circuit_state_3 = (_build_mask(common_2_groups) << 8) | _build_mask(common_3_groups)
+
+    jkwf_status = 0
+    if reactive_power_a < 0:
+        jkwf_status |= 1 << 0
+    if reactive_power_b < 0:
+        jkwf_status |= 1 << 1
+    if reactive_power_c < 0:
+        jkwf_status |= 1 << 2
+    if voltage_a > 231.0:
+        jkwf_status |= 1 << 6
+    if voltage_b > 231.0:
+        jkwf_status |= 1 << 7
+    if voltage_c > 231.0:
+        jkwf_status |= 1 << 8
+    if voltage_thd_a > 4.2:
+        jkwf_status |= 1 << 9
+    if voltage_thd_b > 4.2:
+        jkwf_status |= 1 << 10
+    if voltage_thd_c > 4.2:
+        jkwf_status |= 1 << 11
+    if current_harmonic_a > 2.6:
+        jkwf_status |= 1 << 12
+    if current_harmonic_b > 2.6:
+        jkwf_status |= 1 << 13
+    if current_harmonic_c > 2.6:
+        jkwf_status |= 1 << 14
+    if temperature > 52.0:
+        jkwf_status |= 1 << 15
 
     payload = {
         "device_code": device.sn,
         "device_name": device.name,
-        "device_type": "svg",
+        "device_type": "capacitor_bank_controller",
         "timestamp": timestamp.isoformat(),
-        "voltage": round((voltage_a + voltage_b + voltage_c) / 3, 2),
-        "current": round((current_a + current_b + current_c) / 3, 2),
+        "voltage": round(voltage, 2),
+        "current": round(current, 2),
         "power": round(power, 2),
         "energy": energy,
-        "reactive_power": round(reactive_output, 2),
+        "reactive_power": round(reactive_power, 2),
         "power_factor": round(power_factor, 4),
         "temperature": round(temperature, 1),
         "voltage_a": round(voltage_a, 2),
@@ -108,32 +173,29 @@ def _build_payload(device: Device, timestamp: datetime, tick: int = 0) -> dict[s
         "current_a": round(current_a, 2),
         "current_b": round(current_b, 2),
         "current_c": round(current_c, 2),
-        "frequency": round(_wave(50.0, 0.05, t, 300), 3),
-        "svg_reactive_output": round(reactive_output, 1),
-        "capacity_utilization": round(capacity_utilization, 1),
-        "output_direction": "capacitive" if reactive_output >= 0 else "inductive",
-        "run_status": True,
-        "stop_status": False,
-        "auto_mode": True,
-        "local_mode": False,
-        "breaker_status": True,
-        "module_status": True,
-        "fan_status": True,
-        "comm_status": True,
-        "overvoltage_fault": False,
-        "undervoltage_fault": False,
-        "overcurrent_fault": False,
-        "overtemp_fault": False,
-        "module_fault": False,
-        "fan_fault": False,
-        "comm_fault": False,
-        "current_fault_code": None,
-        "current_alarm_code": None,
-        "cabinet_temp": round(temperature, 1),
-        "module_temp": round(module_temp, 1),
-        "igbt_temp": round(igbt_temp, 1),
-        "dc_bus_voltage": round(dc_bus_voltage, 1),
-        "heatsink_temp": round(heatsink_temp, 1),
+        "power_factor_a": round(power_factor_a, 4),
+        "power_factor_b": round(power_factor_b, 4),
+        "power_factor_c": round(power_factor_c, 4),
+        "active_power_a": round(active_power_a, 2),
+        "active_power_b": round(active_power_b, 2),
+        "active_power_c": round(active_power_c, 2),
+        "reactive_power_a": round(reactive_power_a, 2),
+        "reactive_power_b": round(reactive_power_b, 2),
+        "reactive_power_c": round(reactive_power_c, 2),
+        "apparent_power_a": round(apparent_power_a, 2),
+        "apparent_power_b": round(apparent_power_b, 2),
+        "apparent_power_c": round(apparent_power_c, 2),
+        "voltage_thd_a": round(voltage_thd_a, 2),
+        "voltage_thd_b": round(voltage_thd_b, 2),
+        "voltage_thd_c": round(voltage_thd_c, 2),
+        "current_harmonic_a": round(current_harmonic_a, 2),
+        "current_harmonic_b": round(current_harmonic_b, 2),
+        "current_harmonic_c": round(current_harmonic_c, 2),
+        "frequency": round(frequency, 3),
+        "jkwf_status": jkwf_status,
+        "circuit_state_1": circuit_state_1,
+        "circuit_state_2": circuit_state_2,
+        "circuit_state_3": circuit_state_3,
     }
     return payload
 
@@ -201,25 +263,25 @@ def _publish_via_docker(payload: dict[str, Any]) -> bool:
     return False
 
 
-def _is_svg_device(device: Device) -> bool:
+def _is_capacitor_bank_device(device: Device) -> bool:
     return resolve_compensation_subtype(
         getattr(device, "device_type", None),
         getattr(device, "device_subtype", None),
-    ) == "svg"
+    ) == "capacitor_bank_controller"
 
 
-def list_svg_devices(session: Session) -> None:
+def list_capacitor_bank_devices(session: Session) -> None:
     devices = session.exec(select(Device).order_by(Device.id)).all()
-    matched = [device for device in devices if _is_svg_device(device)]
+    matched = [device for device in devices if _is_capacitor_bank_device(device)]
     if not matched:
-        print("⚠️  系统中尚无 svg 类型的设备。")
+        print("⚠️  系统中尚无 capacitor_bank_controller 类型的设备。")
         return
     print(f"\n{'ID':>4}  {'序列号':<16}  {'名称':<20}  {'位置':<20}  {'额定容量'}")
     print("-" * 75)
     for device in matched:
         print(
             f"{device.id:>4}  {device.sn or '--':<16}  {device.name:<20}  "
-            f"{(device.location or '--'):<20}  {device.rated_capacity or '--'} kVAR"
+            f"{(device.location or '--'):<20}  {device.rated_capacity or '--'} kvar"
         )
     print()
 
@@ -243,15 +305,15 @@ def send_one(client: mqtt.Client, device: Device, timestamp: datetime, tick: int
         print(
             f"  [{timestamp.strftime('%H:%M:%S')}] "
             f"topic={TOPIC} code={device.sn} "
-            f"Q={payload['reactive_power']}kVAR PF={payload['power_factor']} "
-            f"cabinet={payload['cabinet_temp']}°C"
+            f"P={payload['power']}kW Q={payload['reactive_power']}kvar "
+            f"PF={payload['power_factor']} status=0x{payload['jkwf_status']:04X}"
         )
     return ok
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="向 SVG 设备发送模拟 MQTT 遥测数据")
-    parser.add_argument("--list", action="store_true", help="列出系统中所有 SVG 设备")
+    parser = argparse.ArgumentParser(description="向电容补偿控制器发送模拟 MQTT 遥测数据")
+    parser.add_argument("--list", action="store_true", help="列出系统中所有电容补偿控制器")
     parser.add_argument("--id", type=int, dest="device_id", help="目标设备 ID")
     parser.add_argument("--sn", dest="device_sn", help="目标设备序列号（与 --id 二选一）")
     parser.add_argument("--loop", type=int, default=1, help="发送条数（默认 1，0=无限循环）")
@@ -262,7 +324,7 @@ def main() -> None:
 
     with Session(engine) as session:
         if args.list:
-            list_svg_devices(session)
+            list_capacitor_bank_devices(session)
             return
 
         if args.device_id:
@@ -277,8 +339,8 @@ def main() -> None:
         if not device:
             print("❌ 设备未找到")
             return
-        if not _is_svg_device(device):
-            print(f"⚠️  设备 {device.name}（{device.device_type}/{device.device_subtype}）不是 SVG，仍继续发送...")
+        if not _is_capacitor_bank_device(device):
+            print(f"⚠️  设备 {device.name}（{device.device_type}/{device.device_subtype}）不是电容补偿控制器，仍继续发送...")
 
         print(f"\n▶  目标设备: [{device.id}] {device.name}  SN={device.sn}  MQTT={BROKER}:{PORT} {TOPIC}")
 

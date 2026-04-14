@@ -69,6 +69,103 @@
 
 ---
 
+## Endpoints 分层规则
+
+`app/api/endpoints/` 采用“主域在顶层，复杂域在子目录内继续分层”的组织方式。
+
+### 顶层 `app/api/endpoints/`
+
+顶层只放系统主域或跨域资源，例如：
+
+- 系统健康：`health.py`
+- 认证：`auth.py`
+- 告警：`alarms.py`
+- 报表：`reports.py`
+- 位置：`locations.py`
+
+判断规则：
+
+- 如果一个接口集合本身就是系统一级资源，可以放在顶层
+- 如果一个主域已经包含多个子职责，不再继续堆在单文件里，应下沉为目录
+
+### 主域目录
+
+当某个主域已经复杂到需要按职责拆分时，使用目录承载，例如：
+
+- `app/api/endpoints/devices/`
+- `app/api/endpoints/energy/`
+- `app/api/endpoints/forecast/`
+- `app/api/endpoints/data_cleanup/`
+
+目录的意义是“该主域已经进入域内分层”，不是简单为了文件变少。
+
+### 域目录中的 `__init__.py`
+
+域目录内的 `__init__.py` 只负责：
+
+- 聚合子模块 router
+- 对外暴露子模块，便于测试或局部导入
+
+不负责：
+
+- 放 schema
+- 放 serializer
+- 放业务流程
+
+### 域目录中的 router 文件
+
+router 文件按职责拆分，不按“顺手放”拆分。以设备域为例：
+
+- `management.py`：主档 CRUD、类型信息、语义 profile
+- `data.py`：数据上报、历史数据、统计
+- `monitoring.py`：监控聚合、实时、趋势、状态历史
+- `ingestion_health.py`：设备接入健康、接入记录、人工重放
+- `compensation_svg.py`：补偿类 SVG 子型扩展
+- `compensation_capacitor_bank.py`：补偿类电容补偿控制器子型扩展
+
+要求：
+
+- endpoint 文件优先只保留协议适配、鉴权、参数读取、调用 use case/service、返回 response
+- 不在 endpoint 文件中堆积大段 schema、重复 serializer 或主流程编排
+
+### `schemas.py` / `serializers.py`
+
+当域内已有多个 router 文件复用同一组契约或转换逻辑时，再新增：
+
+- `schemas.py`：域内通用请求/响应模型
+- `*_schemas.py`：某个子族共享 schema
+- `serializers.py`：域内通用轻量转换函数
+- `*_serializers.py`：某个子职责专用轻量转换函数
+
+要求：
+
+- `schemas` 只放契约，不放业务判断
+- `serializers` 只放轻量转换，不放 service 流程
+- 不再使用“不断膨胀的 shared.py”承载所有内容；若已有 `shared.py`，后续整理优先拆分为更明确的 `schemas` / `serializers`
+
+### 命名规则
+
+- 主资源保持业务域命名，例如 `devices`、`energy`
+- 子型扩展用 `业务族_子型` 命名，例如 `compensation_svg.py`
+- 避免在不同层级出现语义相同但范围不同的模糊文件名
+
+典型示例：
+
+- 顶层 `health.py` 表示系统健康
+- 设备域中的接入健康应命名为 `ingestion_health.py`，避免与系统健康混淆
+
+### 新增 endpoint 前的落点判断
+
+新增接口前，先按下面顺序判断文件落点：
+
+1. 这是系统一级主域，还是某个已有主域内部职责？
+2. 它属于现有域目录中的哪个职责文件？
+3. 若现有文件职责已清晰且只差少量接口，优先放回现有文件
+4. 只有当出现稳定的新职责块时，才新增 router 文件
+5. 若只是契约复用，不新增 router，优先新增 schema / serializer 文件
+
+---
+
 ## 每次修改后需要说明
 
 - 修改接口

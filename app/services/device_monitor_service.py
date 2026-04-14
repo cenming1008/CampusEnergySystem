@@ -15,13 +15,11 @@ from app.repositories.energy_repository import EnergyRepository
 from app.services.alarm_service import AlarmService
 from app.services.device_service import DeviceService
 from app.services.ingestion_health_service import IngestionHealthService
-from app.domain.device_payloads import normalize_device_subtype_alias, normalize_device_type_alias
+from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
 
 
 class DeviceMonitorService:
     """聚合设备监控页所需的状态、实时值、趋势、告警与控制记录。"""
-
-    _COMPENSATION_DEVICE_TYPES = {"svg", "capacitor_bank_controller"}
     _COMPENSATOR_REALTIME_FIELDS = (
         "flow_rate",
         "reactive_power",
@@ -33,7 +31,10 @@ class DeviceMonitorService:
 
     @staticmethod
     def _effective_device_type(device: Device) -> Optional[str]:
-        subtype = normalize_device_subtype_alias(getattr(device, "device_subtype", None))
+        subtype = resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        )
         if subtype:
             return subtype
         return normalize_device_type_alias(getattr(device, "device_type", None))
@@ -52,7 +53,7 @@ class DeviceMonitorService:
             "pressure": None,
             "temperature": None,
         }
-        if DeviceMonitorService._effective_device_type(device) in DeviceMonitorService._COMPENSATION_DEVICE_TYPES:
+        if resolve_compensation_subtype(getattr(device, "device_type", None), getattr(device, "device_subtype", None)):
             payload["reactive_power"] = None
         return payload
 
@@ -70,7 +71,7 @@ class DeviceMonitorService:
             "pressure": latest.pressure,
             "temperature": latest.temperature,
         }
-        if DeviceMonitorService._effective_device_type(device) in DeviceMonitorService._COMPENSATION_DEVICE_TYPES:
+        if resolve_compensation_subtype(getattr(device, "device_type", None), getattr(device, "device_subtype", None)):
             payload["reactive_power"] = latest.reactive_power
         return payload
 

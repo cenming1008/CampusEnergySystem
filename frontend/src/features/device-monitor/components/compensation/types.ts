@@ -1,6 +1,15 @@
 export type CompensationTone = 'success' | 'info' | 'warning' | 'danger' | 'neutral'
 export type CompensationDataState = 'live' | 'mock' | 'missing' | 'offline' | 'unconfigured' | 'na'
-export type CompensationTrendTab = 'effect' | 'voltage' | 'current' | 'health'
+export type CompensationTrendTab =
+  | 'effect'
+  | 'voltage'
+  | 'current'
+  | 'health'
+  | 'phase_power'
+  | 'phase_voltage'
+  | 'phase_current'
+  | 'harmonic'
+  | 'switching'
 export type ModuleStateTone = 'running' | 'standby' | 'alarm' | 'fault'
 
 export interface CompensationTag {

@@ -23,7 +23,7 @@ from app.core.response import success_response
 from app.core.settings import settings
 from app.models.tables import EnergyData, User
 
-from .shared import DeviceDataReportRequest
+from .schemas import DeviceDataReportRequest
 
 router = APIRouter()
 

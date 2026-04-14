@@ -16,6 +16,7 @@ DEVICE_TYPE_ALIASES = {
 }
 
 COMPENSATION_DEVICE_SUBTYPES = {"svg", "capacitor_bank_controller"}
+PLANNED_COMPENSATION_DEVICE_SUBTYPES = {"apf", "hybrid_compensation"}
 
 
 def normalize_device_type_alias(device_type: Optional[str]) -> str:
@@ -31,10 +32,37 @@ def normalize_device_subtype_alias(device_subtype: Optional[str]) -> Optional[st
     return normalized or None
 
 
+def resolve_compensation_subtype(
+    device_type: Optional[str],
+    device_subtype: Optional[str] = None,
+) -> Optional[str]:
+    """返回补偿类设备的规范子类型；非补偿类返回 None。"""
+    normalized_subtype = normalize_device_subtype_alias(device_subtype)
+    if normalized_subtype in COMPENSATION_DEVICE_SUBTYPES:
+        return normalized_subtype
+
+    normalized_type = normalize_device_type_alias(device_type)
+    if normalized_type in COMPENSATION_DEVICE_SUBTYPES:
+        return normalized_type
+
+    return None
+
+
+def is_compensation_device(
+    device_type: Optional[str],
+    device_subtype: Optional[str] = None,
+    device_category: Optional[str] = None,
+) -> bool:
+    """判断设备是否属于补偿类主模型。"""
+    if (device_category or "").strip() == DeviceCategory.COMPENSATION.value:
+        return True
+    return resolve_compensation_subtype(device_type, device_subtype) is not None
+
+
 def resolve_device_identity(device_type: str, device_subtype: Optional[str] = None) -> dict[str, Optional[str]]:
     """将请求中的业务类型/子类型口径归一到当前存储结构。"""
     normalized_type = normalize_device_type_alias(device_type)
-    normalized_subtype = normalize_device_subtype_alias(device_subtype)
+    normalized_subtype = resolve_compensation_subtype(device_type, device_subtype) or normalize_device_subtype_alias(device_subtype)
 
     if normalized_subtype:
         config = get_device_type_config(normalized_subtype)
@@ -60,6 +88,7 @@ OPTIONAL_REPORT_FIELDS = (
     "voltage",
     "current",
     "power_factor",
+    "reactive_power",
     "pressure",
     "temperature",
     "supply_temp",
@@ -67,13 +96,6 @@ OPTIONAL_REPORT_FIELDS = (
     "heat_flow",
     "quality_index",
 )
-
-ENERGY_DATA_PUBLIC_FIELDS = (
-    "consumption",
-    "flow_rate",
-    "timestamp",
-)
-
 
 @dataclass(frozen=True)
 class DeviceReportPayload:
@@ -137,7 +159,7 @@ def describe_energy_data_fields(device_type: str) -> dict[str, Any]:
     return {
         "device_type": config.device_type,
         "energy_type": config.energy_type.value,
-        "public_fields": list(ENERGY_DATA_PUBLIC_FIELDS),
+        "public_fields": list(config.public_data_fields),
         "specialized_fields": list(config.specialized_fields),
         "required_fields": list(config.required_fields),
         "optional_fields": list(config.optional_fields),
@@ -147,6 +169,8 @@ def describe_energy_data_fields(device_type: str) -> dict[str, Any]:
         "measurement_subject": config.measurement_subject,
         "consumption_unit": config.consumption_unit,
         "flow_unit": config.flow_unit,
+        "supported_subtypes": sorted(COMPENSATION_DEVICE_SUBTYPES) if config.category.value == DeviceCategory.COMPENSATION.value else [],
+        "planned_subtypes": sorted(PLANNED_COMPENSATION_DEVICE_SUBTYPES) if config.category.value == DeviceCategory.COMPENSATION.value else [],
     }
 
 

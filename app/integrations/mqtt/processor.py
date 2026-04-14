@@ -25,7 +25,8 @@ from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_device_resolver import resolve_device_id
 from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastMessage
 from app.services.mqtt_reliability_service import MqttReliabilityService
-from app.models.tables import Device, MqttIngestionRecord, SVGTelemetry
+from app.domain.device_payloads import resolve_compensation_subtype
+from app.models.tables import CapacitorBankTelemetry, Device, MqttIngestionRecord, SVGTelemetry
 
 
 FIELD_ALIASES = {
@@ -113,6 +114,27 @@ FIELD_ALIASES = {
     "local": "local_mode",
     "breaker": "breaker_status",
     "freq": "frequency",
+    # JKWF-LCD 视在功率
+    "s_a": "apparent_power_a",
+    "s_b": "apparent_power_b",
+    "s_c": "apparent_power_c",
+    # JKWF-LCD 电压谐波 THD（多种网关命名兼容）
+    "thd_ua": "voltage_thd_a",
+    "thd_ub": "voltage_thd_b",
+    "thd_uc": "voltage_thd_c",
+    "thd_va": "voltage_thd_a",
+    "thd_vb": "voltage_thd_b",
+    "thd_vc": "voltage_thd_c",
+    # JKWF-LCD 谐波电流幅值
+    "thd_ia": "current_harmonic_a",
+    "thd_ib": "current_harmonic_b",
+    "thd_ic": "current_harmonic_c",
+    # JKWF-LCD 状态标志位寄存器原始值
+    "jkwf_status": "jkwf_status_flags",
+    # JKWF-LCD 电容回路投切状态寄存器（0x01~0x03）
+    "circuit_state_1": "circuit_state_reg_1",
+    "circuit_state_2": "circuit_state_reg_2",
+    "circuit_state_3": "circuit_state_reg_3",
 }
 
 MEANINGFUL_FIELDS = (
@@ -348,10 +370,67 @@ def extract_svg_telemetry(data: dict[str, Any]) -> Optional[dict[str, Any]]:
     return extracted if extracted else None
 
 
+_CAPACITOR_BANK_TELEMETRY_FIELDS = (
+    "voltage_a", "voltage_b", "voltage_c",
+    "current_a", "current_b", "current_c",
+    "power_factor_a", "power_factor_b", "power_factor_c",
+    "active_power_a", "active_power_b", "active_power_c",
+    "reactive_power_a", "reactive_power_b", "reactive_power_c",
+    "apparent_power_a", "apparent_power_b", "apparent_power_c",
+    "voltage_thd_a", "voltage_thd_b", "voltage_thd_c",
+    "current_harmonic_a", "current_harmonic_b", "current_harmonic_c",
+    "frequency", "temperature",
+    # 状态标志位（由 decoder 解码后注入）
+    "leading_a", "leading_b", "leading_c",
+    "undercurrent_a", "undercurrent_b", "undercurrent_c",
+    "overvoltage_alarm_a", "overvoltage_alarm_b", "overvoltage_alarm_c",
+    "voltage_thd_alarm_a", "voltage_thd_alarm_b", "voltage_thd_alarm_c",
+    "current_thd_alarm_a", "current_thd_alarm_b", "current_thd_alarm_c",
+    "temp_alarm",
+    # 投切状态（由 decoder 解码后注入）
+    "circuit_state_phase_a", "circuit_state_phase_b", "circuit_state_phase_c",
+    "circuit_state_common_1", "circuit_state_common_2", "circuit_state_common_3",
+)
+
+
+def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """从 payload 提取 CapacitorBankTelemetry 字段，并应用 JKWF-LCD 协议解码。"""
+    from app.integrations.jkwf_lcd.decoder import decode_jkwf_payload
+
+    # 先将 JKWF-LCD 特有寄存器解码，并合并回 data（不覆盖已有值）
+    decoded = decode_jkwf_payload(data)
+    merged = {**data, **{k: v for k, v in decoded.items() if k not in data}}
+
+    extracted = {
+        field: merged[field]
+        for field in _CAPACITOR_BANK_TELEMETRY_FIELDS
+        if field in merged and merged[field] is not None
+    }
+    return extracted if extracted else None
+
+
 def _is_svg_device(device_id: int, session: Session) -> bool:
-    """判断设备是否为 svg 类型。"""
+    """判断设备是否为 SVG 补偿子类型。"""
     device = session.get(Device, device_id)
-    return device is not None and device.device_type == "svg"
+    return (
+        device is not None
+        and resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ) == "svg"
+    )
+
+
+def _is_capacitor_bank_device(device_id: int, session: Session) -> bool:
+    """判断设备是否为传统电容补偿控制器子类型。"""
+    device = session.get(Device, device_id)
+    return (
+        device is not None
+        and resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ) == "capacitor_bank_controller"
+    )
 
 
 def persist_device_data(
@@ -380,6 +459,16 @@ def persist_device_data(
                 )
                 session.add(telemetry)
                 AlarmService.check_svg_faults(session, device_id, svg_fields, timestamp)
+
+        if raw_data is not None and _is_capacitor_bank_device(device_id, session):
+            cap_fields = extract_capacitor_bank_telemetry(raw_data)
+            if cap_fields:
+                cap_telemetry = CapacitorBankTelemetry(
+                    device_id=device_id,
+                    timestamp=timestamp,
+                    **cap_fields,
+                )
+                session.add(cap_telemetry)
 
         session.commit()
         return result.broadcast_data

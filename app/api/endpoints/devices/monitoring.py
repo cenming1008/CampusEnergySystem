@@ -17,6 +17,7 @@ from app.core.response import success_response
 from app.models.tables import User
 from app.services.alarm_service import AlarmService
 from app.services.device_monitor_service import DeviceMonitorService
+from .monitoring_serializers import serialize_items_payload
 
 
 router = APIRouter()
@@ -85,8 +86,8 @@ def get_device_alarm_history(
 ):
     ensure_device_access(session, current_user, device_id)
     return success_response(
-        data={
-            "items": AlarmService.list_alarms(
+        data=serialize_items_payload(
+            AlarmService.list_alarms(
                 session,
                 device_id=device_id,
                 resolved=resolved,
@@ -94,7 +95,7 @@ def get_device_alarm_history(
                 end_time=end_time,
                 limit=limit,
             )
-        }
+        )
     )
 
 
@@ -109,15 +110,15 @@ def get_device_control_logs(
 ):
     ensure_device_access(session, current_user, device_id)
     return success_response(
-        data={
-            "items": DeviceMonitorService.get_control_logs(
+        data=serialize_items_payload(
+            DeviceMonitorService.get_control_logs(
                 session,
                 device_id=device_id,
                 start_time=start_time,
                 end_time=end_time,
                 limit=limit,
             )
-        }
+        )
     )
 
 
@@ -131,12 +132,12 @@ def get_device_status_history(
 ):
     ensure_device_access(session, current_user, device_id)
     return success_response(
-        data={
-            "items": DeviceMonitorService.get_status_history(
+        data=serialize_items_payload(
+            DeviceMonitorService.get_status_history(
                 session,
                 device_id=device_id,
                 hours=hours,
                 limit=limit,
             )
-        }
+        )
     )

@@ -20,7 +20,7 @@ except Exception:
         from pydantic import BaseSettings, Field, validator  # type: ignore
 
 
-DEFAULT_SECRET_KEY = "mine-energy-system-secret-key-change-me"
+DEFAULT_SECRET_KEY = "campus-energy-system-secret-key-change-me"
 POSTGRES_SCHEMES = ("postgresql://", "postgresql+psycopg2://")
 
 
@@ -203,13 +203,13 @@ class Settings(BaseSettings):
     )
 
     mqtt_realtime_bridge_channel: str = Field(
-        default="mine-energy-system:mqtt:realtime-events",
+        default="campus-energy-system:mqtt:realtime-events",
         env="MQTT_REALTIME_BRIDGE_CHANNEL",
         description="worker -> API 的 Redis 实时事件桥接频道"
     )
 
     mqtt_worker_health_key: str = Field(
-        default="mine-energy-system:mqtt:worker-health",
+        default="campus-energy-system:mqtt:worker-health",
         env="MQTT_WORKER_HEALTH_KEY",
         description="MQTT worker 健康状态在 Redis 中的键"
     )
@@ -341,7 +341,7 @@ class Settings(BaseSettings):
     )
 
     rate_limit_key_prefix: str = Field(
-        default="mine-energy-system:rate-limit",
+        default="campus-energy-system:rate-limit",
         env="RATE_LIMIT_KEY_PREFIX",
         description="共享限流键前缀"
     )

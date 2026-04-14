@@ -84,6 +84,8 @@
 | 脚本 | 作用 |
 |------|------|
 | `mqtt_send_test.py` | 发送 MQTT 测试消息。 |
+| `send_svg_telemetry.py` | 向 SVG 设备发送模拟 MQTT 遥测数据。 |
+| `send_capacitor_bank_telemetry.py` | 向电容补偿控制器发送模拟 MQTT 遥测数据。 |
 | `mqtt_subscriber_template.py` | MQTT 订阅模板。 |
 | `test_http_device.py` | 测试 HTTP 设备接口。 |
 | `test_modbus_tcp.py` | 测试 Modbus TCP 设备连接。 |

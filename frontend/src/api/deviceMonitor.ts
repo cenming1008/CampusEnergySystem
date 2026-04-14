@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 import type { WrappedResponse, JsonObject } from '@/types/api'
+import { normalizeCompensationDevice } from '@/shared/compensationDevices'
 
 export interface DeviceArchive {
   id: number
@@ -124,7 +125,10 @@ export interface MonitorQueryRange {
 export function getDeviceMonitorOverview(deviceId: number) {
   return request
     .get<never, WrappedResponse<MonitorOverview>>(`/devices/${deviceId}/monitor/overview`)
-    .then((response) => response.data)
+    .then((response) => ({
+      ...response.data,
+      archive: normalizeCompensationDevice(response.data.archive),
+    }))
 }
 
 export function getDeviceMonitorRealtime(deviceId: number) {
