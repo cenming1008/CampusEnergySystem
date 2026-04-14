@@ -77,6 +77,28 @@ FIELD_ALIASES = {
     "fault_com": "comm_fault",
     "fault_code": "current_fault_code",
     "alarm_code": "current_alarm_code",
+    # 传统电容补偿控制器三相字段
+    "pf_a": "power_factor_a",
+    "pf_b": "power_factor_b",
+    "pf_c": "power_factor_c",
+    "cos_a": "power_factor_a",
+    "cos_b": "power_factor_b",
+    "cos_c": "power_factor_c",
+    "ua": "voltage_a",
+    "ub": "voltage_b",
+    "uc": "voltage_c",
+    "ia": "current_a",
+    "ib": "current_b",
+    "ic": "current_c",
+    "p_a": "active_power_a",
+    "p_b": "active_power_b",
+    "p_c": "active_power_c",
+    "q_a": "reactive_power_a",
+    "q_b": "reactive_power_b",
+    "q_c": "reactive_power_c",
+    "step_state": "step_status",
+    "circuit_state": "circuit_status",
+    "common_step_state": "common_compensation_status",
     # 温度别名
     "temp_cab": "cabinet_temp",
     "temp_module": "module_temp",
@@ -113,6 +135,74 @@ def apply_field_aliases(data: dict[str, Any]) -> dict[str, Any]:
     for alias, canonical in FIELD_ALIASES.items():
         if canonical not in normalized and alias in normalized:
             normalized[canonical] = normalized[alias]
+    return normalized
+
+
+def _first_numeric(data: dict[str, Any], keys: tuple[str, ...]) -> Optional[float]:
+    for key in keys:
+        raw = data.get(key)
+        if raw is None:
+            continue
+        try:
+            return parse_numeric(raw, key)
+        except ValueError:
+            continue
+    return None
+
+
+def _average_numeric(data: dict[str, Any], keys: tuple[str, ...]) -> Optional[float]:
+    values = [_first_numeric(data, (key,)) for key in keys]
+    valid = [value for value in values if value is not None]
+    if not valid:
+        return None
+    return sum(valid) / len(valid)
+
+
+def _sum_numeric(data: dict[str, Any], keys: tuple[str, ...]) -> Optional[float]:
+    values = [_first_numeric(data, (key,)) for key in keys]
+    valid = [value for value in values if value is not None]
+    if not valid:
+        return None
+    return sum(valid)
+
+
+def normalize_compensation_measurements(data: dict[str, Any]) -> dict[str, Any]:
+    """将补偿控制器常见三相字段归一到公共字段层。"""
+    normalized = dict(data)
+
+    if normalized.get("voltage") is None:
+        voltage = _average_numeric(normalized, ("voltage_a", "voltage_b", "voltage_c"))
+        if voltage is not None:
+            normalized["voltage"] = voltage
+
+    if normalized.get("current") is None:
+        current = _average_numeric(normalized, ("current_a", "current_b", "current_c"))
+        if current is not None:
+            normalized["current"] = current
+
+    if normalized.get("power_factor") is None:
+        power_factor = _average_numeric(normalized, ("power_factor_a", "power_factor_b", "power_factor_c"))
+        if power_factor is not None:
+            normalized["power_factor"] = power_factor
+
+    if normalized.get("reactive_power") is None:
+        reactive_power = _sum_numeric(normalized, ("reactive_power_a", "reactive_power_b", "reactive_power_c"))
+        if reactive_power is not None:
+            normalized["reactive_power"] = reactive_power
+
+    if normalized.get("power") is None:
+        active_power = _sum_numeric(normalized, ("active_power_a", "active_power_b", "active_power_c"))
+        if active_power is not None:
+            normalized["power"] = active_power
+
+    if normalized.get("flow_rate") is None and normalized.get("power") is not None:
+        normalized["flow_rate"] = normalized["power"]
+
+    if normalized.get("temperature") is None:
+        temperature = _first_numeric(normalized, ("cabinet_temp", "temp_cab", "temperature"))
+        if temperature is not None:
+            normalized["temperature"] = temperature
+
     return normalized
 
 
@@ -317,6 +407,7 @@ def process_payload_dict(
         return None
     runtime_state.increment("mqtt_messages_total")
     data = apply_field_aliases(data)
+    data = normalize_compensation_measurements(data)
 
     device_id = resolve_device_id(data, topic)
     if not device_id:

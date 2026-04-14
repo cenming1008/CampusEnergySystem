@@ -8,6 +8,7 @@ export interface Device {
   name: string
   sn: string
   device_type: string
+  device_subtype?: string
   device_category?: string
   energy_type?: string
   unit?: string
@@ -31,6 +32,8 @@ export interface DeviceTypeConfig {
   energy_type: string
   name_zh: string
   name_en: string
+  subtype_name_zh?: string
+  subtype_name_en?: string
   unit: string
   default_capacity: number
   required_fields: string[]
@@ -48,7 +51,7 @@ export interface DeviceTypeConfig {
 
 export const DEVICES_UPDATED_EVENT = 'campus:devices-updated'
 
-const COMPENSATION_DEVICE_TYPES = new Set(['reactive_power_compensator', 'svg'])
+const COMPENSATION_DEVICE_TYPES = new Set(['svg', 'capacitor_bank_controller'])
 
 let deviceTypesCache: DeviceTypeConfig[] | null = null
 let deviceTypesPromise: Promise<DeviceTypeConfig[]> | null = null
@@ -64,38 +67,36 @@ export const FALLBACK_DEVICE_TYPE_CONFIGS: DeviceTypeConfig[] = [
   { device_type: 'heat_meter', name_zh: '热量表', icon: '🌡️', category: 'heat_meter', energy_type: 'heat', name_en: 'Heat Meter', unit: 'GJ/h', default_capacity: 10, required_fields: [], optional_fields: [], color: '#E91E63' },
   { device_type: 'cooling_meter', name_zh: '冷量表', icon: '❄️', category: 'cooling_meter', energy_type: 'cooling', name_en: 'Cooling Meter', unit: 'kW', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00BCD4' },
   { device_type: 'steam_meter', name_zh: '蒸汽表', icon: '💨', category: 'heat_meter', energy_type: 'steam', name_en: 'Steam Meter', unit: 't/h', default_capacity: 5, required_fields: [], optional_fields: [], color: '#607D8B' },
-  { device_type: 'reactive_power_compensator', name_zh: '无功功率补偿器', icon: '⚖️', category: 'compensation', energy_type: 'electricity', name_en: 'Reactive Power Compensator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#00ACC1' },
-  { device_type: 'svg', name_zh: '静止无功发生器', icon: '⚡', category: 'compensation', energy_type: 'electricity', name_en: 'Static Var Generator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#FF6F00' },
+  { device_type: 'svg', name_zh: '无功功率补偿设备', subtype_name_zh: 'SVG', icon: '⚡', category: 'compensation', energy_type: 'electricity', name_en: 'Static Var Generator', subtype_name_en: 'Static Var Generator', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#FF6F00' },
+  { device_type: 'capacitor_bank_controller', name_zh: '无功功率补偿设备', subtype_name_zh: '电容补偿控制器', icon: '⚙️', category: 'compensation', energy_type: 'electricity', name_en: 'Capacitor Bank Controller', subtype_name_en: 'Capacitor Bank Controller', unit: 'kVAR', default_capacity: 200, required_fields: [], optional_fields: [], color: '#D97706' },
 ]
 
-export function normalizeDeviceCategory(device: Device): Device {
-  if (!COMPENSATION_DEVICE_TYPES.has(device.device_type)) {
-    return device
-  }
-
-  if (device.device_category && device.device_category !== 'load') {
+export function normalizeDeviceHierarchy(device: Device): Device {
+  const effectiveSubtype = device.device_subtype || (COMPENSATION_DEVICE_TYPES.has(device.device_type) ? device.device_type : undefined)
+  if (!effectiveSubtype) {
     return device
   }
 
   return {
     ...device,
-    device_category: 'compensation',
+    device_subtype: effectiveSubtype,
+    device_category: device.device_category && device.device_category !== 'load' ? device.device_category : 'compensation',
   }
 }
 
 // 1. 获取所有设备
 export function getDevices() {
-  return request.get<never, Device[]>('/devices/').then((devices) => devices.map(normalizeDeviceCategory))
+  return request.get<never, Device[]>('/devices/').then((devices) => devices.map(normalizeDeviceHierarchy))
 }
 
 // 2. 新增设备（智能创建）
 export function createDevice(data: DeviceWritePayload) {
-  return request.post<DeviceWritePayload, Device>('/devices/', data).then(normalizeDeviceCategory)
+  return request.post<DeviceWritePayload, Device>('/devices/', data).then(normalizeDeviceHierarchy)
 }
 
 // 3. 修改设备 (Put)
 export function updateDevice(id: number, data: DeviceWritePayload) {
-  return request.put<DeviceWritePayload, Device>(`/devices/${id}`, data).then(normalizeDeviceCategory)
+  return request.put<DeviceWritePayload, Device>(`/devices/${id}`, data).then(normalizeDeviceHierarchy)
 }
 
 // 4. 删除设备

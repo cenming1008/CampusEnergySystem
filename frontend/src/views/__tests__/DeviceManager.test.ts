@@ -9,6 +9,8 @@ const {
   deleteDeviceMock,
   toggleDeviceStatusMock,
   getDeviceTypesMock,
+  getSVGOperationsProfileMock,
+  notifyDevicesUpdatedMock,
   successMock,
   errorMock,
   warningMock,
@@ -21,6 +23,8 @@ const {
   deleteDeviceMock: vi.fn(),
   toggleDeviceStatusMock: vi.fn(),
   getDeviceTypesMock: vi.fn(),
+  getSVGOperationsProfileMock: vi.fn(),
+  notifyDevicesUpdatedMock: vi.fn(),
   successMock: vi.fn(),
   errorMock: vi.fn(),
   warningMock: vi.fn(),
@@ -35,6 +39,39 @@ vi.mock('@/api/device', () => ({
   deleteDevice: deleteDeviceMock,
   toggleDeviceStatus: toggleDeviceStatusMock,
   getDeviceTypes: getDeviceTypesMock,
+  FALLBACK_DEVICE_TYPE_CONFIGS: [
+    {
+      device_type: 'load',
+      category: 'load',
+      energy_type: 'electricity',
+      name_zh: '用电设备',
+      name_en: 'Load',
+      unit: 'kW',
+      default_capacity: 100,
+      required_fields: [],
+      optional_fields: [],
+      icon: '⚡',
+      color: '#FF9800',
+    },
+    {
+      device_type: 'water_meter',
+      category: 'water_meter',
+      energy_type: 'water',
+      name_zh: '水表',
+      name_en: 'Water Meter',
+      unit: 'm³/h',
+      default_capacity: 50,
+      required_fields: [],
+      optional_fields: [],
+      icon: '💧',
+      color: '#2196F3',
+    },
+  ],
+  notifyDevicesUpdated: notifyDevicesUpdatedMock,
+}))
+
+vi.mock('@/api/svg', () => ({
+  getSVGOperationsProfile: getSVGOperationsProfileMock,
 }))
 
 vi.mock('vue-router', () => ({
@@ -107,6 +144,8 @@ describe('DeviceManager view', () => {
     deleteDeviceMock.mockReset()
     toggleDeviceStatusMock.mockReset()
     getDeviceTypesMock.mockReset()
+    getSVGOperationsProfileMock.mockReset()
+    notifyDevicesUpdatedMock.mockReset()
     successMock.mockReset()
     errorMock.mockReset()
     warningMock.mockReset()
@@ -197,6 +236,54 @@ describe('DeviceManager view', () => {
     expect(vm.formData.sn).toBe('')
     expect(vm.formData.device_type).toBe('solar')
     expect(vm.formData.is_active).toBe(true)
+  })
+
+  it('keeps compensation as one primary type and exposes subtype choices separately', async () => {
+    getDeviceTypesMock.mockResolvedValue([
+      {
+        device_type: 'svg',
+        category: 'compensation',
+        energy_type: 'electricity',
+        name_zh: '无功功率补偿设备',
+        subtype_name_zh: 'SVG',
+        name_en: 'Static Var Generator',
+        unit: 'kVAR',
+        default_capacity: 200,
+        required_fields: [],
+        optional_fields: [],
+        icon: '⚡',
+        color: '#FF6F00',
+      },
+      {
+        device_type: 'capacitor_bank_controller',
+        category: 'compensation',
+        energy_type: 'electricity',
+        name_zh: '无功功率补偿设备',
+        subtype_name_zh: '电容补偿控制器',
+        name_en: 'Capacitor Bank Controller',
+        unit: 'kVAR',
+        default_capacity: 200,
+        required_fields: [],
+        optional_fields: [],
+        icon: '⚙️',
+        color: '#D97706',
+      },
+    ])
+    getDevicesMock.mockResolvedValue([])
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    const vm = wrapper.vm as unknown as {
+      typeOptions: Array<{ key: string }>
+      selectedTypeKey: string
+      subtypeOptions: Array<{ device_type: string }>
+    }
+
+    expect(vm.typeOptions.map((item) => item.key)).toEqual(['compensation'])
+    vm.selectedTypeKey = 'compensation'
+    await flushAsync()
+    expect(vm.subtypeOptions.map((item) => item.device_type)).toEqual(['svg', 'capacitor_bank_controller'])
   })
 
   it('creates a device after successful validation', async () => {

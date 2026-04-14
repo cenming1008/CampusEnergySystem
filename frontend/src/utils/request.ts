@@ -9,6 +9,7 @@ import { reportFrontendError } from '@/observability/errorReporting'
 interface SilentAxiosConfig extends InternalAxiosRequestConfig {
   silent?: boolean
   skipAuthRefresh?: boolean
+  skipAuthHeader?: boolean
   _retry?: boolean
   timeout?: number
 }
@@ -61,7 +62,8 @@ service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 每次发送请求前，检查 pinia 里有没有 token
     const authStore = useAuthStore()
-    if (authStore.token) {
+    const requestConfig = config as SilentAxiosConfig
+    if (!requestConfig.skipAuthHeader && authStore.token) {
       config.headers.Authorization = `Bearer ${authStore.token}`
     }
     return config

@@ -14,6 +14,7 @@ from app.core.database import engine
 from app.core.device_registry import device_registry
 from app.core.logger import logger
 from app.core.settings import settings
+from app.domain.device_payloads import normalize_device_type_alias
 from app.models.tables import Device
 from app.services.device_service import DeviceService
 
@@ -51,6 +52,18 @@ def infer_device_type(data: dict[str, Any]) -> str:
     ):
         return "svg"
 
+    # 传统电容补偿控制器 / 电容柜特征
+    if any(
+        data.get(f) is not None
+        for f in (
+            "power_factor_a", "power_factor_b", "power_factor_c",
+            "reactive_power_a", "reactive_power_b", "reactive_power_c",
+            "active_power_a", "active_power_b", "active_power_c",
+            "circuit_status", "step_status", "common_compensation_status",
+        )
+    ):
+        return "capacitor_bank_controller"
+
     if data.get("flow_rate") is not None or (
         data.get("consumption") is not None
         and data.get("voltage") is None
@@ -80,7 +93,8 @@ def ensure_device_for_code(device_code: str, data: dict[str, Any]) -> Optional[i
         if device_id is not None:
             return device_id
 
-        device_type = data.get("device_type") or infer_device_type(data)
+        requested_subtype = normalize_device_type_alias(data.get("device_subtype"))
+        device_type = normalize_device_type_alias(data.get("device_type")) or requested_subtype or infer_device_type(data)
         if not device_registry.get(device_type):
             device_type = "load"
 
@@ -91,6 +105,7 @@ def ensure_device_for_code(device_code: str, data: dict[str, Any]) -> Optional[i
                 name=name,
                 sn=device_code,
                 device_type=device_type,
+                device_subtype=requested_subtype,
             )
             logger.info(
                 f"MQTT 自动创建设备: sn={device_code}, name={name}, type={device_type}, id={device.id}"

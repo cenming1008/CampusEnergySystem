@@ -1,6 +1,7 @@
 export type CompensationTone = 'success' | 'info' | 'warning' | 'danger' | 'neutral'
 export type CompensationDataState = 'live' | 'mock' | 'missing' | 'offline' | 'unconfigured' | 'na'
 export type CompensationTrendTab = 'effect' | 'voltage' | 'current' | 'health'
+export type ModuleStateTone = 'running' | 'standby' | 'alarm' | 'fault'
 
 export interface CompensationTag {
   label: string
@@ -18,11 +19,13 @@ export interface CompensationMetric {
   emphasized?: boolean
 }
 
-export interface CompensationLevelModel {
-  current: number
-  total: number
+export interface ModuleStatusModel {
+  title: string
+  unitLabel: string
+  runningModuleCount: number
+  totalModuleCount: number
+  moduleStates: ModuleStateTone[]
   hint: string
-  state: CompensationDataState
 }
 
 export interface CompensationHeaderModel {

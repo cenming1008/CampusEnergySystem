@@ -54,7 +54,8 @@ class DeviceCreateRequest(BaseModel):
 
     name: str = Field(..., description="设备名称")
     sn: str = Field(..., description="设备序列号")
-    device_type: str = Field(..., description="设备类型；决定设备对象语义、计量语义和默认能源类别")
+    device_type: str = Field(..., description="设备类型（业务大类或兼容旧类型键）")
+    device_subtype: Optional[str] = Field(None, description="设备子类型（如 svg / capacitor_bank_controller）")
     location: Optional[str] = Field(None, description="设备位置")
     description: Optional[str] = Field(None, description="设备描述")
     rated_capacity: Optional[float] = Field(None, description="额定容量")
@@ -64,6 +65,8 @@ class DeviceCreateRequest(BaseModel):
 class DeviceUpdateRequest(BaseModel):
     """设备更新请求"""
 
+    device_type: Optional[str] = None
+    device_subtype: Optional[str] = None
     name: Optional[str] = None
     location: Optional[str] = None
     description: Optional[str] = None

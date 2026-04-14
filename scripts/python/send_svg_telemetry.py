@@ -359,10 +359,10 @@ def send_one(session: Session, device: Device, timestamp: datetime, tick: int) -
 
 def list_svg_devices(session: Session) -> None:
     devices = session.exec(
-        select(Device).where(Device.device_type == "reactive_power_compensator")
+        select(Device).where(Device.device_type == "svg")
     ).all()
     if not devices:
-        print("⚠️  系统中尚无 reactive_power_compensator 类型的设备。")
+        print("⚠️  系统中尚无 svg 类型的设备。")
         return
     print(f"\n{'ID':>4}  {'序列号':<16}  {'名称':<20}  {'位置':<20}  {'额定容量'}")
     print("-" * 75)
@@ -400,7 +400,7 @@ def main() -> None:
         if not device:
             print(f"❌ 设备未找到")
             return
-        if device.device_type != "reactive_power_compensator":
+        if device.device_type != "svg":
             print(f"⚠️  设备 {device.name}（{device.device_type}）不是 SVG 类型，仍继续写入...")
 
         print(f"\n▶  目标设备: [{device.id}] {device.name}  SN={device.sn}  额定容量={device.rated_capacity} kVAR")

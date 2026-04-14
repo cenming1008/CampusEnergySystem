@@ -8,6 +8,52 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.core.device_registry import DeviceTypeConfig, device_registry
+from app.models.tables import DeviceCategory
+
+DEVICE_TYPE_ALIASES = {
+    "reactive_power_compensator": "capacitor_bank_controller",
+    "compensation": "capacitor_bank_controller",
+}
+
+COMPENSATION_DEVICE_SUBTYPES = {"svg", "capacitor_bank_controller"}
+
+
+def normalize_device_type_alias(device_type: Optional[str]) -> str:
+    """将历史或泛化设备类型口径归一到当前注册表类型。"""
+    normalized = (device_type or "").strip()
+    if not normalized:
+        return normalized
+    return DEVICE_TYPE_ALIASES.get(normalized, normalized)
+
+
+def normalize_device_subtype_alias(device_subtype: Optional[str]) -> Optional[str]:
+    normalized = normalize_device_type_alias(device_subtype)
+    return normalized or None
+
+
+def resolve_device_identity(device_type: str, device_subtype: Optional[str] = None) -> dict[str, Optional[str]]:
+    """将请求中的业务类型/子类型口径归一到当前存储结构。"""
+    normalized_type = normalize_device_type_alias(device_type)
+    normalized_subtype = normalize_device_subtype_alias(device_subtype)
+
+    if normalized_subtype:
+        config = get_device_type_config(normalized_subtype)
+        resolved_subtype = normalized_subtype if config.category.value == DeviceCategory.COMPENSATION.value else None
+        return {
+            "device_type": normalized_subtype,
+            "device_subtype": resolved_subtype,
+            "device_category": config.category.value,
+            "energy_type": config.energy_type.value,
+        }
+
+    config = get_device_type_config(normalized_type)
+    resolved_subtype = normalized_type if config.category.value == DeviceCategory.COMPENSATION.value else None
+    return {
+        "device_type": normalized_type,
+        "device_subtype": resolved_subtype,
+        "device_category": config.category.value,
+        "energy_type": config.energy_type.value,
+    }
 
 
 OPTIONAL_REPORT_FIELDS = (
@@ -38,7 +84,8 @@ class DeviceReportPayload:
 
 def get_device_type_config(device_type: str) -> DeviceTypeConfig:
     """获取设备类型配置，不存在时抛出友好异常。"""
-    config = device_registry.get(device_type)
+    normalized_type = normalize_device_type_alias(device_type)
+    config = device_registry.get(normalized_type)
     if config:
         return config
 
@@ -53,19 +100,22 @@ def build_device_create_fields(
     name: str,
     sn: str,
     device_type: str,
+    device_subtype: Optional[str] = None,
     location: Optional[str] = None,
     description: Optional[str] = None,
     rated_capacity: Optional[float] = None,
     **extra_fields: Any,
 ) -> dict[str, Any]:
     """根据设备类型构建设备创建字段。"""
-    config = get_device_type_config(device_type)
+    resolved_identity = resolve_device_identity(device_type, device_subtype)
+    config = get_device_type_config(resolved_identity["device_type"] or device_type)
     return {
         "name": name,
         "sn": sn,
-        "device_type": device_type,
-        "device_category": config.category.value,
-        "energy_type": config.energy_type.value,
+        "device_type": resolved_identity["device_type"],
+        "device_subtype": resolved_identity["device_subtype"],
+        "device_category": resolved_identity["device_category"] or config.category.value,
+        "energy_type": resolved_identity["energy_type"] or config.energy_type.value,
         "location": location,
         "description": description or f"{config.name_zh}设备",
         "rated_capacity": rated_capacity or config.default_capacity,

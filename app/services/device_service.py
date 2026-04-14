@@ -12,7 +12,10 @@ from app.domain.device_payloads import (
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
+    normalize_device_subtype_alias,
+    normalize_device_type_alias,
     normalize_device_report_payload,
+    resolve_device_identity,
 )
 from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog, SVGAssetProfile, SVGConfig, SVGTelemetry
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
@@ -25,7 +28,14 @@ from app.services.location_service import LocationService
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
 
-    _COMPENSATION_DEVICE_TYPES = {"reactive_power_compensator", "svg"}
+    _COMPENSATION_DEVICE_TYPES = {"svg", "capacitor_bank_controller"}
+
+    @staticmethod
+    def _effective_device_type(device: Any) -> Optional[str]:
+        subtype = normalize_device_subtype_alias(getattr(device, "device_subtype", None))
+        if subtype:
+            return subtype
+        return normalize_device_type_alias(getattr(device, "device_type", None))
 
     @staticmethod
     def _resolve_location_fields(
@@ -47,7 +57,8 @@ class DeviceService:
         current_category: Optional[str],
     ) -> Optional[str]:
         """兼容旧数据读取：补偿器/SVG 不再对外暴露为 load。"""
-        if device_type not in DeviceService._COMPENSATION_DEVICE_TYPES:
+        normalized_type = normalize_device_type_alias(device_type)
+        if normalized_type not in DeviceService._COMPENSATION_DEVICE_TYPES:
             return current_category
         if current_category == DeviceCategory.COMPENSATION.value:
             return current_category
@@ -59,7 +70,7 @@ class DeviceService:
     def _with_normalized_device_category(device: Any) -> Any:
         """返回补偿类设备类别已归一的只读副本。"""
         normalized_category = DeviceService._normalize_device_category(
-            getattr(device, "device_type", None),
+            DeviceService._effective_device_type(device),
             getattr(device, "device_category", None),
         )
         if normalized_category == getattr(device, "device_category", None):
@@ -70,11 +81,17 @@ class DeviceService:
         if hasattr(device, "model_dump"):
             payload = device.model_dump()
             payload["device_category"] = normalized_category
+            effective_subtype = DeviceService._effective_device_type(device)
+            if effective_subtype in DeviceService._COMPENSATION_DEVICE_TYPES:
+                payload["device_subtype"] = effective_subtype
             return type(device)(**payload)
 
         normalized_device = type("NormalizedDeviceView", (), {})()
         normalized_device.__dict__.update(getattr(device, "__dict__", {}))
         normalized_device.device_category = normalized_category
+        effective_subtype = DeviceService._effective_device_type(device)
+        if effective_subtype in DeviceService._COMPENSATION_DEVICE_TYPES:
+            normalized_device.device_subtype = effective_subtype
         return normalized_device
     
     # ==================== 设备管理 ====================
@@ -139,6 +156,7 @@ class DeviceService:
         name: str,
         sn: str,
         device_type: str,
+        device_subtype: Optional[str] = None,
         location: Optional[str] = None,
         description: Optional[str] = None,
         rated_capacity: Optional[float] = None,
@@ -160,7 +178,9 @@ class DeviceService:
         Returns:
             创建的设备对象
         """
-        config = get_device_type_config(device_type)
+        resolved_identity = resolve_device_identity(device_type, device_subtype)
+        resolved_type = resolved_identity["device_type"] or device_type
+        config = get_device_type_config(resolved_type)
         
         # 检查序列号是否已存在
         existing = DeviceService.get_device_by_sn(session, sn)
@@ -175,6 +195,7 @@ class DeviceService:
                 name=name,
                 sn=sn,
                 device_type=device_type,
+                device_subtype=device_subtype,
                 location=location_fields["location"],
                 description=description,
                 rated_capacity=rated_capacity,
@@ -205,10 +226,11 @@ class DeviceService:
         try:
             # 如果提供了 device_type，尝试自动配置
             if device.device_type:
-                config = device_registry.get(device.device_type)
+                effective_type = DeviceService._effective_device_type(device) or device.device_type
+                config = device_registry.get(effective_type)
                 if config:
                     normalized_category = DeviceService._normalize_device_category(
-                        device.device_type,
+                        effective_type,
                         device.device_category,
                     )
                     # 自动填充未设置的字段
@@ -222,6 +244,8 @@ class DeviceService:
                         device.unit = config.unit
                     if not device.rated_capacity and config.default_capacity:
                         device.rated_capacity = config.default_capacity
+                    if effective_type in DeviceService._COMPENSATION_DEVICE_TYPES and not getattr(device, "device_subtype", None):
+                        device.device_subtype = effective_type
             
             DeviceRepository.save(session, device)
             return device
@@ -237,6 +261,8 @@ class DeviceService:
     def update_device(
         session: Session,
         device_id: int,
+        device_type: Optional[str] = None,
+        device_subtype: Optional[str] = None,
         name: Optional[str] = None,
         location: Optional[str] = None,
         description: Optional[str] = None,
@@ -244,7 +270,22 @@ class DeviceService:
     ) -> Device:
         """更新设备信息"""
         device = DeviceService.get_device_by_id(session, device_id)
-        
+
+        if device_type is not None or device_subtype is not None:
+            base_type = device_type or getattr(device, "device_category", None) or device.device_type
+            resolved_identity = resolve_device_identity(base_type, device_subtype)
+            resolved_type = resolved_identity["device_type"]
+            if resolved_type:
+                device.device_type = resolved_type
+            device.device_subtype = resolved_identity["device_subtype"]
+            if resolved_identity["device_category"]:
+                device.device_category = resolved_identity["device_category"]
+            if resolved_identity["energy_type"]:
+                device.energy_type = resolved_identity["energy_type"]
+            config = get_device_type_config(device.device_type)
+            if not device.unit:
+                device.unit = config.unit
+
         if name is not None:
             device.name = name
         if location is not None:
@@ -356,7 +397,7 @@ class DeviceService:
         """
         # 获取设备信息
         device = DeviceService.get_device_by_id(session, device_id)
-        payload = normalize_device_report_payload(device.device_type, data)
+        payload = normalize_device_report_payload(DeviceService._effective_device_type(device) or device.device_type, data)
         
         # 调用 EnergyService 保存数据
         energy_data = EnergyService.save_energy_data(
@@ -457,11 +498,14 @@ class DeviceService:
     def get_device_semantic_profile(session: Session, device_id: int) -> Dict[str, Any]:
         """返回单个设备的第一批兼容语义。"""
         device = DeviceService.get_device_for_read(session, device_id)
-        device_type_profile = describe_device_type_semantics(device.device_type)
+        effective_subtype = DeviceService._effective_device_type(device)
+        semantic_type = effective_subtype or device.device_type
+        device_type_profile = describe_device_type_semantics(semantic_type)
         return {
             "device_id": device.id,
             "name": device.name,
             "device_type": device.device_type,
+            "device_subtype": effective_subtype,
             "device_category": device.device_category,
             "energy_type": device.energy_type,
             "unit": device.unit,
@@ -472,5 +516,5 @@ class DeviceService:
             "measurement_subject": device_type_profile["measurement_subject"],
             "consumption_unit": device_type_profile["consumption_unit"],
             "flow_unit": device_type_profile["flow_unit"],
-            "energy_data_fields": describe_energy_data_fields(device.device_type),
+            "energy_data_fields": describe_energy_data_fields(semantic_type),
         }

@@ -160,8 +160,9 @@ class Device(SQLModel, table=True):
     """设备表。
 
     第一批对象边界仍使用统一 Device 表，
-    通过 `device_type / device_category / energy_type` 组合兼容表达：
-    - device_type: 具体设备或表计类型
+    通过 `device_type / device_subtype / device_category / energy_type` 组合兼容表达：
+    - device_type: 兼容旧字段；默认保留当前设备主类型键
+    - device_subtype: 面向技术实现的细分子类型（如 svg / capacitor_bank_controller）
     - device_category: 面向业务筛选的类别标签
     - energy_type: 关联的能源类别
     """
@@ -171,6 +172,7 @@ class Device(SQLModel, table=True):
     name: str = Field(index=True, description="设备名称")
     sn: str = Field(index=True, unique=True, description="设备序列号")
     device_type: str = Field(index=True, description="设备类型（兼容旧字段）")
+    device_subtype: Optional[str] = Field(default=None, index=True, description="设备子类型（技术细分）")
     device_category: str = Field(default=DeviceCategory.LOAD, index=True, description="设备类别")
     energy_type: str = Field(default=EnergyType.ELECTRICITY, index=True, description="能源类型")
     

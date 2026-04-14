@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import type { CompensationLevelModel, CompensationMetric } from './types'
+import ModuleStatusCard from './ModuleStatusCard.vue'
+import type { CompensationMetric, ModuleStatusModel } from './types'
 
 defineProps({
   coreMetric: {
@@ -15,8 +16,8 @@ defineProps({
     type: Array as PropType<CompensationMetric[]>,
     default: () => [],
   },
-  level: {
-    type: Object as PropType<CompensationLevelModel>,
+  moduleStatus: {
+    type: Object as PropType<ModuleStatusModel>,
     required: true,
   },
   extendedHint: {
@@ -39,10 +40,6 @@ function progressValue(value: string) {
   return Math.max(0, Math.min(100, numeric * 100))
 }
 
-function blockClass(index: number, level: CompensationLevelModel) {
-  if (index < level.current) return 'is-active'
-  return level.state === 'offline' ? 'is-offline' : 'is-idle'
-}
 </script>
 
 <template>
@@ -102,22 +99,7 @@ function blockClass(index: number, level: CompensationLevelModel) {
           <span class="metric-card__hint">{{ item.hint }}</span>
         </div>
 
-        <div class="metric-card metric-card--level">
-          <span class="metric-card__label">当前补偿级数</span>
-          <div class="metric-card__value">
-            <strong>{{ level.current }} / {{ level.total }}</strong>
-            <small>组</small>
-          </div>
-          <div class="level-blocks">
-            <span
-              v-for="idx in level.total"
-              :key="idx"
-              class="level-block"
-              :class="blockClass(idx - 1, level)"
-            />
-          </div>
-          <span class="metric-card__hint">{{ level.hint }}</span>
-        </div>
+        <ModuleStatusCard :model="moduleStatus" />
       </div>
     </div>
   </section>
@@ -300,32 +282,6 @@ function blockClass(index: number, level: CompensationLevelModel) {
 .tone-info strong,
 .tone-info small {
   color: #60a5fa;
-}
-
-.metric-card--level {
-  grid-column: span 2;
-}
-
-.level-blocks {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.level-block {
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(76, 97, 126, 0.34);
-  border: 1px solid rgba(108, 130, 160, 0.22);
-}
-
-.level-block.is-active {
-  background: linear-gradient(90deg, rgba(20, 184, 166, 0.95), rgba(34, 197, 94, 0.95));
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.24);
-}
-
-.level-block.is-offline {
-  background: rgba(71, 85, 105, 0.72);
 }
 
 .extended-hint {

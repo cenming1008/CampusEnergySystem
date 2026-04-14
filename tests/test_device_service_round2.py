@@ -81,6 +81,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
         device = SimpleNamespace(
             sn="SVG-001",
             device_type="svg",
+            device_subtype=None,
             device_category="load",
             energy_type=None,
             unit=None,
@@ -99,6 +100,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
 
         self.assertIs(result, device)
         self.assertEqual(device.device_category, "compensation")
+        self.assertEqual(device.device_subtype, "svg")
         self.assertEqual(device.energy_type, "electricity")
         self.assertEqual(device.unit, "kVAR")
         self.assertEqual(device.rated_capacity, 200.0)
@@ -195,7 +197,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
         by_type = {item["device_type"]: item for item in result}
 
         self.assertEqual(by_type["svg"]["category"], "compensation")
-        self.assertEqual(by_type["reactive_power_compensator"]["category"], "compensation")
+        self.assertEqual(by_type["capacitor_bank_controller"]["category"], "compensation")
 
     def test_get_all_devices_normalizes_legacy_compensation_devices(self):
         legacy_svg = SimpleNamespace(id=1, device_type="svg", device_category="load", energy_type="electricity", is_active=True)
@@ -228,6 +230,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
 
         self.assertEqual(result.device_category, "compensation")
         self.assertEqual(legacy_svg.device_category, "load")
+        self.assertEqual(result.device_subtype, "svg")
 
     def test_get_device_for_read_normalizes_sqlmodel_without_copy_crash(self):
         legacy_compensator = Device(
@@ -245,6 +248,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
 
         self.assertEqual(result.device_category, "compensation")
         self.assertEqual(legacy_compensator.device_category, "load")
+        self.assertEqual(result.device_subtype, "capacitor_bank_controller")
 
     def test_get_device_semantic_profile_uses_normalized_category(self):
         legacy_svg = SimpleNamespace(
@@ -261,6 +265,7 @@ class DeviceServiceRound2Test(unittest.TestCase):
             result = DeviceService.get_device_semantic_profile(session=MagicMock(), device_id=9)
 
         self.assertEqual(result["device_category"], "compensation")
+        self.assertEqual(result["device_subtype"], "svg")
 
 
 if __name__ == "__main__":

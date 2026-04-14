@@ -96,6 +96,27 @@ def _sync_runtime_schema() -> None:
                 logger.info("Schema sync: adding energydata.reactive_power")
                 session.exec(text("ALTER TABLE energydata ADD COLUMN reactive_power DOUBLE PRECISION NULL"))
 
+        if "device" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("device")}
+            if "device_subtype" not in existing_columns:
+                logger.info("Schema sync: adding device.device_subtype")
+                session.exec(text("ALTER TABLE device ADD COLUMN device_subtype VARCHAR(64) NULL"))
+                session.exec(
+                    text(
+                        """
+                        UPDATE device
+                        SET device_subtype = CASE
+                            WHEN device_type = 'reactive_power_compensator' THEN 'capacitor_bank_controller'
+                            WHEN device_type = 'compensation' THEN 'capacitor_bank_controller'
+                            WHEN device_type = 'capacitor_bank_controller' THEN 'capacitor_bank_controller'
+                            WHEN device_type = 'svg' THEN 'svg'
+                            ELSE NULL
+                        END
+                        WHERE device_subtype IS NULL
+                        """
+                    )
+                )
+
         if "svg_asset_profile" in table_names:
             existing_columns = {column["name"] for column in inspector.get_columns("svg_asset_profile")}
             svg_profile_column_sql = {
@@ -208,6 +229,7 @@ def _assert_required_columns_present() -> None:
     inspector = inspect(engine)
     required_columns = {
         "energydata": {"reactive_power"},
+        "device": {"device_subtype"},
         "svg_asset_profile": {
             "model_number",
             "rated_voltage",

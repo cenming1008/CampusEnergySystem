@@ -1,8 +1,8 @@
 <script setup lang="ts">
-    import { ref, reactive, onMounted, computed, unref } from 'vue'
+    import { ref, reactive, onMounted, computed, unref, watch } from 'vue'
     import { useRouter } from 'vue-router'
     import { usePermissions } from '@/shared/composables/usePermissions'
-    import { buildDeviceTypeLabelMap, getDeviceCategoryLabel } from '@/shared/deviceTypeLabels'
+    import { getDeviceCategoryLabel, getDeviceSubtypeLabel } from '@/shared/deviceTypeLabels'
     import { getSVGOperationsProfile } from '@/api/svg'
     import { 
       getDevices, createDevice, updateDevice, deleteDevice, toggleDeviceStatus,
@@ -27,20 +27,57 @@
     // 设备类型列表（从后端动态获取）
     const deviceTypes = ref<DeviceTypeConfig[]>([])
     
-    // 设备类型映射 (用于表格展示，动态计算)
-    const deviceTypeMap = computed(() => {
-      return buildDeviceTypeLabelMap(deviceTypes.value)
-    })
-
     const getCategoryLabel = (category?: string | null) => {
       return getDeviceCategoryLabel(category, deviceTypes.value) || '未分类设备'
     }
+
+    const getSubtypeLabel = (deviceType?: string | null) => {
+      return getDeviceSubtypeLabel(deviceType, deviceTypes.value) || '未定义子类型'
+    }
+
+    const COMPENSATION_TYPE_KEY = 'compensation'
+
+    interface TypeOption {
+      key: string
+      label: string
+      unit: string
+    }
+
+    const getPrimaryTypeKey = (config: DeviceTypeConfig) =>
+      config.category === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : config.device_type
+
+    const typeOptions = computed<TypeOption[]>(() => {
+      const seen = new Set<string>()
+      const options: TypeOption[] = []
+      for (const config of deviceTypes.value) {
+        const key = getPrimaryTypeKey(config)
+        if (seen.has(key)) continue
+        seen.add(key)
+        options.push({
+          key,
+          label: key === COMPENSATION_TYPE_KEY ? getCategoryLabel(COMPENSATION_TYPE_KEY) : config.name_zh,
+          unit: config.unit,
+        })
+      }
+      return options
+    })
+
+    const selectedTypeKey = ref('load')
+    const selectedSubtypeKey = ref('')
+
+    const subtypeOptions = computed(() =>
+      deviceTypes.value.filter((config) => config.category === selectedTypeKey.value && getPrimaryTypeKey(config) !== config.device_type)
+    )
+
+    const showSubtypeField = computed(() => subtypeOptions.value.length > 0)
     
     // 表单数据模型
     const formData = reactive<Device>({
       name: '',
       sn: '',
       device_type: 'load', // 默认值：用电设备
+      device_subtype: undefined,
+      device_category: 'load',
       location: '',
       is_active: true,
       description: ''
@@ -63,15 +100,72 @@
       device_alias: '',
       display_name: ''
     })
-    const isSvgDeviceType = computed(() => formData.device_type === 'svg')
+    const isSvgDeviceType = computed(() => selectedSubtypeKey.value === 'svg')
     
     // 表单校验规则
     const rules = {
       name: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
       sn: [{ required: true, message: '请输入唯一序列号', trigger: 'blur' }],
       device_type: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
+      device_subtype: [{
+        validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+          if (!showSubtypeField.value) {
+            callback()
+            return
+          }
+          if (!value) {
+            callback(new Error('请选择设备子类型'))
+            return
+          }
+          callback()
+        },
+        trigger: 'change',
+      }],
       location: [{ required: true, message: '请输入安装位置', trigger: 'blur' }]
     }
+
+    const inferTypeSelection = (device: Pick<Device, 'device_type' | 'device_category' | 'device_subtype'>) => {
+      if (device.device_category === COMPENSATION_TYPE_KEY || ['svg', 'capacitor_bank_controller', 'reactive_power_compensator'].includes(device.device_type)) {
+        return COMPENSATION_TYPE_KEY
+      }
+      return device.device_type
+    }
+
+    const inferSubtypeSelection = (device: Pick<Device, 'device_type' | 'device_subtype' | 'device_category'>) => {
+      if (device.device_subtype) return device.device_subtype
+      if (device.device_category === COMPENSATION_TYPE_KEY || ['svg', 'capacitor_bank_controller', 'reactive_power_compensator'].includes(device.device_type)) {
+        return device.device_type === 'reactive_power_compensator' ? 'capacitor_bank_controller' : device.device_type
+      }
+      return ''
+    }
+
+    const resetTypeSelection = () => {
+      const defaultType = typeOptions.value[0]?.key || 'load'
+      selectedTypeKey.value = defaultType
+      selectedSubtypeKey.value = ''
+      formData.device_type = defaultType
+      formData.device_subtype = undefined
+      formData.device_category = defaultType === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : defaultType
+    }
+
+    watch(selectedTypeKey, (nextType) => {
+      formData.device_type = nextType
+      formData.device_category = nextType === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : nextType
+      if (!showSubtypeField.value) {
+        selectedSubtypeKey.value = ''
+        formData.device_subtype = undefined
+        return
+      }
+      const allowedSubtypes = new Set(subtypeOptions.value.map((item) => item.device_type))
+      if (!allowedSubtypes.has(selectedSubtypeKey.value)) {
+        selectedSubtypeKey.value = ''
+      }
+      formData.device_subtype = selectedSubtypeKey.value || undefined
+    })
+
+    watch(selectedSubtypeKey, (nextSubtype) => {
+      formData.device_subtype = nextSubtype || undefined
+    })
     
     // --- 1. 获取设备列表 ---
     const fetchData = async () => {
@@ -117,7 +211,12 @@
         dialogTitle.value = '编辑设备'
         // 复制数据到表单 (注意深拷贝或 Object.assign)
         Object.assign(formData, row)
-        if (row.device_type === 'svg' && row.id) {
+        selectedTypeKey.value = inferTypeSelection(row)
+        selectedSubtypeKey.value = inferSubtypeSelection(row)
+        formData.device_type = selectedTypeKey.value
+        formData.device_subtype = selectedSubtypeKey.value || undefined
+        formData.device_category = selectedTypeKey.value === COMPENSATION_TYPE_KEY ? COMPENSATION_TYPE_KEY : row.device_category
+        if (selectedSubtypeKey.value === 'svg' && row.id) {
           try {
             const profile = await getSVGOperationsProfile(row.id)
             Object.assign(svgOperations, {
@@ -148,10 +247,10 @@
         formData.id = undefined
         formData.name = ''
         formData.sn = ''
-        formData.device_type = deviceTypes.value.length > 0 ? deviceTypes.value[0].device_type : 'load'
         formData.location = ''
         formData.is_active = true
         formData.description = ''
+        resetTypeSelection()
       }
       dialogVisible.value = true
     }
@@ -165,6 +264,15 @@
           try {
             const payload: DeviceWritePayload = {
               ...formData,
+            }
+            if (selectedTypeKey.value === COMPENSATION_TYPE_KEY) {
+              payload.device_type = COMPENSATION_TYPE_KEY
+              payload.device_category = COMPENSATION_TYPE_KEY
+              payload.device_subtype = selectedSubtypeKey.value || undefined
+            } else {
+              payload.device_type = selectedTypeKey.value
+              payload.device_category = selectedTypeKey.value
+              payload.device_subtype = undefined
             }
             if (isSvgDeviceType.value) {
               payload.svg_operations = Object.fromEntries(
@@ -268,6 +376,9 @@
       } catch {
         deviceTypes.value = FALLBACK_DEVICE_TYPE_CONFIGS
       }
+      if (!formData.id) {
+        resetTypeSelection()
+      }
     }
     
     // --- 生命周期 ---
@@ -346,11 +457,20 @@
     
       <el-table-column
         prop="device_type"
-        label="设备分类"
+        label="设备类型"
         width="160"
       >
         <template #default="{ row }">
           <span>{{ getCategoryLabel(row.device_category) }}</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="设备子类型"
+        width="160"
+      >
+        <template #default="{ row }">
+          <span>{{ row.device_subtype ? getSubtypeLabel(row.device_subtype) : '--' }}</span>
         </template>
       </el-table-column>
     
@@ -461,18 +581,40 @@
           prop="device_type"
         >
           <el-select
-            v-model="formData.device_type"
+            v-model="selectedTypeKey"
             placeholder="请选择设备类型"
             style="width:100%"
           >
             <el-option 
-              v-for="t in deviceTypes" 
-              :key="t.device_type" 
-              :label="`${t.name_zh} (${t.unit})`" 
-              :value="t.device_type"
+              v-for="option in typeOptions" 
+              :key="option.key" 
+              :label="`${option.label} (${option.unit})`" 
+              :value="option.key"
             >
-              <span style="float: left">{{ t.name_zh }}</span>
-              <span style="float: right; color: #8492a6; font-size: 12px">{{ getCategoryLabel(t.category) }} | {{ t.unit }}</span>
+              <span style="float: left">{{ option.label }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px">{{ option.unit }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+
+        <el-form-item
+          v-if="showSubtypeField"
+          label="设备子类型"
+          prop="device_subtype"
+        >
+          <el-select
+            v-model="selectedSubtypeKey"
+            placeholder="请选择设备子类型"
+            style="width:100%"
+          >
+            <el-option
+              v-for="option in subtypeOptions"
+              :key="option.device_type"
+              :label="`${getSubtypeLabel(option.device_type)} (${option.unit})`"
+              :value="option.device_type"
+            >
+              <span style="float: left">{{ getSubtypeLabel(option.device_type) }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px">{{ option.unit }}</span>
             </el-option>
           </el-select>
         </el-form-item>

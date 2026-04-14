@@ -6,6 +6,7 @@ export interface DeviceArchive {
   name: string
   sn: string
   device_type: string
+  device_subtype?: string
   device_category?: string
   energy_type?: string
   location?: string

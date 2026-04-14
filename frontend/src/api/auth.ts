@@ -29,7 +29,9 @@ export function loginApi(data: URLSearchParams) {
   return request.post<URLSearchParams, AuthSession>('/auth/login', data, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    },
+    skipAuthRefresh: true,
+    skipAuthHeader: true,
   })
 }
 

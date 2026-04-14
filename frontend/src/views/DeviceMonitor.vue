@@ -28,6 +28,7 @@ import {
   type SVGOperationsProfile,
   type SVGTelemetry,
 } from '@/api/svg'
+import { getDeviceCategoryLabel, getDeviceSubtypeLabel } from '@/shared/deviceTypeLabels'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
 import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
@@ -39,7 +40,6 @@ import CompensationThreePhasePanel from '@/features/device-monitor/components/co
 import type {
   CompensationEventItem,
   CompensationHeaderModel,
-  CompensationLevelModel,
   CompensationMetric,
   CompensationProfileItem,
   CompensationStatusItem,
@@ -47,6 +47,8 @@ import type {
   CompensationTrendModel,
   CompensationTrendOption,
   CompensationTrendTab,
+  ModuleStatusModel,
+  ModuleStateTone,
 } from '@/features/device-monitor/components/compensation/types'
 
 const route = useRoute()
@@ -76,8 +78,15 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null
 const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
 const realtime = computed(() => overview.value?.realtime)
+const compensationSubtype = computed(() => archive.value?.device_subtype || archive.value?.device_type || '')
 
-const isReactivePowerCompensator = computed(() => archive.value?.device_type === 'reactive_power_compensator')
+const isCompensationDevice = computed(() =>
+  ['svg', 'capacitor_bank_controller'].includes(compensationSubtype.value),
+)
+const isSvgDevice = computed(() => compensationSubtype.value === 'svg')
+const compensationCategoryLabel = computed(() => getDeviceCategoryLabel('compensation'))
+const compensationSubtypeLabel = computed(() => getDeviceSubtypeLabel(compensationSubtype.value))
+const compensationUnitLabel = computed(() => (isSvgDevice.value ? '模块' : '回路'))
 
 const chartMetricOptions = [
   { label: '功率/流量', value: 'flow_rate' as const },
@@ -140,7 +149,7 @@ const fallbackCompensation = computed(() => {
     tel?.auto_mode === true ? '自动' : tel?.auto_mode === false ? '手动' : isDeviceActive.value ? '自动' : '手动'
 
   // 模块总数：优先从 svg_asset_profile.module_count 读取
-  const totalLevel = prof?.module_count ?? 8
+  const totalModuleCount = prof?.module_count ?? 8
 
   // 补偿容量利用率：优先从 svg_telemetry.capacity_utilization 读取
   const ratedCapacity = Number(archive.value?.rated_capacity || 0)
@@ -152,8 +161,8 @@ const fallbackCompensation = computed(() => {
         ? Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
         : 0
 
-  // 当前投入组数：由容量利用率和总模块数推算
-  const currentLevel = Math.round((usage / 100) * totalLevel)
+  // 当前运行模块数：由容量利用率和总模块数推算
+  const runningModuleCount = Math.round((usage / 100) * totalModuleCount)
 
   // 柜内温度：优先从 svg_telemetry.cabinet_temp 读取
   const cabinetTemperature = tel?.cabinet_temp ?? realtime.value?.temperature ?? 36.8
@@ -162,8 +171,8 @@ const fallbackCompensation = computed(() => {
 
   return {
     controlMode,
-    compensationLevelCurrent: currentLevel,
-    compensationLevelTotal: totalLevel,
+    runningModuleCount,
+    totalModuleCount,
     compensationCapacityUsage: usage,
     controlSource,
     switchPermission: canControlDevices.value && runtimeStatus.value?.is_online !== false,
@@ -299,17 +308,43 @@ const compensationMetrics = computed<CompensationMetric[]>(() => {
   ]
 })
 
-const compensationLevelModel = computed<CompensationLevelModel>(() => ({
-  current: fallbackCompensation.value.compensationLevelCurrent,
-  total: fallbackCompensation.value.compensationLevelTotal,
-  hint: `当前投入 ${fallbackCompensation.value.compensationLevelCurrent} 组，单小时投切 ${fallbackCompensation.value.hourlySwitchCount} 次`,
-  state: runtimeStatus.value?.is_online ? 'live' : 'offline',
-}))
+const moduleStatusModel = computed<ModuleStatusModel>(() => {
+  const runningCount = Math.max(
+    0,
+    Math.min(fallbackCompensation.value.totalModuleCount, fallbackCompensation.value.runningModuleCount),
+  )
+  const totalCount = Math.max(runningCount, fallbackCompensation.value.totalModuleCount)
+  const moduleStates: ModuleStateTone[] = Array.from({ length: totalCount }, (_, index) =>
+    index < runningCount ? 'running' : 'standby',
+  )
+
+  const alarmIndex = totalCount - 2
+  const faultIndex = totalCount - 1
+
+  if (svgTelemetry.value?.overtemp_fault || svgTelemetry.value?.overcurrent_fault) {
+    moduleStates[Math.max(runningCount, alarmIndex)] = 'alarm'
+  }
+  if (svgTelemetry.value?.module_fault) {
+    moduleStates[Math.max(runningCount, faultIndex)] = 'fault'
+  }
+
+  return {
+    title: isSvgDevice.value ? '模块运行状态' : '回路投切状态',
+    unitLabel: compensationUnitLabel.value,
+    runningModuleCount: moduleStates.filter((state) => state === 'running').length,
+    totalModuleCount: totalCount,
+    moduleStates,
+    hint: svgTelemetry.value?.module_fault
+      ? '红色表示模块故障，黄色表示模块告警，绿色表示运行，灰色表示待机。'
+      : '绿色表示运行，灰色表示待机，黄色表示告警，红色表示故障。',
+  }
+})
 
 const compensationExtendedHint = computed(() => {
   const messages: string[] = []
   if (!archive.value?.rated_capacity) messages.push('额定容量暂未接入，补偿容量利用率先按演示占位显示。')
   if (realtime.value?.temperature == null) messages.push('柜内温度当前使用演示占位，待真实采集点接入。')
+  if (!isSvgDevice.value) messages.push('当前设备按通用无功补偿语义展示；如需回路明细、投切记录与谐波扩展，可在后续接入专属遥测字段。')
   return messages.join(' ')
 })
 
@@ -440,6 +475,11 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
   const tel = svgTelemetry.value
   const items: CompensationStatusItem[] = [
     {
+      label: '技术类型',
+      value: compensationSubtypeLabel.value || '未定义',
+      tone: 'info',
+    },
+    {
       label: '设备状态',
       value: runtimeStatus.value?.label || '状态未知',
       tone: runtimeStatus.value?.is_active ? 'success' : 'warning',
@@ -503,6 +543,20 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       value: faults.length > 0 ? faults.join(' / ') : '无故障',
       tone: faults.length > 0 ? 'danger' : 'success',
     })
+  } else if (!isSvgDevice.value) {
+    items.push(
+      {
+        label: '控制策略',
+        value: '按功率因数自动投切',
+        tone: 'info',
+        hint: '适用于 JKWF 等传统电容补偿控制器的常见控制方式',
+      },
+      {
+        label: '回路状态',
+        value: `${moduleStatusModel.value.runningModuleCount} / ${moduleStatusModel.value.totalModuleCount} 回路投入`,
+        tone: moduleStatusModel.value.runningModuleCount > 0 ? 'success' : 'warning',
+      },
+    )
   }
   return items
 })
@@ -512,7 +566,8 @@ const compensationProfileItems = computed<CompensationProfileItem[]>(() => {
   const items: CompensationProfileItem[] = [
     { label: '设备名称', value: archive.value?.name || '补偿器1' },
     { label: '序列号', value: archive.value?.sn || 'SN2323' },
-    { label: '设备类型', value: '无功功率补偿器' },
+    { label: '设备分类', value: compensationCategoryLabel.value || '无功功率补偿设备' },
+    { label: '技术类型', value: compensationSubtypeLabel.value || '未定义' },
     { label: '能源类型', value: archive.value?.energy_type || '电' },
     { label: '安装位置', value: archive.value?.location || '未配置安装位置' },
     { label: '额定容量', value: archive.value?.rated_capacity ? `${archive.value.rated_capacity} kVar` : '未配置' },
@@ -545,7 +600,7 @@ const genericStatusItems = computed(() => [
 watch(
   () => chart.chartRef.value,
   async () => {
-    if (!chart.chartRef.value || isReactivePowerCompensator.value) return
+    if (!chart.chartRef.value || isCompensationDevice.value) return
     await chart.initChart()
     await renderTrendChart()
   },
@@ -554,13 +609,13 @@ watch(
 watch(
   () => chartMetric.value,
   async () => {
-    if (isReactivePowerCompensator.value) return
+    if (isCompensationDevice.value) return
     await renderTrendChart()
   },
 )
 
 async function renderTrendChart() {
-  if (isReactivePowerCompensator.value || !trend.value) return
+  if (isCompensationDevice.value || !trend.value) return
 
   const points = trend.value.points || []
   const seriesData = points.map((point) => getTrendMetricValue(point, chartMetric.value) ?? 0)
@@ -669,7 +724,7 @@ async function loadPage(showLoading: boolean = true) {
   try {
     overview.value = await getDeviceMonitorOverview(deviceId.value)
     const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
-    if (isReactivePowerCompensator.value) {
+    if (isSvgDevice.value) {
       extraTasks.push(loadSVGTelemetry(), loadSVGProfile())
     }
     await Promise.all(extraTasks)
@@ -712,7 +767,7 @@ async function refreshRealtime() {
     trend.value = trendRes
     await renderTrendChart()
     await loadStatusHistory()
-    if (isReactivePowerCompensator.value) {
+    if (isSvgDevice.value) {
       await loadSVGTelemetry()
     }
   } catch {
@@ -724,7 +779,7 @@ async function handleRangeChange() {
   if (!overview.value) return
   try {
     const tasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
-    if (isReactivePowerCompensator.value) {
+    if (isSvgDevice.value) {
       tasks.push(loadSVGTelemetry())
     }
     await Promise.all(tasks)
@@ -978,7 +1033,7 @@ function statusTagType(code?: string) {
     v-loading="loading"
     class="monitor-page"
   >
-    <template v-if="isReactivePowerCompensator">
+    <template v-if="isCompensationDevice">
       <CompensationHeader
         :model="compensationHeaderModel"
         :toggle-action-label="toggleActionLabel"
@@ -996,11 +1051,14 @@ function statusTagType(code?: string) {
             :core-metric="compensationCoreMetric"
             :pf-metric="compensationPfMetric"
             :metrics="compensationMetrics"
-            :level="compensationLevelModel"
+            :module-status="moduleStatusModel"
             :extended-hint="compensationExtendedHint"
           />
 
-          <CompensationThreePhasePanel :telemetry="svgTelemetry" />
+          <CompensationThreePhasePanel
+            v-if="isSvgDevice"
+            :telemetry="svgTelemetry"
+          />
 
           <CompensationTrendPanel
             v-model:active-tab="compensationTrendTab"
