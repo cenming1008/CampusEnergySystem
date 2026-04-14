@@ -1,56 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDashboardEnergyStats } from '../useDashboardEnergyStats'
 
-const { getEnergyStatisticsMock } = vi.hoisted(() => ({
-  getEnergyStatisticsMock: vi.fn(),
+const { getEnergyOverviewMock } = vi.hoisted(() => ({
+  getEnergyOverviewMock: vi.fn(),
 }))
 
 vi.mock('@/api/energy', () => ({
-  getEnergyStatistics: getEnergyStatisticsMock,
+  getEnergyOverview: getEnergyOverviewMock,
 }))
 
 describe('useDashboardEnergyStats', () => {
   beforeEach(() => {
-    getEnergyStatisticsMock.mockReset()
+    getEnergyOverviewMock.mockReset()
   })
 
   it('loads energy statistics for dashboard cards', async () => {
-    getEnergyStatisticsMock.mockImplementation(async ({ energy_type }: { energy_type: string }) => ({
-      total_consumption: energy_type === 'electricity' ? 321.5 : 12,
-      avg_consumption: 10,
-      avg_flow_rate: 3,
-      peak_flow_rate: 8,
-      data_count: 24,
-    }))
+    getEnergyOverviewMock
+      .mockResolvedValueOnce({
+        statistics: {
+          electricity: { total_consumption: 321.5, avg_consumption: 10, avg_flow_rate: 3, peak_flow_rate: 8, data_count: 24 },
+          water: { total_consumption: 12, avg_consumption: 2, avg_flow_rate: 1, peak_flow_rate: 4, data_count: 12 },
+        },
+      })
+      .mockResolvedValueOnce({
+        statistics: {
+          electricity: { total_consumption: 999, avg_consumption: 30, avg_flow_rate: 5, peak_flow_rate: 15, data_count: 300 },
+          water: { total_consumption: 88, avg_consumption: 4, avg_flow_rate: 1.5, peak_flow_rate: 5, data_count: 80 },
+        },
+      })
 
     const state = useDashboardEnergyStats()
     await state.loadEnergyStats()
 
-    expect(getEnergyStatisticsMock).toHaveBeenCalledTimes(5)
+    expect(getEnergyOverviewMock).toHaveBeenCalledTimes(2)
     expect(state.energyStats.electricity.total_consumption).toBe(321.5)
     expect(state.energyStats.water.total_consumption).toBe(12)
-    expect(state.todayEnergy.value).toBe(321.5)
+    expect(state.todayEnergy.value).toBe(333.5)
+    expect(state.monthlyEnergyStats.electricity.total_consumption).toBe(999)
   })
 
   it('fills zero fallback when one energy type request fails', async () => {
-    getEnergyStatisticsMock.mockImplementation(async ({ energy_type }: { energy_type: string }) => {
-      if (energy_type === 'gas') {
-        throw new Error('gas unavailable')
-      }
-      return {
-        total_consumption: 20,
-        avg_consumption: 5,
-        avg_flow_rate: 2,
-        peak_flow_rate: 7,
-        data_count: 10,
-      }
-    })
+    getEnergyOverviewMock.mockRejectedValue(new Error('overview unavailable'))
 
     const state = useDashboardEnergyStats()
     await state.loadEnergyStats()
 
-    expect(state.energyStats.gas.total_consumption).toBe(0)
-    expect(state.energyStats.gas.data_count).toBe(0)
-    expect(state.energyStats.electricity.total_consumption).toBe(20)
+    expect(Object.keys(state.energyStats)).toHaveLength(0)
+    expect(state.todayEnergy.value).toBe(0)
+    expect(state.monthlyEnergy.value).toBe(0)
   })
 })

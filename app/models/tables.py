@@ -796,6 +796,43 @@ class CapacitorBankTelemetry(SQLModel, table=True):
     circuit_state_common_3: Optional[int] = Field(default=None, description="公补回路 17-24 投切状态")
 
 
+class CapacitorBankControlProfile(SQLModel, table=True):
+    """电容补偿控制器参数档案（只读快照，供控制台展示）。"""
+
+    __tablename__ = "capacitor_bank_control_profile"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", unique=True, index=True, description="关联设备ID")
+
+    switch_on_power_factor: Optional[float] = Field(default=None, description="投入功率因数")
+    switch_off_power_factor: Optional[float] = Field(default=None, description="切除功率因数")
+    switch_on_delay_seconds: Optional[int] = Field(default=None, description="投入延时时间（秒）")
+    switch_off_delay_seconds: Optional[int] = Field(default=None, description="切除延时时间（秒）")
+
+    common_output_circuit_count: Optional[int] = Field(default=None, description="共补输出回路数")
+    split_output_circuit_count: Optional[int] = Field(default=None, description="分补输出回路数")
+    common_capacity_code: Optional[str] = Field(default=None, description="共补容量编码")
+    split_capacity_code: Optional[str] = Field(default=None, description="分补容量编码")
+    common_step_capacity_kvar: Optional[float] = Field(default=None, description="共补阶梯容量（kVar）")
+    split_step_capacity_kvar: Optional[float] = Field(default=None, description="分补阶梯容量（kVar）")
+
+    ct_primary_current: Optional[int] = Field(default=None, description="互感器一次值")
+    overvoltage_threshold: Optional[float] = Field(default=None, description="过压保护门限（V）")
+    voltage_harmonic_threshold: Optional[float] = Field(default=None, description="电压谐波门限（%）")
+    current_harmonic_threshold: Optional[float] = Field(default=None, description="电流谐波门限（A）")
+    temperature_upper_limit: Optional[float] = Field(default=None, description="温度上限门限（°C）")
+
+    alarm_drive_event: Optional[str] = Field(default=None, description="报警驱动事件")
+    baud_rate: Optional[int] = Field(default=None, description="通讯速率")
+    terminal_assignment_scheme: Optional[str] = Field(default=None, description="端子分配方案")
+    current_polarity_identification_enabled: Optional[bool] = Field(default=None, description="电流极性识别")
+    source: Optional[str] = Field(default=None, description="参数来源：telemetry/gateway/manual")
+    snapshot_timestamp: Optional[datetime] = Field(default=None, description="参数快照采集时间")
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class SVGAssetProfile(SQLModel, table=True):
     """SVG 运维档案（运维人员维护，每台设备一条）。"""
 

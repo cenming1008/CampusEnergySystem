@@ -8,6 +8,8 @@ const { getDevicesMock } = vi.hoisted(() => ({
 
 vi.mock('@/api/device', () => ({
   getDevices: getDevicesMock,
+  getDeviceTypes: vi.fn().mockResolvedValue([]),
+  DEVICES_UPDATED_EVENT: 'campus:devices-updated',
 }))
 
 describe('useDashboardDeviceSelection', () => {

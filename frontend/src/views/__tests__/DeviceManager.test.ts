@@ -286,6 +286,21 @@ describe('DeviceManager view', () => {
     expect(vm.subtypeOptions.map((item) => item.device_type)).toEqual(['svg', 'capacitor_bank_controller'])
   })
 
+  it('opens control console for capacitor bank controller devices', async () => {
+    getDeviceTypesMock.mockResolvedValue([])
+    getDevicesMock.mockResolvedValue([])
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    const vm = wrapper.vm as unknown as {
+      openDeviceConsole: (row: { id?: number }) => void
+    }
+
+    vm.openDeviceConsole({ id: 16 })
+    expect(routerPushMock).toHaveBeenCalledWith('/devices/16/console')
+  })
+
   it('creates a device after successful validation', async () => {
     getDeviceTypesMock.mockResolvedValue([])
     getDevicesMock.mockResolvedValue([])

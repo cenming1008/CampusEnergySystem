@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue'
 import { DEVICES_UPDATED_EVENT, getDeviceTypes, getDevices, type Device, type DeviceTypeConfig } from '@/api/device'
 
 export function useDashboardDeviceSelection() {
@@ -46,15 +46,17 @@ export function useDashboardDeviceSelection() {
     void loadDeviceList({ forceTypes: true })
   }
 
-  onMounted(() => {
-    if (typeof window === 'undefined') return
-    window.addEventListener(DEVICES_UPDATED_EVENT, handleDevicesUpdated)
-  })
+  if (getCurrentInstance()) {
+    onMounted(() => {
+      if (typeof window === 'undefined') return
+      window.addEventListener(DEVICES_UPDATED_EVENT, handleDevicesUpdated)
+    })
 
-  onBeforeUnmount(() => {
-    if (typeof window === 'undefined') return
-    window.removeEventListener(DEVICES_UPDATED_EVENT, handleDevicesUpdated)
-  })
+    onBeforeUnmount(() => {
+      if (typeof window === 'undefined') return
+      window.removeEventListener(DEVICES_UPDATED_EVENT, handleDevicesUpdated)
+    })
+  }
 
   return {
     currentDeviceId,

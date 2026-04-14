@@ -19,7 +19,17 @@ from app.domain.device_payloads import (
     resolve_device_identity,
     resolve_compensation_subtype,
 )
-from app.models.tables import Device, EnergyData, DeviceCategory, EnergyType, DeviceControlLog, SVGAssetProfile, SVGConfig, SVGTelemetry
+from app.models.tables import (
+    CapacitorBankControlProfile,
+    Device,
+    EnergyData,
+    DeviceCategory,
+    EnergyType,
+    DeviceControlLog,
+    SVGAssetProfile,
+    SVGConfig,
+    SVGTelemetry,
+)
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 from app.core.device_registry import device_registry
 from app.repositories.device_repository import DeviceRepository
@@ -341,6 +351,15 @@ class DeviceService:
             ).all()
             for row in svg_telemetry_rows:
                 session.delete(row)
+        elif resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ) == "capacitor_bank_controller":
+            control_profile = session.exec(
+                select(CapacitorBankControlProfile).where(CapacitorBankControlProfile.device_id == device_id)
+            ).first()
+            if control_profile:
+                session.delete(control_profile)
 
         DeviceRepository.delete(session, device)
     

@@ -132,6 +132,57 @@ export interface CompensationCapacitorBankTelemetry {
   circuit_state_common_3?: number | null
 }
 
+export interface CompensationCapacitorBankControlCapabilities {
+  supports_read: boolean
+  supports_write: boolean
+  supports_remote_control: boolean
+  write_status_message: string
+  remote_control_status_message: string
+}
+
+export interface CompensationCapacitorBankControlProfile {
+  device_id: number
+  switch_on_power_factor?: number | null
+  switch_off_power_factor?: number | null
+  switch_on_delay_seconds?: number | null
+  switch_off_delay_seconds?: number | null
+  common_output_circuit_count?: number | null
+  split_output_circuit_count?: number | null
+  common_capacity_code?: string | null
+  split_capacity_code?: string | null
+  common_step_capacity_kvar?: number | null
+  split_step_capacity_kvar?: number | null
+  ct_primary_current?: number | null
+  overvoltage_threshold?: number | null
+  voltage_harmonic_threshold?: number | null
+  current_harmonic_threshold?: number | null
+  temperature_upper_limit?: number | null
+  alarm_drive_event?: string | null
+  baud_rate?: number | null
+  terminal_assignment_scheme?: string | null
+  current_polarity_identification_enabled?: boolean | null
+  source?: string | null
+  snapshot_timestamp?: string | null
+  source_status: 'fresh' | 'stale' | 'empty' | 'unknown'
+  is_stale: boolean
+  created_at?: string | null
+  updated_at?: string | null
+  capabilities: CompensationCapacitorBankControlCapabilities
+}
+
+export interface CompensationCapacitorBankControlWriteRequest {
+  parameter_key: string
+  target_value: string | number | boolean
+  reason?: string
+}
+
+export interface CompensationCapacitorBankControlWriteResponse {
+  accepted: boolean
+  status: string
+  message: string
+  command_id?: string | null
+}
+
 export function getCompensationSvgOperationsProfile(deviceId: number) {
   return request
     .get<never, CompensationSvgOperationsProfile>(`/devices/${deviceId}/compensation/svg/operations-profile`, { silent: true })
@@ -177,5 +228,24 @@ export function getCompensationCapacitorBankTelemetryHistory(
     .get<never, CompensationCapacitorBankTelemetry[]>(
       `/devices/${deviceId}/compensation/capacitor-bank/telemetry`,
       { params, silent: true },
+    )
+}
+
+export function getCompensationCapacitorBankControlProfile(deviceId: number) {
+  return request
+    .get<never, CompensationCapacitorBankControlProfile>(
+      `/devices/${deviceId}/compensation/capacitor-bank/control-profile`,
+      { silent: true },
+    )
+}
+
+export function writeCompensationCapacitorBankControlProfile(
+  deviceId: number,
+  data: CompensationCapacitorBankControlWriteRequest,
+) {
+  return request
+    .post<CompensationCapacitorBankControlWriteRequest, CompensationCapacitorBankControlWriteResponse>(
+      `/devices/${deviceId}/compensation/capacitor-bank/control-profile/write`,
+      data,
     )
 }

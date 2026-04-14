@@ -135,6 +135,17 @@ def _sync_runtime_schema() -> None:
                     logger.info(f"Schema sync: adding svg_asset_profile.{column_name}")
                     session.exec(text(sql))
 
+        if "capacitor_bank_control_profile" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("capacitor_bank_control_profile")}
+            cap_profile_column_sql = {
+                "source": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN source VARCHAR NULL",
+                "snapshot_timestamp": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN snapshot_timestamp TIMESTAMP NULL",
+            }
+            for column_name, sql in cap_profile_column_sql.items():
+                if column_name not in existing_columns:
+                    logger.info(f"Schema sync: adding capacitor_bank_control_profile.{column_name}")
+                    session.exec(text(sql))
+
         if "user" in table_names:
             existing_columns = {column["name"] for column in inspector.get_columns("user")}
             if "role" not in existing_columns:
@@ -209,6 +220,7 @@ def _assert_required_tables_exist() -> None:
     required_tables = {
         "alarm",
         "audit_event",
+        "capacitor_bank_control_profile",
         "device",
         "device_control_log",
         "device_ingestion_health",
@@ -240,6 +252,10 @@ def _assert_required_columns_present() -> None:
             "protocol_version",
             "module_count",
             "single_module_capacity",
+        },
+        "capacitor_bank_control_profile": {
+            "source",
+            "snapshot_timestamp",
         },
         "alarm": {
             "severity",

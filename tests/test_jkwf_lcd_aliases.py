@@ -79,6 +79,14 @@ class TestJkwfLcdFieldAliases(unittest.TestCase):
         result = apply_field_aliases({"circuit_state_3": 0x0000})
         self.assertEqual(result["circuit_state_reg_3"], 0x0000)
 
+    def test_switch_on_pf_maps_to_switch_on_power_factor(self):
+        result = apply_field_aliases({"switch_on_pf": 95})
+        self.assertEqual(result["switch_on_power_factor"], 95)
+
+    def test_temperature_limit_maps_to_temperature_upper_limit(self):
+        result = apply_field_aliases({"temperature_limit": 55})
+        self.assertEqual(result["temperature_upper_limit"], 55)
+
     # ── 别名不覆盖已有规范字段 ─────────────────────────────────────────────────
 
     def test_alias_does_not_override_existing_canonical_field(self):

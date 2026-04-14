@@ -11,7 +11,7 @@
       type Device, type DeviceTypeConfig, type DeviceWritePayload
     } from '@/api/device'
     import { ElMessage, ElMessageBox } from 'element-plus'
-    import { Plus, Search, Refresh, Delete, Edit, Monitor } from '@element-plus/icons-vue'
+    import { Plus, Search, Refresh, Delete, Edit, Monitor, Setting } from '@element-plus/icons-vue'
     
     // --- 状态定义 ---
     const loading = ref(false)
@@ -363,6 +363,14 @@
         })
       })
     }
+
+    const isCapacitorBankController = (row: Device) =>
+      resolveCompensationSubtype(row.device_type, row.device_subtype) === 'capacitor_bank_controller'
+
+    const openDeviceConsole = (row: Device) => {
+      if (!row.id) return
+      router.push(`/devices/${row.id}/console`)
+    }
     
     // --- 获取设备类型列表 ---
     const fetchDeviceTypes = async () => {
@@ -509,6 +517,25 @@
           >
             监控
           </el-button>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="控制台"
+        width="96"
+        fixed="right"
+      >
+        <template #default="{ row }">
+          <el-button
+            v-if="isCapacitorBankController(row)"
+            link
+            type="warning"
+            :icon="Setting"
+            @click="openDeviceConsole(row)"
+          >
+            控制台
+          </el-button>
+          <span v-else>--</span>
         </template>
       </el-table-column>
 

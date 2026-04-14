@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PropType } from 'vue'
-import ModuleStatusCard from './ModuleStatusCard.vue'
 import type { CompensationMetric, ModuleStatusModel } from './types'
 
-defineProps({
+const props = defineProps({
   coreMetric: {
     type: Object as PropType<CompensationMetric>,
     required: true,
@@ -40,66 +40,85 @@ function progressValue(value: string) {
   return Math.max(0, Math.min(100, numeric * 100))
 }
 
+const capacityUsagePct = computed(() => {
+  const found = props.metrics.find(m => m.key === 'capacityUsage')
+  if (!found) return 0
+  const n = Number(found.value)
+  return Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n))
+})
 </script>
 
 <template>
-  <section class="overview-grid">
-    <div class="core-panel">
-      <div class="core-panel__caption">
-        <span>{{ coreMetric.label }}</span>
-        <small>{{ coreMetric.hint }}</small>
-      </div>
-      <div class="core-panel__value">
-        <strong>{{ coreMetric.value }}</strong>
-        <small>{{ coreMetric.unit }}</small>
-      </div>
-      <div class="core-panel__foot">
-        <span>当前无功补偿实时数据</span>
-      </div>
-    </div>
-
-    <div class="overview-side">
-      <div class="pf-card">
-        <div class="pf-card__head">
-          <span>{{ pfMetric.label }}</span>
-          <small>{{ pfMetric.hint }}</small>
-        </div>
-        <div class="pf-card__body">
+  <section class="bento-overview">
+    <!-- TOP: PF 仪表盘 | 无功功率 Hero -->
+    <div class="bento-top">
+      <div class="bento-pf">
+        <span class="bento-pf__label">{{ pfMetric.label }}</span>
+        <div class="bento-pf__gauge">
           <el-progress
             type="dashboard"
             :percentage="progressValue(pfMetric.value)"
             :stroke-width="11"
             :color="progressColor(pfMetric.value)"
-            :width="126"
+            :width="140"
           >
             <template #default>
-              <div class="pf-card__value">
+              <div class="bento-pf__inner">
                 <strong>{{ pfMetric.value }}</strong>
                 <small>PF</small>
               </div>
             </template>
           </el-progress>
         </div>
+        <small class="bento-pf__hint">{{ pfMetric.hint }}</small>
       </div>
 
-      <div class="metric-grid">
-        <div
-          v-for="item in metrics"
-          :key="item.key"
-          class="metric-card"
-        >
-          <span class="metric-card__label">{{ item.label }}</span>
-          <div
-            class="metric-card__value"
-            :class="item.tone ? `tone-${item.tone}` : ''"
-          >
-            <strong>{{ item.value }}</strong>
-            <small v-if="item.unit">{{ item.unit }}</small>
-          </div>
-          <span class="metric-card__hint">{{ item.hint }}</span>
+      <div class="bento-hero">
+        <div class="bento-hero__top">
+          <span class="bento-hero__label">{{ coreMetric.label }}</span>
+          <small class="bento-hero__hint">{{ coreMetric.hint }}</small>
         </div>
+        <div class="bento-hero__value">
+          <strong>{{ coreMetric.value }}</strong>
+          <small>{{ coreMetric.unit }}</small>
+        </div>
+        <div class="bento-hero__bar-row">
+          <span class="bento-hero__bar-label">补偿容量</span>
+          <div class="bento-hero__bar-track">
+            <div
+              class="bento-hero__bar-fill"
+              :style="{ width: `${capacityUsagePct}%` }"
+            />
+          </div>
+          <span class="bento-hero__bar-pct">{{ capacityUsagePct.toFixed(1) }}%</span>
+        </div>
+        <div class="bento-hero__pills">
+          <span
+            class="module-pill"
+            :class="moduleStatus.runningModuleCount > 0 ? 'module-pill--running' : 'module-pill--standby'"
+          >
+            {{ moduleStatus.runningModuleCount }}/{{ moduleStatus.totalModuleCount }} {{ moduleStatus.unitLabel }}运行
+          </span>
+        </div>
+      </div>
+    </div>
 
-        <ModuleStatusCard :model="moduleStatus" />
+    <!-- BOTTOM STRIP: 6 指标 -->
+    <div class="bento-strip">
+      <div
+        v-for="item in metrics"
+        :key="item.key"
+        class="strip-cell"
+      >
+        <span class="strip-cell__label">{{ item.label }}</span>
+        <div
+          class="strip-cell__value"
+          :class="item.tone ? `tone-${item.tone}` : ''"
+        >
+          <strong>{{ item.value }}</strong>
+          <small v-if="item.unit">{{ item.unit }}</small>
+        </div>
+        <span class="strip-cell__hint">{{ item.hint }}</span>
       </div>
     </div>
   </section>
@@ -113,177 +132,241 @@ function progressValue(value: string) {
 </template>
 
 <style scoped>
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.38fr);
-  gap: 16px;
+/* ── Bento container ─────────────────────────────────────────── */
+.bento-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.core-panel,
-.pf-card,
-.metric-card {
+/* ── Top zone: PF gauge | Hero ───────────────────────────────── */
+.bento-top {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.bento-pf,
+.bento-hero {
   background: linear-gradient(180deg, rgba(18, 32, 50, 0.95), rgba(13, 22, 35, 0.98));
   border: 1px solid rgba(53, 72, 97, 0.88);
   border-radius: 16px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.core-panel {
-  padding: 22px;
+/* PF panel */
+.bento-pf {
+  padding: 20px 18px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 258px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
 }
 
-.core-panel__caption {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.core-panel__caption span {
-  font-size: 14px;
+.bento-pf__label {
+  font-size: 13px;
   color: #c5d2e7;
 }
 
-.core-panel__caption small,
-.core-panel__foot {
-  color: #7f93b2;
-  font-size: 12px;
-}
-
-.core-panel__value {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.core-panel__value strong {
-  font-size: 64px;
-  line-height: 1;
-  color: #3dd5f3;
-  letter-spacing: 0.02em;
-  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
-}
-
-.core-panel__value small {
-  font-size: 16px;
-  color: #8ea0bc;
-}
-
-.overview-side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.pf-card {
-  padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.pf-card__head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pf-card__head span {
-  font-size: 14px;
-  color: #d9e3f2;
-}
-
-.pf-card__head small {
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.pf-card__body {
+.bento-pf__gauge {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.pf-card__value {
+.bento-pf__inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
 
-.pf-card__value strong {
-  font-size: 24px;
+.bento-pf__inner strong {
+  font-size: 26px;
   color: #f8fafc;
   line-height: 1;
+  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
 }
 
-.pf-card__value small {
+.bento-pf__inner small {
   font-size: 11px;
   color: #8ea0bc;
 }
 
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.metric-card {
-  min-height: 128px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.metric-card__label {
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.metric-card__value {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.metric-card__value strong {
-  font-size: 28px;
-  line-height: 1.1;
-  color: #f5f7fb;
-  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
-}
-
-.metric-card__value small,
-.metric-card__hint {
+.bento-pf__hint {
   font-size: 11px;
   color: #7f93b2;
 }
 
-.tone-success strong,
-.tone-success small {
+/* Hero panel */
+.bento-hero {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bento-hero__top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bento-hero__label {
+  font-size: 13px;
+  color: #c5d2e7;
+}
+
+.bento-hero__hint {
+  font-size: 11px;
+  color: #7f93b2;
+}
+
+.bento-hero__value {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.bento-hero__value strong {
+  font-size: 56px;
+  line-height: 1;
+  color: #3dd5f3;
+  letter-spacing: 0.02em;
+  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
+}
+
+.bento-hero__value small {
+  font-size: 16px;
+  color: #8ea0bc;
+}
+
+/* Capacity bar */
+.bento-hero__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bento-hero__bar-label {
+  font-size: 11px;
+  color: #7f93b2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bento-hero__bar-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(53, 72, 97, 0.5);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bento-hero__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.bento-hero__bar-pct {
+  font-size: 11px;
+  color: #8ea0bc;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
+}
+
+/* Module pill */
+.bento-hero__pills {
+  display: flex;
+  gap: 8px;
+}
+
+.module-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.module-pill--running {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
   color: #4ade80;
 }
 
-.tone-warning strong,
-.tone-warning small {
-  color: #fbbf24;
+.module-pill--standby {
+  background: rgba(76, 97, 126, 0.2);
+  border: 1px solid rgba(76, 97, 126, 0.4);
+  color: #8ea0bc;
 }
 
-.tone-danger strong,
-.tone-danger small {
-  color: #fb7185;
+/* ── Bottom strip: 6 metric cards ────────────────────────────── */
+.bento-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.tone-info strong,
-.tone-info small {
-  color: #60a5fa;
+.strip-cell {
+  background: linear-gradient(180deg, rgba(18, 32, 50, 0.95), rgba(13, 22, 35, 0.98));
+  border: 1px solid rgba(53, 72, 97, 0.88);
+  border-top: 3px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 88px;
 }
 
+.strip-cell__label {
+  font-size: 11px;
+  color: #8ea0bc;
+  line-height: 1.3;
+}
+
+.strip-cell__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.strip-cell__value strong {
+  font-size: 20px;
+  line-height: 1;
+  color: #f5f7fb;
+  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
+}
+
+.strip-cell__value small {
+  font-size: 10px;
+  color: #7f93b2;
+}
+
+.strip-cell__hint {
+  font-size: 10px;
+  color: #5d7699;
+  line-height: 1.3;
+}
+
+/* Tone modifiers */
+.tone-success .strip-cell__value strong { color: #4ade80; }
+.tone-warning .strip-cell__value strong { color: #fbbf24; }
+.tone-danger  .strip-cell__value strong { color: #fb7185; }
+.tone-info    .strip-cell__value strong { color: #60a5fa; }
+
+/* Extended hint */
 .extended-hint {
   margin-top: 12px;
   padding: 10px 12px;
@@ -294,12 +377,19 @@ function progressValue(value: string) {
   font-size: 12px;
 }
 
+/* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 1380px) {
-  .overview-grid {
+  .bento-top {
     grid-template-columns: 1fr;
   }
 
-  .metric-grid {
+  .bento-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .bento-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

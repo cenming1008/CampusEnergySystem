@@ -132,6 +132,13 @@
 - `serial_gateway_demo.py`
 - `serial_pair_demo.py`
 
+`send_capacitor_bank_telemetry.py` 常用联调模板：
+- 正常实时联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile normal --loop 30 --interval 5`
+- 24 小时历史补数：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile normal --backfill 288 --backfill-step 300`
+- 谐波告警联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile harmonic --loop 10 --interval 3`
+- 过温 + 投切状态联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile overtemp --phase-a-groups 6 --phase-b-groups 5 --phase-c-groups 7 --common-1-groups 4`
+- 控制台联调：脚本运行时会默认监听 `campus/control/{device_id}`，响应 `start` / `stop` / `write_parameter`，并自动补发一条最新参数/遥测快照
+
 ### 模拟与训练
 
 - `simulator_unified.py`

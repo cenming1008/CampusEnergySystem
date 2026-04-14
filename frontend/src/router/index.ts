@@ -48,6 +48,12 @@ const router = createRouter({
           meta: { title: '实时监控' }
         },
         {
+          path: 'devices/:id/console',
+          name: 'DeviceControlConsole',
+          component: () => import('@/views/DeviceControlConsole.vue'),
+          meta: { title: '设备控制台' }
+        },
+        {
           path: 'spaces',
           name: 'Locations',
           component: () => import('@/views/LocationManager.vue'),

@@ -52,7 +52,10 @@ def create_device_smart_use_case(
         description=description,
         rated_capacity=rated_capacity,
     )
-    if resolve_compensation_subtype(device.device_type, getattr(device, "device_subtype", None)) == "svg" and svg_operations:
+    if resolve_compensation_subtype(
+        getattr(device, "device_type", None),
+        getattr(device, "device_subtype", None),
+    ) == "svg" and svg_operations:
         SVGService.upsert_operations_profile(session, device.id, svg_operations)
     audit_log("device.create", current_user.username, f"device:{device.id}", role=current_user.role)
     return device
@@ -91,7 +94,10 @@ def update_device_profile_use_case(
         description=description,
         rated_capacity=rated_capacity,
     )
-    if resolve_compensation_subtype(updated.device_type, getattr(updated, "device_subtype", None)) == "svg" and svg_operations:
+    if resolve_compensation_subtype(
+        getattr(updated, "device_type", None),
+        getattr(updated, "device_subtype", None),
+    ) == "svg" and svg_operations:
         SVGService.upsert_operations_profile(session, updated.id, svg_operations)
     audit_log("device.update", current_user.username, f"device:{device_id}", role=current_user.role)
     return updated

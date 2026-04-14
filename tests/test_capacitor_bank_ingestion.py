@@ -17,10 +17,11 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.integrations.mqtt.processor import (
     apply_field_aliases,
+    extract_capacitor_bank_control_profile,
     extract_capacitor_bank_telemetry,
     normalize_compensation_measurements,
 )
-from app.models.tables import CapacitorBankTelemetry, Device
+from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -51,6 +52,15 @@ RAW_PAYLOAD = {
     "circuit_state_1": 0x0F05,
     "circuit_state_2": 0x0300,
     "circuit_state_3": 0x0000,
+    # 控制台参数快照
+    "switch_on_power_factor": 95,
+    "switch_off_power_factor": 105,
+    "switch_on_delay_seconds": 10,
+    "switch_off_delay_seconds": 8,
+    "common_capacity_code": "4:1233",
+    "split_capacity_code": "7:1124",
+    "temperature_upper_limit": 55.0,
+    "baud_rate": 9600,
 }
 
 
@@ -123,6 +133,17 @@ class TestReactivePowerNormalization(unittest.TestCase):
         self.assertAlmostEqual(normalized["reactive_power"], -24.0, places=3)
 
 
+class TestCapacitorBankControlProfileExtraction(unittest.TestCase):
+    def test_control_profile_fields_extracted(self):
+        data = apply_field_aliases(RAW_PAYLOAD)
+        result = extract_capacitor_bank_control_profile(data)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["switch_on_power_factor"], 95)
+        self.assertEqual(result["switch_off_power_factor"], 105)
+        self.assertEqual(result["baud_rate"], 9600)
+        self.assertEqual(result["common_capacity_code"], "4:1233")
+
+
 class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
     """验证 CapacitorBankTelemetry 在 SQLite 内存库中正确写入。"""
 
@@ -160,10 +181,23 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
             session.add(record)
             session.commit()
 
+            profile = CapacitorBankControlProfile(
+                device_id=device_id,
+                switch_on_power_factor=95,
+                source="telemetry",
+                common_capacity_code="4:1233",
+            )
+            session.add(profile)
+            session.commit()
+
         with Session(self.engine) as session:
             row = session.exec(
                 select(CapacitorBankTelemetry)
                 .where(CapacitorBankTelemetry.device_id == device_id)
+            ).first()
+            profile_row = session.exec(
+                select(CapacitorBankControlProfile)
+                .where(CapacitorBankControlProfile.device_id == device_id)
             ).first()
 
         self.assertIsNotNone(row)
@@ -173,6 +207,9 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
         self.assertEqual(row.circuit_state_phase_a, 0x0F)
         self.assertEqual(row.circuit_state_phase_b, 0x05)
         self.assertAlmostEqual(row.voltage_thd_a, 3.2, places=1)
+        self.assertIsNotNone(profile_row)
+        self.assertEqual(profile_row.switch_on_power_factor, 95)
+        self.assertEqual(profile_row.source, "telemetry")
 
 
 if __name__ == "__main__":

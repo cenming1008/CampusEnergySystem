@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -239,10 +239,67 @@ class CapacitorBankTelemetryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CapacitorBankControlCapabilitiesResponse(BaseModel):
+    supports_read: bool
+    supports_write: bool
+    supports_remote_control: bool
+    write_status_message: str
+    remote_control_status_message: str
+
+
+class CapacitorBankControlWriteRequest(BaseModel):
+    parameter_key: str
+    target_value: Union[str, int, float, bool]
+    reason: Optional[str] = None
+
+
+class CapacitorBankControlWriteResponse(BaseModel):
+    accepted: bool
+    status: str
+    message: str
+    command_id: Optional[str] = None
+
+
+class CapacitorBankControlProfileResponse(BaseModel):
+    """电容补偿控制器控制台只读参数档案。"""
+
+    device_id: int
+    switch_on_power_factor: Optional[float] = None
+    switch_off_power_factor: Optional[float] = None
+    switch_on_delay_seconds: Optional[int] = None
+    switch_off_delay_seconds: Optional[int] = None
+    common_output_circuit_count: Optional[int] = None
+    split_output_circuit_count: Optional[int] = None
+    common_capacity_code: Optional[str] = None
+    split_capacity_code: Optional[str] = None
+    common_step_capacity_kvar: Optional[float] = None
+    split_step_capacity_kvar: Optional[float] = None
+    ct_primary_current: Optional[int] = None
+    overvoltage_threshold: Optional[float] = None
+    voltage_harmonic_threshold: Optional[float] = None
+    current_harmonic_threshold: Optional[float] = None
+    temperature_upper_limit: Optional[float] = None
+    alarm_drive_event: Optional[str] = None
+    baud_rate: Optional[int] = None
+    terminal_assignment_scheme: Optional[str] = None
+    current_polarity_identification_enabled: Optional[bool] = None
+    source: Optional[str] = None
+    snapshot_timestamp: Optional[datetime] = None
+    source_status: str
+    is_stale: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    capabilities: CapacitorBankControlCapabilitiesResponse
+
+
 __all__ = [
     "SVGOperationsProfilePayload",
     "SVGOperationsProfileUpdate",
     "SVGOperationsProfileResponse",
     "SVGTelemetryResponse",
     "CapacitorBankTelemetryResponse",
+    "CapacitorBankControlCapabilitiesResponse",
+    "CapacitorBankControlWriteRequest",
+    "CapacitorBankControlWriteResponse",
+    "CapacitorBankControlProfileResponse",
 ]

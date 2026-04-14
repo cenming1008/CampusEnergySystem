@@ -22,17 +22,23 @@ import {
   type TrendPoint,
 } from '@/api/deviceMonitor'
 import {
+  getCompensationCapacitorBankControlProfile,
   getCompensationCapacitorBankTelemetryHistory,
   getCompensationCapacitorBankTelemetryLatest,
   getCompensationSvgOperationsProfile,
   getCompensationSvgTelemetryHistory,
   getCompensationSvgTelemetryLatest,
+  type CompensationCapacitorBankControlProfile,
   type CompensationCapacitorBankTelemetry,
   type CompensationSvgOperationsProfile,
   type CompensationSvgTelemetry,
 } from '@/api/compensation'
 import { resolveCompensationSubtype } from '@/shared/compensationDevices'
 import { getDeviceCategoryLabel, getDeviceSubtypeLabel } from '@/shared/deviceTypeLabels'
+import {
+  capacitorBankControlParameterMeta,
+  formatCapacitorBankControlValue,
+} from '@/features/device-control/capacitorBankControlProfile'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
 import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
@@ -80,6 +86,7 @@ const compensationSvgProfile = ref<CompensationSvgOperationsProfile | null>(null
 const compensationSvgTelemetryHistory = ref<CompensationSvgTelemetry[]>([])
 const compensationCapacitorBankTelemetry = ref<CompensationCapacitorBankTelemetry | null>(null)
 const compensationCapacitorBankTelemetryHistory = ref<CompensationCapacitorBankTelemetry[]>([])
+const compensationCapacitorBankControlProfile = ref<CompensationCapacitorBankControlProfile | null>(null)
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const archive = computed(() => overview.value?.archive)
@@ -415,12 +422,9 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
     const points = trend.value?.points || []
     const hasRealQ = points.some((p) => p.reactive_power != null)
     const hasRealPf = points.some((p) => p.power_factor != null)
-    const qSeries = hasRealQ
-      ? points.map((p) => p.reactive_power ?? null)
-      : buildMockSeries(labels.length, 318, 22)
-    const pfSeries = hasRealPf
-      ? points.map((p) => p.power_factor ?? null)
-      : buildMockSeries(labels.length, 0.95, 0.03, 2)
+    const hasHistory = hasRealQ || hasRealPf
+    const qSeries = points.map((p) => p.reactive_power ?? null)
+    const pfSeries = points.map((p) => p.power_factor ?? null)
     return {
       labels,
       legend: ['无功功率 Q', '功率因数 PF'],
@@ -435,12 +439,12 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
       summary: [
         { label: '当前 Q', value: `${displayValueWithState(realtime.value?.reactive_power, '暂无数据')} kVar` },
         { label: '当前 PF', value: compensationPfMetric.value.value },
-        { label: '目标 PF', value: fallbackCompensation.value.targetPowerFactor.toFixed(2) },
+        { label: '目标 PF', value: archive.value?.rated_capacity ? fallbackCompensation.value.targetPowerFactor.toFixed(2) : '暂无数据' },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无补偿效果趋势数据',
-      hint: hasRealQ || hasRealPf ? '展示历史采集的无功功率与功率因数走势。' : '当前采用演示曲线承载后续真实趋势接入。',
-      isMock: !hasRealQ && !hasRealPf,
+      hint: hasHistory ? '展示历史采集的无功功率与功率因数走势。' : '当前时间范围内没有补偿效果历史数据。',
+      isMock: false,
     }
   }
 
@@ -449,17 +453,11 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
     const hasHistory = hasCapBankHistoryValue('reactive_power_a')
       || hasCapBankHistoryValue('active_power_a')
       || hasCapBankHistoryValue('power_factor_a')
-    const [activeA, activeB, activeC] = hasHistory
-      ? buildCapBankSeries(['active_power_a', 'active_power_b', 'active_power_c'])
-      : [buildMockSeries(labels.length, 18, 4), buildMockSeries(labels.length, 20, 4), buildMockSeries(labels.length, 19, 4)]
-    const [reactiveA, reactiveB, reactiveC] = hasHistory
-      ? buildCapBankSeries(['reactive_power_a', 'reactive_power_b', 'reactive_power_c'])
-      : [buildMockSeries(labels.length, -8, 2), buildMockSeries(labels.length, -7, 2), buildMockSeries(labels.length, -9, 2)]
-    const [pfA, pfB, pfC] = hasHistory
-      ? buildCapBankSeries(['power_factor_a', 'power_factor_b', 'power_factor_c'])
-      : [buildMockSeries(labels.length, 0.97, 0.02, 3), buildMockSeries(labels.length, 0.968, 0.02, 3), buildMockSeries(labels.length, 0.975, 0.02, 3)]
+    const [activeA, activeB, activeC] = buildCapBankSeries(['active_power_a', 'active_power_b', 'active_power_c'])
+    const [reactiveA, reactiveB, reactiveC] = buildCapBankSeries(['reactive_power_a', 'reactive_power_b', 'reactive_power_c'])
+    const [pfA, pfB, pfC] = buildCapBankSeries(['power_factor_a', 'power_factor_b', 'power_factor_c'])
     return {
-      labels: hasHistory ? histLabels : labels,
+      labels: histLabels,
       legend: ['A相有功', 'B相有功', 'C相有功', 'A相无功', 'B相无功', 'C相无功', 'A相PF', 'B相PF', 'C相PF'],
       axes: [
         { name: 'kW / kvar' },
@@ -481,20 +479,18 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: 'B相无功', value: summaryNumber(compensationCapacitorBankTelemetry.value?.reactive_power_b, 'kvar') },
         { label: 'C相PF', value: summaryNumber(compensationCapacitorBankTelemetry.value?.power_factor_c, '', 3) },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无三相功率历史数据',
-      hint: hasHistory ? '展示电容控制器三相有功、无功与功率因数历史走势。' : '当前三相功率趋势使用演示占位，待更多专属历史遥测接入。',
-      isMock: !hasHistory,
+      hint: hasHistory ? '展示电容控制器三相有功、无功与功率因数历史走势。' : '当前时间范围内没有三相功率历史数据。',
+      isMock: false,
     }
   }
 
   if (compensationSubtype.value === 'capacitor_bank_controller' && compensationTrendTab.value === 'phase_voltage') {
     const hasHistory = hasCapBankHistoryValue('voltage_a')
-    const [a, b, c] = hasHistory
-      ? buildCapBankSeries(['voltage_a', 'voltage_b', 'voltage_c'])
-      : [buildMockSeries(labels.length, 220, 3), buildMockSeries(labels.length, 219, 3), buildMockSeries(labels.length, 221, 3)]
+    const [a, b, c] = buildCapBankSeries(['voltage_a', 'voltage_b', 'voltage_c'])
     return {
-      labels: hasHistory ? capacitorBankHistoryLabels.value : labels,
+      labels: capacitorBankHistoryLabels.value,
       legend: ['A相电压', 'B相电压', 'C相电压'],
       axes: [{ name: 'V' }],
       series: [
@@ -507,20 +503,18 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: 'B相电压', value: summaryNumber(compensationCapacitorBankTelemetry.value?.voltage_b, 'V') },
         { label: 'C相电压', value: summaryNumber(compensationCapacitorBankTelemetry.value?.voltage_c, 'V') },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无三相电压历史数据',
-      hint: hasHistory ? '展示三相母线电压的专属历史曲线。' : '当前三相电压趋势使用演示占位。',
-      isMock: !hasHistory,
+      hint: hasHistory ? '展示三相母线电压的专属历史曲线。' : '当前时间范围内没有三相电压历史数据。',
+      isMock: false,
     }
   }
 
   if (compensationSubtype.value === 'capacitor_bank_controller' && compensationTrendTab.value === 'phase_current') {
     const hasHistory = hasCapBankHistoryValue('current_a')
-    const [a, b, c] = hasHistory
-      ? buildCapBankSeries(['current_a', 'current_b', 'current_c'])
-      : [buildMockSeries(labels.length, 90, 12), buildMockSeries(labels.length, 88, 12), buildMockSeries(labels.length, 94, 12)]
+    const [a, b, c] = buildCapBankSeries(['current_a', 'current_b', 'current_c'])
     return {
-      labels: hasHistory ? capacitorBankHistoryLabels.value : labels,
+      labels: capacitorBankHistoryLabels.value,
       legend: ['A相电流', 'B相电流', 'C相电流'],
       axes: [{ name: 'A' }],
       series: [
@@ -533,23 +527,19 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: 'B相电流', value: summaryNumber(compensationCapacitorBankTelemetry.value?.current_b, 'A') },
         { label: 'C相电流', value: summaryNumber(compensationCapacitorBankTelemetry.value?.current_c, 'A') },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无三相电流历史数据',
-      hint: hasHistory ? '展示三相线电流的专属历史曲线。' : '当前三相电流趋势使用演示占位。',
-      isMock: !hasHistory,
+      hint: hasHistory ? '展示三相线电流的专属历史曲线。' : '当前时间范围内没有三相电流历史数据。',
+      isMock: false,
     }
   }
 
   if (compensationSubtype.value === 'capacitor_bank_controller' && compensationTrendTab.value === 'harmonic') {
     const hasHistory = hasCapBankHistoryValue('voltage_thd_a') || hasCapBankHistoryValue('current_harmonic_a')
-    const [vA, vB, vC] = hasHistory
-      ? buildCapBankSeries(['voltage_thd_a', 'voltage_thd_b', 'voltage_thd_c'])
-      : [buildMockSeries(labels.length, 2.8, 0.4), buildMockSeries(labels.length, 3.0, 0.4), buildMockSeries(labels.length, 2.7, 0.4)]
-    const [iA, iB, iC] = hasHistory
-      ? buildCapBankSeries(['current_harmonic_a', 'current_harmonic_b', 'current_harmonic_c'])
-      : [buildMockSeries(labels.length, 1.4, 0.3), buildMockSeries(labels.length, 1.3, 0.3), buildMockSeries(labels.length, 1.5, 0.3)]
+    const [vA, vB, vC] = buildCapBankSeries(['voltage_thd_a', 'voltage_thd_b', 'voltage_thd_c'])
+    const [iA, iB, iC] = buildCapBankSeries(['current_harmonic_a', 'current_harmonic_b', 'current_harmonic_c'])
     return {
-      labels: hasHistory ? capacitorBankHistoryLabels.value : labels,
+      labels: capacitorBankHistoryLabels.value,
       legend: ['A相电压THD', 'B相电压THD', 'C相电压THD', 'A相谐波电流', 'B相谐波电流', 'C相谐波电流'],
       axes: [
         { name: '%' },
@@ -568,21 +558,21 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: 'B相谐波电流', value: summaryNumber(compensationCapacitorBankTelemetry.value?.current_harmonic_b, 'A') },
         { label: '温度告警', value: compensationCapacitorBankTelemetry.value?.temp_alarm ? '告警中' : '正常' },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无谐波历史数据',
-      hint: hasHistory ? '展示三相电压 THD 与谐波电流历史走势。' : '当前谐波趋势使用演示占位。',
-      isMock: !hasHistory,
+      hint: hasHistory ? '展示三相电压 THD 与谐波电流历史走势。' : '当前时间范围内没有谐波历史数据。',
+      isMock: false,
     }
   }
 
   if (compensationSubtype.value === 'capacitor_bank_controller' && compensationTrendTab.value === 'switching') {
     const hasHistory = hasCapBankHistoryValue('circuit_state_phase_a') || hasCapBankHistoryValue('circuit_state_common_1')
-    const phaseA = hasHistory ? buildCapBankSwitchingSeries('circuit_state_phase_a') : buildMockSeries(labels.length, 5, 2, 0)
-    const phaseB = hasHistory ? buildCapBankSwitchingSeries('circuit_state_phase_b') : buildMockSeries(labels.length, 4, 2, 0)
-    const phaseC = hasHistory ? buildCapBankSwitchingSeries('circuit_state_phase_c') : buildMockSeries(labels.length, 6, 2, 0)
-    const common = hasHistory ? buildCapBankSwitchingSeries('circuit_state_common_1') : buildMockSeries(labels.length, 3, 1, 0)
+    const phaseA = buildCapBankSwitchingSeries('circuit_state_phase_a')
+    const phaseB = buildCapBankSwitchingSeries('circuit_state_phase_b')
+    const phaseC = buildCapBankSwitchingSeries('circuit_state_phase_c')
+    const common = buildCapBankSwitchingSeries('circuit_state_common_1')
     return {
-      labels: hasHistory ? capacitorBankHistoryLabels.value : labels,
+      labels: capacitorBankHistoryLabels.value,
       legend: ['A相投入路数', 'B相投入路数', 'C相投入路数', '公补投入路数'],
       axes: [{ name: '路数', min: 0 }],
       series: [
@@ -596,10 +586,10 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: '公补 1-8', value: summaryNumber(compensationCapacitorBankTelemetry.value?.circuit_state_common_1, '', 0) },
         { label: '当前采样', value: formatDateTime(compensationCapacitorBankTelemetry.value?.timestamp) },
       ],
-      empty: false,
+      empty: !hasHistory,
       emptyText: '暂无投切历史数据',
-      hint: hasHistory ? '按历史寄存器变化估算各组投入路数，用于回看投切节奏。' : '当前投切回放使用演示占位。',
-      isMock: !hasHistory,
+      hint: hasHistory ? '按历史寄存器变化估算各组投入路数，用于回看投切节奏。' : '当前时间范围内没有投切回放历史数据。',
+      isMock: false,
     }
   }
 
@@ -617,7 +607,7 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: '谷值', value: `${displayValueWithState(voltageSeries.valley, '暂无数据')} V` },
       ],
       isMock: voltageSeries.isMock,
-      hint: voltageSeries.isMock ? '当前电压趋势使用演示占位，待历史曲线更完整接入。' : '展示最近时间范围内的母线电压走势。',
+      hint: voltageSeries.isMock ? '当前时间范围内没有母线电压历史数据。' : '展示最近时间范围内的母线电压走势。',
       emptyText: '暂无电压趋势数据',
     })
   }
@@ -636,7 +626,7 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
         { label: '谷值', value: `${displayValueWithState(currentSeries.valley, '暂无数据')} A` },
       ],
       isMock: currentSeries.isMock,
-      hint: currentSeries.isMock ? '当前电流趋势使用演示占位，待历史曲线更完整接入。' : '展示最近时间范围内的线电流走势。',
+      hint: currentSeries.isMock ? '当前时间范围内没有线电流历史数据。' : '展示最近时间范围内的线电流走势。',
       emptyText: '暂无电流趋势数据',
     })
   }
@@ -655,34 +645,41 @@ const compensationTrendModel = computed<CompensationTrendModel>(() => {
     ? (isSvgDevice.value
       ? svgHistPoints.map((p) => p.cabinet_temp ?? null)
       : capHistPoints.map((p) => p.temperature ?? null))
-    : buildMockSeries(labels.length, fallbackCompensation.value.cabinetTemperature, 4)
-  const healthScore = buildMockSeries(healthLabels.length, 92, 6)
+    : []
   const healthFrequency = !isSvgDevice.value && capHistPoints.some((p) => p.frequency != null)
     ? capHistPoints.map((p) => p.frequency ?? null)
     : []
+  const healthScore: Array<number | null> = []
+  const svgTempDetails = isSvgDevice.value
+    ? [
+        { label: '模块温度', value: summaryNumber(compensationSvgTelemetry.value?.module_temp, '°C') },
+        { label: 'IGBT 温度', value: summaryNumber(compensationSvgTelemetry.value?.igbt_temp, '°C') },
+        { label: '散热器温度', value: summaryNumber(compensationSvgTelemetry.value?.heatsink_temp, '°C') },
+      ]
+    : []
+  const hasHealthData = hasCabinetTemp || healthFrequency.length > 0
   return {
     labels: healthLabels,
-    legend: !isSvgDevice.value && healthFrequency.length ? ['柜内温度', '频率', '健康度'] : ['柜内温度', '健康度'],
+    legend: !isSvgDevice.value && healthFrequency.length ? ['柜内温度', '频率'] : ['柜内温度'],
     axes: [
       { name: '°C' },
-      { name: !isSvgDevice.value && healthFrequency.length ? 'Hz / 分' : '分', min: !isSvgDevice.value && healthFrequency.length ? 49 : 0, max: !isSvgDevice.value && healthFrequency.length ? 100 : 100, position: 'right' },
+      { name: !isSvgDevice.value && healthFrequency.length ? 'Hz' : '', min: !isSvgDevice.value && healthFrequency.length ? 49 : 0, max: !isSvgDevice.value && healthFrequency.length ? 100 : 100, position: 'right' },
     ],
     series: [
       { name: '柜内温度', data: healthTemp, color: '#fb7185', area: true },
       ...(!isSvgDevice.value && healthFrequency.length
         ? [{ name: '频率', data: healthFrequency, color: '#60a5fa', yAxisIndex: 1 } as const]
         : []),
-      { name: '健康度', data: healthScore, color: '#22c55e', yAxisIndex: 1 },
     ],
     summary: [
-      { label: '柜内温度', value: `${displayValueWithState(isSvgDevice.value ? fallbackCompensation.value.cabinetTemperature : compensationCapacitorBankTelemetry.value?.temperature, '暂无数据')} °C` },
-      { label: !isSvgDevice.value ? '电网频率' : 'THD', value: !isSvgDevice.value ? summaryNumber(compensationCapacitorBankTelemetry.value?.frequency, 'Hz', 2) : `${fallbackCompensation.value.thd.toFixed(1)} %` },
-      { label: '累计运行', value: `${fallbackCompensation.value.runningHours} h` },
+      { label: '柜内温度', value: `${displayValueWithState(isSvgDevice.value ? compensationSvgTelemetry.value?.cabinet_temp : compensationCapacitorBankTelemetry.value?.temperature, '暂无数据')} °C` },
+      { label: !isSvgDevice.value ? '电网频率' : '模块温度', value: !isSvgDevice.value ? summaryNumber(compensationCapacitorBankTelemetry.value?.frequency, 'Hz', 2) : summaryNumber(compensationSvgTelemetry.value?.module_temp, '°C') },
+      ...(isSvgDevice.value ? svgTempDetails : []),
     ],
-    empty: false,
+    empty: !hasHealthData,
     emptyText: '暂无温度与健康度趋势数据',
-    hint: hasCabinetTemp ? (isSvgDevice.value ? '展示采集的柜内温度历史走势。' : '展示柜内温度、频率与健康度历史走势。') : '当前温度/健康度趋势使用演示占位，用于承接后续真实健康度算法接入。',
-    isMock: !hasCabinetTemp,
+    hint: hasHealthData ? (isSvgDevice.value ? '展示采集的柜内及核心器件温度历史走势。' : '展示柜内温度与频率历史走势。') : '当前时间范围内没有温度或频率历史数据。',
+    isMock: false,
   }
 })
 
@@ -726,6 +723,12 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       tone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
     },
     {
+      label: '采集状态',
+      value: formatIngestionStatus(runtimeStatus.value?.ingestion_status),
+      tone: ingestionTone(runtimeStatus.value?.ingestion_status),
+      hint: '来自 monitor/runtime-status 的接入健康判定',
+    },
+    {
       label: '当前模式',
       value: fallbackCompensation.value.controlMode,
       tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
@@ -746,11 +749,11 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       tone: 'info',
       hint: '来自补偿设备专属 latest 快照',
     },
-    {
-      label: '是否允许投切',
-      value: fallbackCompensation.value.switchPermission ? '允许投切' : '禁止投切',
-      tone: fallbackCompensation.value.switchPermission ? 'success' : 'danger',
-      hint: canControlDevices.value ? '基于当前权限与在线状态判定' : '当前账号无设备控制权限',
+      {
+        label: '是否允许投切',
+        value: fallbackCompensation.value.switchPermission ? '允许投切' : '禁止投切',
+        tone: fallbackCompensation.value.switchPermission ? 'success' : 'danger',
+        hint: canControlDevices.value ? '基于当前权限与在线状态判定' : '当前账号无设备控制权限',
     },
   ]
   if (tel) {
@@ -770,6 +773,26 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
         value: tel.fan_status === true ? '运行' : tel.fan_status === false ? '停止/故障' : '未知',
         tone: tel.fan_status === true ? 'success' : tel.fan_status === false ? 'warning' : 'neutral',
       },
+      {
+        label: '运行反馈',
+        value: formatBooleanStatus(tel.run_status, '运行', '未运行'),
+        tone: tel.run_status === true ? 'success' : tel.run_status === false ? 'neutral' : 'info',
+      },
+      {
+        label: '停机反馈',
+        value: formatBooleanStatus(tel.stop_status, '已停机', '未停机'),
+        tone: tel.stop_status === true ? 'warning' : tel.stop_status === false ? 'success' : 'neutral',
+      },
+      {
+        label: '就地模式',
+        value: formatBooleanStatus(tel.local_mode, '就地', '远程'),
+        tone: tel.local_mode === true ? 'warning' : tel.local_mode === false ? 'info' : 'neutral',
+      },
+      {
+        label: '通讯状态',
+        value: formatBooleanStatus(tel.comm_status, '通讯正常', '通讯异常'),
+        tone: tel.comm_status === true ? 'success' : tel.comm_status === false ? 'danger' : 'neutral',
+      },
     )
     const faults = [
       tel.overvoltage_fault && '过压',
@@ -785,6 +808,30 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       value: faults.length > 0 ? faults.join(' / ') : '无故障',
       tone: faults.length > 0 ? 'danger' : 'success',
     })
+    items.push(
+      {
+        label: '故障代码',
+        value: tel.current_fault_code || '无编码',
+        tone: tel.current_fault_code ? 'danger' : 'success',
+        hint: '来自 SVG 遥测故障编码',
+      },
+      {
+        label: '告警代码',
+        value: tel.current_alarm_code || '无编码',
+        tone: tel.current_alarm_code ? 'warning' : 'success',
+        hint: '来自 SVG 遥测告警编码',
+      },
+      {
+        label: '柜内 / 模块温度',
+        value: `${displayValueWithState(tel.cabinet_temp, '暂无数据')} °C / ${displayValueWithState(tel.module_temp, '暂无数据')} °C`,
+        tone: temperatureTone(tel.cabinet_temp, tel.module_temp),
+      },
+      {
+        label: 'IGBT / 散热器温度',
+        value: `${displayValueWithState(tel.igbt_temp, '暂无数据')} °C / ${displayValueWithState(tel.heatsink_temp, '暂无数据')} °C`,
+        tone: temperatureTone(tel.igbt_temp, tel.heatsink_temp),
+      },
+    )
   } else if (capTel) {
     const capFlags = [
       capTel.leading_a && 'A超前',
@@ -851,22 +898,53 @@ const compensationProfileItems = computed<CompensationProfileItem[]>(() => {
   if (prof) {
     if (prof.model_number) items.push({ label: '产品型号', value: prof.model_number })
     if (prof.rated_voltage) items.push({ label: '额定电压', value: `${prof.rated_voltage} V` })
+    if (prof.rated_frequency) items.push({ label: '额定频率', value: `${prof.rated_frequency} Hz` })
     if (prof.module_count) items.push({ label: '模块数量', value: `${prof.module_count} 组` })
+    if (prof.software_version) items.push({ label: '软件版本', value: prof.software_version })
+    if (prof.hardware_version) items.push({ label: '硬件版本', value: prof.hardware_version })
+    if (prof.protocol_version) items.push({ label: '协议版本', value: prof.protocol_version })
     if (prof.distribution_room) items.push({ label: '配电房', value: prof.distribution_room })
     if (prof.building) items.push({ label: '所在楼栋', value: prof.building })
     if (prof.circuit) items.push({ label: '所在回路', value: prof.circuit })
+    if (prof.asset_number) items.push({ label: '资产编号', value: prof.asset_number })
+    if (prof.fixed_asset_code) items.push({ label: '固定资产编码', value: prof.fixed_asset_code })
+    if (prof.qr_code_number) items.push({ label: '二维码编号', value: prof.qr_code_number })
+    if (prof.asset_group) items.push({ label: '资产分组', value: prof.asset_group })
+    if (prof.department) items.push({ label: '归属部门', value: prof.department })
+    if (prof.management_unit) items.push({ label: '管理单位', value: prof.management_unit })
+    if (prof.contact_phone) items.push({ label: '联系电话', value: prof.contact_phone })
     if (prof.om_responsible) items.push({ label: '运维负责人', value: prof.om_responsible })
     if (prof.inspection_responsible) items.push({ label: '巡检负责人', value: prof.inspection_responsible })
     if (prof.maintenance_cycle_days) items.push({ label: '维保周期', value: `${prof.maintenance_cycle_days} 天` })
     if (prof.commission_date) items.push({ label: '投运日期', value: prof.commission_date })
     if (prof.warranty_expiry) items.push({ label: '质保到期', value: prof.warranty_expiry })
+    if (prof.device_group) items.push({ label: '设备分组', value: prof.device_group })
+    if (prof.device_tree_level) items.push({ label: '设备树层级', value: prof.device_tree_level })
+    if (prof.monitor_screen_position) items.push({ label: '监控画面位置', value: prof.monitor_screen_position })
+    if (prof.alarm_policy) items.push({ label: '告警策略', value: prof.alarm_policy })
+    if (prof.device_alias) items.push({ label: '设备别名', value: prof.device_alias })
+    if (prof.display_name) items.push({ label: '展示名称', value: prof.display_name })
   }
   return items
 })
 
+const capacitorBankControlSummaryItems = computed(() =>
+  capacitorBankControlParameterMeta
+    .filter((item) => item.summary)
+    .map((item) => ({
+      label: item.label,
+      value: formatCapacitorBankControlValue(compensationCapacitorBankControlProfile.value, item),
+    })),
+)
+
 const genericStatusItems = computed(() => [
   { label: '设备状态', value: runtimeStatus.value?.label || '状态未知' },
   { label: '在线状态', value: runtimeStatus.value?.is_online ? '在线' : '离线' },
+  {
+    label: '采集状态',
+    value: formatIngestionStatus(runtimeStatus.value?.ingestion_status),
+    hint: '聚合接入健康状态',
+  },
   { label: '未处理告警', value: `${runtimeStatus.value?.unresolved_alarm_count ?? 0} 条` },
   { label: '最近消息', value: formatDateTime(runtimeStatus.value?.last_message_at) },
   { label: '最近成功入库', value: formatDateTime(runtimeStatus.value?.last_success_at) },
@@ -1031,6 +1109,14 @@ async function loadCapBankTelemetry() {
   }
 }
 
+async function loadCapBankControlProfile() {
+  try {
+    compensationCapacitorBankControlProfile.value = await getCompensationCapacitorBankControlProfile(deviceId.value)
+  } catch {
+    compensationCapacitorBankControlProfile.value = null
+  }
+}
+
 async function loadPage(showLoading: boolean = true) {
   if (!deviceId.value) return
   if (showLoading) loading.value = true
@@ -1040,9 +1126,15 @@ async function loadPage(showLoading: boolean = true) {
     const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
     if (isSvgDevice.value) {
       extraTasks.push(loadSVGTelemetry(), loadSVGProfile())
+      compensationCapacitorBankControlProfile.value = null
     }
     if (compensationSubtype.value === 'capacitor_bank_controller') {
-      extraTasks.push(loadCapBankTelemetry())
+      extraTasks.push(loadCapBankTelemetry(), loadCapBankControlProfile())
+      compensationSvgProfile.value = null
+    }
+    if (!isCompensationDevice.value) {
+      compensationSvgProfile.value = null
+      compensationCapacitorBankControlProfile.value = null
     }
     await Promise.all(extraTasks)
   } catch {
@@ -1181,6 +1273,45 @@ function displayValueWithState(value: number | string | null | undefined, emptyT
   return String(value)
 }
 
+function formatBooleanStatus(
+  value: boolean | null | undefined,
+  trueLabel: string,
+  falseLabel: string,
+  emptyLabel: string = '未知',
+) {
+  if (value === true) return trueLabel
+  if (value === false) return falseLabel
+  return emptyLabel
+}
+
+function maxTemperature(...values: Array<number | null | undefined>) {
+  const nums = values.filter((value): value is number => value !== null && value !== undefined)
+  if (!nums.length) return null
+  return Math.max(...nums)
+}
+
+function temperatureTone(...values: Array<number | null | undefined>): CompensationTone {
+  const maxTemp = maxTemperature(...values)
+  if (maxTemp === null) return 'neutral'
+  if (maxTemp >= 75) return 'danger'
+  if (maxTemp >= 60) return 'warning'
+  return 'success'
+}
+
+function formatIngestionStatus(status?: string | null) {
+  if (status === 'online') return '在线采集'
+  if (status === 'degraded') return '采集波动'
+  if (status === 'offline') return '离线'
+  return '未知'
+}
+
+function ingestionTone(status?: string | null): CompensationTone {
+  if (status === 'online') return 'success'
+  if (status === 'degraded') return 'warning'
+  if (status === 'offline') return 'danger'
+  return 'neutral'
+}
+
 function inferConsumptionUnit() {
   const type = archive.value?.energy_type
   if (type === 'water' || type === 'gas') return 'm³'
@@ -1199,7 +1330,13 @@ function defaultTimeRange(): [Date, Date] {
 }
 
 function toApiDate(value: Date) {
-  return value.toISOString()
+  const year = value.getFullYear()
+  const month = `${value.getMonth() + 1}`.padStart(2, '0')
+  const day = `${value.getDate()}`.padStart(2, '0')
+  const hours = `${value.getHours()}`.padStart(2, '0')
+  const minutes = `${value.getMinutes()}`.padStart(2, '0')
+  const seconds = `${value.getSeconds()}`.padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
 }
 
 function buildRangeParams(limit: number = 300) {
@@ -1238,24 +1375,15 @@ function toShortTime(timestamp?: string | null) {
     || start.getMonth() !== end.getMonth()
     || start.getDate() !== end.getDate()
 
-  return date.toLocaleString('zh-CN', crossesDay
-    ? {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }
-    : {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
+  return crossesDay
+    ? `${`${date.getMonth() + 1}`.padStart(2, '0')}/${`${date.getDate()}`.padStart(2, '0')} ${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`
+    : `${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`
 }
 
 function formatDateTime(value?: string | null) {
   if (!value) return '暂无数据'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  const date = new Date(value)
+  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')} ${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}:${`${date.getSeconds()}`.padStart(2, '0')}`
 }
 
 function formatTimeOnly(value?: string | null) {
@@ -1302,13 +1430,6 @@ function buildTrendLabels() {
   )
 }
 
-function buildMockSeries(length: number, base: number, variation: number, digits: number = 1) {
-  return Array.from({ length }).map((_, index) => {
-    const wave = Math.sin(index / 1.6) * variation
-    return Number((base + wave).toFixed(digits))
-  })
-}
-
 function buildTrendSeriesFromPoints(metric: 'voltage' | 'current') {
   const points = trend.value?.points || []
   const values = points
@@ -1316,12 +1437,11 @@ function buildTrendSeriesFromPoints(metric: 'voltage' | 'current') {
     .filter((value): value is number => value !== null && value !== undefined)
 
   if (!values.length) {
-    const base = metric === 'voltage' ? 401 : 48
     return {
-      values: buildMockSeries(buildTrendLabels().length, base, metric === 'voltage' ? 8 : 5),
+      values: points.map((point) => (metric === 'voltage' ? point.voltage : point.current) ?? null),
       peak: null,
       valley: null,
-      isMock: true,
+      isMock: false,
     }
   }
 
@@ -1350,7 +1470,7 @@ function trendModelFromSingleSeries(options: {
     axes: [{ name: options.unit }],
     series: [{ name: options.name, data: options.values, color: options.color, area: true }],
     summary: options.summaryItems,
-    empty: false,
+    empty: !options.values.some((value) => value !== null && value !== undefined),
     emptyText: options.emptyText,
     hint: options.hint,
     isMock: options.isMock,
@@ -1427,8 +1547,47 @@ function statusTagType(code?: string) {
         </section>
 
         <aside class="comp-side-column">
-          <CompensationEventTimeline :events="compensationEvents" />
           <CompensationStatusSummary :items="compensationStatusItems" />
+          <CompensationEventTimeline :events="compensationEvents" />
+          <section
+            v-if="compensationSubtype === 'capacitor_bank_controller'"
+            class="side-panel side-panel--muted control-summary-panel"
+          >
+            <div class="side-panel__head">
+              <h3>控制参数摘要</h3>
+              <span>监控页仅展示只读摘要，完整参数与控制能力请进入控制台查看。</span>
+            </div>
+
+            <div
+              v-if="capacitorBankControlSummaryItems.some((item) => item.value !== '暂无参数')"
+              class="profile-list"
+            >
+              <div
+                v-for="item in capacitorBankControlSummaryItems"
+                :key="item.label"
+                class="profile-row"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+            <div
+              v-else
+              class="control-summary-empty"
+            >
+              <strong>暂无参数</strong>
+              <span>当前设备还没有可回读的 JKWF 参数快照。</span>
+            </div>
+
+            <el-button
+              class="control-summary-button"
+              type="warning"
+              plain
+              @click="router.push(`/devices/${deviceId}/console`)"
+            >
+              进入控制台
+            </el-button>
+          </section>
           <CompensationDeviceProfile :items="compensationProfileItems" />
         </aside>
       </div>
@@ -1591,8 +1750,8 @@ function statusTagType(code?: string) {
         </section>
 
         <aside class="side-column">
-          <CompensationEventTimeline :events="compensationEvents" />
           <CompensationStatusSummary :items="genericStatusItems" />
+          <CompensationEventTimeline :events="compensationEvents" />
           <CompensationDeviceProfile :items="compensationProfileItems" />
         </aside>
       </div>
@@ -1737,6 +1896,34 @@ function statusTagType(code?: string) {
 
 .trend-chart {
   height: 360px;
+  width: 100%;
+}
+
+.control-summary-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-summary-empty {
+  min-height: 92px;
+  border: 1px dashed rgba(63, 82, 107, 0.72);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  color: #8ea0bc;
+  text-align: center;
+  padding: 12px;
+}
+
+.control-summary-empty strong {
+  color: #eef4ff;
+}
+
+.control-summary-button {
   width: 100%;
 }
 

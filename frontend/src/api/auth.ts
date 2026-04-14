@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { AxiosRequestConfig } from 'axios'
 import type { SuccessResponse } from '@/types/api'
 
 export interface AuthSession {
@@ -26,12 +27,15 @@ export interface CurrentUserProfile {
  * 所以这里参数类型是 URLSearchParams
  */
 export function loginApi(data: URLSearchParams) {
-  return request.post<URLSearchParams, AuthSession>('/auth/login', data, {
+  const config = {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     skipAuthRefresh: true,
     skipAuthHeader: true,
+  } as AxiosRequestConfig & { skipAuthRefresh: true; skipAuthHeader: true }
+  return request.post<URLSearchParams, AuthSession>('/auth/login', data, {
+    ...config,
   })
 }
 

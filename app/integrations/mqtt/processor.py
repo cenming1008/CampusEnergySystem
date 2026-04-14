@@ -27,6 +27,7 @@ from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastM
 from app.services.mqtt_reliability_service import MqttReliabilityService
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import CapacitorBankTelemetry, Device, MqttIngestionRecord, SVGTelemetry
+from app.services.capacitor_bank_service import CapacitorBankService
 
 
 FIELD_ALIASES = {
@@ -135,6 +136,24 @@ FIELD_ALIASES = {
     "circuit_state_1": "circuit_state_reg_1",
     "circuit_state_2": "circuit_state_reg_2",
     "circuit_state_3": "circuit_state_reg_3",
+    # JKWF 参数快照字段
+    "switch_on_pf": "switch_on_power_factor",
+    "switch_off_pf": "switch_off_power_factor",
+    "switch_on_delay": "switch_on_delay_seconds",
+    "switch_off_delay": "switch_off_delay_seconds",
+    "common_output_circuits": "common_output_circuit_count",
+    "split_output_circuits": "split_output_circuit_count",
+    "common_capacity_step": "common_step_capacity_kvar",
+    "split_capacity_step": "split_step_capacity_kvar",
+    "ct_ratio_primary": "ct_primary_current",
+    "overvoltage_threshold_v": "overvoltage_threshold",
+    "voltage_thd_threshold": "voltage_harmonic_threshold",
+    "current_thd_threshold": "current_harmonic_threshold",
+    "temperature_limit": "temperature_upper_limit",
+    "alarm_event": "alarm_drive_event",
+    "baudrate": "baud_rate",
+    "terminal_scheme": "terminal_assignment_scheme",
+    "current_polarity_identify": "current_polarity_identification_enabled",
 }
 
 MEANINGFUL_FIELDS = (
@@ -392,6 +411,28 @@ _CAPACITOR_BANK_TELEMETRY_FIELDS = (
     "circuit_state_common_1", "circuit_state_common_2", "circuit_state_common_3",
 )
 
+_CAPACITOR_BANK_CONTROL_PROFILE_FIELDS = (
+    "switch_on_power_factor",
+    "switch_off_power_factor",
+    "switch_on_delay_seconds",
+    "switch_off_delay_seconds",
+    "common_output_circuit_count",
+    "split_output_circuit_count",
+    "common_capacity_code",
+    "split_capacity_code",
+    "common_step_capacity_kvar",
+    "split_step_capacity_kvar",
+    "ct_primary_current",
+    "overvoltage_threshold",
+    "voltage_harmonic_threshold",
+    "current_harmonic_threshold",
+    "temperature_upper_limit",
+    "alarm_drive_event",
+    "baud_rate",
+    "terminal_assignment_scheme",
+    "current_polarity_identification_enabled",
+)
+
 
 def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """从 payload 提取 CapacitorBankTelemetry 字段，并应用 JKWF-LCD 协议解码。"""
@@ -405,6 +446,15 @@ def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str,
         field: merged[field]
         for field in _CAPACITOR_BANK_TELEMETRY_FIELDS
         if field in merged and merged[field] is not None
+    }
+    return extracted if extracted else None
+
+
+def extract_capacitor_bank_control_profile(data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    extracted = {
+        field: data[field]
+        for field in _CAPACITOR_BANK_CONTROL_PROFILE_FIELDS
+        if field in data and data[field] is not None
     }
     return extracted if extracted else None
 
@@ -469,6 +519,15 @@ def persist_device_data(
                     **cap_fields,
                 )
                 session.add(cap_telemetry)
+            cap_profile_fields = extract_capacitor_bank_control_profile(raw_data)
+            if cap_profile_fields:
+                CapacitorBankService.upsert_control_profile(
+                    session,
+                    device_id,
+                    cap_profile_fields,
+                    snapshot_timestamp=timestamp,
+                    source="telemetry",
+                )
 
         session.commit()
         return result.broadcast_data

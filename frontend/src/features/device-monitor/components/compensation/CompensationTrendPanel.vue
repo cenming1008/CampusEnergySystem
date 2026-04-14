@@ -22,7 +22,7 @@ const props = defineProps({
     required: true,
   },
   timeRange: {
-    type: Array as PropType<[Date, Date] | null>,
+    type: Array as unknown as PropType<[Date, Date] | null>,
     default: null,
   },
   shortcuts: {

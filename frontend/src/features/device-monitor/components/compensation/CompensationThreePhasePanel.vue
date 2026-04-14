@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PropType } from 'vue'
+import { computed, type PropType } from 'vue'
 import type {
   CompensationCapacitorBankTelemetry,
   CompensationSvgTelemetry,
@@ -17,7 +17,7 @@ const props = defineProps({
 })
 
 // 优先展示 JKWF-LCD 数据，回退到 SVG 数据
-const activeData = props.capacitorBankTelemetry ?? props.svgTelemetry
+const activeData = computed(() => props.capacitorBankTelemetry ?? props.svgTelemetry)
 
 function fmt(value: number | null | undefined, digits = 1): string {
   if (value === null || value === undefined) return '--'
@@ -67,19 +67,19 @@ function formatTimestamp(value: string | null | undefined): string {
       <!-- 三相电压 -->
       <div class="group-label">三相电压</div>
       <div class="phase-grid">
-        <div class="phase-card">
-          <span class="phase-card__phase">A 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.voltage_a) }}</strong>
+        <div class="phase-card" style="--phase-accent: #60a5fa;">
+          <span class="phase-card__phase phase-card__phase--colored">A 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.voltage_a) }}</strong>
           <small class="phase-card__unit">V</small>
         </div>
-        <div class="phase-card">
-          <span class="phase-card__phase">B 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.voltage_b) }}</strong>
+        <div class="phase-card" style="--phase-accent: #fbbf24;">
+          <span class="phase-card__phase phase-card__phase--colored">B 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.voltage_b) }}</strong>
           <small class="phase-card__unit">V</small>
         </div>
-        <div class="phase-card">
-          <span class="phase-card__phase">C 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.voltage_c) }}</strong>
+        <div class="phase-card" style="--phase-accent: #f87171;">
+          <span class="phase-card__phase phase-card__phase--colored">C 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.voltage_c) }}</strong>
           <small class="phase-card__unit">V</small>
         </div>
       </div>
@@ -87,19 +87,19 @@ function formatTimestamp(value: string | null | undefined): string {
       <!-- 三相电流 -->
       <div class="group-label">三相电流</div>
       <div class="phase-grid">
-        <div class="phase-card">
-          <span class="phase-card__phase">A 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.current_a) }}</strong>
+        <div class="phase-card" style="--phase-accent: #60a5fa;">
+          <span class="phase-card__phase phase-card__phase--colored">A 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.current_a) }}</strong>
           <small class="phase-card__unit">A</small>
         </div>
-        <div class="phase-card">
-          <span class="phase-card__phase">B 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.current_b) }}</strong>
+        <div class="phase-card" style="--phase-accent: #fbbf24;">
+          <span class="phase-card__phase phase-card__phase--colored">B 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.current_b) }}</strong>
           <small class="phase-card__unit">A</small>
         </div>
-        <div class="phase-card">
-          <span class="phase-card__phase">C 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData.current_c) }}</strong>
+        <div class="phase-card" style="--phase-accent: #f87171;">
+          <span class="phase-card__phase phase-card__phase--colored">C 相</span>
+          <strong class="phase-card__val">{{ fmt(activeData?.current_c) }}</strong>
           <small class="phase-card__unit">A</small>
         </div>
       </div>
@@ -119,8 +119,9 @@ function formatTimestamp(value: string | null | undefined): string {
             v-for="(phase, i) in ['A', 'B', 'C']"
             :key="phase"
             class="power-table__row"
+            :style="{ '--phase-accent': i === 0 ? '#60a5fa' : i === 1 ? '#fbbf24' : '#f87171' }"
           >
-            <span class="power-table__phase">{{ phase }} 相</span>
+            <span class="power-table__phase power-table__phase--colored">{{ phase }} 相</span>
             <span>{{ fmt(i === 0 ? capacitorBankTelemetry.active_power_a : i === 1 ? capacitorBankTelemetry.active_power_b : capacitorBankTelemetry.active_power_c) }}</span>
             <span>{{ fmt(i === 0 ? capacitorBankTelemetry.reactive_power_a : i === 1 ? capacitorBankTelemetry.reactive_power_b : capacitorBankTelemetry.reactive_power_c) }}</span>
             <span>{{ fmt(i === 0 ? capacitorBankTelemetry.apparent_power_a : i === 1 ? capacitorBankTelemetry.apparent_power_b : capacitorBankTelemetry.apparent_power_c) }}</span>
@@ -132,7 +133,10 @@ function formatTimestamp(value: string | null | undefined): string {
         <div class="group-label">谐波分析（THD）</div>
         <div class="harmonic-grid">
           <div class="harmonic-row harmonic-row--head">
-            <span></span><span>A 相</span><span>B 相</span><span>C 相</span>
+            <span></span>
+            <span style="color: #60a5fa;">A 相</span>
+            <span style="color: #fbbf24;">B 相</span>
+            <span style="color: #f87171;">C 相</span>
           </div>
           <div class="harmonic-row">
             <span class="harmonic-label">电压 THD</span>
@@ -154,11 +158,11 @@ function formatTimestamp(value: string | null | undefined): string {
       <div class="extra-grid">
         <div class="extra-row">
           <span>电网频率</span>
-          <strong>{{ fmt(activeData.frequency, 2) }} <small>Hz</small></strong>
+          <strong>{{ fmt(activeData?.frequency, 2) }} <small>Hz</small></strong>
         </div>
         <div class="extra-row">
           <span>采样时间</span>
-          <strong>{{ formatTimestamp(activeData.timestamp) }}</strong>
+          <strong>{{ formatTimestamp(activeData?.timestamp) }}</strong>
         </div>
         <template v-if="!capacitorBankTelemetry && svgTelemetry">
           <div class="extra-row">
@@ -399,5 +403,22 @@ function formatTimestamp(value: string | null | undefined): string {
   margin: 10px auto 0;
   font-size: 12px;
   line-height: 1.7;
+}
+
+/* 相位颜色编码 */
+.phase-card {
+  border-top: 3px solid var(--phase-accent, rgba(53, 72, 97, 0.6));
+}
+
+.phase-card__phase--colored {
+  color: var(--phase-accent, #7f93b2);
+}
+
+.power-table__row {
+  border-left: 3px solid var(--phase-accent, transparent);
+}
+
+.power-table__phase--colored {
+  color: var(--phase-accent, #7f93b2);
 }
 </style>
