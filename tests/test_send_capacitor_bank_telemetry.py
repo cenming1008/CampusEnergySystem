@@ -37,6 +37,26 @@ class TestSendCapacitorBankTelemetry(unittest.TestCase):
         self.assertEqual(state.parameter_overrides["switch_on_power_factor"], 98)
         self.assertIn("switch_on_power_factor=98", message)
 
+    def test_apply_control_command_supports_remote_demo_actions(self):
+        state = simulator.ControlSimulationState(enabled=True)
+
+        accepted, message = simulator._apply_control_command(state, {"command": "manual_switch_test"})
+        self.assertTrue(accepted)
+        self.assertEqual(state.parameter_overrides["circuit_state_common_1"], 1)
+        self.assertIn("手动投切测试", message)
+
+        accepted, message = simulator._apply_control_command(state, {"command": "reset_alarm"})
+        self.assertTrue(accepted)
+        self.assertEqual(state.parameter_overrides["jkwf_status"], 0)
+        self.assertFalse(state.parameter_overrides["temp_alarm"])
+        self.assertIn("报警复位", message)
+
+        accepted, message = simulator._apply_control_command(state, {"command": "switch_control_mode"})
+        self.assertTrue(accepted)
+        self.assertEqual(state.control_mode, "manual")
+        self.assertEqual(state.parameter_overrides["terminal_assignment_scheme"], "手动模式")
+        self.assertIn("manual", message)
+
     def test_with_control_state_zeros_runtime_metrics_when_disabled(self):
         payload = {
             "power": 18.2,

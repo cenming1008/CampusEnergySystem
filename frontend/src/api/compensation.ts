@@ -183,6 +183,18 @@ export interface CompensationCapacitorBankControlWriteResponse {
   command_id?: string | null
 }
 
+export interface CompensationCapacitorBankRemoteCommandRequest {
+  action: 'manual_switch_test' | 'reset_alarm' | 'switch_control_mode'
+  reason?: string
+}
+
+export interface CompensationCapacitorBankRemoteCommandResponse {
+  accepted: boolean
+  status: string
+  message: string
+  command_id?: string | null
+}
+
 export function getCompensationSvgOperationsProfile(deviceId: number) {
   return request
     .get<never, CompensationSvgOperationsProfile>(`/devices/${deviceId}/compensation/svg/operations-profile`, { silent: true })
@@ -246,6 +258,17 @@ export function writeCompensationCapacitorBankControlProfile(
   return request
     .post<CompensationCapacitorBankControlWriteRequest, CompensationCapacitorBankControlWriteResponse>(
       `/devices/${deviceId}/compensation/capacitor-bank/control-profile/write`,
+      data,
+    )
+}
+
+export function sendCompensationCapacitorBankRemoteCommand(
+  deviceId: number,
+  data: CompensationCapacitorBankRemoteCommandRequest,
+) {
+  return request
+    .post<CompensationCapacitorBankRemoteCommandRequest, CompensationCapacitorBankRemoteCommandResponse>(
+      `/devices/${deviceId}/compensation/capacitor-bank/remote-command`,
       data,
     )
 }

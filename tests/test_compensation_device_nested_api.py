@@ -165,6 +165,36 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(ctx.exception.detail, "当前设备尚未完成真实参数回读")
 
+    def test_nested_cap_bank_remote_command_returns_accepted_result(self):
+        user = _make_user()
+        mock_session = object()
+        device = SimpleNamespace(device_type="compensation", device_subtype="capacitor_bank_controller")
+        body = compensation_capacitor_bank.CapacitorBankRemoteCommandRequest(action="reset_alarm")
+        expected = {
+            "accepted": True,
+            "status": "accepted",
+            "message": "报警复位指令已入队",
+            "command_id": "52",
+        }
+        with patch.object(compensation_capacitor_bank, "ensure_device_access", return_value=device):
+            with patch.object(
+                compensation_capacitor_bank.CapacitorBankService,
+                "submit_remote_control_command",
+                return_value=expected,
+            ) as mock_submit:
+                with patch.object(compensation_capacitor_bank, "audit_log") as mock_audit:
+                    result = compensation_capacitor_bank.send_device_capacitor_bank_remote_command(1, body, mock_session, user)
+        mock_submit.assert_called_once_with(
+            mock_session,
+            device,
+            action="reset_alarm",
+            operator="tester",
+            reason=None,
+        )
+        mock_audit.assert_called_once()
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["command_id"], "52")
+
 
 if __name__ == "__main__":
     unittest.main()

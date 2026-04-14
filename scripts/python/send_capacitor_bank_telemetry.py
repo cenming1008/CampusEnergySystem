@@ -95,6 +95,7 @@ class ScenarioOptions:
 @dataclass
 class ControlSimulationState:
     enabled: bool = True
+    control_mode: str = "auto"
     parameter_overrides: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -630,6 +631,32 @@ def _apply_control_command(state: ControlSimulationState, command_payload: dict[
         target_value = command_payload.get("target_value")
         state.parameter_overrides[str(parameter_key)] = target_value
         return True, f"已写入参数 {parameter_key}={target_value}"
+    if command == "manual_switch_test":
+        current = int(state.parameter_overrides.get("circuit_state_common_1", 0) or 0)
+        next_value = 0 if current >= 2 else current + 1
+        state.parameter_overrides["circuit_state_common_1"] = next_value
+        state.parameter_overrides["reactive_power"] = round(-18.0 - next_value * 2.5, 2)
+        return True, f"已执行手动投切测试，公补 1 当前投入 {next_value} 组"
+    if command == "reset_alarm":
+        for field in (
+            "temp_alarm",
+            "overvoltage_alarm_a",
+            "overvoltage_alarm_b",
+            "overvoltage_alarm_c",
+            "voltage_thd_alarm_a",
+            "voltage_thd_alarm_b",
+            "voltage_thd_alarm_c",
+            "current_thd_alarm_a",
+            "current_thd_alarm_b",
+            "current_thd_alarm_c",
+        ):
+            state.parameter_overrides[field] = False
+        state.parameter_overrides["jkwf_status"] = 0
+        return True, "已执行报警复位，当前模拟告警位已清空"
+    if command == "switch_control_mode":
+        state.control_mode = "manual" if state.control_mode == "auto" else "auto"
+        state.parameter_overrides["terminal_assignment_scheme"] = "手动模式" if state.control_mode == "manual" else "自动模式"
+        return True, f"已切换控制模式为 {state.control_mode}"
     return False, f"暂不支持命令 {command or '<empty>'}"
 
 
@@ -640,6 +667,7 @@ def _publish_control_feedback(client: mqtt.Client, runtime: RuntimeContext, reas
         payload = _build_payload(runtime.device, datetime.now(), tick, runtime.options)
         payload = _with_control_state(payload, runtime.state)
         payload["control_feedback_reason"] = reason
+        payload["simulated_control_mode"] = runtime.state.control_mode
     return _publish_payload(client, runtime.telemetry_topic, payload)
 
 

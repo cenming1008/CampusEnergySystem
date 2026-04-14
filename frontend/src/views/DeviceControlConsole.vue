@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Monitor, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowLeft, Lock, Monitor, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { toggleDeviceStatus } from '@/api/device'
 import {
@@ -12,6 +12,7 @@ import {
 } from '@/api/deviceMonitor'
 import {
   getCompensationCapacitorBankControlProfile,
+  sendCompensationCapacitorBankRemoteCommand,
   writeCompensationCapacitorBankControlProfile,
   type CompensationCapacitorBankControlProfile,
 } from '@/api/compensation'
@@ -29,7 +30,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const { canManageDevices, canControlDevices, isAdmin } = usePermissions()
+const { canManageDevices, canControlDevices, currentRole, isAdmin } = usePermissions()
 
 const deviceId = computed(() => Number(route.params.id))
 const loading = ref(false)
@@ -60,6 +61,11 @@ const compensationSubtype = computed(() => resolveCompensationSubtype(
 const isCapacitorBankController = computed(() => compensationSubtype.value === 'capacitor_bank_controller')
 const controlCapabilities = computed(() => controlProfile.value?.capabilities)
 const canToggleRemotely = computed(() =>
+  Boolean(canControlDevices.value)
+  && runtimeStatus.value?.is_online !== false
+  && controlCapabilities.value?.supports_remote_control === true,
+)
+const canRunRemoteAction = computed(() =>
   Boolean(canControlDevices.value)
   && runtimeStatus.value?.is_online !== false
   && controlCapabilities.value?.supports_remote_control === true,
@@ -134,23 +140,26 @@ const actionCards = computed(() => [
   {
     title: '手动投切测试',
     icon: Setting,
-    hint: controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
-    actionLabel: '待开通',
-    enabled: false,
+    hint: canRunRemoteAction.value ? '向模拟器发送一次手动投切测试命令，并立即回放新的投入状态。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    actionLabel: '执行测试',
+    enabled: canRunRemoteAction.value,
+    handler: () => handleRemoteCommand('manual_switch_test'),
   },
   {
     title: '报警复位',
     icon: Refresh,
-    hint: controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
-    actionLabel: '待开通',
-    enabled: false,
+    hint: canRunRemoteAction.value ? '清除模拟器中的告警状态位，并补发一条最新快照。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    actionLabel: '立即复位',
+    enabled: canRunRemoteAction.value,
+    handler: () => handleRemoteCommand('reset_alarm'),
   },
   {
     title: '控制模式切换',
     icon: Setting,
-    hint: controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
-    actionLabel: '待开通',
-    enabled: false,
+    hint: canRunRemoteAction.value ? '切换模拟器控制模式，并补发一条最新状态反馈。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    actionLabel: '切换模式',
+    enabled: canRunRemoteAction.value,
+    handler: () => handleRemoteCommand('switch_control_mode'),
   },
 ])
 
@@ -216,6 +225,53 @@ async function handleToggleDevice() {
     await loadPage()
   } catch {
     ElMessage.error(`${actionLabel}指令发送失败，请稍后重试`)
+  } finally {
+    toggleSubmitting.value = false
+  }
+}
+
+const remoteCommandMeta = {
+  manual_switch_test: {
+    label: '手动投切测试',
+    confirm: '将向设备发送一次手动投切测试指令，模拟器会回放新的投切状态。',
+  },
+  reset_alarm: {
+    label: '报警复位',
+    confirm: '将向设备发送报警复位指令，模拟器会清除当前告警标志位。',
+  },
+  switch_control_mode: {
+    label: '控制模式切换',
+    confirm: '将向设备发送控制模式切换指令，模拟器会切换当前控制模式。',
+  },
+} as const
+
+async function handleRemoteCommand(action: keyof typeof remoteCommandMeta) {
+  if (!deviceId.value || !canRunRemoteAction.value) return
+  const meta = remoteCommandMeta[action]
+  try {
+    await ElMessageBox.confirm(
+      `${meta.confirm}\n当前登录角色：${roleLabel(currentRole.value)}。`,
+      meta.label,
+      {
+        confirmButtonText: '确认发送',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+
+  toggleSubmitting.value = true
+  try {
+    const response = await sendCompensationCapacitorBankRemoteCommand(deviceId.value, {
+      action,
+      reason: `控制台${meta.label}`,
+    })
+    ElMessage.success(response.message || `${meta.label}指令已发送`)
+    await loadPage()
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, `${meta.label}失败，请稍后重试`))
   } finally {
     toggleSubmitting.value = false
   }
@@ -342,6 +398,9 @@ function normalizeWriteTargetValue(meta: NonNullable<typeof selectedWriteMeta.va
 function resolveLogTitle(log: DeviceControlLog) {
   if (log.action === 'start') return '启用设备'
   if (log.action === 'stop') return '停用设备'
+  if (log.action === 'manual_switch_test') return '手动投切测试'
+  if (log.action === 'reset_alarm') return '报警复位'
+  if (log.action === 'switch_control_mode') return '控制模式切换'
   if (log.action.startsWith('write:')) {
     const meta = getCapacitorBankControlParameterMeta(log.action.slice(6))
     return meta ? `参数写入 · ${meta.label}` : `参数写入 · ${log.action.slice(6)}`
@@ -373,6 +432,13 @@ function extractErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function roleLabel(role: string) {
+  if (role === 'admin') return '管理员'
+  if (role === 'operator') return '操作员'
+  if (role === 'maintainer') return '运维员'
+  return '访客'
+}
+
 watch(() => route.params.id, () => {
   void loadPage()
 })
@@ -387,6 +453,7 @@ onMounted(() => {
     v-loading="loading"
     class="console-page"
   >
+    <!-- Header -->
     <div class="console-head">
       <div class="console-head__left">
         <el-button
@@ -397,7 +464,14 @@ onMounted(() => {
           返回设备台账
         </el-button>
         <div>
-          <h2>{{ archive?.name || '补偿控制台' }}</h2>
+          <div class="console-head__title-row">
+            <h2>{{ archive?.name || '补偿控制台' }}</h2>
+            <span
+              class="status-dot"
+              :class="{ 'status-dot--online': runtimeStatus?.is_online }"
+            />
+            <span class="status-dot-label">{{ runtimeStatus?.is_online ? '在线' : '离线' }}</span>
+          </div>
           <p>{{ archive?.sn || '--' }} · {{ archive?.location || '未配置安装位置' }}</p>
         </div>
       </div>
@@ -426,204 +500,256 @@ onMounted(() => {
     </div>
 
     <template v-else-if="isCapacitorBankController">
-      <section class="console-panel">
-        <div class="console-panel__head">
-          <h3>设备概览</h3>
-          <span>确认设备身份、在线状态与最新通讯情况后再进行控制或参数核对。</span>
-        </div>
-        <div class="overview-grid">
-          <div
-            v-for="item in overviewItems"
-            :key="item.label"
-            class="overview-card"
-          >
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </div>
-        </div>
-      </section>
+      <div class="console-body">
+        <!-- Left: main panels -->
+        <div class="console-main">
+          <!-- Section 1: 设备概览 -->
+          <section class="console-panel console-panel--blue">
+            <div class="console-panel__head">
+              <h3>设备概览</h3>
+              <span>确认设备身份、在线状态与最新通讯情况后再进行控制或参数核对。</span>
+            </div>
+            <div class="overview-grid">
+              <div
+                v-for="item in overviewItems"
+                :key="item.label"
+                class="overview-card"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </section>
 
-      <section class="console-panel">
-        <div class="console-panel__head">
-          <h3>远程控制</h3>
-          <span>{{ controlCapabilities?.remote_control_status_message || '远程控制链路尚未接入。' }}</span>
-        </div>
-        <div class="remote-actions">
-          <button
-            v-for="card in actionCards"
-            :key="card.title"
-            class="remote-card"
-            :class="{ 'remote-card--enabled': card.enabled }"
-            type="button"
-            :disabled="!card.enabled || toggleSubmitting"
-            @click="card.handler?.()"
-          >
-            <component :is="card.icon" class="remote-card__icon" />
-            <strong>{{ card.title }}</strong>
-            <span>{{ card.hint }}</span>
-            <em>{{ card.actionLabel }}</em>
-          </button>
-        </div>
-        <div class="capability-note">
-          <el-tag
-            :type="controlCapabilities?.supports_remote_control ? 'success' : 'info'"
-            effect="dark"
-          >
-            {{ controlCapabilities?.supports_remote_control ? '已开通远程控制' : '远程控制待开通' }}
-          </el-tag>
+          <!-- Section 2: 远程控制 -->
+          <section class="console-panel console-panel--amber">
+            <div class="console-panel__head">
+              <h3>远程控制</h3>
+              <span>{{ controlCapabilities?.remote_control_status_message || '远程控制链路尚未接入。' }}</span>
+            </div>
+            <div class="remote-actions">
+              <button
+                v-for="card in actionCards"
+                :key="card.title"
+                class="remote-card"
+                :class="card.enabled ? 'remote-card--enabled' : 'remote-card--locked'"
+                type="button"
+                :disabled="!card.enabled || toggleSubmitting"
+                @click="card.handler?.()"
+              >
+                <div class="remote-card__top">
+                  <component
+                    :is="card.icon"
+                    class="remote-card__icon"
+                  />
+                  <component
+                    :is="Lock"
+                    v-if="!card.enabled"
+                    class="remote-card__lock-icon"
+                  />
+                </div>
+                <strong>{{ card.title }}</strong>
+                <span>{{ card.hint }}</span>
+                <el-button
+                  v-if="card.enabled"
+                  type="warning"
+                  size="small"
+                  :loading="toggleSubmitting"
+                  class="remote-card__action-btn"
+                  @click.stop="card.handler?.()"
+                >
+                  {{ card.actionLabel }}
+                </el-button>
+                <em v-else>{{ card.actionLabel }}</em>
+              </button>
+            </div>
+            <div class="capability-note">
+              <el-tag
+                :type="controlCapabilities?.supports_remote_control ? 'success' : 'info'"
+                effect="dark"
+              >
+                {{ controlCapabilities?.supports_remote_control ? '已开通远程控制' : '远程控制待开通' }}
+              </el-tag>
           <small>
-            当前账号控制权限：{{ canControlDevices ? '具备设备控制权限' : '无设备控制权限' }}
+            当前登录角色：{{ roleLabel(currentRole) }}
+            · {{ canControlDevices ? '可执行远程控制' : '没有远程控制权限' }}
             · 最近结果：{{ latestControlLog ? `${latestControlLog.action} / ${latestControlLog.result || 'success'} / ${formatDateTime(latestControlLog.created_at)}` : '暂无记录' }}
           </small>
         </div>
       </section>
 
-      <section class="console-panel">
-        <div class="console-panel__head">
-          <h3>参数管理</h3>
-          <span>{{ controlCapabilities?.write_status_message || '当前仅开放只读参数展示。' }}</span>
-        </div>
-        <div class="summary-strip">
-          <div
-            v-for="item in summaryItems"
-            :key="item.label"
-            class="summary-chip"
-          >
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </div>
-        </div>
-        <div class="capability-note">
-          <el-tag
-            :type="controlProfile?.source_status === 'fresh' ? 'success' : controlProfile?.source_status === 'stale' ? 'warning' : 'info'"
-            effect="dark"
-          >
-            {{ sourceStatusText(controlProfile?.source_status) }}
-          </el-tag>
-          <small>
-            来源：{{ controlProfile?.source || '未上报' }}
-            · 快照时间：{{ formatDateTime(controlProfile?.snapshot_timestamp || controlProfile?.updated_at) }}
-          </small>
-        </div>
+          <!-- Section 3: 参数管理 -->
+          <section class="console-panel console-panel--teal">
+            <div class="console-panel__head">
+              <h3>参数管理</h3>
+              <span>{{ controlCapabilities?.write_status_message || '当前仅开放只读参数展示。' }}</span>
+            </div>
 
-        <div class="param-groups">
-          <section
-            v-for="group in groupedParameters"
-            :key="group.key"
-            class="param-group"
-          >
-            <header class="param-group__head">
-              <h4>{{ group.label }}</h4>
-              <span>协议参数只读快照</span>
-            </header>
-            <div class="param-table">
-              <div class="param-table__row param-table__row--head">
-                <span>参数</span>
-                <span>当前值</span>
-                <span>寄存器</span>
-                <span>读写属性</span>
-                <span>最后更新时间</span>
-              </div>
-              <div
-                v-for="item in group.items"
-                :key="item.key"
-                class="param-table__row"
-              >
-                <div>
-                  <strong>{{ item.label }}</strong>
-                  <small>{{ item.description }}</small>
+            <!-- Sub-zone A: 只读快照 -->
+            <div class="param-zone param-zone--readonly">
+              <div class="param-zone__head">
+                <span class="param-zone__label">只读参数快照</span>
+                <div class="param-zone__head-right">
+                  <el-tag
+                    :type="controlProfile?.source_status === 'fresh' ? 'success' : controlProfile?.source_status === 'stale' ? 'warning' : 'info'"
+                    effect="dark"
+                    size="small"
+                  >
+                    {{ sourceStatusText(controlProfile?.source_status) }}
+                  </el-tag>
+                  <small>来源：{{ controlProfile?.source || '未上报' }} · 快照：{{ formatDateTime(controlProfile?.snapshot_timestamp || controlProfile?.updated_at) }}</small>
                 </div>
-                <span>{{ formatCapacitorBankControlValue(controlProfile, item) }}</span>
-                <span>{{ item.register }}</span>
-                <span>{{ item.readWrite }}</span>
-                <span>{{ formatDateTime(controlProfile?.snapshot_timestamp || controlProfile?.updated_at) }}</span>
+              </div>
+              <div class="summary-strip">
+                <div
+                  v-for="item in summaryItems"
+                  :key="item.label"
+                  class="summary-chip"
+                >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+              <div class="param-groups">
+                <section
+                  v-for="group in groupedParameters"
+                  :key="group.key"
+                  class="param-group"
+                >
+                  <header class="param-group__head">
+                    <h4>{{ group.label }}</h4>
+                    <span>协议参数只读快照</span>
+                  </header>
+                  <div class="param-table">
+                    <div class="param-table__row param-table__row--head">
+                      <span>参数 / 说明</span>
+                      <span>当前值</span>
+                      <span class="param-table__meta-col">寄存器 · 读写</span>
+                    </div>
+                    <div
+                      v-for="item in group.items"
+                      :key="item.key"
+                      class="param-table__row"
+                    >
+                      <div class="param-table__label">
+                        <strong>{{ item.label }}</strong>
+                        <small>{{ item.description }}</small>
+                      </div>
+                      <span class="param-table__value">{{ formatCapacitorBankControlValue(controlProfile, item) }}</span>
+                      <div class="param-table__meta param-table__meta-col">
+                        <span>{{ item.register }}</span>
+                        <small>{{ item.readWrite }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <!-- Sub-zone B: 受控写入 -->
+            <div
+              class="param-zone param-zone--writable"
+              :class="{ 'param-zone--locked': !canWriteParameters }"
+            >
+              <div class="param-zone__head">
+                <span class="param-zone__label">受控写入入口</span>
+                <div class="param-zone__head-right">
+                  <el-tag
+                    :type="canWriteParameters ? 'success' : 'warning'"
+                    effect="dark"
+                    size="small"
+                  >
+                    {{ canWriteParameters ? '当前允许写入' : '当前禁止写入' }}
+                  </el-tag>
+                  <el-tag
+                    :type="controlCapabilities?.supports_write ? 'success' : 'info'"
+                    effect="dark"
+                    size="small"
+                  >
+                    {{ controlCapabilities?.supports_write ? '支持参数写入' : '参数写入待开通' }}
+                  </el-tag>
+                </div>
+              </div>
+              <p class="param-zone__desc">
+                仅开放低风险参数，提交前需二次确认；设备端结果仍需等待回读或回执核对。
+                当前账号参数权限：{{ isAdmin ? '管理员，可发起受控写入' : canManageDevices ? '可查看档案，不可写入' : '仅查看' }}
+              </p>
+              <div
+                v-if="writeDisabledReason"
+                class="console-inline-alert"
+              >
+                <strong>写入入口已锁定</strong>
+                <span>{{ writeDisabledReason }}</span>
+              </div>
+              <div class="editable-grid">
+                <button
+                  v-for="item in editableParameterCards"
+                  :key="item.key"
+                  class="editable-card"
+                  type="button"
+                  :disabled="!canWriteParameters"
+                  @click="openWriteDialog(String(item.key))"
+                >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.currentValue }}</strong>
+                  <small>{{ item.description }}</small>
+                  <em>{{ canWriteParameters ? '修改参数' : '当前不可写入' }}</em>
+                </button>
               </div>
             </div>
           </section>
         </div>
-        <div class="capability-note">
-          <el-tag
-            :type="controlCapabilities?.supports_write ? 'success' : 'info'"
-            effect="dark"
-          >
-            {{ controlCapabilities?.supports_write ? '支持参数写入' : '参数写入待开通' }}
-          </el-tag>
-          <small>当前账号参数权限：{{ isAdmin ? '管理员，可发起受控写入' : canManageDevices ? '可查看档案，不可写入' : '仅查看' }}</small>
-        </div>
 
-        <div class="write-panel">
-          <div class="write-panel__head">
-            <div>
-              <strong>受控写入入口</strong>
-              <span>仅开放低风险参数，提交前需二次确认；设备端结果仍需等待回读或回执核对。</span>
+        <!-- Right: logs sidebar -->
+        <aside class="console-sidebar">
+          <section class="console-panel console-panel--neutral">
+            <div class="console-panel__head">
+              <h3>写入日志 / 结果</h3>
+              <span>最近控制记录</span>
             </div>
-            <el-tag
-              :type="canWriteParameters ? 'success' : 'warning'"
-              effect="dark"
+            <div
+              v-if="!writeLogs.length"
+              class="empty-box"
             >
-              {{ canWriteParameters ? '当前允许写入' : '当前禁止写入' }}
-            </el-tag>
-          </div>
-          <div
-            v-if="writeDisabledReason"
-            class="console-inline-alert"
-          >
-            <strong>写入入口已锁定</strong>
-            <span>{{ writeDisabledReason }}</span>
-          </div>
-          <div class="editable-grid">
-            <button
-              v-for="item in editableParameterCards"
-              :key="item.key"
-              class="editable-card"
-              type="button"
-              :disabled="!canWriteParameters"
-              @click="openWriteDialog(String(item.key))"
+              <strong>暂无写入日志</strong>
+              <span>当前还没有控制记录，可先尝试启用/停用设备验证远程控制链路。</span>
+            </div>
+            <div
+              v-else
+              class="log-timeline"
             >
-              <span>{{ item.label }}</span>
-              <strong>{{ item.currentValue }}</strong>
-              <small>{{ item.description }}</small>
-              <em>{{ canWriteParameters ? '修改参数' : '当前不可写入' }}</em>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="console-panel">
-        <div class="console-panel__head">
-          <h3>写入日志 / 结果</h3>
-          <span>当前展示最近控制记录；参数下发开通后也会复用同一区域追踪结果。</span>
-        </div>
-        <div
-          v-if="!writeLogs.length"
-          class="empty-box"
-        >
-          <strong>暂无写入日志</strong>
-          <span>当前还没有控制记录，可先尝试启用/停用设备验证远程控制链路。</span>
-        </div>
-        <div
-          v-else
-          class="log-list"
-        >
-          <div
-            v-for="log in writeLogs"
-            :key="log.id"
-            class="log-row"
-          >
-            <div>
-              <strong>{{ resolveLogTitle(log) }}</strong>
-              <span>{{ formatDateTime(log.created_at) }} · {{ log.operator || '未知操作人' }}</span>
-              <small v-if="log.reason">{{ log.reason }}</small>
+              <div
+                v-for="log in writeLogs"
+                :key="log.id"
+                class="log-entry"
+              >
+                <div class="log-entry__track">
+                  <span
+                    class="log-entry__dot"
+                    :class="`log-entry__dot--${resolveLogTagType(log)}`"
+                  />
+                  <span class="log-entry__line" />
+                </div>
+                <div class="log-entry__content">
+                  <div class="log-entry__top">
+                    <strong>{{ resolveLogTitle(log) }}</strong>
+                    <el-tag
+                      :type="resolveLogTagType(log)"
+                      effect="dark"
+                      size="small"
+                    >
+                      {{ log.result || 'success' }}
+                    </el-tag>
+                  </div>
+                  <span>{{ formatDateTime(log.created_at) }} · {{ log.operator || '未知操作人' }}</span>
+                  <small v-if="log.reason">{{ log.reason }}</small>
+                  <small class="log-entry__source">{{ log.command_source || 'api' }}</small>
+                </div>
+              </div>
             </div>
-            <div class="log-meta">
-              <el-tag :type="resolveLogTagType(log)" effect="dark">
-                {{ log.result || 'success' }}
-              </el-tag>
-              <small>{{ log.command_source || 'api' }}</small>
-            </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </aside>
+      </div>
     </template>
 
     <el-dialog
@@ -693,6 +819,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* ─── Base ─────────────────────────────────────────────────── */
+
 .console-page {
   display: flex;
   flex-direction: column;
@@ -700,21 +828,18 @@ onMounted(() => {
   color: #dbe5f4;
 }
 
-.console-head,
-.console-panel,
-.console-alert {
-  border-radius: 18px;
-  border: 1px solid rgba(52, 72, 99, 0.88);
-  background: linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
+/* ─── Header ────────────────────────────────────────────────── */
 
 .console-head {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
   align-items: center;
-  padding: 18px 20px;
+  gap: 20px;
+  padding: 18px 24px;
+  border-radius: 16px;
+  border: 1px solid rgba(52, 72, 99, 0.88);
+  background: linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .console-head__left {
@@ -723,14 +848,38 @@ onMounted(() => {
   gap: 16px;
 }
 
-.console-head__left h2 {
+.console-head__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.console-head__title-row h2 {
   margin: 0;
   font-size: 22px;
   color: #f7fbff;
 }
 
-.console-head__left p {
-  margin: 6px 0 0;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4b5563;
+  flex-shrink: 0;
+}
+
+.status-dot--online {
+  background: #4ade80;
+  box-shadow: 0 0 7px rgba(74, 222, 128, 0.55);
+}
+
+.status-dot-label {
+  font-size: 12px;
+  color: #8ea0bc;
+}
+
+.console-head__left > div > p {
+  margin: 5px 0 0;
   color: #8ea5c1;
   font-size: 13px;
 }
@@ -738,18 +887,19 @@ onMounted(() => {
 .console-head__actions {
   display: flex;
   gap: 12px;
+  flex-shrink: 0;
 }
 
-.console-alert,
-.console-panel {
-  padding: 18px 20px;
-}
+/* ─── Alert ──────────────────────────────────────────────────── */
 
 .console-alert {
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(196, 88, 88, 0.55);
+  background: linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-color: rgba(196, 88, 88, 0.55);
 }
 
 .console-alert strong {
@@ -761,6 +911,71 @@ onMounted(() => {
   font-size: 13px;
 }
 
+/* ─── Two-column body ─────────────────────────────────────────── */
+
+.console-body {
+  display: grid;
+  grid-template-columns: 1fr min(320px, 30%);
+  gap: 20px;
+  align-items: start;
+}
+
+.console-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.console-sidebar {
+  position: sticky;
+  top: 20px;
+}
+
+/* ─── Panels ─────────────────────────────────────────────────── */
+
+.console-panel {
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid rgba(52, 72, 99, 0.88);
+  background: linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  position: relative;
+}
+
+/* Left accent bar */
+.console-panel::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+}
+
+.console-panel--blue {
+  background-image:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.04) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
+}
+.console-panel--blue::before { background: #60a5fa; }
+
+.console-panel--amber {
+  background-image:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.05) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
+}
+.console-panel--amber::before { background: #fbbf24; }
+
+.console-panel--teal {
+  background-image:
+    linear-gradient(180deg, rgba(45, 212, 191, 0.04) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(18, 31, 49, 0.98), rgba(11, 21, 35, 0.98));
+}
+.console-panel--teal::before { background: #2dd4bf; }
+
+.console-panel--neutral::before { background: rgba(110, 130, 160, 0.45); }
+
 .console-panel__head {
   display: flex;
   justify-content: space-between;
@@ -769,155 +984,375 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.console-panel__head h3,
-.param-group__head h4 {
+.console-panel__head h3 {
   margin: 0;
-  color: #f3f7fb;
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.console-panel__head span,
-.param-group__head span {
+.console-panel--blue  .console-panel__head h3 { color: #93c5fd; }
+.console-panel--amber .console-panel__head h3 { color: #fde68a; }
+.console-panel--teal  .console-panel__head h3 { color: #5eead4; }
+.console-panel--neutral .console-panel__head h3 { color: #cbd5e1; }
+
+.console-panel__head > span {
   color: #8ca0ba;
   font-size: 12px;
   line-height: 1.5;
+  text-align: right;
 }
 
-.overview-grid,
-.summary-strip,
-.remote-actions {
-  display: grid;
-  gap: 14px;
-}
+/* ─── Overview grid ──────────────────────────────────────────── */
 
 .overview-grid {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
 }
 
-.overview-card,
-.summary-chip,
-.remote-card {
-  border-radius: 14px;
-  border: 1px solid rgba(48, 70, 95, 0.82);
-  background: rgba(19, 34, 53, 0.88);
-}
-
-.overview-card,
-.summary-chip {
+.overview-card {
   padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background: rgba(19, 34, 53, 0.7);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.overview-card span,
-.summary-chip span {
+.overview-card span {
   color: #91a5c2;
   font-size: 12px;
 }
 
-.overview-card strong,
-.summary-chip strong {
+.overview-card strong {
   color: #f7fbff;
   line-height: 1.5;
+  font-size: 14px;
 }
 
+/* ─── Remote control cards ───────────────────────────────────── */
+
 .remote-actions {
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .remote-card {
-  min-height: 128px;
+  min-height: 136px;
   padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(48, 70, 95, 0.6);
+  background: rgba(19, 34, 53, 0.7);
   text-align: left;
   color: #a7b7cb;
-  cursor: not-allowed;
-  opacity: 0.72;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.remote-card--locked {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: grayscale(0.25);
+}
+
 .remote-card--enabled {
   cursor: pointer;
   opacity: 1;
-  border-color: rgba(245, 158, 11, 0.48);
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.1);
+  border-color: rgba(251, 191, 36, 0.5);
+  background: linear-gradient(
+    135deg,
+    rgba(120, 80, 10, 0.28) 0%,
+    rgba(19, 34, 53, 0.85) 60%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, 0.12),
+    0 4px 16px rgba(251, 191, 36, 0.07);
+}
+
+.remote-card--enabled:hover {
+  border-color: rgba(251, 191, 36, 0.7);
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, 0.2),
+    0 4px 20px rgba(251, 191, 36, 0.12);
+}
+
+.remote-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .remote-card__icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  color: #4b6282;
 }
 
-.remote-card strong {
-  color: #e8f0fb;
+.remote-card--enabled .remote-card__icon {
+  color: #fbbf24;
+}
+
+.remote-card__lock-icon {
+  width: 14px;
+  height: 14px;
+  color: #4b5e75;
+  opacity: 0.7;
+}
+
+.remote-card--enabled strong {
+  color: #fde68a;
+}
+
+.remote-card--locked strong {
+  color: #8ca0ba;
 }
 
 .remote-card span {
   font-size: 12px;
   line-height: 1.6;
+  color: #8ca0ba;
 }
 
 .remote-card em {
   margin-top: auto;
   font-style: normal;
-  color: #fbbf24;
-  font-size: 12px;
+  color: #4b6282;
+  font-size: 11px;
 }
 
+.remote-card__action-btn {
+  margin-top: auto;
+  width: 100%;
+}
+
+/* ─── Capability note ────────────────────────────────────────── */
+
 .capability-note {
-  margin-top: 14px;
+  margin-top: 16px;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .capability-note small {
-  color: #8ca0ba;
+  color: #7a90ab;
+  font-size: 11px;
 }
 
-.write-panel {
-  margin-top: 18px;
+/* ─── Param zones ────────────────────────────────────────────── */
+
+.param-zone {
+  margin-top: 20px;
   padding: 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(58, 78, 104, 0.82);
-  background: rgba(16, 28, 45, 0.76);
+  border-radius: 12px;
+  border: 1px solid transparent;
 }
 
-.write-panel__head {
+.param-zone__head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.write-panel__head strong {
-  display: block;
-  color: #f3f7fb;
+.param-zone__head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.write-panel__head span {
-  display: block;
-  margin-top: 6px;
+.param-zone__head-right small {
+  color: #7a90ab;
+  font-size: 11px;
+}
+
+.param-zone__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.param-zone--readonly {
+  background: rgba(30, 58, 90, 0.2);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.param-zone--readonly .param-zone__label { color: #60a5fa; }
+
+.param-zone--writable {
+  background: rgba(90, 58, 12, 0.2);
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+.param-zone--writable .param-zone__label { color: #fbbf24; }
+
+.param-zone--locked {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.param-zone__desc {
+  margin: 0 0 12px;
   color: #8ca0ba;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
-.console-inline-alert {
-  margin-top: 14px;
+/* ─── Summary strip ──────────────────────────────────────────── */
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.summary-chip {
   padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(170, 122, 36, 0.42);
-  background: rgba(73, 48, 14, 0.24);
+  border-radius: 10px;
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background: rgba(14, 26, 42, 0.6);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+}
+
+.summary-chip span {
+  color: #91a5c2;
+  font-size: 11px;
+}
+
+.summary-chip strong {
+  color: #f7fbff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* ─── Param groups & table ───────────────────────────────────── */
+
+.param-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.param-group {
+  border: 1px solid rgba(44, 65, 89, 0.7);
+  border-radius: 12px;
+  background: rgba(12, 22, 38, 0.7);
+  overflow: hidden;
+}
+
+.param-group__head {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(44, 65, 89, 0.7);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.param-group__head h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #c8d8ee;
+}
+
+.param-group__head span {
+  color: #6a84a2;
+  font-size: 11px;
+}
+
+.param-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.param-table__row {
+  display: grid;
+  grid-template-columns: 1fr 160px 120px;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(33, 52, 74, 0.6);
+  align-items: center;
+}
+
+.param-table__row:last-child {
+  border-bottom: none;
+}
+
+.param-table__row--head {
+  background: rgba(20, 36, 57, 0.9);
+  color: #6a84a2;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.param-table__label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.param-table__label strong {
+  color: #eef5ff;
+  font-size: 13px;
+}
+
+.param-table__label small {
+  color: #7a90ab;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.param-table__value {
+  color: #c8d8ee;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.param-table__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.param-table__meta span {
+  color: #8ca0ba;
+  font-size: 12px;
+}
+
+.param-table__meta small {
+  color: #5d7699;
+  font-size: 11px;
+}
+
+/* ─── Inline alert ───────────────────────────────────────────── */
+
+.console-inline-alert {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(170, 122, 36, 0.4);
+  background: rgba(73, 48, 14, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .console-inline-alert strong {
   color: #fcd34d;
+  font-size: 13px;
 }
 
 .console-inline-alert span {
@@ -928,44 +1363,57 @@ onMounted(() => {
 
 .console-inline-alert--soft {
   margin-top: 0;
+  margin-bottom: 0;
 }
 
+/* ─── Editable param cards ───────────────────────────────────── */
+
 .editable-grid {
-  margin-top: 14px;
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
 }
 
 .editable-card {
   padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(48, 70, 95, 0.82);
-  background: rgba(19, 34, 53, 0.88);
+  border-radius: 12px;
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background: rgba(19, 34, 53, 0.75);
   color: #dbe5f4;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.editable-card:not(:disabled):hover {
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 2px 12px rgba(251, 191, 36, 0.07);
 }
 
 .editable-card:disabled {
   cursor: not-allowed;
-  opacity: 0.68;
+  opacity: 0.6;
 }
 
 .editable-card span {
   color: #91a5c2;
-  font-size: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .editable-card strong {
   color: #f8fbff;
+  font-size: 16px;
 }
 
 .editable-card small {
-  color: #87a0bc;
+  color: #7a90ab;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -973,79 +1421,19 @@ onMounted(() => {
   margin-top: auto;
   font-style: normal;
   color: #fbbf24;
-  font-size: 12px;
+  font-size: 11px;
 }
 
-.param-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 14px;
+.editable-card:disabled em {
+  color: #4b6282;
 }
 
-.param-group {
-  border: 1px solid rgba(44, 65, 89, 0.78);
-  border-radius: 14px;
-  background: rgba(14, 26, 42, 0.8);
-  overflow: hidden;
-}
-
-.param-group__head {
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(44, 65, 89, 0.78);
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.param-table {
-  display: flex;
-  flex-direction: column;
-}
-
-.param-table__row {
-  display: grid;
-  grid-template-columns: minmax(220px, 2fr) minmax(120px, 1.2fr) 100px 100px 180px;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(33, 52, 74, 0.78);
-  align-items: center;
-}
-
-.param-table__row:last-child {
-  border-bottom: none;
-}
-
-.param-table__row--head {
-  background: rgba(22, 39, 60, 0.95);
-  color: #8ca0ba;
-  font-size: 12px;
-}
-
-.param-table__row div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.param-table__row strong {
-  color: #eef5ff;
-}
-
-.param-table__row small {
-  color: #87a0bc;
-  line-height: 1.5;
-}
-
-.param-table__row > span {
-  color: #dbe5f4;
-  line-height: 1.5;
-}
+/* ─── Log timeline ───────────────────────────────────────────── */
 
 .empty-box {
   min-height: 120px;
-  border-radius: 14px;
-  border: 1px dashed rgba(70, 91, 117, 0.72);
+  border-radius: 12px;
+  border: 1px dashed rgba(70, 91, 117, 0.65);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1057,46 +1445,94 @@ onMounted(() => {
 }
 
 .empty-box strong {
-  color: #f3f7fb;
+  color: #cbd5e1;
 }
 
-.log-list {
+.log-timeline {
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.log-row {
+.log-entry {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.log-entry__track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 16px;
+  padding-top: 3px;
+}
+
+.log-entry__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.log-entry__dot--success { color: #4ade80; }
+.log-entry__dot--warning { color: #fbbf24; }
+.log-entry__dot--danger  { color: #f87171; }
+.log-entry__dot--info    { color: #60a5fa; }
+
+.log-entry__line {
+  flex: 1;
+  width: 1px;
+  background: rgba(52, 72, 100, 0.55);
+  margin-top: 5px;
+}
+
+.log-entry:last-child .log-entry__line {
+  display: none;
+}
+
+.log-entry__content {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.log-entry__top {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(19, 34, 53, 0.88);
-  border: 1px solid rgba(48, 70, 95, 0.82);
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
-.log-row strong {
+.log-entry__top strong {
   color: #eef5ff;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-.log-row span,
-.log-row small,
-.log-meta small {
+.log-entry__content > span,
+.log-entry__content > small {
   display: block;
-  margin-top: 4px;
-  color: #8ca0ba;
-  font-size: 12px;
+  color: #7a90ab;
+  font-size: 11px;
+  margin-top: 3px;
+  line-height: 1.5;
 }
 
-.log-meta {
-  text-align: right;
+.log-entry__source {
+  color: #4b6282 !important;
+  margin-top: 5px !important;
 }
+
+/* ─── Dialog ─────────────────────────────────────────────────── */
 
 .dialog-intro,
 .dialog-current {
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid rgba(48, 70, 95, 0.82);
   background: rgba(19, 34, 53, 0.88);
   margin-bottom: 14px;
@@ -1122,18 +1558,40 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+/* ─── Responsive ─────────────────────────────────────────────── */
+
 @media (max-width: 1100px) {
+  .console-body {
+    grid-template-columns: 1fr;
+  }
+
+  .console-sidebar {
+    position: static;
+  }
+
   .console-head,
-  .console-panel__head,
-  .capability-note,
-  .write-panel__head {
+  .console-panel__head {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .param-table__row,
-  .param-table__row--head {
-    grid-template-columns: 1fr;
+  .console-panel__head > span {
+    text-align: left;
+  }
+
+  .capability-note {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 800px) {
+  .param-table__row {
+    grid-template-columns: 1fr 120px;
+  }
+
+  .param-table__meta-col {
+    display: none;
   }
 }
 </style>

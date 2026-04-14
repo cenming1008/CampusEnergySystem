@@ -20,6 +20,7 @@
 - [x] 已完成电容补偿控制器控制台 MVP：真实参数回读入库、控制台启停动作复用设备控制主链
 - [x] 已补齐电容补偿控制器参数写入后端预埋：参数键校验、前置条件校验、控制日志留痕、MQTT 结构化下发
 - [x] 前端已开放电容补偿控制器控制台受控参数写入入口：仅管理员、仅少数字段、二次确认、accepted 入队提示与日志复用已接通
+- [x] 已开放电容补偿控制器控制台其余 3 个演示控制动作：手动投切测试、报警复位、控制模式切换
 
 ---
 
@@ -51,6 +52,7 @@
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- DeviceManager` 已通过（`9 passed`）。
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- capacitorBankControlProfile DeviceManager` 已通过（`12 passed`）。
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 已通过，控制台受控参数写入入口已纳入构建产物。
+- `./venv/bin/python -m pytest tests/test_capacitor_bank_service.py tests/test_compensation_device_nested_api.py tests/test_send_capacitor_bank_telemetry.py -q` 已通过（`20 passed`）。
 - 电容补偿控制器控制台已完成以下最小闭环：
   - MQTT 参数快照可更新 `capacitor_bank_control_profile`
   - `GET /devices/{id}/compensation/capacitor-bank/control-profile` 可返回真实参数值、`source`、`snapshot_timestamp`、`source_status`
@@ -59,6 +61,10 @@
   - 前端控制台已开放受控参数写入入口：仅管理员可见，当前只开放投入/切除功率因数、投入/切除延时、过压门限、温度上限门限 6 个低风险字段
   - 所有参数写入均要求二次确认，并明确提示“accepted 入队”不等于设备端执行成功
   - 写入日志区域已兼容参数写入记录展示，不再只识别启停动作
+  - 远程控制区 4 个动作已全部可点：
+    - 启停 / 使能：真实既有主链
+    - 手动投切测试 / 报警复位 / 控制模式切换：当前作为演示控制链路，通过补偿控制器专用远程命令接口下发到模拟器
+  - `send_capacitor_bank_telemetry.py` 已支持监听 `campus/control/{device_id}`，并响应 `start` / `stop` / `write_parameter` / `manual_switch_test` / `reset_alarm` / `switch_control_mode`
 - 本地重启 `scripts/python/run_mqtt_ingest_worker.py` 后，补偿类 MQTT 最新联调记录已验证：
   - 设备 `16`（电容控制器）最新 `energydata.reactive_power=-21.4`
   - 设备 `21`（SVG）最新 `energydata.reactive_power=322.68`
@@ -71,4 +77,5 @@
 - 电容补偿控制器专属历史趋势当前已接入，但图例较多；若后续联调认为信息密度过高，可单独再做交互收敛。
 - 电容补偿控制器参数写入后端已具备最小受控链路，但尚未实现设备回执/执行结果回写；当前只能做到“accepted 入队”，不能保证设备端已执行成功。
 - 电容补偿控制器控制台当前仅开放“启用/停用控制器”和少数字段的受控参数写入；单回路手动投切、模式切换、批量参数下发等高风险动作仍未纳入本轮。
+- 当前新开放的“手动投切测试 / 报警复位 / 控制模式切换”仍属于模拟器演示控制链路，不代表已接入真实设备协议；后续接真实设备时仍需按真实协议重接。
 - 当前主题已进入阶段收口判断，是否正式收口与主区切换仍需规则/验收角色确认。

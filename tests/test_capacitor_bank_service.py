@@ -73,6 +73,39 @@ class TestCapacitorBankService(unittest.TestCase):
                     operator="admin",
                 )
 
+    @patch("app.services.capacitor_bank_service.publish_control_payload_async")
+    def test_submit_remote_control_command_records_log_and_publishes(self, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, is_active=True)
+        session.add = MagicMock()
+        session.commit = MagicMock()
+        session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 66))
+
+        result = CapacitorBankService.submit_remote_control_command(
+            session,
+            device,
+            action="reset_alarm",
+            operator="operator",
+            reason="前端联调",
+        )
+
+        added_log = session.add.call_args[0][0]
+        self.assertIsInstance(added_log, DeviceControlLog)
+        self.assertEqual(added_log.action, "reset_alarm")
+        self.assertEqual(added_log.command_source, "remote-control-api")
+        self.assertEqual(added_log.result, "accepted")
+        mock_publish.assert_called_once_with(
+            16,
+            {
+                "command": "reset_alarm",
+                "device_id": 16,
+                "reason": "前端联调",
+            },
+            worker_name="mqtt-remote-reset_alarm",
+        )
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["command_id"], "66")
+
 
 if __name__ == "__main__":
     unittest.main()

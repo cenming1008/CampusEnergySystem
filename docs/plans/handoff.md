@@ -33,15 +33,21 @@
     - 仅开放 6 个低风险字段：投入/切除功率因数、投入/切除延时、过压门限、温度上限门限
     - 提交前必须二次确认，并明确提示“accepted 入队”不等于设备端执行成功
     - 控制日志区域已能识别 `write:*` 参数写入记录
+  - 本轮进一步开放了其余 3 个演示控制动作：
+    - `manual_switch_test`
+    - `reset_alarm`
+    - `switch_control_mode`
+  - 新增后端接口 `/devices/{id}/compensation/capacitor-bank/remote-command`，前端控制台 4 张远程控制卡片现已全部可点
+  - `send_capacitor_bank_telemetry.py` 已支持监听上述控制命令并补发最新遥测/参数快照，供前端演示交互
 - 控制台当前能力边界明确：
   - `supports_read=true`
   - `supports_write=true`
   - `supports_remote_control=true`
-  - 当前前端只开放“启用/停用控制器”与少数字段受控写入这两类低风险入口
+  - 当前前端开放“启用/停用控制器”、3 个演示控制动作，以及少数字段受控写入
   - 当前仍未完成设备回执/执行结果回写，写入请求只保证“accepted 入队”，不保证设备端已成功执行
 
 ## 下一棒
 - 下一棒交给规则角色确认补偿类接口正式口径：只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`。
 - 下一棒交给验收/设备联调角色：
-  - 验收确认“仅管理员 + 仅少数字段 + 二次确认”的前端开放边界是否通过
-  - 设备/网关联调继续补参数写入回执或结果回写，把前端状态从“accepted 入队”升级为“结果可见”
+  - 验收确认“演示控制链路 + 仅管理员参数写入 + 二次确认”的前端开放边界是否通过
+  - 设备/网关联调继续补真实设备协议与参数写入回执/结果回写，把当前模拟演示链路升级为真实设备闭环

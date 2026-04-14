@@ -16,7 +16,7 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from app.models.tables import CapacitorBankControlProfile, Device, DeviceControlLog
-from app.services.mqtt_publisher import publish_parameter_write_async
+from app.services.mqtt_publisher import publish_control_payload_async, publish_parameter_write_async
 
 CONTROL_PROFILE_STALE_AFTER = timedelta(hours=1)
 
@@ -68,6 +68,21 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
         "电流极性识别",
         "bool",
     ),
+}
+
+REMOTE_COMMAND_SPECS: dict[str, dict[str, str]] = {
+    "manual_switch_test": {
+        "label": "手动投切测试",
+        "command": "manual_switch_test",
+    },
+    "reset_alarm": {
+        "label": "报警复位",
+        "command": "reset_alarm",
+    },
+    "switch_control_mode": {
+        "label": "控制模式切换",
+        "command": "switch_control_mode",
+    },
 }
 
 
@@ -129,8 +144,15 @@ class CapacitorBankService:
             "supports_write": True,
             "supports_remote_control": True,
             "write_status_message": "当前已开放后端参数写入受控链路，前端编辑入口仍保持关闭。",
-            "remote_control_status_message": "当前已开放启用/停用控制动作，其他高风险控制仍未开通。",
+            "remote_control_status_message": "当前控制台已开放启停、手动投切测试、报警复位与控制模式切换的演示控制链路。",
         }
+
+    @staticmethod
+    def get_remote_command_spec(action: str) -> dict[str, str]:
+        spec = REMOTE_COMMAND_SPECS.get(action)
+        if spec is None:
+            raise ValueError(f"当前不支持远程控制动作 `{action}`。")
+        return spec
 
     @staticmethod
     def normalize_write_value(parameter_key: str, target_value: Any) -> Any:
@@ -252,5 +274,48 @@ class CapacitorBankService:
             "accepted": True,
             "status": "accepted",
             "message": message,
+            "command_id": str(control_log.id),
+        }
+
+    @staticmethod
+    def submit_remote_control_command(
+        session: Session,
+        device: Device,
+        *,
+        action: str,
+        operator: str,
+        reason: Optional[str] = None,
+    ) -> dict[str, Any]:
+        spec = CapacitorBankService.get_remote_command_spec(action)
+        normalized_reason = reason.strip() if reason else ""
+        log_reason = normalized_reason or f"控制台{spec['label']}"
+
+        control_log = DeviceControlLog(
+            device_id=device.id,
+            action=action,
+            target_status=device.is_active,
+            previous_status=device.is_active,
+            operator=operator,
+            command_source="remote-control-api",
+            result="accepted",
+            reason=log_reason,
+        )
+        session.add(control_log)
+        session.commit()
+        session.refresh(control_log)
+
+        publish_control_payload_async(
+            device.id,
+            {
+                "command": spec["command"],
+                "device_id": device.id,
+                "reason": normalized_reason or spec["label"],
+            },
+            worker_name=f"mqtt-remote-{action}",
+        )
+        return {
+            "accepted": True,
+            "status": "accepted",
+            "message": f"{spec['label']}指令已入队",
             "command_id": str(control_log.id),
         }

@@ -260,6 +260,18 @@ class CapacitorBankControlWriteResponse(BaseModel):
     command_id: Optional[str] = None
 
 
+class CapacitorBankRemoteCommandRequest(BaseModel):
+    action: str
+    reason: Optional[str] = None
+
+
+class CapacitorBankRemoteCommandResponse(BaseModel):
+    accepted: bool
+    status: str
+    message: str
+    command_id: Optional[str] = None
+
+
 class CapacitorBankControlProfileResponse(BaseModel):
     """电容补偿控制器控制台只读参数档案。"""
 
@@ -301,5 +313,7 @@ __all__ = [
     "CapacitorBankControlCapabilitiesResponse",
     "CapacitorBankControlWriteRequest",
     "CapacitorBankControlWriteResponse",
+    "CapacitorBankRemoteCommandRequest",
+    "CapacitorBankRemoteCommandResponse",
     "CapacitorBankControlProfileResponse",
 ]

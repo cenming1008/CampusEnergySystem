@@ -10,10 +10,12 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
-from app.api.deps import MAINTAINER_OR_ADMIN, get_current_user
+from app.api.deps import MAINTAINER_OR_ADMIN, OPERATOR_OR_ADMIN, get_current_user
 from app.core.audit import audit_log
 from app.api.endpoints.devices.compensation_schemas import (
     CapacitorBankControlProfileResponse,
+    CapacitorBankRemoteCommandRequest,
+    CapacitorBankRemoteCommandResponse,
     CapacitorBankControlWriteRequest,
     CapacitorBankControlWriteResponse,
     CapacitorBankTelemetryResponse,
@@ -136,6 +138,45 @@ def write_device_capacitor_bank_control_profile(
         f"device:{device_id}",
         parameter_key=body.parameter_key,
         target_value=body.target_value,
+        command_id=result["command_id"],
+        role=current_user.role,
+    )
+    return result
+
+
+@router.post(
+    "/{device_id}/compensation/capacitor-bank/remote-command",
+    response_model=CapacitorBankRemoteCommandResponse,
+)
+def send_device_capacitor_bank_remote_command(
+    device_id: int,
+    body: CapacitorBankRemoteCommandRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(OPERATOR_OR_ADMIN),
+):
+    device = ensure_device_access(session, current_user, device_id)
+    if resolve_compensation_subtype(
+        getattr(device, "device_type", None),
+        getattr(device, "device_subtype", None),
+    ) != "capacitor_bank_controller":
+        raise HTTPException(status_code=404, detail="当前设备不是电容补偿控制器")
+
+    try:
+        result = CapacitorBankService.submit_remote_control_command(
+            session,
+            device,
+            action=body.action,
+            operator=current_user.username,
+            reason=body.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    audit_log(
+        "device.capacitor_bank.remote_command",
+        current_user.username,
+        f"device:{device_id}",
+        action=body.action,
         command_id=result["command_id"],
         role=current_user.role,
     )
