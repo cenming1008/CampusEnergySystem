@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Lock, Monitor, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -31,6 +31,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const { canManageDevices, canControlDevices, currentRole, isAdmin } = usePermissions()
+const REFRESH_INTERVAL_MS = 5000
 
 const deviceId = computed(() => Number(route.params.id))
 const loading = ref(false)
@@ -41,6 +42,7 @@ const overview = ref<MonitorOverview | null>(null)
 const controlProfile = ref<CompensationCapacitorBankControlProfile | null>(null)
 const controlLogs = ref<DeviceControlLog[]>([])
 const loadError = ref('')
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 const selectedParameterKey = ref('')
 const writeForm = ref<{
   parameter_key: string
@@ -78,6 +80,9 @@ const canWriteParameters = computed(() =>
 )
 const deviceActive = computed(() => runtimeStatus.value?.is_active ?? false)
 const latestControlLog = computed(() => controlLogs.value[0] || null)
+const latestTimeoutLog = computed(() =>
+  controlLogs.value.find((item) => normalizeControlResult(item.result) === 'timeout') || null,
+)
 const selectedWriteMeta = computed(() => (
   selectedParameterKey.value ? getCapacitorBankEditableParameterMeta(selectedParameterKey.value) || null : null
 ))
@@ -91,6 +96,20 @@ const writeDisabledReason = computed(() => {
     return '当前设备尚未完成真实参数回读，暂不允许下发参数写入。'
   }
   return ''
+})
+const writeRiskNotice = computed(() => {
+  if (controlProfile.value?.source_status === 'stale') {
+    return '当前参数快照已过期，系统仍允许受控写入；提交前请先确认现场状态，并在写入后等待回读/回执复核。'
+  }
+  return ''
+})
+const protocolSummaryText = computed(() => {
+  if (!controlCapabilities.value) return ''
+  return [
+    `${controlCapabilities.value.command_message_type} -> ${controlCapabilities.value.control_topic_template}`,
+    `${controlCapabilities.value.receipt_message_type} <- ${controlCapabilities.value.receipt_topic}`,
+    `超时阈值 ${controlCapabilities.value.receipt_timeout_seconds}s`,
+  ].join(' · ')
 })
 
 const overviewItems = computed(() => [
@@ -140,7 +159,7 @@ const actionCards = computed(() => [
   {
     title: '手动投切测试',
     icon: Setting,
-    hint: canRunRemoteAction.value ? '向模拟器发送一次手动投切测试命令，并立即回放新的投入状态。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    hint: canRunRemoteAction.value ? '向控制主题发送手动投切测试命令，并等待设备/网关通过 control_receipt 回执结果。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
     actionLabel: '执行测试',
     enabled: canRunRemoteAction.value,
     handler: () => handleRemoteCommand('manual_switch_test'),
@@ -148,7 +167,7 @@ const actionCards = computed(() => [
   {
     title: '报警复位',
     icon: Refresh,
-    hint: canRunRemoteAction.value ? '清除模拟器中的告警状态位，并补发一条最新快照。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    hint: canRunRemoteAction.value ? '向控制主题发送报警复位命令，设备/网关执行后应通过 control_receipt 回执。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
     actionLabel: '立即复位',
     enabled: canRunRemoteAction.value,
     handler: () => handleRemoteCommand('reset_alarm'),
@@ -156,7 +175,7 @@ const actionCards = computed(() => [
   {
     title: '控制模式切换',
     icon: Setting,
-    hint: canRunRemoteAction.value ? '切换模拟器控制模式，并补发一条最新状态反馈。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
+    hint: canRunRemoteAction.value ? '向控制主题发送控制模式切换命令，结果由 control_receipt 回执确认。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
     actionLabel: '切换模式',
     enabled: canRunRemoteAction.value,
     handler: () => handleRemoteCommand('switch_control_mode'),
@@ -408,10 +427,29 @@ function resolveLogTitle(log: DeviceControlLog) {
   return log.action
 }
 
+function normalizeControlResult(result?: string | null) {
+  const normalized = String(result || '').trim().toLowerCase()
+  if (['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'].includes(normalized)) {
+    return normalized
+  }
+  return 'failed'
+}
+
+function resolveLogStatusText(log: DeviceControlLog) {
+  const normalized = normalizeControlResult(log.result)
+  if (normalized === 'accepted') return '已入队'
+  if (normalized === 'running') return '设备执行中'
+  if (normalized === 'success') return '执行成功'
+  if (normalized === 'timeout') return '设备回执超时'
+  if (normalized === 'rejected') return '设备拒绝执行'
+  return '执行失败'
+}
+
 function resolveLogTagType(log: DeviceControlLog) {
-  if (log.result === 'success') return 'success'
-  if (log.result === 'accepted') return 'warning'
-  if (log.result === 'failed' || log.result === 'error') return 'danger'
+  const normalized = normalizeControlResult(log.result)
+  if (normalized === 'success') return 'success'
+  if (normalized === 'accepted' || normalized === 'running') return 'warning'
+  if (normalized === 'timeout' || normalized === 'failed' || normalized === 'rejected') return 'danger'
   return 'info'
 }
 
@@ -445,6 +483,13 @@ watch(() => route.params.id, () => {
 
 onMounted(() => {
   void loadPage()
+  refreshTimer = setInterval(() => {
+    void loadPage()
+  }, REFRESH_INTERVAL_MS)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
 
@@ -570,13 +615,14 @@ onMounted(() => {
               >
                 {{ controlCapabilities?.supports_remote_control ? '已开通远程控制' : '远程控制待开通' }}
               </el-tag>
-          <small>
-            当前登录角色：{{ roleLabel(currentRole) }}
-            · {{ canControlDevices ? '可执行远程控制' : '没有远程控制权限' }}
-            · 最近结果：{{ latestControlLog ? `${latestControlLog.action} / ${latestControlLog.result || 'success'} / ${formatDateTime(latestControlLog.created_at)}` : '暂无记录' }}
-          </small>
-        </div>
-      </section>
+              <small>
+                当前登录角色：{{ roleLabel(currentRole) }}
+                · {{ canControlDevices ? '可执行远程控制' : '没有远程控制权限' }}
+                · 最近结果：{{ latestControlLog ? `${resolveLogTitle(latestControlLog)} / ${resolveLogStatusText(latestControlLog)} / ${formatDateTime(latestControlLog.created_at)}` : '暂无记录' }}
+              </small>
+              <small v-if="protocolSummaryText">{{ protocolSummaryText }}</small>
+            </div>
+          </section>
 
           <!-- Section 3: 参数管理 -->
           <section class="console-panel console-panel--teal">
@@ -681,6 +727,13 @@ onMounted(() => {
                 <strong>写入入口已锁定</strong>
                 <span>{{ writeDisabledReason }}</span>
               </div>
+              <div
+                v-else-if="writeRiskNotice"
+                class="console-inline-alert console-inline-alert--soft"
+              >
+                <strong>写入前确认</strong>
+                <span>{{ writeRiskNotice }}</span>
+              </div>
               <div class="editable-grid">
                 <button
                   v-for="item in editableParameterCards"
@@ -706,6 +759,13 @@ onMounted(() => {
             <div class="console-panel__head">
               <h3>写入日志 / 结果</h3>
               <span>最近控制记录</span>
+            </div>
+            <div
+              v-if="latestTimeoutLog"
+              class="console-inline-alert"
+            >
+              <strong>检测到设备回执超时</strong>
+              <span>{{ resolveLogTitle(latestTimeoutLog) }} 在 {{ formatDateTime(latestTimeoutLog.created_at) }} 发起后未在约定时间内收到回执，请结合现场状态复核。</span>
             </div>
             <div
               v-if="!writeLogs.length"
@@ -738,7 +798,7 @@ onMounted(() => {
                       effect="dark"
                       size="small"
                     >
-                      {{ log.result || 'success' }}
+                      {{ resolveLogStatusText(log) }}
                     </el-tag>
                   </div>
                   <span>{{ formatDateTime(log.created_at) }} · {{ log.operator || '未知操作人' }}</span>
@@ -782,7 +842,7 @@ onMounted(() => {
               :min="selectedWriteMeta.min"
               :max="selectedWriteMeta.max"
               :step="selectedWriteMeta.step || 1"
-              :precision="selectedWriteMeta.step && selectedWriteMeta.step < 1 ? 2 : 0"
+              :precision="selectedWriteMeta.step && selectedWriteMeta.step < 1 ? Math.round(-Math.log10(selectedWriteMeta.step)) : 0"
               style="width: 100%"
             />
           </el-form-item>

@@ -74,6 +74,7 @@ BROKER_CONTAINER_CANDIDATES = (
 )
 PROFILE_CHOICES = ("normal", "overvoltage", "harmonic", "overtemp", "undercurrent", "unbalance", "custom")
 PHASE_FLAG_CHOICES = ("a", "b", "c", "all", "none")
+CONTROL_PROTOCOL_VERSION = "campus-control.v1"
 
 
 @dataclass(frozen=True)
@@ -671,6 +672,31 @@ def _publish_control_feedback(client: mqtt.Client, runtime: RuntimeContext, reas
     return _publish_payload(client, runtime.telemetry_topic, payload)
 
 
+def _publish_control_receipt(
+    client: mqtt.Client,
+    runtime: RuntimeContext,
+    command_payload: dict[str, Any],
+    *,
+    result: str,
+    detail: str,
+) -> bool:
+    command_id = command_payload.get("command_id")
+    if not command_id:
+        return False
+    receipt_payload = {
+        "message_type": "control_receipt",
+        "protocol_version": CONTROL_PROTOCOL_VERSION,
+        "timestamp": datetime.now().isoformat(),
+        "device_id": runtime.device.id,
+        "device_code": runtime.device.sn,
+        "command_id": command_id,
+        "command": command_payload.get("command"),
+        "result": result,
+        "detail": detail,
+    }
+    return _publish_payload(client, runtime.telemetry_topic, receipt_payload)
+
+
 def _on_connect(client: mqtt.Client, runtime: RuntimeContext | None, flags, rc) -> None:
     if rc == 0 and runtime is not None:
         client.subscribe(runtime.control_topic, qos=1)
@@ -695,6 +721,14 @@ def _on_message(client: mqtt.Client, runtime: RuntimeContext | None, msg) -> Non
         f"🎛️ 控制指令 topic={msg.topic} command={payload.get('command')} "
         f"accepted={accepted} detail={message}"
     )
+    if _publish_control_receipt(
+        client,
+        runtime,
+        payload,
+        result="success" if accepted else "failed",
+        detail=message,
+    ):
+        print("   ↳ 已发送控制回执")
     if accepted and runtime.publish_on_control:
         if _publish_control_feedback(client, runtime, message):
             print("   ↳ 已补发控制后参数/遥测快照")

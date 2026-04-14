@@ -191,7 +191,14 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
             operator="tester",
             reason=None,
         )
-        mock_audit.assert_called_once()
+        mock_audit.assert_called_once_with(
+            "device.capacitor_bank.remote_command",
+            "tester",
+            "device:1",
+            remote_command="reset_alarm",
+            command_id="52",
+            role="admin",
+        )
         self.assertTrue(result["accepted"])
         self.assertEqual(result["command_id"], "52")
 

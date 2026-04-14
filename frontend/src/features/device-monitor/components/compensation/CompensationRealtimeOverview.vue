@@ -40,6 +40,23 @@ function progressValue(value: string) {
   return Math.max(0, Math.min(100, numeric * 100))
 }
 
+function stateTagText(state: CompensationMetric['state']) {
+  if (state === 'live') return '实时采集'
+  if (state === 'mock') return '估算/占位'
+  if (state === 'missing') return '当前缺测'
+  if (state === 'offline') return '设备离线'
+  if (state === 'unconfigured') return '待配置'
+  return ''
+}
+
+function stateTagType(state: CompensationMetric['state']) {
+  if (state === 'live') return 'success'
+  if (state === 'mock') return 'warning'
+  if (state === 'missing' || state === 'offline') return 'danger'
+  if (state === 'unconfigured') return 'info'
+  return 'info'
+}
+
 const capacityUsagePct = computed(() => {
   const found = props.metrics.find(m => m.key === 'capacityUsage')
   if (!found) return 0
@@ -53,7 +70,17 @@ const capacityUsagePct = computed(() => {
     <!-- TOP: PF 仪表盘 | 无功功率 Hero -->
     <div class="bento-top">
       <div class="bento-pf">
-        <span class="bento-pf__label">{{ pfMetric.label }}</span>
+        <div class="metric-label-row">
+          <span class="bento-pf__label">{{ pfMetric.label }}</span>
+          <el-tag
+            v-if="stateTagText(pfMetric.state)"
+            size="small"
+            effect="plain"
+            :type="stateTagType(pfMetric.state)"
+          >
+            {{ stateTagText(pfMetric.state) }}
+          </el-tag>
+        </div>
         <div class="bento-pf__gauge">
           <el-progress
             type="dashboard"
@@ -75,7 +102,17 @@ const capacityUsagePct = computed(() => {
 
       <div class="bento-hero">
         <div class="bento-hero__top">
-          <span class="bento-hero__label">{{ coreMetric.label }}</span>
+          <div class="metric-label-row">
+            <span class="bento-hero__label">{{ coreMetric.label }}</span>
+            <el-tag
+              v-if="stateTagText(coreMetric.state)"
+              size="small"
+              effect="plain"
+              :type="stateTagType(coreMetric.state)"
+            >
+              {{ stateTagText(coreMetric.state) }}
+            </el-tag>
+          </div>
           <small class="bento-hero__hint">{{ coreMetric.hint }}</small>
         </div>
         <div class="bento-hero__value">
@@ -110,7 +147,17 @@ const capacityUsagePct = computed(() => {
         :key="item.key"
         class="strip-cell"
       >
-        <span class="strip-cell__label">{{ item.label }}</span>
+        <div class="metric-label-row metric-label-row--compact">
+          <span class="strip-cell__label">{{ item.label }}</span>
+          <el-tag
+            v-if="stateTagText(item.state)"
+            size="small"
+            effect="plain"
+            :type="stateTagType(item.state)"
+          >
+            {{ stateTagText(item.state) }}
+          </el-tag>
+        </div>
         <div
           class="strip-cell__value"
           :class="item.tone ? `tone-${item.tone}` : ''"
@@ -169,6 +216,18 @@ const capacityUsagePct = computed(() => {
 .bento-pf__label {
   font-size: 13px;
   color: #c5d2e7;
+}
+
+.metric-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.metric-label-row--compact {
+  align-items: flex-start;
 }
 
 .bento-pf__gauge {

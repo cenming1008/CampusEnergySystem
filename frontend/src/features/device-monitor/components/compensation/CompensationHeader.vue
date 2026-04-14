@@ -24,12 +24,17 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  showConsoleEntry: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 defineEmits<{
   back: []
   refresh: []
   toggle: []
+  openConsole: []
 }>()
 
 function tagType(tone: CompensationHeaderModel['tags'][number]['tone']) {
@@ -87,6 +92,14 @@ function tagType(tone: CompensationHeaderModel['tags'][number]['tone']) {
           @click="$emit('toggle')"
         >
           {{ toggleActionLabel }}
+        </el-button>
+        <el-button
+          v-if="showConsoleEntry"
+          type="warning"
+          plain
+          @click="$emit('openConsole')"
+        >
+          进入控制台
         </el-button>
         <el-button
           :icon="Refresh"

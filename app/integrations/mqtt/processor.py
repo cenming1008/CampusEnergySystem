@@ -169,6 +169,8 @@ MEANINGFUL_FIELDS = (
     "reactive_power",
 )
 
+CONTROL_RECEIPT_MESSAGE_TYPE = "control_receipt"
+
 
 def apply_field_aliases(data: dict[str, Any]) -> dict[str, Any]:
     """兼容常见字段别名，保持原字段优先。"""
@@ -279,6 +281,23 @@ def validate_payload_content(data: dict[str, Any]) -> None:
     """确保消息至少包含一项有效测点。"""
     if not any(data.get(field) is not None for field in MEANINGFUL_FIELDS):
         raise ValueError("MQTT payload 缺少有效测点")
+
+
+def is_control_receipt_payload(data: dict[str, Any]) -> bool:
+    return str(data.get("message_type") or "").strip().lower() == CONTROL_RECEIPT_MESSAGE_TYPE
+
+
+def process_control_receipt(session: Session, data: dict[str, Any], device_id: int) -> None:
+    command_id = data.get("command_id")
+    result = data.get("result")
+    detail = data.get("detail") or data.get("reason") or data.get("message")
+    CapacitorBankService.apply_control_receipt(
+        session,
+        device_id=device_id,
+        command_id=command_id,
+        result=result,
+        detail=detail,
+    )
 
 
 def parse_payload(payload_str: str) -> Optional[dict[str, Any]]:
@@ -583,6 +602,19 @@ def process_payload_dict(
             runtime_state.increment("mqtt_duplicates_total")
             logger.info(f"MQTT duplicate skipped: device_id={device_id}, fingerprint={fingerprint[:12]}")
             observe_mqtt_message("duplicate", perf_counter() - started_at)
+            return None
+
+        if is_control_receipt_payload(data):
+            with Session(engine) as session:
+                process_control_receipt(session, data, device_id)
+                record = session.exec(
+                    select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)
+                ).first()
+                if record:
+                    MqttReliabilityService.mark_success(session, record)
+                session.commit()
+            runtime_state.increment("mqtt_ingestion_success_total")
+            observe_mqtt_message("success", perf_counter() - started_at)
             return None
 
         validate_payload_content(data)

@@ -39,15 +39,45 @@
     - `switch_control_mode`
   - 新增后端接口 `/devices/{id}/compensation/capacitor-bank/remote-command`，前端控制台 4 张远程控制卡片现已全部可点
   - `send_capacitor_bank_telemetry.py` 已支持监听上述控制命令并补发最新遥测/参数快照，供前端演示交互
+  - 本轮已补齐模拟控制回执闭环：
+    - 参数写入与演示控制命令下发时，后端 payload 会附带 `command_id`
+    - 模拟器执行后会额外发送 `message_type=control_receipt` 回执消息
+    - MQTT ingest 会消费回执并按 `device_id + command_id` 更新 `DeviceControlLog.result`
+    - 当前控制日志不再永久停留在 `accepted`，可升级为 `running` / `success` / `failed` / `timeout` / `rejected`
+- 本轮进一步完成了“补偿器1正式语义收敛”：
+  - 后端已统一控制状态模型：`accepted / running / success / failed / timeout / rejected`
+  - 监控页 `status-history` 不再把所有控制动作都映射成“设备启动/设备停止”，而是按 `action` 输出精确标题
+  - 超过约定阈值未收到回执的待定控制日志会自动转为 `timeout`
+  - 控制能力返回已显式包含正式协议元信息：`protocol_version`、命令/回执消息类型、控制 topic 模板、回执 topic、回执超时阈值、支持状态集
+  - 前端控制台“最近结果”、右侧日志、监视页事件时间线已统一状态文案与颜色语义
+  - 监视页已去掉伪造的示例运行事件；当当前时间范围内没有真实事件时，会明确展示“暂无真实运行事件”
+  - 监视页中的“控制模式 / 补偿容量利用率 / 柜内温度”已显式标注来源，不再把估算/占位值与真实采集值同权展示
 - 控制台当前能力边界明确：
   - `supports_read=true`
   - `supports_write=true`
   - `supports_remote_control=true`
-  - 当前前端开放“启用/停用控制器”、3 个演示控制动作，以及少数字段受控写入
-  - 当前仍未完成设备回执/执行结果回写，写入请求只保证“accepted 入队”，不保证设备端已成功执行
+  - 当前前端开放“启用/停用控制器”、3 个远程动作，以及少数字段受控写入
+  - 当前写入请求与远程控制请求都先进入 `accepted`，后续需等待设备/网关回执或超时转态，不能直接视为执行成功
+- 本轮已补充完备性复核结论：
+  - `补偿器1`（设备 `16`）当前本地真实数据存在：公共层遥测、专属遥测、参数快照、最近控制日志均可查到
+  - 最新本地核验样本包括：
+    - 公共层：`reactive_power=-20.5`、`power_factor=0.9759`
+    - 专属层：`temperature=35.1`、`circuit_state_common_1=1`
+    - 参数快照：`source=telemetry`、`switch_on_power_factor=95.0`
+    - 最近成功控制：`reset_alarm`、`manual_switch_test`、`switch_control_mode`
+  - 当前可确认“监视 + 控制最小闭环”已成立，可按 `MVP+` 阶段完成口径验收
+  - 当前不可确认“真实设备正式完善 / 协议冻结”：
+    - 部分监视指标仍含参数回读 / 估算 / 占位混合来源
+    - 高风险动作（如单回路精细投切、批量参数下发）尚未开放
+    - 控制回执闭环当前仍主要依赖模拟器约定，不等于真实网关协议已经冻结
+    - 历史日志仍存在停留在 `accepted` 的旧记录，不能外推为所有控制都天然闭环到最终态
 
 ## 下一棒
 - 下一棒交给规则角色确认补偿类接口正式口径：只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`。
 - 下一棒交给验收/设备联调角色：
-  - 验收确认“演示控制链路 + 仅管理员参数写入 + 二次确认”的前端开放边界是否通过
-  - 设备/网关联调继续补真实设备协议与参数写入回执/结果回写，把当前模拟演示链路升级为真实设备闭环
+  - 验收确认“补偿器1已达到 MVP+ 阶段完成，但未到正式完善”的阶段结论是否通过
+  - 验收确认“正式控制状态语义 + 仅管理员参数写入 + 二次确认 + 超时提示”的前端开放边界是否通过
+  - 设备/网关联调继续把当前模拟回执口径映射为真实设备/网关协议，确认：
+    - 真实回执 topic / payload
+    - 命令关联键是否继续复用 `command_id`
+    - `running/timeout/rejected` 在真实设备侧是否仍保持当前口径，或需要进一步细化

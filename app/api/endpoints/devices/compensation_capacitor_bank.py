@@ -176,7 +176,7 @@ def send_device_capacitor_bank_remote_command(
         "device.capacitor_bank.remote_command",
         current_user.username,
         f"device:{device_id}",
-        action=body.action,
+        remote_command=body.action,
         command_id=result["command_id"],
         role=current_user.role,
     )

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -52,7 +53,10 @@ def _publish_control_payload_sync(device_id: int, payload: dict[str, Any], wait_
     try:
         pub = _get_publisher()
         topic = f"{settings.mqtt_control_topic_prefix}{device_id}"
-        raw_payload = json.dumps(payload, ensure_ascii=False)
+        normalized_payload = dict(payload)
+        normalized_payload.setdefault("device_id", device_id)
+        normalized_payload.setdefault("timestamp", datetime.now().isoformat())
+        raw_payload = json.dumps(normalized_payload, ensure_ascii=False)
         info = pub.publish(topic, raw_payload, qos=1)
         info.wait_for_publish(timeout=wait_timeout)
         logger.info(f"MQTT control published: device_id={device_id} payload={raw_payload}")
@@ -98,8 +102,12 @@ def publish_parameter_write_async(
     parameter_key: str,
     target_value: Any,
     *,
+    command_id: str | None = None,
     reason: str | None = None,
     register: str | None = None,
+    protocol_version: str | None = None,
+    message_type: str | None = None,
+    sent_at: str | None = None,
 ) -> None:
     """后台异步发送参数写入命令。"""
     payload = {
@@ -108,10 +116,18 @@ def publish_parameter_write_async(
         "parameter_key": parameter_key,
         "target_value": target_value,
     }
+    if command_id:
+        payload["command_id"] = command_id
     if reason:
         payload["reason"] = reason
     if register:
         payload["register"] = register
+    if protocol_version:
+        payload["protocol_version"] = protocol_version
+    if message_type:
+        payload["message_type"] = message_type
+    if sent_at:
+        payload["timestamp"] = sent_at
 
     threading.Thread(
         target=lambda: _publish_control_payload_sync(device_id, payload),

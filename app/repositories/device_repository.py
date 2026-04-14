@@ -54,6 +54,10 @@ class DeviceRepository(BaseRepository):
         return DeviceRepository.save_model(session, control_log, commit=commit)
 
     @staticmethod
+    def get_control_log_by_id(session: Session, control_log_id: int) -> Optional[DeviceControlLog]:
+        return session.get(DeviceControlLog, control_log_id)
+
+    @staticmethod
     def list_control_logs(
         session: Session,
         device_id: int,

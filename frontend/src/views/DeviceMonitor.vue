@@ -88,6 +88,7 @@ const compensationCapacitorBankTelemetry = ref<CompensationCapacitorBankTelemetr
 const compensationCapacitorBankTelemetryHistory = ref<CompensationCapacitorBankTelemetry[]>([])
 const compensationCapacitorBankControlProfile = ref<CompensationCapacitorBankControlProfile | null>(null)
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+const REFRESH_INTERVAL_MS = 5000
 
 const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
@@ -163,6 +164,55 @@ const trendSummary = computed(() => {
   }
 })
 
+function countActiveBits(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0
+  let count = 0
+  for (let bit = 0; bit < 16; bit += 1) {
+    if (value & (1 << bit)) count += 1
+  }
+  return count
+}
+
+function resolveCapBankControlMode() {
+  const scheme = compensationCapacitorBankControlProfile.value?.terminal_assignment_scheme?.trim()
+  if (scheme) {
+    if (scheme.includes('手动')) return { value: '手动', source: '参数回读' as const, state: 'live' as const }
+    if (scheme.includes('自动')) return { value: '自动', source: '参数回读' as const, state: 'live' as const }
+    return { value: scheme, source: '参数回读' as const, state: 'live' as const }
+  }
+  return { value: isDeviceActive.value ? '自动' : '待确认', source: '估算/占位' as const, state: 'mock' as const }
+}
+
+const capacitorBankCircuitSummary = computed(() => {
+  if (compensationSubtype.value !== 'capacitor_bank_controller') return null
+  const latest = compensationCapacitorBankTelemetry.value
+  const configuredTotal = (
+    (compensationCapacitorBankControlProfile.value?.common_output_circuit_count || 0)
+    + (compensationCapacitorBankControlProfile.value?.split_output_circuit_count || 0)
+  )
+  const runningCount = countActiveBits(latest?.circuit_state_phase_a)
+    + countActiveBits(latest?.circuit_state_phase_b)
+    + countActiveBits(latest?.circuit_state_phase_c)
+    + countActiveBits(latest?.circuit_state_common_1)
+    + countActiveBits(latest?.circuit_state_common_2)
+    + countActiveBits(latest?.circuit_state_common_3)
+  const totalCount = configuredTotal > 0 ? configuredTotal : 24
+  const hasRealtimeState = [
+    latest?.circuit_state_phase_a,
+    latest?.circuit_state_phase_b,
+    latest?.circuit_state_phase_c,
+    latest?.circuit_state_common_1,
+    latest?.circuit_state_common_2,
+    latest?.circuit_state_common_3,
+  ].some((item) => item != null)
+  return {
+    runningCount,
+    totalCount,
+    hasRealtimeState,
+    source: hasRealtimeState ? '投切回路回读' : '估算/占位',
+  }
+})
+
 const isDeviceActive = computed(() => runtimeStatus.value?.is_active ?? false)
 const toggleActionLabel = computed(() => (isDeviceActive.value ? '停止设备' : '启动设备'))
 const toggleButtonType = computed(() => (isDeviceActive.value ? 'danger' : 'success'))
@@ -174,40 +224,68 @@ const timelineHours = computed(() => {
 const fallbackCompensation = computed(() => {
   const tel = compensationSvgTelemetry.value
   const prof = compensationSvgProfile.value
-
-  // 控制模式：优先从 svg_telemetry.auto_mode/local_mode 读取
-  const controlMode =
-    tel?.auto_mode === true ? '自动' : tel?.auto_mode === false ? '手动' : isDeviceActive.value ? '自动' : '手动'
-
-  // 模块总数：优先从 svg_asset_profile.module_count 读取
-  const totalModuleCount = prof?.module_count ?? 8
-
-  // 补偿容量利用率：优先从 svg_telemetry.capacity_utilization 读取
+  const capTel = compensationCapacitorBankTelemetry.value
+  const capMode = resolveCapBankControlMode()
+  const totalModuleCount = isSvgDevice.value
+    ? (prof?.module_count ?? 8)
+    : (capacitorBankCircuitSummary.value?.totalCount ?? 24)
   const ratedCapacity = Number(archive.value?.rated_capacity || 0)
   const reactivePower = realtime.value?.reactive_power
-  const usage =
-    tel?.capacity_utilization != null
-      ? tel.capacity_utilization
-      : ratedCapacity > 0 && reactivePower !== null && reactivePower !== undefined
-        ? Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
-        : 0
+  let usage = 0
+  let usageSource = '演示占位'
+  let usageState: 'live' | 'mock' | 'missing' = 'mock'
+  if (isSvgDevice.value && tel?.capacity_utilization != null) {
+    usage = tel.capacity_utilization
+    usageSource = '遥测回读'
+    usageState = 'live'
+  } else if (!isSvgDevice.value && capacitorBankCircuitSummary.value?.hasRealtimeState) {
+    usage = Math.min(
+      100,
+      Math.max(
+        0,
+        (capacitorBankCircuitSummary.value.runningCount / Math.max(1, capacitorBankCircuitSummary.value.totalCount)) * 100,
+      ),
+    )
+    usageSource = '按投切回路回读换算'
+    usageState = 'live'
+  } else if (ratedCapacity > 0 && reactivePower !== null && reactivePower !== undefined) {
+    usage = Math.min(100, Math.max(0, (Math.abs(reactivePower) / ratedCapacity) * 100))
+    usageSource = '按额定容量估算'
+    usageState = 'mock'
+  }
 
-  // 当前运行模块数：由容量利用率和总模块数推算
-  const runningModuleCount = Math.round((usage / 100) * totalModuleCount)
+  const runningModuleCount = isSvgDevice.value
+    ? Math.round((usage / 100) * totalModuleCount)
+    : (capacitorBankCircuitSummary.value?.runningCount ?? 0)
 
-  // 柜内温度：优先从 svg_telemetry.cabinet_temp 读取
-  const cabinetTemperature = tel?.cabinet_temp ?? realtime.value?.temperature ?? 36.8
-
-  const controlSource = controlMode === '自动' ? 'EMS 自动策略' : '现场手动'
+  const cabinetTemperature = isSvgDevice.value
+    ? (tel?.cabinet_temp ?? realtime.value?.temperature ?? null)
+    : (capTel?.temperature ?? realtime.value?.temperature ?? null)
+  const cabinetTemperatureSource = cabinetTemperature == null ? '当前缺测' : '实时采集'
+  const controlMode = isSvgDevice.value
+    ? (tel?.auto_mode === true ? '自动' : tel?.auto_mode === false ? '手动' : '待确认')
+    : capMode.value
+  const controlModeSource = isSvgDevice.value
+    ? (tel?.auto_mode != null ? '遥测回读' : '估算/占位')
+    : capMode.source
+  const controlModeState = isSvgDevice.value
+    ? (tel?.auto_mode != null ? 'live' : 'mock')
+    : capMode.state
+  const controlSource = controlMode === '自动' ? 'EMS 自动策略' : controlMode === '手动' ? '现场手动' : '待确认'
 
   return {
     controlMode,
+    controlModeSource,
+    controlModeState,
     runningModuleCount,
     totalModuleCount,
     compensationCapacityUsage: usage,
+    capacityUsageSource: usageSource,
+    capacityUsageState: usageState,
     controlSource,
     switchPermission: canControlDevices.value && runtimeStatus.value?.is_online !== false,
     cabinetTemperature,
+    cabinetTemperatureSource,
     targetPowerFactor: 0.98,
     dailySwitchCount: 12,
     hourlySwitchCount: 2,
@@ -241,8 +319,10 @@ const compensationHeaderModel = computed<CompensationHeaderModel>(() => ({
   deviceStatusTone: runtimeStatus.value?.is_online ? 'info' : 'neutral',
   tags: [
     {
-      label: fallbackCompensation.value.controlMode,
-      tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+      label: `${fallbackCompensation.value.controlMode} · ${fallbackCompensation.value.controlModeSource}`,
+      tone: fallbackCompensation.value.controlModeState === 'live'
+        ? (fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning')
+        : 'warning',
     },
     {
       label: compensationStatusText.value,
@@ -314,32 +394,55 @@ const compensationMetrics = computed<CompensationMetric[]>(() => {
       label: '补偿容量利用率',
       value: `${fallbackCompensation.value.compensationCapacityUsage.toFixed(1)}`,
       unit: '%',
-      hint: archive.value?.rated_capacity ? '按额定容量换算' : '演示占位，待真实容量策略接入',
+      hint: fallbackCompensation.value.capacityUsageSource,
       tone: fallbackCompensation.value.compensationCapacityUsage >= 90 ? 'warning' : 'success',
-      state: archive.value?.rated_capacity ? 'live' : 'mock',
+      state: fallbackCompensation.value.capacityUsageState,
     },
     {
       key: 'controlMode',
       label: '控制模式',
       value: fallbackCompensation.value.controlMode,
       unit: '',
-      hint: '支持自动 / 手动模式切换',
+      hint: fallbackCompensation.value.controlModeSource,
       tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
-      state: 'mock',
+      state: fallbackCompensation.value.controlModeState,
     },
     {
       key: 'cabinetTemperature',
       label: '柜内温度',
       value: displayValueWithState(temperature, '暂无数据'),
       unit: '°C',
-      hint: temperature >= 45 ? '温度偏高，请关注通风散热' : temperature >= 40 ? '温度轻微预警' : '柜内温度正常',
-      tone: temperature >= 45 ? 'danger' : temperature >= 40 ? 'warning' : 'success',
-      state: realtime.value?.temperature == null ? 'mock' : 'live',
+      hint: temperature == null
+        ? fallbackCompensation.value.cabinetTemperatureSource
+        : temperature >= 45
+          ? `温度偏高，请关注通风散热 · ${fallbackCompensation.value.cabinetTemperatureSource}`
+          : temperature >= 40
+            ? `温度轻微预警 · ${fallbackCompensation.value.cabinetTemperatureSource}`
+            : `柜内温度正常 · ${fallbackCompensation.value.cabinetTemperatureSource}`,
+      tone: temperature == null ? 'neutral' : temperature >= 45 ? 'danger' : temperature >= 40 ? 'warning' : 'success',
+      state: temperature == null ? 'missing' : 'live',
     },
   ]
 })
 
 const moduleStatusModel = computed<ModuleStatusModel>(() => {
+  if (compensationSubtype.value === 'capacitor_bank_controller' && capacitorBankCircuitSummary.value) {
+    const totalCount = Math.max(1, capacitorBankCircuitSummary.value.totalCount)
+    const runningCount = Math.max(0, Math.min(totalCount, capacitorBankCircuitSummary.value.runningCount))
+    const moduleStates: ModuleStateTone[] = Array.from({ length: totalCount }, (_, index) =>
+      index < runningCount ? 'running' : 'standby',
+    )
+    return {
+      title: '回路投切状态',
+      unitLabel: compensationUnitLabel.value,
+      runningModuleCount: runningCount,
+      totalModuleCount: totalCount,
+      moduleStates,
+      hint: capacitorBankCircuitSummary.value.hasRealtimeState
+        ? '根据最新回路投切寄存器回读统计当前投入回路数。'
+        : '当前未获取到回路投切寄存器，暂按默认回路数展示待机态。',
+    }
+  }
   const runningCount = Math.max(
     0,
     Math.min(fallbackCompensation.value.totalModuleCount, fallbackCompensation.value.runningModuleCount),
@@ -373,8 +476,15 @@ const moduleStatusModel = computed<ModuleStatusModel>(() => {
 
 const compensationExtendedHint = computed(() => {
   const messages: string[] = []
-  if (!archive.value?.rated_capacity) messages.push('额定容量暂未接入，补偿容量利用率先按演示占位显示。')
-  if (realtime.value?.temperature == null) messages.push('柜内温度当前使用演示占位，待真实采集点接入。')
+  if (fallbackCompensation.value.capacityUsageState !== 'live') {
+    messages.push(`补偿容量利用率当前来源：${fallbackCompensation.value.capacityUsageSource}。`)
+  }
+  if (fallbackCompensation.value.controlModeState !== 'live') {
+    messages.push(`控制模式当前来源：${fallbackCompensation.value.controlModeSource}。`)
+  }
+  if (fallbackCompensation.value.cabinetTemperature == null) {
+    messages.push('柜内温度当前缺测，暂不展示默认温度。')
+  }
   if (!isSvgDevice.value) messages.push('当前已接入 JKWF-LCD 专属快照与历史曲线，可查看三相功率、谐波与投切回放。')
   return messages.join(' ')
 })
@@ -695,11 +805,14 @@ const compensationEvents = computed<CompensationEventItem[]>(() => {
   }
 
   return [
-    { time: '14:25', title: '自动投入第 1 组', detail: '检测到无功需求上升，系统自动投入补偿组。', tone: 'info', tag: '自动' },
-    { time: '14:27', title: '自动投入第 2 组', detail: '功率因数仍低于目标值，继续追加补偿。', tone: 'info', tag: '自动' },
-    { time: '14:35', title: '功率因数恢复正常', detail: '补偿效果稳定，功率因数回到目标区间。', tone: 'success', tag: '恢复' },
-    { time: '14:42', title: '检测到轻微欠补偿', detail: '运行曲线显示轻微欠补偿，请关注负荷波动。', tone: 'warning', tag: '关注' },
-    { time: '14:50', title: '通讯恢复', detail: '数据采集链路恢复，实时监控重新上线。', tone: 'success', tag: '通信' },
+    {
+      time: '--:--',
+      title: '当前时间范围内暂无真实运行事件',
+      detail: '尚未采集到补偿器控制/告警事件，页面不再用示例事件替代真实记录。',
+      tone: 'info',
+      tag: '待采集',
+      isMock: true,
+    },
   ]
 })
 
@@ -732,6 +845,7 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       label: '当前模式',
       value: fallbackCompensation.value.controlMode,
       tone: fallbackCompensation.value.controlMode === '自动' ? 'info' : 'warning',
+      hint: fallbackCompensation.value.controlModeSource,
     },
     {
       label: '未处理告警',
@@ -742,6 +856,16 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       label: '控制来源',
       value: fallbackCompensation.value.controlSource,
       tone: 'info',
+    },
+    {
+      label: '容量利用率来源',
+      value: fallbackCompensation.value.capacityUsageSource,
+      tone: fallbackCompensation.value.capacityUsageState === 'live' ? 'success' : 'warning',
+    },
+    {
+      label: '温度来源',
+      value: fallbackCompensation.value.cabinetTemperatureSource,
+      tone: fallbackCompensation.value.cabinetTemperature != null ? 'success' : 'warning',
     },
     {
       label: '最近采样',
@@ -843,6 +967,22 @@ const compensationStatusItems = computed<CompensationStatusItem[]>(() => {
       capTel.overvoltage_alarm_c && 'C相过压',
     ].filter(Boolean) as string[]
     items.push(
+      {
+        label: '参数快照',
+        value: compensationCapacitorBankControlProfile.value?.source_status === 'fresh'
+          ? '最新参数'
+          : compensationCapacitorBankControlProfile.value?.source_status === 'stale'
+            ? '参数可能过期'
+            : compensationCapacitorBankControlProfile.value?.source_status === 'empty'
+              ? '暂无参数'
+              : '状态未知',
+        tone: compensationCapacitorBankControlProfile.value?.source_status === 'fresh'
+          ? 'success'
+          : compensationCapacitorBankControlProfile.value?.source_status === 'stale'
+            ? 'warning'
+            : 'neutral',
+        hint: '来自控制器参数回读档案',
+      },
       {
         label: '控制策略',
         value: '按功率因数自动投切',
@@ -1185,7 +1325,10 @@ async function refreshRealtime() {
       await loadSVGTelemetry()
     }
     if (compensationSubtype.value === 'capacitor_bank_controller') {
-      await loadCapBankTelemetry()
+      await Promise.all([
+        loadCapBankTelemetry(),
+        loadCapBankControlProfile(),
+      ])
     }
   } catch {
     // axios 统一处理
@@ -1255,7 +1398,7 @@ async function handleToggleDevice() {
 onMounted(async () => {
   await chart.initChart()
   await loadPage(true)
-  refreshTimer = setInterval(refreshRealtime, 10000)
+  refreshTimer = setInterval(refreshRealtime, REFRESH_INTERVAL_MS)
 })
 
 onBeforeUnmount(() => {
@@ -1401,7 +1544,9 @@ function statusText(flag: boolean | undefined, offlineText: string) {
 
 function historyTone(status?: string, eventType?: string): CompensationTone {
   if (status === 'success' || status === 'resolved') return 'success'
-  if (status === 'active' || status === 'failed') return 'danger'
+  if (status === 'running') return 'info'
+  if (status === 'accepted') return 'warning'
+  if (status === 'active' || status === 'failed' || status === 'timeout' || status === 'rejected') return 'danger'
   if (eventType === 'control') return 'info'
   return 'warning'
 }
@@ -1409,6 +1554,10 @@ function historyTone(status?: string, eventType?: string): CompensationTone {
 function historyTag(status?: string) {
   if (status === 'resolved') return '已恢复'
   if (status === 'success') return '成功'
+  if (status === 'running') return '执行中'
+  if (status === 'accepted') return '已入队'
+  if (status === 'timeout') return '超时'
+  if (status === 'rejected') return '拒绝'
   if (status === 'active') return '告警'
   return '事件'
 }
@@ -1503,7 +1652,9 @@ function statusTagType(code?: string) {
         :toggle-button-type="toggleButtonType"
         :toggle-submitting="toggleSubmitting"
         :can-control-devices="canControlDevices"
+        :show-console-entry="compensationSubtype === 'capacitor_bank_controller'"
         @back="router.push('/devices')"
+        @open-console="router.push(`/devices/${deviceId}/console`)"
         @refresh="loadPage(true)"
         @toggle="handleToggleDevice"
       />
@@ -1555,7 +1706,7 @@ function statusTagType(code?: string) {
           >
             <div class="side-panel__head">
               <h3>控制参数摘要</h3>
-              <span>监控页仅展示只读摘要，完整参数与控制能力请进入控制台查看。</span>
+              <span>监控页仅展示只读摘要，完整参数与控制能力可通过顶部“进入控制台”查看。</span>
             </div>
 
             <div
@@ -1578,15 +1729,6 @@ function statusTagType(code?: string) {
               <strong>暂无参数</strong>
               <span>当前设备还没有可回读的 JKWF 参数快照。</span>
             </div>
-
-            <el-button
-              class="control-summary-button"
-              type="warning"
-              plain
-              @click="router.push(`/devices/${deviceId}/console`)"
-            >
-              进入控制台
-            </el-button>
           </section>
           <CompensationDeviceProfile :items="compensationProfileItems" />
         </aside>

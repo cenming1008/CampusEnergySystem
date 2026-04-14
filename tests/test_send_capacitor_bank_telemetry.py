@@ -1,6 +1,7 @@
 import os
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
@@ -116,6 +117,51 @@ class TestSendCapacitorBankTelemetry(unittest.TestCase):
 
         self.assertEqual(updated["temperature_upper_limit"], 68.5)
         self.assertTrue(updated["simulated_device_enabled"])
+
+    @patch("scripts.python.send_capacitor_bank_telemetry._publish_payload")
+    def test_publish_control_receipt_emits_structured_receipt(self, mock_publish_payload):
+        mock_publish_payload.return_value = True
+        runtime = simulator.RuntimeContext(
+            device=SimpleNamespace(id=16, sn="JKWF-TEST-01", name="JKWF 测试柜", is_active=True),
+            options=simulator.ScenarioOptions(
+                profile="normal",
+                leading=None,
+                undercurrent=None,
+                voltage_thd_alarm=None,
+                current_thd_alarm=None,
+                temp_alarm=None,
+                phase_a_groups=None,
+                phase_b_groups=None,
+                phase_c_groups=None,
+                common_1_groups=None,
+                common_2_groups=None,
+                common_3_groups=None,
+            ),
+            state=simulator.ControlSimulationState(enabled=True),
+            telemetry_topic="campus/telemetry",
+            control_topic="campus/control/16",
+            publish_on_control=True,
+            lock=simulator.threading.Lock(),
+        )
+
+        ok = simulator._publish_control_receipt(
+            SimpleNamespace(),
+            runtime,
+            {"command_id": "88", "command": "reset_alarm"},
+            result="success",
+            detail="模拟器已执行报警复位",
+        )
+
+        self.assertTrue(ok)
+        mock_publish_payload.assert_called_once()
+        _, topic, payload = mock_publish_payload.call_args[0]
+        self.assertEqual(topic, "campus/telemetry")
+        self.assertEqual(payload["message_type"], "control_receipt")
+        self.assertEqual(payload["protocol_version"], "campus-control.v1")
+        self.assertEqual(payload["device_id"], 16)
+        self.assertEqual(payload["command_id"], "88")
+        self.assertEqual(payload["command"], "reset_alarm")
+        self.assertEqual(payload["result"], "success")
 
 
 if __name__ == "__main__":

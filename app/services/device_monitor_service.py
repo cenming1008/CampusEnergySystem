@@ -13,6 +13,7 @@ from app.models.tables import Device, DeviceControlLog
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.energy_repository import EnergyRepository
 from app.services.alarm_service import AlarmService
+from app.services.capacitor_bank_service import CapacitorBankService
 from app.services.device_service import DeviceService
 from app.services.ingestion_health_service import IngestionHealthService
 from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
@@ -155,6 +156,7 @@ class DeviceMonitorService:
         limit: int = 50,
     ) -> list[DeviceControlLog]:
         DeviceService.get_device_by_id(session, device_id)
+        CapacitorBankService.expire_pending_control_logs(session, device_id=device_id)
         return DeviceRepository.list_control_logs(
             session,
             device_id=device_id,
@@ -258,9 +260,9 @@ class DeviceMonitorService:
                 {
                     "timestamp": record.created_at,
                     "event_type": "control",
-                    "status": "success" if record.result == "success" else "failed",
-                    "title": "设备启动" if record.target_status else "设备停止",
-                    "detail": record.operator or "系统/未知用户",
+                    "status": DeviceMonitorService._control_event_status(record),
+                    "title": DeviceMonitorService._control_event_title(record),
+                    "detail": DeviceMonitorService._control_event_detail(record),
                 }
             )
 
@@ -316,3 +318,20 @@ class DeviceMonitorService:
                 for log in DeviceMonitorService.get_control_logs(session, device_id, limit=10)
             ],
         }
+
+    @staticmethod
+    def _control_event_status(record: DeviceControlLog) -> str:
+        return CapacitorBankService.normalize_control_result(record.result)
+
+    @staticmethod
+    def _control_event_title(record: DeviceControlLog) -> str:
+        return CapacitorBankService.get_action_label(record.action)
+
+    @staticmethod
+    def _control_event_detail(record: DeviceControlLog) -> str:
+        detail_parts = [CapacitorBankService.get_result_label(record.result)]
+        if record.operator:
+            detail_parts.append(record.operator)
+        if record.reason:
+            detail_parts.append(record.reason)
+        return " | ".join(detail_parts)

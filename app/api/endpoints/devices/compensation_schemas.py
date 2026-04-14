@@ -245,6 +245,13 @@ class CapacitorBankControlCapabilitiesResponse(BaseModel):
     supports_remote_control: bool
     write_status_message: str
     remote_control_status_message: str
+    protocol_version: str
+    command_message_type: str
+    receipt_message_type: str
+    control_topic_template: str
+    receipt_topic: str
+    receipt_timeout_seconds: int
+    supported_results: list[str]
 
 
 class CapacitorBankControlWriteRequest(BaseModel):

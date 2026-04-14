@@ -15,10 +15,32 @@ from typing import Any, Optional
 
 from sqlmodel import Session, select
 
+from app.core.settings import settings
 from app.models.tables import CapacitorBankControlProfile, Device, DeviceControlLog
+from app.repositories.device_repository import DeviceRepository
+from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_publisher import publish_control_payload_async, publish_parameter_write_async
 
 CONTROL_PROFILE_STALE_AFTER = timedelta(hours=1)
+CONTROL_RECEIPT_TIMEOUT = timedelta(minutes=2)
+CONTROL_PROTOCOL_VERSION = "campus-control.v1"
+CONTROL_COMMAND_MESSAGE_TYPE = "control_command"
+CONTROL_RECEIPT_MESSAGE_TYPE = "control_receipt"
+CONTROL_RESULT_ACCEPTED = "accepted"
+CONTROL_RESULT_RUNNING = "running"
+CONTROL_RESULT_SUCCESS = "success"
+CONTROL_RESULT_FAILED = "failed"
+CONTROL_RESULT_TIMEOUT = "timeout"
+CONTROL_RESULT_REJECTED = "rejected"
+PENDING_CONTROL_RESULTS = {CONTROL_RESULT_ACCEPTED, CONTROL_RESULT_RUNNING}
+SUPPORTED_CONTROL_RESULTS = (
+    CONTROL_RESULT_ACCEPTED,
+    CONTROL_RESULT_RUNNING,
+    CONTROL_RESULT_SUCCESS,
+    CONTROL_RESULT_FAILED,
+    CONTROL_RESULT_TIMEOUT,
+    CONTROL_RESULT_REJECTED,
+)
 
 
 class ControlProfileWritePreconditionError(RuntimeError):
@@ -89,6 +111,23 @@ REMOTE_COMMAND_SPECS: dict[str, dict[str, str]] = {
 class CapacitorBankService:
     """传统电容补偿控制器控制台参数服务。"""
 
+    CONTROL_ACTION_LABELS = {
+        "start": "启用设备",
+        "stop": "停用设备",
+        "manual_switch_test": "手动投切测试",
+        "reset_alarm": "报警复位",
+        "switch_control_mode": "控制模式切换",
+    }
+
+    CONTROL_RESULT_LABELS = {
+        CONTROL_RESULT_ACCEPTED: "已入队",
+        CONTROL_RESULT_RUNNING: "设备执行中",
+        CONTROL_RESULT_SUCCESS: "执行成功",
+        CONTROL_RESULT_FAILED: "执行失败",
+        CONTROL_RESULT_TIMEOUT: "设备回执超时",
+        CONTROL_RESULT_REJECTED: "设备拒绝执行",
+    }
+
     @staticmethod
     def get_parameter_spec(parameter_key: str) -> CapacitorBankControlParameterSpec:
         spec = PARAMETER_WRITE_SPECS.get(parameter_key)
@@ -143,8 +182,15 @@ class CapacitorBankService:
             "supports_read": True,
             "supports_write": True,
             "supports_remote_control": True,
-            "write_status_message": "当前已开放后端参数写入受控链路，前端编辑入口仍保持关闭。",
-            "remote_control_status_message": "当前控制台已开放启停、手动投切测试、报警复位与控制模式切换的演示控制链路。",
+            "write_status_message": "参数写入已接入正式控制链路，仅管理员可发起；accepted 仅表示指令入队，仍需结合设备回执与最新回读确认。",
+            "remote_control_status_message": "远程控制已收敛到正式控制链路：命令下发到 campus/control/{device_id}，设备通过 control_receipt 回执执行状态。",
+            "protocol_version": CONTROL_PROTOCOL_VERSION,
+            "command_message_type": CONTROL_COMMAND_MESSAGE_TYPE,
+            "receipt_message_type": CONTROL_RECEIPT_MESSAGE_TYPE,
+            "control_topic_template": f"{settings.mqtt_control_topic_prefix}{{device_id}}",
+            "receipt_topic": settings.mqtt_topic,
+            "receipt_timeout_seconds": int(CONTROL_RECEIPT_TIMEOUT.total_seconds()),
+            "supported_results": list(SUPPORTED_CONTROL_RESULTS),
         }
 
     @staticmethod
@@ -153,6 +199,81 @@ class CapacitorBankService:
         if spec is None:
             raise ValueError(f"当前不支持远程控制动作 `{action}`。")
         return spec
+
+    @staticmethod
+    def get_action_label(action: str) -> str:
+        if action.startswith("write:"):
+            parameter_key = action[6:]
+            spec = PARAMETER_WRITE_SPECS.get(parameter_key)
+            if spec:
+                return f"参数写入 · {spec.label}"
+            return f"参数写入 · {parameter_key}"
+        return CapacitorBankService.CONTROL_ACTION_LABELS.get(action, action)
+
+    @staticmethod
+    def normalize_control_result(result: Optional[str]) -> str:
+        normalized = str(result or "").strip().lower()
+        if normalized in SUPPORTED_CONTROL_RESULTS:
+            return normalized
+        return CONTROL_RESULT_FAILED
+
+    @staticmethod
+    def get_result_label(result: Optional[str]) -> str:
+        return CapacitorBankService.CONTROL_RESULT_LABELS.get(
+            CapacitorBankService.normalize_control_result(result),
+            "执行异常",
+        )
+
+    @staticmethod
+    def build_command_payload(
+        device_id: int,
+        *,
+        command: str,
+        command_id: str,
+        reason: Optional[str] = None,
+        extras: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "message_type": CONTROL_COMMAND_MESSAGE_TYPE,
+            "protocol_version": CONTROL_PROTOCOL_VERSION,
+            "timestamp": datetime.now().isoformat(),
+            "device_id": device_id,
+            "command": command,
+            "command_id": command_id,
+        }
+        if reason:
+            payload["reason"] = reason
+        if extras:
+            payload.update(extras)
+        return payload
+
+    @staticmethod
+    def expire_pending_control_logs(
+        session: Session,
+        *,
+        device_id: Optional[int] = None,
+        now: Optional[datetime] = None,
+    ) -> list[DeviceControlLog]:
+        cutoff = (now or datetime.now()) - CONTROL_RECEIPT_TIMEOUT
+        stmt = select(DeviceControlLog).where(DeviceControlLog.result.in_(tuple(PENDING_CONTROL_RESULTS)))
+        if device_id is not None:
+            stmt = stmt.where(DeviceControlLog.device_id == device_id)
+        stmt = stmt.where(DeviceControlLog.created_at <= cutoff)
+        expired_logs = list(session.exec(stmt).all())
+        if not expired_logs:
+            return []
+
+        timeout_suffix = "设备回执超时：在约定等待时间内未收到回执"
+        for log in expired_logs:
+            log.result = CONTROL_RESULT_TIMEOUT
+            if log.reason:
+                if timeout_suffix not in log.reason:
+                    log.reason = f"{log.reason} | {timeout_suffix}"
+            else:
+                log.reason = timeout_suffix
+            session.add(log)
+        session.commit()
+        return expired_logs
 
     @staticmethod
     def normalize_write_value(parameter_key: str, target_value: Any) -> Any:
@@ -233,6 +354,10 @@ class CapacitorBankService:
         operator: str,
         reason: Optional[str] = None,
     ) -> dict[str, Any]:
+        health = IngestionHealthService.get_device_health(session, device.id)
+        if health.get("is_online") is False:
+            raise ControlProfileWritePreconditionError("当前设备离线，暂不允许下发参数写入。")
+
         profile = CapacitorBankService.get_control_profile(session, device.id)
         source_status = CapacitorBankService.get_profile_source_status(profile)
         if source_status in {"empty", "unknown"}:
@@ -252,7 +377,7 @@ class CapacitorBankService:
             previous_status=device.is_active,
             operator=operator,
             command_source="control-profile-api",
-            result="accepted",
+            result=CONTROL_RESULT_ACCEPTED,
             reason=" | ".join(log_reason_parts),
         )
         session.add(control_log)
@@ -263,8 +388,12 @@ class CapacitorBankService:
             device.id,
             parameter_key,
             normalized_value,
+            command_id=str(control_log.id),
             reason=normalized_reason or None,
             register=spec.register,
+            protocol_version=CONTROL_PROTOCOL_VERSION,
+            message_type=CONTROL_COMMAND_MESSAGE_TYPE,
+            sent_at=datetime.now().isoformat(),
         )
 
         message = f"参数写入指令已入队：{spec.label} -> {normalized_value}"
@@ -297,7 +426,7 @@ class CapacitorBankService:
             previous_status=device.is_active,
             operator=operator,
             command_source="remote-control-api",
-            result="accepted",
+            result=CONTROL_RESULT_ACCEPTED,
             reason=log_reason,
         )
         session.add(control_log)
@@ -306,16 +435,63 @@ class CapacitorBankService:
 
         publish_control_payload_async(
             device.id,
-            {
-                "command": spec["command"],
-                "device_id": device.id,
-                "reason": normalized_reason or spec["label"],
-            },
+            CapacitorBankService.build_command_payload(
+                device.id,
+                command=spec["command"],
+                command_id=str(control_log.id),
+                reason=normalized_reason or spec["label"],
+            ),
             worker_name=f"mqtt-remote-{action}",
         )
         return {
             "accepted": True,
-            "status": "accepted",
+            "status": CONTROL_RESULT_ACCEPTED,
             "message": f"{spec['label']}指令已入队",
             "command_id": str(control_log.id),
         }
+
+    @staticmethod
+    def apply_control_receipt(
+        session: Session,
+        *,
+        device_id: int,
+        command_id: str | int,
+        result: str,
+        detail: Optional[str] = None,
+    ) -> DeviceControlLog:
+        try:
+            control_log_id = int(command_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("控制回执缺少有效 command_id。") from exc
+
+        control_log = DeviceRepository.get_control_log_by_id(session, control_log_id)
+        if control_log is None or control_log.device_id != device_id:
+            raise ValueError(f"控制回执找不到匹配日志：device_id={device_id}, command_id={command_id}")
+
+        normalized_result = CapacitorBankService.normalize_control_result(result)
+        if normalized_result not in set(SUPPORTED_CONTROL_RESULTS) - {CONTROL_RESULT_ACCEPTED}:
+            raise ValueError("控制回执 result 仅支持 running/success/failed/timeout/rejected。")
+
+        control_log.result = normalized_result
+        detail_text = (detail or "").strip()
+        if detail_text:
+            if normalized_result == CONTROL_RESULT_SUCCESS:
+                prefix = "设备回执成功"
+            elif normalized_result == CONTROL_RESULT_RUNNING:
+                prefix = "设备执行中"
+            elif normalized_result == CONTROL_RESULT_TIMEOUT:
+                prefix = "设备回执超时"
+            elif normalized_result == CONTROL_RESULT_REJECTED:
+                prefix = "设备拒绝执行"
+            else:
+                prefix = "设备回执失败"
+            suffix = f"{prefix}: {detail_text}"
+            if control_log.reason:
+                if suffix not in control_log.reason:
+                    control_log.reason = f"{control_log.reason} | {suffix}"
+            else:
+                control_log.reason = suffix
+
+        session.add(control_log)
+        session.flush()
+        return control_log

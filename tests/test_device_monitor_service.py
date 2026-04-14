@@ -9,7 +9,7 @@ from sqlmodel import Session, SQLModel, create_engine
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.api.endpoints.devices import monitoring
-from app.models.tables import Device
+from app.models.tables import Device, DeviceControlLog
 from app.services.alarm_service import AlarmService
 from app.services.device_monitor_service import DeviceMonitorService
 from app.services.energy_service import EnergyService
@@ -211,6 +211,60 @@ class TestDeviceMonitorService(unittest.TestCase):
             event_types = {item["event_type"] for item in items}
             self.assertIn("alarm", event_types)
             self.assertIn("control", event_types)
+
+    def test_status_history_uses_precise_control_titles_and_pending_states(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器1",
+                sn="CAP-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            session.add(
+                DeviceControlLog(
+                    device_id=device.id,
+                    action="write:switch_on_power_factor",
+                    target_status=True,
+                    previous_status=True,
+                    operator="admin",
+                    command_source="control-profile-api",
+                    result="accepted",
+                    reason="投入功率因数 -> 95",
+                    created_at=now - timedelta(minutes=1),
+                )
+            )
+            session.add(
+                DeviceControlLog(
+                    device_id=device.id,
+                    action="reset_alarm",
+                    target_status=True,
+                    previous_status=True,
+                    operator="operator",
+                    command_source="remote-control-api",
+                    result="rejected",
+                    reason="设备处于就地模式",
+                    created_at=now - timedelta(seconds=10),
+                )
+            )
+            session.commit()
+
+            items = DeviceMonitorService.get_status_history(session, device.id, hours=24, limit=10)
+            control_items = [item for item in items if item["event_type"] == "control"]
+
+            self.assertEqual(control_items[0]["title"], "报警复位")
+            self.assertEqual(control_items[0]["status"], "rejected")
+            self.assertIn("设备拒绝执行", control_items[0]["detail"])
+            self.assertEqual(control_items[1]["title"], "参数写入 · 投入功率因数")
+            self.assertEqual(control_items[1]["status"], "accepted")
+            self.assertIn("已入队", control_items[1]["detail"])
 
     @patch("app.api.endpoints.devices.monitoring.ensure_device_access")
     @patch("app.api.endpoints.devices.monitoring.DeviceMonitorService.get_monitor_overview")

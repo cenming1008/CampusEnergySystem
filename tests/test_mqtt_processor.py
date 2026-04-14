@@ -73,6 +73,34 @@ class TestMqttProcessor(unittest.TestCase):
         mock_resolve_device_id.assert_called_once()
         mock_persist_device_data.assert_called_once()
 
+    @patch("app.integrations.mqtt.processor.Session")
+    @patch("app.services.mqtt_processor.process_control_receipt")
+    @patch("app.services.mqtt_processor.resolve_device_id")
+    def test_process_payload_dict_handles_control_receipt_without_broadcast(
+        self,
+        mock_resolve_device_id,
+        mock_process_control_receipt,
+        mock_session_cls,
+    ):
+        mock_resolve_device_id.return_value = 16
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+
+        message = process_payload_dict(
+            {
+                "message_type": "control_receipt",
+                "device_id": 16,
+                "command_id": "88",
+                "command": "write_parameter",
+                "result": "success",
+                "detail": "模拟器已写入参数",
+            },
+            topic="campus/telemetry",
+        )
+
+        self.assertIsNone(message)
+        mock_process_control_receipt.assert_called_once()
+        mock_session.commit.assert_called_once()
+
     @patch("app.services.mqtt_processor.process_payload_dict")
     def test_process_payload_wraps_model_as_dict(self, mock_process_payload_dict):
         mock_process_payload_dict.return_value = type(

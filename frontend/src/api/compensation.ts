@@ -138,6 +138,13 @@ export interface CompensationCapacitorBankControlCapabilities {
   supports_remote_control: boolean
   write_status_message: string
   remote_control_status_message: string
+  protocol_version: string
+  command_message_type: string
+  receipt_message_type: string
+  control_topic_template: string
+  receipt_topic: string
+  receipt_timeout_seconds: number
+  supported_results: string[]
 }
 
 export interface CompensationCapacitorBankControlProfile {

@@ -48,6 +48,14 @@ function tagType(tone?: CompensationEventItem['tone']) {
               >
                 {{ item.tag }}
               </el-tag>
+              <el-tag
+                v-if="item.isMock"
+                size="small"
+                effect="plain"
+                type="warning"
+              >
+                估算/占位
+              </el-tag>
             </div>
             <p>{{ item.detail }}</p>
           </div>

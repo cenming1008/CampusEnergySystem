@@ -13,11 +13,13 @@ from app.integrations.mqtt.processor import (
     TelemetryBroadcastMessage,
     apply_field_aliases,
     build_data_dict,
+    is_control_receipt_payload,
     normalize_metrics,
     parse_numeric,
     parse_payload,
     parse_timestamp,
     persist_device_data,
+    process_control_receipt,
     resolve_device_id,
     validate_payload_content,
     validate_timestamp,
@@ -56,6 +58,11 @@ def process_payload_dict(
         return None
 
     try:
+        if is_control_receipt_payload(normalized_data):
+            with Session(engine) as session:
+                process_control_receipt(session, normalized_data, device_id)
+                session.commit()
+            return None
         validate_payload_content(normalized_data)
         timestamp = validate_timestamp(parse_timestamp(normalized_data))
         voltage, current, power, energy = normalize_metrics(normalized_data)
@@ -86,11 +93,13 @@ __all__ = [
     "IngestionHealthService",
     "apply_field_aliases",
     "build_data_dict",
+    "is_control_receipt_payload",
     "normalize_metrics",
     "parse_numeric",
     "parse_payload",
     "parse_timestamp",
     "persist_device_data",
+    "process_control_receipt",
     "process_payload",
     "process_payload_dict",
     "resolve_device_id",
