@@ -148,7 +148,7 @@ watch(() => chart.chartRef.value, async () => {
 <template>
   <section class="trend-panel">
     <div class="trend-panel__head">
-      <div>
+      <div class="trend-panel__intro">
         <h3>历史趋势</h3>
         <span>{{ model.hint || '默认围绕补偿效果展示，支持时间范围切换' }}</span>
       </div>
@@ -214,6 +214,11 @@ watch(() => chart.chartRef.value, async () => {
   gap: 16px;
 }
 
+.trend-panel__intro {
+  flex: 1;
+  min-width: 0;
+}
+
 .trend-panel__head h3 {
   margin: 0;
   font-size: 16px;
@@ -232,6 +237,8 @@ watch(() => chart.chartRef.value, async () => {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .trend-panel__summary {

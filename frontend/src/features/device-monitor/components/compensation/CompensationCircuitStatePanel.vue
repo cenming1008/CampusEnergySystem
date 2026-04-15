@@ -1,10 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 
-defineProps({
+const props = defineProps({
   capacitorBankTelemetry: {
     type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
+    default: null,
+  },
+  configuredSplitCircuitCount: {
+    type: Number,
+    default: null,
+  },
+  configuredCommonCircuitCount: {
+    type: Number,
     default: null,
   },
 })
@@ -14,6 +23,8 @@ interface CircuitGroup {
   mask: number | null | undefined
   alarmFlag?: boolean | null
 }
+
+type SlotState = boolean | null | 'unconfigured'
 
 function getCircuitGroups(t: CompensationCapacitorBankTelemetry): CircuitGroup[] {
   return [
@@ -26,16 +37,47 @@ function getCircuitGroups(t: CompensationCapacitorBankTelemetry): CircuitGroup[]
   ]
 }
 
-/** 将 8-bit mask 展开为 8 个 bool，bit0 = 第 1 路 */
-function toBits(mask: number | null | undefined): boolean[] {
-  if (mask == null) return Array(8).fill(null)
-  return Array.from({ length: 8 }, (_, i) => Boolean(mask & (1 << i)))
+function distributeBalanced(total: number | null | undefined, buckets: number, maxPerBucket: number): number[] {
+  const normalized = Math.max(0, Math.min(Number(total || 0), buckets * maxPerBucket))
+  const base = Math.floor(normalized / buckets)
+  const remainder = normalized % buckets
+  return Array.from({ length: buckets }, (_, index) => Math.min(maxPerBucket, base + (index < remainder ? 1 : 0)))
+}
+
+function distributeSequential(total: number | null | undefined, bucketSizes: number[]): number[] {
+  let remaining = Math.max(0, Number(total || 0))
+  return bucketSizes.map((size) => {
+    const allocated = Math.min(size, remaining)
+    remaining -= allocated
+    return allocated
+  })
+}
+
+function resolvedConfiguredCounts(props: {
+  configuredSplitCircuitCount?: number | null
+  configuredCommonCircuitCount?: number | null
+}) {
+  return [
+    ...distributeBalanced(props.configuredSplitCircuitCount, 3, 8),
+    ...distributeSequential(props.configuredCommonCircuitCount, [8, 8, 8]),
+  ]
+}
+
+/** 将 8-bit mask 展开为 8 个槽位状态，bit0 = 第 1 路 */
+function toBits(mask: number | null | undefined, configuredCount: number): SlotState[] {
+  return Array.from({ length: 8 }, (_, i) => {
+    if (i >= configuredCount) return 'unconfigured'
+    if (mask == null) return null
+    return Boolean(mask & (1 << i))
+  })
 }
 
 function stepLabel(groupIdx: number, bitIdx: number): string {
   const base = groupIdx >= 3 ? (groupIdx - 3) * 8 + 1 : 1
   return `${base + bitIdx}`
 }
+
+const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
 </script>
 
 <template>
@@ -62,11 +104,11 @@ function stepLabel(groupIdx: number, bitIdx: number): string {
           </div>
           <div class="steps-grid">
             <div
-              v-for="(on, bi) in toBits(group.mask)"
+              v-for="(on, bi) in toBits(group.mask, groupConfiguredCounts[gi] || 0)"
               :key="bi"
               class="step-badge"
-              :class="on === null ? 'step-badge--na' : on ? 'step-badge--on' : 'step-badge--off'"
-              :title="on === null ? '无数据' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`"
+              :class="on === 'unconfigured' ? 'step-badge--unconfigured' : on === null ? 'step-badge--na' : on ? 'step-badge--on' : 'step-badge--off'"
+              :title="on === 'unconfigured' ? `第 ${stepLabel(gi, bi)} 路 — 未配置` : on === null ? '无数据' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`"
             >
               {{ stepLabel(gi, bi) }}
             </div>
@@ -206,6 +248,13 @@ function stepLabel(groupIdx: number, bitIdx: number): string {
   background: rgba(30, 48, 70, 0.2);
   border: 1px dashed rgba(53, 72, 97, 0.3);
   color: #344c68;
+}
+
+.step-badge--unconfigured {
+  background: rgba(33, 42, 55, 0.24);
+  border: 1px dashed rgba(120, 135, 156, 0.25);
+  color: #5d6e86;
+  opacity: 0.72;
 }
 
 /* 状态标志行 */

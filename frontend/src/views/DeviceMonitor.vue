@@ -1678,6 +1678,8 @@ function statusTagType(code?: string) {
           <CompensationCircuitStatePanel
             v-if="compensationSubtype === 'capacitor_bank_controller'"
             :capacitor-bank-telemetry="compensationCapacitorBankTelemetry"
+            :configured-split-circuit-count="compensationCapacitorBankControlProfile?.split_output_circuit_count ?? undefined"
+            :configured-common-circuit-count="compensationCapacitorBankControlProfile?.common_output_circuit_count ?? undefined"
           />
 
           <CompensationTrendPanel
@@ -1705,8 +1707,13 @@ function statusTagType(code?: string) {
             class="side-panel side-panel--muted control-summary-panel"
           >
             <div class="side-panel__head">
-              <h3>控制参数摘要</h3>
-              <span>监控页仅展示只读摘要，完整参数与控制能力可通过顶部“进入控制台”查看。</span>
+              <div class="control-summary-headline">
+                <h3>控制参数摘要</h3>
+                <div class="control-summary-badges">
+                  <span class="control-summary-badge">只读摘要</span>
+                  <span class="control-summary-badge control-summary-badge--accent">控制台查看完整参数</span>
+                </div>
+              </div>
             </div>
 
             <div
@@ -2045,6 +2052,39 @@ function statusTagType(code?: string) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.control-summary-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-summary-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.control-summary-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(83, 110, 140, 0.55);
+  background: rgba(34, 52, 77, 0.72);
+  color: #9eb3cf;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.control-summary-badge--accent {
+  border-color: rgba(76, 171, 255, 0.35);
+  background: rgba(22, 90, 146, 0.2);
+  color: #b9ddff;
 }
 
 .control-summary-empty {

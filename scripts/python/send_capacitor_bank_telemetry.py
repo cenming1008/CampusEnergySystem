@@ -214,6 +214,26 @@ def _phase_override(selection: str | None, defaults: dict[str, bool], keys: tupl
     }
 
 
+def _distribute_balanced(total: int, buckets: int, max_per_bucket: int) -> list[int]:
+    total = max(0, min(total, buckets * max_per_bucket))
+    if buckets <= 0:
+        return []
+    base = total // buckets
+    remainder = total % buckets
+    result = [base + (1 if index < remainder else 0) for index in range(buckets)]
+    return [min(max_per_bucket, value) for value in result]
+
+
+def _distribute_sequential(total: int, bucket_sizes: tuple[int, ...]) -> list[int]:
+    remaining = max(0, total)
+    result: list[int] = []
+    for size in bucket_sizes:
+        allocated = min(size, remaining)
+        result.append(allocated)
+        remaining -= allocated
+    return result
+
+
 def _build_payload(device: Device, timestamp: datetime, tick: int, options: ScenarioOptions) -> dict[str, Any]:
     t = float(tick)
     base = {
@@ -314,6 +334,18 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
     common_1_groups = _clamp_group(options.common_1_groups) if options.common_1_groups is not None else common_1_groups
     common_2_groups = _clamp_group(options.common_2_groups) if options.common_2_groups is not None else common_2_groups
     common_3_groups = _clamp_group(options.common_3_groups) if options.common_3_groups is not None else common_3_groups
+
+    split_configured_count = 8
+    common_configured_count = 12
+    split_capacities = _distribute_balanced(split_configured_count, buckets=3, max_per_bucket=8)
+    common_capacities = _distribute_sequential(common_configured_count, bucket_sizes=(8, 8, 8))
+
+    phase_a_groups = min(phase_a_groups, split_capacities[0])
+    phase_b_groups = min(phase_b_groups, split_capacities[1])
+    phase_c_groups = min(phase_c_groups, split_capacities[2])
+    common_1_groups = min(common_1_groups, common_capacities[0])
+    common_2_groups = min(common_2_groups, common_capacities[1])
+    common_3_groups = min(common_3_groups, common_capacities[2])
 
     circuit_state_1 = (_build_mask(phase_a_groups) << 8) | _build_mask(phase_b_groups)
     circuit_state_2 = (_build_mask(phase_c_groups) << 8) | _build_mask(common_1_groups)
@@ -423,8 +455,8 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
         "switch_off_power_factor": 105,
         "switch_on_delay_seconds": 10,
         "switch_off_delay_seconds": 8,
-        "common_output_circuit_count": 12,
-        "split_output_circuit_count": 8,
+        "common_output_circuit_count": common_configured_count,
+        "split_output_circuit_count": split_configured_count,
         "common_capacity_code": "4:1233",
         "split_capacity_code": "7:1124",
         "common_step_capacity_kvar": 30.0,

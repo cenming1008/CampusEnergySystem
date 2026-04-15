@@ -9,6 +9,43 @@ from scripts.python import send_capacitor_bank_telemetry as simulator
 
 
 class TestSendCapacitorBankTelemetry(unittest.TestCase):
+    def test_build_payload_respects_configured_circuit_limits(self):
+        device = SimpleNamespace(
+            id=16,
+            sn="JKWF-TEST-01",
+            name="JKWF 测试柜",
+            is_active=True,
+        )
+        options = simulator.ScenarioOptions(
+            profile="normal",
+            leading=None,
+            undercurrent=None,
+            voltage_thd_alarm=None,
+            current_thd_alarm=None,
+            temp_alarm=None,
+            phase_a_groups=None,
+            phase_b_groups=None,
+            phase_c_groups=None,
+            common_1_groups=None,
+            common_2_groups=None,
+            common_3_groups=None,
+        )
+
+        payload = simulator._build_payload(device, simulator.datetime(2026, 4, 14, 12, 0, 0), 0, options)
+
+        phase_a = (payload["circuit_state_1"] >> 8) & 0xFF
+        phase_b = payload["circuit_state_1"] & 0xFF
+        phase_c = (payload["circuit_state_2"] >> 8) & 0xFF
+        common_1 = payload["circuit_state_2"] & 0xFF
+        common_2 = (payload["circuit_state_3"] >> 8) & 0xFF
+        common_3 = payload["circuit_state_3"] & 0xFF
+
+        split_total = sum(bin(value).count("1") for value in (phase_a, phase_b, phase_c))
+        common_total = sum(bin(value).count("1") for value in (common_1, common_2, common_3))
+
+        self.assertLessEqual(split_total, payload["split_output_circuit_count"])
+        self.assertLessEqual(common_total, payload["common_output_circuit_count"])
+
     def test_apply_control_command_updates_start_stop_state(self):
         state = simulator.ControlSimulationState(enabled=True)
 
