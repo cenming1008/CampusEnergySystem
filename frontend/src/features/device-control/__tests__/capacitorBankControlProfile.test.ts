@@ -7,14 +7,27 @@ import {
 } from '../capacitorBankControlProfile'
 
 describe('capacitorBankControlProfile helpers', () => {
-  it('only exposes the controlled low-risk editable parameters', () => {
+  it('exposes the full protocol write range to the control console', () => {
     expect(capacitorBankEditableParameterMeta.map((item) => item.key)).toEqual([
       'switch_on_power_factor',
       'switch_off_power_factor',
       'switch_on_delay_seconds',
       'switch_off_delay_seconds',
+      'common_output_circuit_count',
+      'split_output_circuit_count',
+      'common_capacity_code',
+      'split_capacity_code',
+      'common_step_capacity_kvar',
+      'split_step_capacity_kvar',
+      'ct_primary_current',
       'overvoltage_threshold',
+      'voltage_harmonic_threshold',
+      'current_harmonic_threshold',
       'temperature_upper_limit',
+      'alarm_drive_event',
+      'baud_rate',
+      'terminal_assignment_scheme',
+      'current_polarity_identification_enabled',
     ])
   })
 

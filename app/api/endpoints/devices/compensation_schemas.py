@@ -269,6 +269,9 @@ class CapacitorBankControlWriteResponse(BaseModel):
 
 class CapacitorBankRemoteCommandRequest(BaseModel):
     action: str
+    manual_mode: Optional[str] = None
+    phase: Optional[str] = None
+    switch_action: Optional[str] = None
     reason: Optional[str] = None
 
 

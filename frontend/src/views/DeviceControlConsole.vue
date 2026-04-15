@@ -53,6 +53,15 @@ const writeForm = ref<{
   target_value: null,
   reason: '',
 })
+const manualSwitchForm = ref<{
+  manual_mode: 'manual' | 'auto'
+  phase: 'A' | 'B' | 'C' | 'COMMON'
+  switch_action: 'none' | 'on' | 'off'
+}>({
+  manual_mode: 'manual',
+  phase: 'A',
+  switch_action: 'on',
+})
 
 const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
@@ -72,6 +81,7 @@ const canRunRemoteAction = computed(() =>
   && runtimeStatus.value?.is_online !== false
   && controlCapabilities.value?.supports_remote_control === true,
 )
+const canRunManualSwitch = computed(() => canRunRemoteAction.value)
 const canWriteParameters = computed(() =>
   Boolean(isAdmin.value)
   && runtimeStatus.value?.is_online !== false
@@ -145,6 +155,24 @@ const editableParameterCards = computed(() =>
   })),
 )
 
+const manualModeOptions = [
+  { label: '手动模式', value: 'manual' as const },
+  { label: '自动模式', value: 'auto' as const },
+]
+
+const manualPhaseOptions = [
+  { label: 'A 相', value: 'A' as const },
+  { label: 'B 相', value: 'B' as const },
+  { label: 'C 相', value: 'C' as const },
+  { label: '共补', value: 'COMMON' as const },
+]
+
+const manualSwitchActionOptions = [
+  { label: '不投不切', value: 'none' as const },
+  { label: '投入', value: 'on' as const },
+  { label: '切除', value: 'off' as const },
+]
+
 const actionCards = computed(() => [
   {
     title: '启停 / 使能',
@@ -155,14 +183,6 @@ const actionCards = computed(() => [
     actionLabel: deviceActive.value ? '停用设备' : '启用设备',
     enabled: canToggleRemotely.value,
     handler: handleToggleDevice,
-  },
-  {
-    title: '手动投切测试',
-    icon: Setting,
-    hint: canRunRemoteAction.value ? '向控制主题发送手动投切测试命令，并等待设备/网关通过 control_receipt 回执结果。' : controlCapabilities.value?.remote_control_status_message || '远程控制能力待接入',
-    actionLabel: '执行测试',
-    enabled: canRunRemoteAction.value,
-    handler: () => handleRemoteCommand('manual_switch_test'),
   },
   {
     title: '报警复位',
@@ -250,10 +270,6 @@ async function handleToggleDevice() {
 }
 
 const remoteCommandMeta = {
-  manual_switch_test: {
-    label: '手动投切测试',
-    confirm: '将向设备发送一次手动投切测试指令，模拟器会回放新的投切状态。',
-  },
   reset_alarm: {
     label: '报警复位',
     confirm: '将向设备发送报警复位指令，模拟器会清除当前告警标志位。',
@@ -291,6 +307,50 @@ async function handleRemoteCommand(action: keyof typeof remoteCommandMeta) {
     await loadPage()
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, `${meta.label}失败，请稍后重试`))
+  } finally {
+    toggleSubmitting.value = false
+  }
+}
+
+async function handleManualSwitchCommand() {
+  if (!deviceId.value || !canRunManualSwitch.value) return
+  const modeText = manualModeOptions.find((item) => item.value === manualSwitchForm.value.manual_mode)?.label || manualSwitchForm.value.manual_mode
+  const phaseText = manualPhaseOptions.find((item) => item.value === manualSwitchForm.value.phase)?.label || manualSwitchForm.value.phase
+  const actionText = manualSwitchActionOptions.find((item) => item.value === manualSwitchForm.value.switch_action)?.label || manualSwitchForm.value.switch_action
+
+  try {
+    await ElMessageBox.confirm(
+      [
+        '将按 JKWF-LCD 功能码 0x44 发送原生手动控制请求。',
+        `模式：${modeText}`,
+        `相位：${phaseText}`,
+        `动作：${actionText}`,
+        '接口当前仅表示 accepted 入队，不代表设备端已执行成功。',
+      ].join('\n'),
+      '协议手动控制确认',
+      {
+        confirmButtonText: '确认发送',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+
+  toggleSubmitting.value = true
+  try {
+    const response = await sendCompensationCapacitorBankRemoteCommand(deviceId.value, {
+      action: 'manual_switch',
+      manual_mode: manualSwitchForm.value.manual_mode,
+      phase: manualSwitchForm.value.phase,
+      switch_action: manualSwitchForm.value.switch_action,
+      reason: `控制台手动投切 ${phaseText} ${actionText}`,
+    })
+    ElMessage.success(response.message || '手动投切指令已发送')
+    await loadPage()
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '手动投切失败，请稍后重试'))
   } finally {
     toggleSubmitting.value = false
   }
@@ -417,6 +477,7 @@ function normalizeWriteTargetValue(meta: NonNullable<typeof selectedWriteMeta.va
 function resolveLogTitle(log: DeviceControlLog) {
   if (log.action === 'start') return '启用设备'
   if (log.action === 'stop') return '停用设备'
+  if (log.action === 'manual_switch') return '手动投切'
   if (log.action === 'manual_switch_test') return '手动投切测试'
   if (log.action === 'reset_alarm') return '报警复位'
   if (log.action === 'switch_control_mode') return '控制模式切换'
@@ -608,6 +669,63 @@ onBeforeUnmount(() => {
                 <em v-else>{{ card.actionLabel }}</em>
               </button>
             </div>
+            <div class="manual-switch-box">
+              <div class="manual-switch-box__head">
+                <strong>协议手动控制</strong>
+                <span>按 JKWF-LCD `0x44` 原生语义下发：手动/自动、相位、投切动作。</span>
+              </div>
+              <div class="manual-switch-box__grid">
+                <el-form-item label="模式">
+                  <el-select
+                    v-model="manualSwitchForm.manual_mode"
+                    :disabled="!canRunManualSwitch || toggleSubmitting"
+                  >
+                    <el-option
+                      v-for="item in manualModeOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="相位">
+                  <el-select
+                    v-model="manualSwitchForm.phase"
+                    :disabled="!canRunManualSwitch || toggleSubmitting"
+                  >
+                    <el-option
+                      v-for="item in manualPhaseOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="动作">
+                  <el-select
+                    v-model="manualSwitchForm.switch_action"
+                    :disabled="!canRunManualSwitch || toggleSubmitting"
+                  >
+                    <el-option
+                      v-for="item in manualSwitchActionOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <div class="manual-switch-box__action">
+                  <el-button
+                    type="warning"
+                    :loading="toggleSubmitting"
+                    :disabled="!canRunManualSwitch"
+                    @click="handleManualSwitchCommand"
+                  >
+                    发送 0x44 手动控制
+                  </el-button>
+                </div>
+              </div>
+            </div>
             <div class="capability-note">
               <el-tag
                 :type="controlCapabilities?.supports_remote_control ? 'success' : 'info'"
@@ -717,7 +835,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <p class="param-zone__desc">
-                仅开放低风险参数，提交前需二次确认；设备端结果仍需等待回读或回执核对。
+                当前已按协议范围开放全部可写参数，提交前仍需二次确认；设备端结果仍需等待回读或回执核对。
                 当前账号参数权限：{{ isAdmin ? '管理员，可发起受控写入' : canManageDevices ? '可查看档案，不可写入' : '仅查看' }}
               </p>
               <div
@@ -835,6 +953,23 @@ onBeforeUnmount(() => {
               inline-prompt
               active-text="开启"
               inactive-text="关闭"
+            />
+            <el-select
+              v-else-if="selectedWriteMeta.inputKind === 'select'"
+              v-model="writeForm.target_value"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in selectedWriteMeta.options || []"
+                :key="String(item.value)"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+            <el-input
+              v-else-if="selectedWriteMeta.inputKind === 'text'"
+              v-model="writeForm.target_value"
+              placeholder="请输入参数值"
             />
             <el-input-number
               v-else
@@ -1186,6 +1321,44 @@ onBeforeUnmount(() => {
 .remote-card__action-btn {
   margin-top: auto;
   width: 100%;
+}
+
+.manual-switch-box {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: rgba(19, 34, 53, 0.78);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.manual-switch-box__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manual-switch-box__head strong {
+  color: #fde68a;
+}
+
+.manual-switch-box__head span {
+  color: #8ca0ba;
+  font-size: 12px;
+}
+
+.manual-switch-box__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.manual-switch-box__action {
+  display: flex;
+  align-items: flex-end;
 }
 
 /* ─── Capability note ────────────────────────────────────────── */

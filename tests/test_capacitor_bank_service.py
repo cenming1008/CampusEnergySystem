@@ -11,10 +11,36 @@ from app.services.capacitor_bank_service import (
     CONTROL_RECEIPT_TIMEOUT,
     CapacitorBankService,
     ControlProfileWritePreconditionError,
+    PARAMETER_WRITE_SPECS,
 )
 
 
 class TestCapacitorBankService(unittest.TestCase):
+    def test_get_parameter_spec_supports_full_protocol_write_range(self):
+        expected_keys = {
+            "switch_on_power_factor",
+            "switch_off_power_factor",
+            "switch_on_delay_seconds",
+            "switch_off_delay_seconds",
+            "common_output_circuit_count",
+            "split_output_circuit_count",
+            "common_capacity_code",
+            "split_capacity_code",
+            "common_step_capacity_kvar",
+            "split_step_capacity_kvar",
+            "ct_primary_current",
+            "overvoltage_threshold",
+            "voltage_harmonic_threshold",
+            "current_harmonic_threshold",
+            "temperature_upper_limit",
+            "alarm_drive_event",
+            "baud_rate",
+            "terminal_assignment_scheme",
+            "current_polarity_identification_enabled",
+        }
+
+        self.assertEqual(set(PARAMETER_WRITE_SPECS.keys()), expected_keys)
+
     def test_normalize_write_value_accepts_decimal_pf(self):
         result = CapacitorBankService.normalize_write_value("switch_on_power_factor", 0.95)
         self.assertEqual(result, 95)
@@ -227,6 +253,50 @@ class TestCapacitorBankService(unittest.TestCase):
 
         self.assertEqual(updated_rejected.result, "rejected")
         self.assertIn("设备拒绝执行", updated_rejected.reason)
+
+    @patch("app.services.capacitor_bank_service.publish_control_payload_async")
+    def test_submit_manual_switch_command_publishes_native_jkwf_payload(self, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, is_active=True)
+        session.add = MagicMock()
+        session.commit = MagicMock()
+        session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 93))
+
+        result = CapacitorBankService.submit_remote_control_command(
+            session,
+            device,
+            action="manual_switch",
+            operator="operator",
+            reason="协议联调",
+            command_args={
+                "manual_mode": "manual",
+                "phase": "A",
+                "switch_action": "on",
+            },
+        )
+
+        mock_publish.assert_called_once_with(
+            16,
+            {
+                "message_type": "control_command",
+                "protocol_version": "campus-control.v1",
+                "timestamp": unittest.mock.ANY,
+                "device_id": 16,
+                "command_id": "93",
+                "command": "manual_switch",
+                "reason": "协议联调",
+                "manual_mode": "manual",
+                "phase": "A",
+                "switch_action": "on",
+                "protocol_function_code": "0x44",
+                "manual_mode_code": 1,
+                "phase_code": 0,
+                "switch_action_code": 17,
+            },
+            worker_name="mqtt-remote-manual_switch",
+        )
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["command_id"], "93")
 
 
 if __name__ == "__main__":

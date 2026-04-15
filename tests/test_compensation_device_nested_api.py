@@ -190,6 +190,7 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
             action="reset_alarm",
             operator="tester",
             reason=None,
+            command_args=None,
         )
         mock_audit.assert_called_once_with(
             "device.capacitor_bank.remote_command",
@@ -201,6 +202,47 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
         )
         self.assertTrue(result["accepted"])
         self.assertEqual(result["command_id"], "52")
+
+    def test_nested_cap_bank_manual_switch_command_forwards_protocol_args(self):
+        user = _make_user()
+        mock_session = object()
+        device = SimpleNamespace(device_type="compensation", device_subtype="capacitor_bank_controller")
+        body = compensation_capacitor_bank.CapacitorBankRemoteCommandRequest(
+            action="manual_switch",
+            manual_mode="manual",
+            phase="A",
+            switch_action="on",
+            reason="协议联调",
+        )
+        expected = {
+            "accepted": True,
+            "status": "accepted",
+            "message": "手动投切指令已入队",
+            "command_id": "53",
+        }
+        with patch.object(compensation_capacitor_bank, "ensure_device_access", return_value=device):
+            with patch.object(
+                compensation_capacitor_bank.CapacitorBankService,
+                "submit_remote_control_command",
+                return_value=expected,
+            ) as mock_submit:
+                with patch.object(compensation_capacitor_bank, "audit_log") as mock_audit:
+                    result = compensation_capacitor_bank.send_device_capacitor_bank_remote_command(1, body, mock_session, user)
+        mock_submit.assert_called_once_with(
+            mock_session,
+            device,
+            action="manual_switch",
+            operator="tester",
+            reason="协议联调",
+            command_args={
+                "manual_mode": "manual",
+                "phase": "A",
+                "switch_action": "on",
+            },
+        )
+        mock_audit.assert_called_once()
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["command_id"], "53")
 
 
 if __name__ == "__main__":

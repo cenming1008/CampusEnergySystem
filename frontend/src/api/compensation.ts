@@ -191,7 +191,10 @@ export interface CompensationCapacitorBankControlWriteResponse {
 }
 
 export interface CompensationCapacitorBankRemoteCommandRequest {
-  action: 'manual_switch_test' | 'reset_alarm' | 'switch_control_mode'
+  action: 'manual_switch' | 'manual_switch_test' | 'reset_alarm' | 'switch_control_mode'
+  manual_mode?: 'manual' | 'auto'
+  phase?: 'A' | 'B' | 'C' | 'COMMON'
+  switch_action?: 'none' | 'on' | 'off'
   reason?: string
 }
 

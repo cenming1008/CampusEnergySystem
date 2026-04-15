@@ -168,6 +168,15 @@ def send_device_capacitor_bank_remote_command(
             action=body.action,
             operator=current_user.username,
             reason=body.reason,
+            command_args={
+                key: value
+                for key, value in {
+                    "manual_mode": body.manual_mode,
+                    "phase": body.phase,
+                    "switch_action": body.switch_action,
+                }.items()
+                if value is not None
+            } or None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

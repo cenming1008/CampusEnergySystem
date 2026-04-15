@@ -638,6 +638,41 @@ def _apply_control_command(state: ControlSimulationState, command_payload: dict[
         state.parameter_overrides["circuit_state_common_1"] = next_value
         state.parameter_overrides["reactive_power"] = round(-18.0 - next_value * 2.5, 2)
         return True, f"已执行手动投切测试，公补 1 当前投入 {next_value} 组"
+    if command == "manual_switch":
+        manual_mode = str(command_payload.get("manual_mode") or "").strip().lower()
+        phase = str(command_payload.get("phase") or "").strip().upper()
+        switch_action = str(command_payload.get("switch_action") or "").strip().lower()
+        if manual_mode not in {"manual", "auto"}:
+            return False, "缺少合法 manual_mode=manual/auto"
+        if phase not in {"A", "B", "C", "COMMON"}:
+            return False, "缺少合法 phase=A/B/C/COMMON"
+        if switch_action not in {"none", "on", "off"}:
+            return False, "缺少合法 switch_action=none/on/off"
+
+        state.control_mode = manual_mode
+        if manual_mode == "auto":
+            return True, "已切回自动模式"
+
+        field_map = {
+            "A": "circuit_state_phase_a",
+            "B": "circuit_state_phase_b",
+            "C": "circuit_state_phase_c",
+            "COMMON": "circuit_state_common_1",
+        }
+        target_field = field_map[phase]
+        current = int(state.parameter_overrides.get(target_field, 0) or 0)
+        if switch_action == "on":
+            next_value = current | 0x01
+            action_text = "投入"
+        elif switch_action == "off":
+            next_value = current & 0xFE
+            action_text = "切除"
+        else:
+            next_value = current
+            action_text = "保持"
+        state.parameter_overrides[target_field] = next_value
+        state.parameter_overrides["reactive_power"] = round(-18.0 - (1 if switch_action == "on" else 0) * 2.5, 2)
+        return True, f"已按协议手动投切：{phase} 相 {action_text}"
     if command == "reset_alarm":
         for field in (
             "temp_alarm",

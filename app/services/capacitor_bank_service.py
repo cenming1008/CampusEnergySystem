@@ -75,7 +75,7 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
     "voltage_harmonic_threshold": CapacitorBankControlParameterSpec("voltage_harmonic_threshold", "0xDE", "电压谐波门限", "float", 0.0, 50.0),
     "current_harmonic_threshold": CapacitorBankControlParameterSpec("current_harmonic_threshold", "0xDF", "电流谐波门限", "float", 0.0, 200.0),
     "temperature_upper_limit": CapacitorBankControlParameterSpec("temperature_upper_limit", "0xE0", "温度上限门限", "float", 50.0, 100.0),
-    "alarm_drive_event": CapacitorBankControlParameterSpec("alarm_drive_event", "0xE1", "报警驱动事件", "string", max_length=32),
+    "alarm_drive_event": CapacitorBankControlParameterSpec("alarm_drive_event", "0xE1", "报警驱动事件", "int", 0, 4),
     "baud_rate": CapacitorBankControlParameterSpec(
         "baud_rate",
         "0xE2",
@@ -83,7 +83,7 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
         "enum",
         allowed_values=(2400, 9600, 19200, 38400, 115200),
     ),
-    "terminal_assignment_scheme": CapacitorBankControlParameterSpec("terminal_assignment_scheme", "0xE3", "端子分配方案", "string", max_length=32),
+    "terminal_assignment_scheme": CapacitorBankControlParameterSpec("terminal_assignment_scheme", "0xE3", "端子分配方案", "int", 0, 3),
     "current_polarity_identification_enabled": CapacitorBankControlParameterSpec(
         "current_polarity_identification_enabled",
         "0xE4",
@@ -93,6 +93,10 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
 }
 
 REMOTE_COMMAND_SPECS: dict[str, dict[str, str]] = {
+    "manual_switch": {
+        "label": "手动投切",
+        "command": "manual_switch",
+    },
     "manual_switch_test": {
         "label": "手动投切测试",
         "command": "manual_switch_test",
@@ -114,6 +118,7 @@ class CapacitorBankService:
     CONTROL_ACTION_LABELS = {
         "start": "启用设备",
         "stop": "停用设备",
+        "manual_switch": "手动投切",
         "manual_switch_test": "手动投切测试",
         "reset_alarm": "报警复位",
         "switch_control_mode": "控制模式切换",
@@ -248,6 +253,34 @@ class CapacitorBankService:
         return payload
 
     @staticmethod
+    def build_manual_switch_command_args(command_args: Optional[dict[str, Any]]) -> dict[str, Any]:
+        args = dict(command_args or {})
+        manual_mode = str(args.get("manual_mode") or "").strip().lower()
+        phase = str(args.get("phase") or "").strip().upper()
+        switch_action = str(args.get("switch_action") or "").strip().lower()
+
+        if manual_mode not in {"manual", "auto"}:
+            raise ValueError("手动投切必须指定 manual_mode=manual/auto。")
+        if phase not in {"A", "B", "C", "COMMON"}:
+            raise ValueError("手动投切必须指定 phase=A/B/C/COMMON。")
+        if switch_action not in {"none", "on", "off"}:
+            raise ValueError("手动投切必须指定 switch_action=none/on/off。")
+
+        mode_code = 1 if manual_mode == "manual" else 0
+        phase_code = {"A": 0, "B": 1, "C": 2, "COMMON": 3}[phase]
+        switch_action_code = {"none": 0, "on": 0x11, "off": 0x22}[switch_action]
+
+        return {
+            "manual_mode": manual_mode,
+            "phase": phase,
+            "switch_action": switch_action,
+            "protocol_function_code": "0x44",
+            "manual_mode_code": mode_code,
+            "phase_code": phase_code,
+            "switch_action_code": switch_action_code,
+        }
+
+    @staticmethod
     def expire_pending_control_logs(
         session: Session,
         *,
@@ -327,14 +360,14 @@ class CapacitorBankService:
 
         if spec.value_kind == "bool":
             if isinstance(target_value, bool):
-                return target_value
+                return 0 if target_value else 1
             if isinstance(target_value, (int, float)) and target_value in {0, 1}:
-                return bool(target_value)
+                return int(target_value)
             normalized = str(target_value).strip().lower()
             if normalized in {"1", "true", "on", "yes", "enable", "enabled"}:
-                return True
+                return 0
             if normalized in {"0", "false", "off", "no", "disable", "disabled"}:
-                return False
+                return 1
             raise ValueError(f"{spec.label} 仅支持 true/false 或 1/0。")
 
         normalized = str(target_value).strip()
@@ -414,10 +447,14 @@ class CapacitorBankService:
         action: str,
         operator: str,
         reason: Optional[str] = None,
+        command_args: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         spec = CapacitorBankService.get_remote_command_spec(action)
         normalized_reason = reason.strip() if reason else ""
         log_reason = normalized_reason or f"控制台{spec['label']}"
+        normalized_command_args: dict[str, Any] = {}
+        if action == "manual_switch":
+            normalized_command_args = CapacitorBankService.build_manual_switch_command_args(command_args)
 
         control_log = DeviceControlLog(
             device_id=device.id,
@@ -440,6 +477,7 @@ class CapacitorBankService:
                 command=spec["command"],
                 command_id=str(control_log.id),
                 reason=normalized_reason or spec["label"],
+                extras=normalized_command_args or None,
             ),
             worker_name=f"mqtt-remote-{action}",
         )
