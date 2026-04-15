@@ -17,6 +17,7 @@
 # 当前允许范围
 
 - 本轮允许动作：{{scope}}
+- 本轮允许触达：{{allowed_targets}}
 
 # 当前非目标
 
@@ -25,6 +26,37 @@
 # 当前风险
 
 - 风险列表：{{risks}}
+
+# 权限边界
+
+- 本轮禁止动作：{{forbidden_actions}}
+- 本轮禁止扩张：{{forbidden_expansion}}
+
+# 验证协议
+
+- 本轮最低验证：{{minimum_validation}}
+- 必须记录的验证结果：{{validation_evidence}}
+- 验证失败时处理：{{validation_failure_action}}
+
+# 回写协议
+
+- 必须回写文档：{{required_writeback_docs}}
+- `current-status.md` 最少回写项：{{current_status_writeback}}
+- `handoff.md` 最少回写项：{{handoff_writeback}}
+- `PLAN-*.md` 更新条件：{{plan_update_conditions}}
+
+# 停机 / 升级规则
+
+- 必须停止并上交的条件：{{stop_conditions}}
+- 升级到预判的条件：{{escalate_to_prejudge}}
+- 升级到规则的条件：{{escalate_to_rules}}
+- 升级到验收的条件：{{escalate_to_acceptance}}
+- 需要用户拍板的事项：{{user_decision_points}}
+
+# 本轮完成定义
+
+- 本轮完成条件：{{done_definition}}
+- 若未完成应如何交接：{{incomplete_handoff_rule}}
 
 # 下一棒 prompt
 
