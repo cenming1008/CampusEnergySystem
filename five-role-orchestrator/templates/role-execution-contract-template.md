@@ -26,22 +26,30 @@
 ## 验证协议
 
 - 本轮最低验证：{{minimum_validation}}
+- 验证责任归属：{{validation_owner}}
+- 必须产出的验证材料：{{validation_artifacts}}
 - 必须记录的验证结果：{{validation_evidence}}
 - 验证失败时处理：{{validation_failure_action}}
 - 验证不足时处理：{{insufficient_validation_action}}
+- 连续验证失败阈值：{{retry_or_failure_threshold}}
 
 ## 回写协议
 
 - 必须回写文档：{{required_writeback_docs}}
+- 回写责任归属：{{writeback_owner}}
 - `current-status.md` 最少回写项：{{current_status_writeback}}
 - `handoff.md` 最少回写项：{{handoff_writeback}}
 - `PLAN-*.md` 更新条件：{{plan_update_conditions}}
+- 验收结论写入位置：{{acceptance_writeback_target}}
 - 本轮可不回写的条件：{{writeback_skip_conditions}}
 
 ## 停机规则
 
 - 必须停止并上交的条件：{{stop_conditions}}
 - 不得继续硬做的场景：{{no_force_continue_cases}}
+- 遇到 schema 变更时动作：{{schema_change_action}}
+- 遇到 breaking change 时动作：{{breaking_change_action}}
+- 任务漂移到新主题时动作：{{topic_drift_action}}
 - 命中停机后交回角色：{{stop_return_role}}
 
 ## 升级规则
