@@ -71,6 +71,15 @@
     - 高风险动作（如单回路精细投切、批量参数下发）尚未开放
     - 控制回执闭环当前仍主要依赖模拟器约定，不等于真实网关协议已经冻结
     - 历史日志仍存在停留在 `accepted` 的旧记录，不能外推为所有控制都天然闭环到最终态
+- 已补充一轮 Windows 设备模拟链路纠偏：
+  - 根因已确认：`normalize_compensation_measurements` 会把 `power` 兼容映射到 `flow_rate`，而旧版 `infer_device_type` 仅凭 `flow_rate` 就可能把未知设备自动注册成 `water_meter`
+  - 当前已在 `app/services/mqtt_device_resolver.py` 收敛推断规则：只要 payload 已带明显电气测点（`voltage/current/power/reactive_power/power_factor`），就不再走水表分支
+  - 已补回归测试，覆盖“电气 payload 不得误判为 `water_meter`”和“真实水表 payload 仍保持 `water_meter`”
+  - 本地已把现网模拟设备 `CAP-001`（设备 `22`）修正为：
+    - `device_type/device_subtype=capacitor_bank_controller`
+    - `device_category=compensation`
+    - `energy_type=electricity`
+  - 该设备既有 `energydata` 的 `energy_type` 也已批量从 `water` 修正为 `electricity`，避免监控页继续按水表语义取数
 
 ## 下一棒
 - 下一棒交给规则角色确认补偿类接口正式口径：只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`。
@@ -81,3 +90,7 @@
     - 真实回执 topic / payload
     - 命令关联键是否继续复用 `command_id`
     - `running/timeout/rejected` 在真实设备侧是否仍保持当前口径，或需要进一步细化
+  - 若后续希望“未知新设备仅凭当前 Windows 模拟 payload 就自动注册成补偿器”，需新开一轮契约收敛：
+    - 方案 A：Windows payload 显式补 `device_type/device_subtype`
+    - 方案 B：补偿器模拟协议增加更稳定的专属特征字段
+    - 当前这轮只修到“避免误判成水表 + 修正现有 `CAP-001`”

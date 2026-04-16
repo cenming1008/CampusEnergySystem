@@ -153,23 +153,27 @@ watch(() => chart.chartRef.value, async () => {
         <span>{{ model.hint || '默认围绕补偿效果展示，支持时间范围切换' }}</span>
       </div>
       <div class="trend-panel__toolbar">
-        <el-segmented
-          :model-value="activeTab"
-          :options="segmentedOptions"
-          size="small"
-          @change="$emit('update:activeTab', $event as CompensationTrendTab)"
-        />
-        <el-date-picker
-          :model-value="timeRange"
-          type="datetimerange"
-          unlink-panels
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          range-separator="至"
-          :shortcuts="shortcuts"
-          @update:model-value="$emit('update:timeRange', $event)"
-          @change="$emit('range-change')"
-        />
+        <div class="trend-panel__tab-switcher">
+          <el-segmented
+            :model-value="activeTab"
+            :options="segmentedOptions"
+            size="small"
+            @change="$emit('update:activeTab', $event as CompensationTrendTab)"
+          />
+        </div>
+        <div class="trend-panel__range-picker">
+          <el-date-picker
+            :model-value="timeRange"
+            type="datetimerange"
+            unlink-panels
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            range-separator="至"
+            :shortcuts="shortcuts"
+            @update:model-value="$emit('update:timeRange', $event)"
+            @change="$emit('range-change')"
+          />
+        </div>
       </div>
     </div>
 
@@ -209,13 +213,11 @@ watch(() => chart.chartRef.value, async () => {
 
 .trend-panel__head {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .trend-panel__intro {
-  flex: 1;
   min-width: 0;
 }
 
@@ -235,10 +237,31 @@ watch(() => chart.chartRef.value, async () => {
 .trend-panel__toolbar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
-  flex-shrink: 0;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.trend-panel__tab-switcher {
+  flex: 1 1 560px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.trend-panel__tab-switcher :deep(.el-segmented) {
+  max-width: 100%;
+}
+
+.trend-panel__range-picker {
+  flex: 0 1 420px;
+  min-width: min(100%, 320px);
+}
+
+.trend-panel__range-picker :deep(.el-date-editor) {
+  width: 100%;
 }
 
 .trend-panel__summary {
@@ -256,12 +279,27 @@ watch(() => chart.chartRef.value, async () => {
 }
 
 @media (max-width: 1360px) {
-  .trend-panel__head {
-    flex-direction: column;
-  }
-
   .trend-panel__toolbar {
     justify-content: flex-start;
+  }
+
+  .trend-panel__tab-switcher,
+  .trend-panel__range-picker {
+    flex-basis: 100%;
+  }
+
+  .trend-panel__range-picker {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .trend-panel {
+    padding: 16px;
+  }
+
+  .trend-panel__chart {
+    height: 320px;
   }
 }
 </style>

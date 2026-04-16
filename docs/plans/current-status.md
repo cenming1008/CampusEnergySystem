@@ -25,6 +25,7 @@
 - [x] 已完成补偿器1监视与控制语义收敛：监视页不再使用伪造运行事件，控制台/事件流/控制日志已统一 `accepted/running/success/failed/timeout/rejected` 状态语义
 - [x] 已完成补偿控制器正式协议口径预埋：控制能力返回已包含 `protocol_version`、命令/回执消息类型、控制 topic 模板、回执 topic、超时阈值与支持状态集
 - [x] 已完成补偿器1完备性复核：确认当前达到“阶段完成 / 可联调可演示 / MVP+”状态，但暂不认定为真实设备正式完善或协议冻结
+- [x] 已修复 Windows 补偿器模拟链路首条设备自动注册误判：`CAP-001` 不再因 `power -> flow_rate` 兼容映射被识别为 `water_meter`
 
 ---
 
@@ -63,6 +64,7 @@
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- capacitorBankControlProfile DeviceManager` 已通过（`12 passed`）。
 - `./venv/bin/python -m pytest tests/test_device_monitor_service.py tests/test_capacitor_bank_service.py tests/test_compensation_device_nested_api.py tests/test_send_capacitor_bank_telemetry.py -q` 已通过（`34 passed`）。
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- capacitorBankControlProfile` 已通过（`3 passed`）。
+- `./venv/bin/python -m pytest tests/test_ingestion_reliability.py tests/test_capacitor_bank_ingestion.py tests/test_mqtt_processor.py -q` 已通过（`34 passed`）。
 - 电容补偿控制器控制台已完成以下最小闭环：
   - MQTT 参数快照可更新 `capacitor_bank_control_profile`
   - `GET /devices/{id}/compensation/capacitor-bank/control-profile` 可返回真实参数值、`source`、`snapshot_timestamp`、`source_status`
@@ -96,6 +98,11 @@
   - 最新专属遥测存在：`temperature=35.1`、`circuit_state_common_1=1`
   - 最新参数快照存在：`source=telemetry`、`switch_on_power_factor=95.0`
   - 最近控制记录已存在成功样本：`reset_alarm -> success`、`manual_switch_test -> success`、`switch_control_mode -> success`
+- Windows 模拟链路设备 `CAP-001` 已执行本地矫正：
+  - `device_type/device_subtype` 已改为 `capacitor_bank_controller`
+  - `device_category` 已改为 `compensation`
+  - 既有 `energydata` 的 `energy_type` 已从 `water` 修正为 `electricity`
+  - 最新样本已验证为电气语义：`2026-04-16 15:49:57`，`flow_rate=4.73`、`reactive_power=-2.53`、`power_factor=0.882`
 
 ## 当前验收判断
 - 若验收标准是“补偿器1监控页与控制台是否已经能工作，且本地模拟联调是否闭环”，当前可判定为通过。
@@ -107,6 +114,7 @@
 - 若仓库外联调脚本、第三方调用或人工调试习惯仍访问旧 `/svg`、`/capacitor-bank`，现在会直接返回 404；这是预期的 breaking cleanup。
 - `tests/test_device_domain.py` 仍有 1 个既有断言未跟随当前 `public_fields` 口径更新：`timestamp` 已不在该测试期望中，需要后续单独收敛测试口径。
 - 电容补偿控制器专属历史趋势当前已接入，但图例较多；若后续联调认为信息密度过高，可单独再做交互收敛。
+- 当前未知设备若只上报通用电气字段（`voltage/current/power/reactive_power/power_factor`）而未显式携带 `device_type/device_subtype`，自动注册现在会回落到 `load`，不会再误判成 `water_meter`；若后续希望自动识别为补偿器，仍需补充更明确的设备类型口径或专属特征字段。
 - 当前控制回执闭环仍基于模拟器约定消息，不代表真实设备协议已经冻结；后续若接入真实网关/设备，仍需按真实回执报文重接。
 - 电容补偿控制器控制台当前仅开放“启用/停用控制器”和少数字段的受控参数写入；单回路手动投切、模式切换、批量参数下发等高风险动作仍未纳入本轮。
 - 当前新开放的“手动投切测试 / 报警复位 / 控制模式切换”虽已按正式命令/回执结构收敛，但设备端执行仍主要依赖模拟器；后续接真实设备时仍需按真实网关协议联调。

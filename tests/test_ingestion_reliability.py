@@ -12,7 +12,7 @@ from app.services.energy_service import (
     _collect_carbon_fields,
     _collect_energy_fields,
 )
-from app.services.mqtt_device_resolver import extract_device_code
+from app.services.mqtt_device_resolver import extract_device_code, infer_device_type
 from app.services.mqtt_processor import (
     apply_field_aliases,
     build_data_dict,
@@ -112,6 +112,35 @@ class TestMqttDeviceResolverReliability(unittest.TestCase):
     def test_extract_device_code_strips_whitespace(self):
         self.assertEqual(extract_device_code({"device_code": "  GW-001  "}, None), "GW-001")
         self.assertEqual(extract_device_code({}, "mine/device/ GW-002 /telemetry"), "GW-002")
+
+    def test_infer_device_type_treats_electrical_payload_with_flow_rate_as_load(self):
+        self.assertEqual(
+            infer_device_type(
+                {
+                    "device_code": "CAP-001",
+                    "flow_rate": 4.56,
+                    "power": 4.56,
+                    "voltage": 221.3,
+                    "current": 12.25,
+                    "reactive_power": -2.33,
+                    "power_factor": 0.891,
+                    "temperature": 35.2,
+                }
+            ),
+            "load",
+        )
+
+    def test_infer_device_type_preserves_water_meter_for_non_electrical_flow_payload(self):
+        self.assertEqual(
+            infer_device_type(
+                {
+                    "device_code": "WATER-001",
+                    "consumption": 12.3,
+                    "flow_rate": 1.8,
+                }
+            ),
+            "water_meter",
+        )
 
 
 class TestEnergyServiceReliability(unittest.TestCase):

@@ -44,6 +44,11 @@ def extract_device_code(data: dict[str, Any], topic: Optional[str]) -> Optional[
 
 def infer_device_type(data: dict[str, Any]) -> str:
     """根据遥测字段推断设备类型，用于未知设备自动注册。"""
+    has_electrical_measurements = any(
+        data.get(f) is not None
+        for f in ("voltage", "current", "power", "reactive_power", "power_factor")
+    )
+
     # SVG 专属字段优先判断
     if any(
         data.get(f) is not None
@@ -66,10 +71,12 @@ def infer_device_type(data: dict[str, Any]) -> str:
     ):
         return "capacitor_bank_controller"
 
-    if data.get("flow_rate") is not None or (
+    if not has_electrical_measurements and (
+        data.get("flow_rate") is not None or (
         data.get("consumption") is not None
         and data.get("voltage") is None
         and data.get("current") is None
+        )
     ):
         if (
             data.get("heat_flow") is not None
