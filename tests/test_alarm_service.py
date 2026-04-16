@@ -208,6 +208,129 @@ class TestAlarmService(unittest.TestCase):
 
         self.assertEqual(thresholds, {})
 
+    def test_check_capacitor_bank_faults_creates_and_recovers_protocol_alarms(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-009",
+                sn="ALARM-009",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            first_at = datetime(2026, 4, 15, 16, 0, 0)
+            recovered_at = first_at + timedelta(minutes=3)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "temperature": 58.0,
+                    "temp_alarm": True,
+                    "overvoltage_alarm_a": True,
+                    "voltage_thd_alarm_b": True,
+                    "current_thd_alarm_c": True,
+                    "undercurrent_a": True,
+                    "reactive_power": -18.0,
+                    "leading_a": True,
+                    "leading_b": True,
+                    "leading_c": False,
+                },
+                timestamp=first_at,
+                profile_data={
+                    "temperature_upper_limit": 55.0,
+                    "overvoltage_threshold": 245.0,
+                    "voltage_harmonic_threshold": 4.5,
+                    "current_harmonic_threshold": 2.8,
+                },
+            )
+
+            self.assertEqual(len(created), 6)
+            categories = {alarm.category for alarm in session.exec(select(Alarm)).all()}
+            self.assertEqual(
+                categories,
+                {
+                    "cap_temp_alarm",
+                    "cap_overvoltage_a",
+                    "cap_voltage_thd_b",
+                    "cap_current_thd_c",
+                    "cap_undercurrent_a",
+                    "cap_overcompensation",
+                },
+            )
+
+            AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "temperature": 42.0,
+                    "temp_alarm": False,
+                    "overvoltage_alarm_a": False,
+                    "voltage_thd_alarm_b": False,
+                    "current_thd_alarm_c": False,
+                    "undercurrent_a": False,
+                    "reactive_power": -2.0,
+                    "leading_a": False,
+                    "leading_b": False,
+                    "leading_c": False,
+                },
+                timestamp=recovered_at,
+                profile_data={
+                    "temperature_upper_limit": 55.0,
+                    "overvoltage_threshold": 245.0,
+                    "voltage_harmonic_threshold": 4.5,
+                    "current_harmonic_threshold": 2.8,
+                },
+            )
+
+            for alarm in session.exec(select(Alarm)).all():
+                self.assertEqual(alarm.recovered_at, recovered_at)
+
+    def test_check_capacitor_bank_faults_uses_threshold_values_without_status_bits(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-010",
+                sn="ALARM-010",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "temperature": 56.5,
+                    "voltage_a": 248.0,
+                    "voltage_thd_a": 4.9,
+                    "current_harmonic_a": 3.2,
+                },
+                timestamp=datetime(2026, 4, 15, 17, 0, 0),
+                profile_data={
+                    "temperature_upper_limit": 55.0,
+                    "overvoltage_threshold": 245.0,
+                    "voltage_harmonic_threshold": 4.5,
+                    "current_harmonic_threshold": 2.8,
+                },
+            )
+
+            self.assertEqual({alarm.category for alarm in created}, {
+                "cap_temp_alarm",
+                "cap_overvoltage_a",
+                "cap_voltage_thd_a",
+                "cap_current_thd_a",
+            })
+
 
 if __name__ == "__main__":
     unittest.main()

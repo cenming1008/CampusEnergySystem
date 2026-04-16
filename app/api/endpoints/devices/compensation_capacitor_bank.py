@@ -98,6 +98,7 @@ def get_device_capacitor_bank_control_profile(
     }
     if profile is not None:
         payload.update(profile.model_dump(exclude={"id", "device_id"}))
+    payload.update(CapacitorBankService.build_capacity_expansion_payload(profile))
     return payload
 
 

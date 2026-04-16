@@ -19,9 +19,10 @@ from app.integrations.mqtt.processor import (
     apply_field_aliases,
     extract_capacitor_bank_control_profile,
     extract_capacitor_bank_telemetry,
+    persist_device_data,
     normalize_compensation_measurements,
 )
-from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device
+from app.models.tables import Alarm, CapacitorBankControlProfile, CapacitorBankTelemetry, Device
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -210,6 +211,65 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
         self.assertIsNotNone(profile_row)
         self.assertEqual(profile_row.switch_on_power_factor, 95)
         self.assertEqual(profile_row.source, "telemetry")
+
+    def test_persist_device_data_creates_capacitor_bank_protocol_alarms(self):
+        ts = datetime(2026, 4, 14, 10, 0, 0)
+        with Session(self.engine) as session:
+            device = Device(
+                name="JKWF 告警柜",
+                sn="JKWF-TEST-ALARM",
+                device_type="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+            device_id = device.id
+
+        payload = dict(RAW_PAYLOAD)
+        payload["device_code"] = "JKWF-TEST-ALARM"
+        payload["temp"] = 60.0
+        payload["jkwf_status"] = 0
+        payload["overvoltage_threshold"] = 245.0
+        payload["temperature_upper_limit"] = 55.0
+        payload["thd_ua"] = 5.0
+        payload["thd_ia"] = 3.5
+        payload["voltage_a"] = 248.0
+
+        data = apply_field_aliases(payload)
+        normalized = normalize_compensation_measurements(data)
+        normalized["temperature"] = 60.0
+        normalized["voltage_a"] = 248.0
+        normalized["voltage_thd_a"] = 5.0
+        normalized["current_harmonic_a"] = 3.5
+        normalized["temperature_upper_limit"] = 55.0
+        normalized["overvoltage_threshold"] = 245.0
+        normalized["voltage_harmonic_threshold"] = 4.5
+        normalized["current_harmonic_threshold"] = 2.8
+        data_dict = {
+            "voltage": normalized["voltage"],
+            "current": normalized["current"],
+            "power": normalized["power"],
+            "consumption": 0.0,
+            "reactive_power": normalized["reactive_power"],
+            "power_factor": normalized["power_factor"],
+            "temperature": normalized["temperature"],
+        }
+
+        with patch("app.integrations.mqtt.processor.engine", self.engine):
+            persist_device_data(device_id, data_dict, ts, raw_data=normalized)
+
+        with Session(self.engine) as session:
+            categories = {
+                alarm.category
+                for alarm in session.exec(select(Alarm).where(Alarm.device_id == device_id)).all()
+            }
+
+        self.assertIn("cap_temp_alarm", categories)
+        self.assertIn("cap_overvoltage_a", categories)
+        self.assertIn("cap_voltage_thd_a", categories)
+        self.assertIn("cap_current_thd_a", categories)
 
 
 if __name__ == "__main__":

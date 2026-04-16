@@ -75,6 +75,20 @@ BROKER_CONTAINER_CANDIDATES = (
 PROFILE_CHOICES = ("normal", "overvoltage", "harmonic", "overtemp", "undercurrent", "unbalance", "custom")
 PHASE_FLAG_CHOICES = ("a", "b", "c", "all", "none")
 CONTROL_PROTOCOL_VERSION = "campus-control.v1"
+CAPACITY_CODE_PATTERNS = {
+    0: "1111",
+    1: "1222",
+    2: "1244",
+    3: "1248",
+    4: "1233",
+    5: "1236",
+    6: "1122",
+    7: "1124",
+    8: "1128",
+    9: "1123",
+    10: "1126",
+    11: "1881",
+}
 
 
 @dataclass(frozen=True)
@@ -98,6 +112,11 @@ class ControlSimulationState:
     enabled: bool = True
     control_mode: str = "auto"
     parameter_overrides: dict[str, Any] | None = None
+    tick_interval_seconds: float = 3.0
+    auto_pending_action: str | None = None
+    auto_pending_elapsed_seconds: float = 0.0
+    min_action_interval_seconds: float = 6.0
+    last_action_elapsed_seconds: float = 999999.0
 
     def __post_init__(self) -> None:
         if self.parameter_overrides is None:
@@ -118,6 +137,13 @@ class RuntimeContext:
 
 def _wave(base: float, amplitude: float, t: float, period: float = 60.0) -> float:
     return base + amplitude * math.sin(2 * math.pi * t / period) + random.uniform(-amplitude * 0.1, amplitude * 0.1)
+
+
+def _calculate_power_factor(active_power: float, reactive_power: float) -> float:
+    apparent_power = math.sqrt(active_power ** 2 + reactive_power ** 2)
+    if apparent_power <= 0:
+        return 1.0
+    return min(0.999, max(0.0, abs(active_power) / apparent_power))
 
 
 def _build_mask(enabled: int, total: int = 8) -> int:
@@ -150,6 +176,9 @@ def _apply_profile(base: dict[str, float], profile: str) -> None:
             "voltage_b_base": 233.8,
             "voltage_c_base": 235.1,
             "voltage_amp": 1.1,
+            "current_amp": 0.0,
+            "active_power_amp": 0.0,
+            "reactive_power_amp": 0.0,
         })
     elif profile == "harmonic":
         base.update({
@@ -159,44 +188,54 @@ def _apply_profile(base: dict[str, float], profile: str) -> None:
             "current_harmonic_a_base": 2.9,
             "current_harmonic_b_base": 2.8,
             "current_harmonic_c_base": 3.0,
+            "current_amp": 0.0,
+            "active_power_amp": 0.0,
+            "reactive_power_amp": 0.0,
         })
     elif profile == "overtemp":
         base.update({
-            "temperature_base": 54.5,
-            "temperature_amp": 2.2,
+            "temperature_base": 54.8,
+            "temperature_amp": 0.8,
             "current_a_base": 96.0,
             "current_b_base": 93.0,
             "current_c_base": 98.0,
+            "current_amp": 0.0,
+            "active_power_amp": 0.0,
+            "reactive_power_amp": 0.0,
         })
     elif profile == "undercurrent":
         base.update({
             "current_a_base": 10.0,
             "current_b_base": 8.5,
             "current_c_base": 9.2,
-            "current_amp": 2.0,
+            "current_amp": 0.0,
             "active_power_a_base": 4.0,
             "active_power_b_base": 3.6,
             "active_power_c_base": 3.8,
-            "active_power_amp": 1.0,
+            "active_power_amp": 0.0,
             "reactive_power_a_base": -1.8,
             "reactive_power_b_base": -1.4,
             "reactive_power_c_base": -1.6,
-            "reactive_power_amp": 0.6,
+            "reactive_power_amp": 0.0,
         })
     elif profile == "unbalance":
         base.update({
             "voltage_a_base": 223.0,
             "voltage_b_base": 216.5,
             "voltage_c_base": 229.0,
+            "voltage_amp": 0.0,
             "current_a_base": 112.0,
             "current_b_base": 74.0,
             "current_c_base": 96.0,
+            "current_amp": 0.0,
             "active_power_a_base": 25.0,
             "active_power_b_base": 12.5,
             "active_power_c_base": 20.0,
-            "reactive_power_a_base": -12.0,
-            "reactive_power_b_base": -4.5,
-            "reactive_power_c_base": -8.5,
+            "active_power_amp": 0.0,
+            "reactive_power_a_base": -8.5,
+            "reactive_power_b_base": -12.0,
+            "reactive_power_c_base": -4.5,
+            "reactive_power_amp": 0.0,
         })
 
 
@@ -232,6 +271,352 @@ def _distribute_sequential(total: int, bucket_sizes: tuple[int, ...]) -> list[in
         result.append(allocated)
         remaining -= allocated
     return result
+
+
+def _distribute_by_weight(total: float, weights: tuple[float, float, float]) -> tuple[float, float, float]:
+    normalized = [max(0.0, value) for value in weights]
+    weight_sum = sum(normalized)
+    if weight_sum <= 0:
+        even = total / 3 if total else 0.0
+        return (even, even, even)
+    return tuple(total * value / weight_sum for value in normalized)
+
+
+def _resolve_capacity_pattern(capacity_code: str | int | None) -> str:
+    if capacity_code is None:
+        return CAPACITY_CODE_PATTERNS[0]
+
+    if isinstance(capacity_code, int):
+        return CAPACITY_CODE_PATTERNS.get(capacity_code, CAPACITY_CODE_PATTERNS[0])
+
+    normalized = str(capacity_code).strip()
+    if not normalized:
+        return CAPACITY_CODE_PATTERNS[0]
+
+    if ":" in normalized:
+        _, suffix = normalized.split(":", 1)
+        digits = "".join(char for char in suffix if char.isdigit())
+        if digits:
+            return digits
+
+    if normalized.isdigit() and len(normalized) == 1:
+        return CAPACITY_CODE_PATTERNS.get(int(normalized), CAPACITY_CODE_PATTERNS[0])
+
+    digits = "".join(char for char in normalized if char.isdigit())
+    if digits:
+        return digits
+    return CAPACITY_CODE_PATTERNS[0]
+
+
+def _expand_capacity_slots(capacity_code: str | int | None, step_kvar: float, count: int) -> list[float]:
+    pattern = _resolve_capacity_pattern(capacity_code)
+    if count <= 0 or not pattern:
+        return []
+    digits = [max(1, int(char)) for char in pattern]
+    slots: list[float] = []
+    while len(slots) < count:
+        for digit in digits:
+            slots.append(round(step_kvar * digit, 4))
+            if len(slots) >= count:
+                break
+    return slots
+
+
+def _normalize_capacity_slots(slots: list[float], base_unit: float) -> list[float]:
+    non_zero_slots = [slot for slot in slots if slot > 0]
+    if not non_zero_slots:
+        return [base_unit for _ in slots]
+    min_slot = min(non_zero_slots)
+    return [round(base_unit * (slot / min_slot), 4) for slot in slots]
+
+
+def _build_split_phase_slot_kvar(capacity_code: str | int | None, step_kvar: float, count: int) -> dict[str, list[float]]:
+    slot_values = _expand_capacity_slots(capacity_code, step_kvar, count)
+    phase_keys = ("phase_a_groups", "phase_b_groups", "phase_c_groups")
+    phase_capacities = _distribute_balanced(count, buckets=3, max_per_bucket=8)
+    phase_slots = {key: [] for key in phase_keys}
+    phase_index = 0
+    for slot in slot_values:
+        attempts = 0
+        while attempts < len(phase_keys):
+            key = phase_keys[phase_index]
+            if len(phase_slots[key]) < phase_capacities[phase_index]:
+                phase_slots[key].append(slot)
+                phase_index = (phase_index + 1) % len(phase_keys)
+                break
+            phase_index = (phase_index + 1) % len(phase_keys)
+            attempts += 1
+    return phase_slots
+
+
+def _build_common_stage_slot_kvar(capacity_code: str | int | None, step_kvar: float, count: int) -> dict[str, list[float]]:
+    slot_values = _expand_capacity_slots(capacity_code, step_kvar, count)
+    stage_keys = ("common_1_groups", "common_2_groups", "common_3_groups")
+    stage_capacities = _distribute_sequential(count, (8, 8, 8))
+    stage_slots: dict[str, list[float]] = {}
+    cursor = 0
+    for key, stage_count in zip(stage_keys, stage_capacities):
+        stage_slots[key] = slot_values[cursor:cursor + stage_count]
+        cursor += stage_count
+    return stage_slots
+
+
+def _sum_active_slot_kvar(slot_values: list[float], active_groups: int) -> float:
+    return round(sum(slot_values[:max(0, min(active_groups, len(slot_values)))]), 4)
+
+
+def _resolve_split_phase_slot_kvar(payload: dict[str, Any]) -> dict[str, list[float]]:
+    split_phase_slot_kvar = payload.get("_split_phase_slot_kvar")
+    if isinstance(split_phase_slot_kvar, dict):
+        return {
+            "phase_a_groups": [float(value) for value in split_phase_slot_kvar.get("phase_a_groups", [])],
+            "phase_b_groups": [float(value) for value in split_phase_slot_kvar.get("phase_b_groups", [])],
+            "phase_c_groups": [float(value) for value in split_phase_slot_kvar.get("phase_c_groups", [])],
+        }
+    split_group_kvar = float(payload.get("_split_group_kvar", 1.25) or 1.25)
+    return {
+        "phase_a_groups": [split_group_kvar] * 8,
+        "phase_b_groups": [split_group_kvar] * 8,
+        "phase_c_groups": [split_group_kvar] * 8,
+    }
+
+
+def _resolve_common_stage_slot_kvar(payload: dict[str, Any]) -> dict[str, list[float]]:
+    common_stage_slot_kvar = payload.get("_common_stage_slot_kvar")
+    if isinstance(common_stage_slot_kvar, dict):
+        return {
+            "common_1_groups": [float(value) for value in common_stage_slot_kvar.get("common_1_groups", [])],
+            "common_2_groups": [float(value) for value in common_stage_slot_kvar.get("common_2_groups", [])],
+            "common_3_groups": [float(value) for value in common_stage_slot_kvar.get("common_3_groups", [])],
+        }
+    return {
+        "common_1_groups": [float(payload.get("_common_1_group_kvar", 1.5) or 1.5)] * 8,
+        "common_2_groups": [float(payload.get("_common_2_group_kvar", 1.0) or 1.0)] * 8,
+        "common_3_groups": [float(payload.get("_common_3_group_kvar", 0.5) or 0.5)] * 8,
+    }
+
+
+def _next_slot_kvar(slot_map: dict[str, list[float]], key: str, current_count: int) -> float | None:
+    slot_values = slot_map.get(key, [])
+    if current_count < 0 or current_count >= len(slot_values):
+        return None
+    return float(slot_values[current_count])
+
+
+def _last_active_slot_kvar(slot_map: dict[str, list[float]], key: str, current_count: int) -> float | None:
+    slot_values = slot_map.get(key, [])
+    if current_count <= 0 or current_count > len(slot_values):
+        return None
+    return float(slot_values[current_count - 1])
+
+
+def _choose_best_common_action(
+    slot_map: dict[str, list[float]],
+    current_counts: dict[str, int],
+    target_kvar: float,
+    direction: str,
+    max_depth: int = 2,
+) -> str | None:
+    common_keys = ("common_1_groups", "common_2_groups", "common_3_groups")
+
+    def candidate_actions(counts: dict[str, int]) -> list[tuple[str, float]]:
+        actions: list[tuple[str, float]] = []
+        for key in common_keys:
+            if direction == "on":
+                action_kvar = _next_slot_kvar(slot_map, key, counts.get(key, 0))
+            else:
+                action_kvar = _last_active_slot_kvar(slot_map, key, counts.get(key, 0))
+            if action_kvar is not None:
+                actions.append((key, action_kvar))
+        return actions
+
+    def search(counts: dict[str, int], remaining_kvar: float, depth: int) -> tuple[float, float, float, str | None]:
+        best_score = (abs(remaining_kvar), abs(remaining_kvar), 0.0, None)
+        if depth <= 0:
+            return best_score
+
+        for key, action_kvar in candidate_actions(counts):
+            next_counts = dict(counts)
+            if direction == "on":
+                next_counts[key] = next_counts.get(key, 0) + 1
+            else:
+                next_counts[key] = next_counts.get(key, 0) - 1
+            next_remaining = remaining_kvar - action_kvar
+            child_abs, _, _, _ = search(next_counts, next_remaining, depth - 1)
+            score = (child_abs, abs(next_remaining), -action_kvar, key)
+            if score < best_score:
+                best_score = score
+        return best_score
+
+    _, _, _, best_key = search(dict(current_counts), target_kvar, max_depth)
+    return best_key
+
+
+def _get_group_override(state: ControlSimulationState, key: str, fallback: int = 0) -> int:
+    return int(state.parameter_overrides.get(key, fallback) or 0)
+
+
+def _set_group_override(state: ControlSimulationState, key: str, value: int) -> None:
+    state.parameter_overrides[key] = max(0, value)
+
+
+def _bit_count(value: int) -> int:
+    return bin(max(0, value)).count("1")
+
+
+def _extract_group_counts_from_payload(payload: dict[str, Any]) -> dict[str, int]:
+    circuit_state_1 = int(payload.get("circuit_state_1", 0) or 0)
+    circuit_state_2 = int(payload.get("circuit_state_2", 0) or 0)
+    circuit_state_3 = int(payload.get("circuit_state_3", 0) or 0)
+    return {
+        "phase_a_groups": _bit_count((circuit_state_1 >> 8) & 0xFF),
+        "phase_b_groups": _bit_count(circuit_state_1 & 0xFF),
+        "phase_c_groups": _bit_count((circuit_state_2 >> 8) & 0xFF),
+        "common_1_groups": _bit_count(circuit_state_2 & 0xFF),
+        "common_2_groups": _bit_count((circuit_state_3 >> 8) & 0xFF),
+        "common_3_groups": _bit_count(circuit_state_3 & 0xFF),
+    }
+
+
+def _common_stage_kvar_map(payload: dict[str, Any]) -> dict[str, float]:
+    common_stage_slot_kvar = payload.get("_common_stage_slot_kvar")
+    if isinstance(common_stage_slot_kvar, dict):
+        result: dict[str, float] = {}
+        for key in ("common_1_groups", "common_2_groups", "common_3_groups"):
+            slot_values = [float(value) for value in common_stage_slot_kvar.get(key, [])]
+            result[key] = float(slot_values[0]) if slot_values else 0.0
+        return result
+    return {
+        "common_1_groups": float(payload.get("_common_1_group_kvar", 1.5) or 1.5),
+        "common_2_groups": float(payload.get("_common_2_group_kvar", 1.0) or 1.0),
+        "common_3_groups": float(payload.get("_common_3_group_kvar", 0.5) or 0.5),
+    }
+
+
+def _apply_auto_control_step(payload: dict[str, Any], state: ControlSimulationState) -> bool:
+    state.last_action_elapsed_seconds += state.tick_interval_seconds
+    if not state.enabled or state.control_mode != "auto":
+        state.auto_pending_action = None
+        state.auto_pending_elapsed_seconds = 0.0
+        return False
+
+    on_threshold = float(payload.get("switch_on_power_factor", 95) or 95) / 100.0
+    off_threshold = min(float(payload.get("switch_off_power_factor", 105) or 105) / 100.0, 0.999)
+    current_pf = float(payload.get("power_factor", 1.0) or 1.0)
+    current_q = float(payload.get("reactive_power", 0.0) or 0.0)
+    leading_count = sum(bool(payload.get(key)) for key in ("leading_a", "leading_b", "leading_c"))
+    pf_deadband = 0.005
+    q_deadband = 0.5
+
+    desired_action: str | None = None
+    if current_q > q_deadband and current_pf < (on_threshold - pf_deadband):
+        desired_action = "on"
+    elif current_q < -q_deadband and (leading_count >= 2 or current_pf >= min(off_threshold + pf_deadband, 0.999)):
+        desired_action = "off"
+
+    if desired_action is None:
+        state.auto_pending_action = None
+        state.auto_pending_elapsed_seconds = 0.0
+        return False
+
+    if state.last_action_elapsed_seconds < state.min_action_interval_seconds:
+        state.auto_pending_action = None
+        state.auto_pending_elapsed_seconds = 0.0
+        return False
+
+    if state.auto_pending_action != desired_action:
+        state.auto_pending_action = desired_action
+        state.auto_pending_elapsed_seconds = state.tick_interval_seconds
+    else:
+        state.auto_pending_elapsed_seconds += state.tick_interval_seconds
+
+    delay_seconds = float(
+        payload.get("switch_on_delay_seconds", 10) if desired_action == "on"
+        else payload.get("switch_off_delay_seconds", 8)
+    )
+    if state.auto_pending_elapsed_seconds < delay_seconds:
+        return False
+
+    phase_keys = ("phase_a_groups", "phase_b_groups", "phase_c_groups")
+    common_keys = ("common_1_groups", "common_2_groups", "common_3_groups")
+    split_phase_slot_kvar = _resolve_split_phase_slot_kvar(payload)
+    common_stage_slot_kvar = _resolve_common_stage_slot_kvar(payload)
+    phase_capacity_map = {key: len(split_phase_slot_kvar.get(key, [])) for key in phase_keys}
+    common_capacity_map = {key: len(common_stage_slot_kvar.get(key, [])) for key in common_keys}
+    phase_reactive_map = {
+        "phase_a_groups": float(payload.get("reactive_power_a", 0.0) or 0.0),
+        "phase_b_groups": float(payload.get("reactive_power_b", 0.0) or 0.0),
+        "phase_c_groups": float(payload.get("reactive_power_c", 0.0) or 0.0),
+    }
+    if desired_action == "on":
+        prioritized_phase_keys = sorted(
+            phase_keys,
+            key=lambda key: phase_reactive_map[key],
+            reverse=True,
+        )
+        for key in prioritized_phase_keys:
+            if _get_group_override(state, key) < phase_capacity_map.get(key, 0):
+                _set_group_override(state, key, _get_group_override(state, key) + 1)
+                state.auto_pending_action = None
+                state.auto_pending_elapsed_seconds = 0.0
+                state.last_action_elapsed_seconds = 0.0
+                return True
+        remaining_gap = max(current_q, 0.0)
+        current_common_counts = {key: _get_group_override(state, key) for key in common_keys}
+        best_common_key = _choose_best_common_action(
+            common_stage_slot_kvar,
+            current_common_counts,
+            remaining_gap,
+            direction="on",
+            max_depth=2,
+        )
+        if best_common_key:
+            _set_group_override(state, best_common_key, _get_group_override(state, best_common_key) + 1)
+            state.auto_pending_action = None
+            state.auto_pending_elapsed_seconds = 0.0
+            state.last_action_elapsed_seconds = 0.0
+            return True
+    else:
+        prioritized_phase_keys = sorted(
+            [key for key in phase_keys if _get_group_override(state, key) > 0],
+            key=lambda key: phase_reactive_map[key],
+        )
+        most_overcompensated_phase = prioritized_phase_keys[0] if prioritized_phase_keys else None
+        mild_overcompensation = (
+            most_overcompensated_phase is None
+            or phase_reactive_map[most_overcompensated_phase] > -1.5
+        )
+        if prioritized_phase_keys and not mild_overcompensation and phase_reactive_map[most_overcompensated_phase] < -0.5:
+            key = most_overcompensated_phase
+            _set_group_override(state, key, _get_group_override(state, key) - 1)
+            state.auto_pending_action = None
+            state.auto_pending_elapsed_seconds = 0.0
+            state.last_action_elapsed_seconds = 0.0
+            return True
+        remaining_overcomp = abs(min(current_q, 0.0))
+        current_common_counts = {key: _get_group_override(state, key) for key in common_keys}
+        best_common_key = _choose_best_common_action(
+            common_stage_slot_kvar,
+            current_common_counts,
+            remaining_overcomp,
+            direction="off",
+            max_depth=2,
+        )
+        if best_common_key:
+            _set_group_override(state, best_common_key, _get_group_override(state, best_common_key) - 1)
+            state.auto_pending_action = None
+            state.auto_pending_elapsed_seconds = 0.0
+            state.last_action_elapsed_seconds = 0.0
+            return True
+        for key in prioritized_phase_keys:
+            if _get_group_override(state, key) > 0:
+                _set_group_override(state, key, _get_group_override(state, key) - 1)
+                state.auto_pending_action = None
+                state.auto_pending_elapsed_seconds = 0.0
+                state.last_action_elapsed_seconds = 0.0
+                return True
+
+    return False
 
 
 def _build_payload(device: Device, timestamp: datetime, tick: int, options: ScenarioOptions) -> dict[str, Any]:
@@ -280,21 +665,13 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
     current_b = max(0.1, _wave(base["current_b_base"], base["current_amp"] * 0.94, t + 25, 90))
     current_c = max(0.1, _wave(base["current_c_base"], base["current_amp"] * 0.88, t + 50, 90))
 
-    power_factor_a = min(0.999, max(0.75, _wave(base["power_factor_a_base"], base["power_factor_amp"], t, 90)))
-    power_factor_b = min(0.999, max(0.75, _wave(base["power_factor_b_base"], base["power_factor_amp"], t + 15, 90)))
-    power_factor_c = min(0.999, max(0.75, _wave(base["power_factor_c_base"], base["power_factor_amp"], t + 30, 90)))
-
     active_power_a = max(0.5, _wave(base["active_power_a_base"], base["active_power_amp"], t, 90))
     active_power_b = max(0.5, _wave(base["active_power_b_base"], base["active_power_amp"], t + 20, 90))
     active_power_c = max(0.5, _wave(base["active_power_c_base"], base["active_power_amp"], t + 40, 90))
 
-    reactive_power_a = min(-0.2, _wave(base["reactive_power_a_base"], base["reactive_power_amp"], t, 90))
-    reactive_power_b = min(-0.2, _wave(base["reactive_power_b_base"], base["reactive_power_amp"] * 0.9, t + 20, 90))
-    reactive_power_c = min(-0.2, _wave(base["reactive_power_c_base"], base["reactive_power_amp"], t + 40, 90))
-
-    apparent_power_a = math.sqrt(active_power_a ** 2 + reactive_power_a ** 2)
-    apparent_power_b = math.sqrt(active_power_b ** 2 + reactive_power_b ** 2)
-    apparent_power_c = math.sqrt(active_power_c ** 2 + reactive_power_c ** 2)
+    baseline_target_reactive_power_a = min(-0.2, _wave(base["reactive_power_a_base"], base["reactive_power_amp"], t, 90))
+    baseline_target_reactive_power_b = min(-0.2, _wave(base["reactive_power_b_base"], base["reactive_power_amp"] * 0.9, t + 20, 90))
+    baseline_target_reactive_power_c = min(-0.2, _wave(base["reactive_power_c_base"], base["reactive_power_amp"], t + 40, 90))
 
     voltage_thd_a = max(0.1, _wave(base["voltage_thd_a_base"], base["voltage_thd_amp"], t, 180))
     voltage_thd_b = max(0.1, _wave(base["voltage_thd_b_base"], base["voltage_thd_amp"] * 0.8, t + 20, 180))
@@ -306,16 +683,19 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
     frequency = _wave(base["frequency_base"], base["frequency_amp"], t, 300)
 
     power = active_power_a + active_power_b + active_power_c
-    reactive_power = reactive_power_a + reactive_power_b + reactive_power_c
-    power_factor = (power_factor_a + power_factor_b + power_factor_c) / 3
     voltage = (voltage_a + voltage_b + voltage_c) / 3
     current = (current_a + current_b + current_c) / 3
     energy = round(max(0.0, power) * max(1, tick + 1) / 3600, 4)
 
-    phase_a_groups = round(min(8, max(0, abs(reactive_power_a) / 1.25)))
-    phase_b_groups = round(min(8, max(0, abs(reactive_power_b) / 1.25)))
-    phase_c_groups = round(min(8, max(0, abs(reactive_power_c) / 1.25)))
-    common_1_groups = round(min(8, max(0, (abs(reactive_power) - 18) / 1.5)))
+    baseline_reactive_power = (
+        baseline_target_reactive_power_a
+        + baseline_target_reactive_power_b
+        + baseline_target_reactive_power_c
+    )
+    phase_a_groups = round(min(8, max(0, abs(baseline_target_reactive_power_a) / 1.25)))
+    phase_b_groups = round(min(8, max(0, abs(baseline_target_reactive_power_b) / 1.25)))
+    phase_c_groups = round(min(8, max(0, abs(baseline_target_reactive_power_c) / 1.25)))
+    common_1_groups = round(min(8, max(0, (abs(baseline_reactive_power) - 18) / 1.5)))
     common_2_groups = 1 if max(voltage_thd_a, voltage_thd_b, voltage_thd_c) > 3.4 else 0
     common_3_groups = 1 if temperature > 42.0 else 0
 
@@ -324,14 +704,19 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
     if options.profile == "overtemp":
         common_3_groups = max(common_3_groups, 1)
     if options.profile == "unbalance":
-        phase_a_groups = max(phase_a_groups, 7)
-        phase_b_groups = min(phase_b_groups, 3)
-        phase_c_groups = max(phase_c_groups, 5)
+        phase_a_groups = 2
+        phase_b_groups = 3
+        phase_c_groups = 2
 
-    phase_a_groups = _clamp_group(options.phase_a_groups) if options.phase_a_groups is not None else phase_a_groups
-    phase_b_groups = _clamp_group(options.phase_b_groups) if options.phase_b_groups is not None else phase_b_groups
-    phase_c_groups = _clamp_group(options.phase_c_groups) if options.phase_c_groups is not None else phase_c_groups
-    common_1_groups = _clamp_group(options.common_1_groups) if options.common_1_groups is not None else common_1_groups
+    baseline_phase_a_groups = phase_a_groups
+    baseline_phase_b_groups = phase_b_groups
+    baseline_phase_c_groups = phase_c_groups
+    baseline_common_1_groups = common_1_groups
+
+    phase_a_groups = _clamp_group(options.phase_a_groups) if options.phase_a_groups is not None else baseline_phase_a_groups
+    phase_b_groups = _clamp_group(options.phase_b_groups) if options.phase_b_groups is not None else baseline_phase_b_groups
+    phase_c_groups = _clamp_group(options.phase_c_groups) if options.phase_c_groups is not None else baseline_phase_c_groups
+    common_1_groups = _clamp_group(options.common_1_groups) if options.common_1_groups is not None else baseline_common_1_groups
     common_2_groups = _clamp_group(options.common_2_groups) if options.common_2_groups is not None else common_2_groups
     common_3_groups = _clamp_group(options.common_3_groups) if options.common_3_groups is not None else common_3_groups
 
@@ -340,12 +725,89 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
     split_capacities = _distribute_balanced(split_configured_count, buckets=3, max_per_bucket=8)
     common_capacities = _distribute_sequential(common_configured_count, bucket_sizes=(8, 8, 8))
 
+    baseline_phase_a_groups = min(baseline_phase_a_groups, split_capacities[0])
+    baseline_phase_b_groups = min(baseline_phase_b_groups, split_capacities[1])
+    baseline_phase_c_groups = min(baseline_phase_c_groups, split_capacities[2])
+    baseline_common_1_groups = min(baseline_common_1_groups, common_capacities[0])
     phase_a_groups = min(phase_a_groups, split_capacities[0])
     phase_b_groups = min(phase_b_groups, split_capacities[1])
     phase_c_groups = min(phase_c_groups, split_capacities[2])
     common_1_groups = min(common_1_groups, common_capacities[0])
     common_2_groups = min(common_2_groups, common_capacities[1])
     common_3_groups = min(common_3_groups, common_capacities[2])
+
+    common_capacity_code = "4:1233"
+    split_capacity_code = "7:1124"
+    common_step_capacity_kvar = 30.0
+    split_step_capacity_kvar = 12.0
+
+    simulated_split_phase_slots = _build_split_phase_slot_kvar(split_capacity_code, split_step_capacity_kvar, split_configured_count)
+    simulated_common_stage_slots = _build_common_stage_slot_kvar(common_capacity_code, common_step_capacity_kvar, common_configured_count)
+
+    split_capacities = [
+        len(simulated_split_phase_slots["phase_a_groups"]),
+        len(simulated_split_phase_slots["phase_b_groups"]),
+        len(simulated_split_phase_slots["phase_c_groups"]),
+    ]
+    common_capacities = [
+        len(simulated_common_stage_slots["common_1_groups"]),
+        len(simulated_common_stage_slots["common_2_groups"]),
+        len(simulated_common_stage_slots["common_3_groups"]),
+    ]
+
+    baseline_common_total_kvar = (
+        _sum_active_slot_kvar(simulated_common_stage_slots["common_1_groups"], baseline_common_1_groups)
+        + _sum_active_slot_kvar(simulated_common_stage_slots["common_2_groups"], common_2_groups)
+        + _sum_active_slot_kvar(simulated_common_stage_slots["common_3_groups"], common_3_groups)
+    )
+    common_distribution = _distribute_by_weight(
+        baseline_common_total_kvar,
+        (
+            abs(baseline_target_reactive_power_a),
+            abs(baseline_target_reactive_power_b),
+            abs(baseline_target_reactive_power_c),
+        ),
+    )
+    baseline_compensation_a = _sum_active_slot_kvar(simulated_split_phase_slots["phase_a_groups"], baseline_phase_a_groups) + common_distribution[0]
+    baseline_compensation_b = _sum_active_slot_kvar(simulated_split_phase_slots["phase_b_groups"], baseline_phase_b_groups) + common_distribution[1]
+    baseline_compensation_c = _sum_active_slot_kvar(simulated_split_phase_slots["phase_c_groups"], baseline_phase_c_groups) + common_distribution[2]
+
+    load_reactive_demand_a = max(0.1, baseline_compensation_a + baseline_target_reactive_power_a)
+    load_reactive_demand_b = max(0.1, baseline_compensation_b + baseline_target_reactive_power_b)
+    load_reactive_demand_c = max(0.1, baseline_compensation_c + baseline_target_reactive_power_c)
+
+    final_common_distribution = _distribute_by_weight(
+        (
+            _sum_active_slot_kvar(simulated_common_stage_slots["common_1_groups"], common_1_groups)
+            + _sum_active_slot_kvar(simulated_common_stage_slots["common_2_groups"], common_2_groups)
+            + _sum_active_slot_kvar(simulated_common_stage_slots["common_3_groups"], common_3_groups)
+        ),
+        (load_reactive_demand_a, load_reactive_demand_b, load_reactive_demand_c),
+    )
+    reactive_power_a = round(
+        load_reactive_demand_a - (_sum_active_slot_kvar(simulated_split_phase_slots["phase_a_groups"], phase_a_groups) + final_common_distribution[0]),
+        4,
+    )
+    reactive_power_b = round(
+        load_reactive_demand_b - (_sum_active_slot_kvar(simulated_split_phase_slots["phase_b_groups"], phase_b_groups) + final_common_distribution[1]),
+        4,
+    )
+    reactive_power_c = round(
+        load_reactive_demand_c - (_sum_active_slot_kvar(simulated_split_phase_slots["phase_c_groups"], phase_c_groups) + final_common_distribution[2]),
+        4,
+    )
+
+    reactive_power_a = round(reactive_power_a, 2)
+    reactive_power_b = round(reactive_power_b, 2)
+    reactive_power_c = round(reactive_power_c, 2)
+    apparent_power_a = math.sqrt(active_power_a ** 2 + reactive_power_a ** 2)
+    apparent_power_b = math.sqrt(active_power_b ** 2 + reactive_power_b ** 2)
+    apparent_power_c = math.sqrt(active_power_c ** 2 + reactive_power_c ** 2)
+    power_factor_a = _calculate_power_factor(active_power_a, reactive_power_a)
+    power_factor_b = _calculate_power_factor(active_power_b, reactive_power_b)
+    power_factor_c = _calculate_power_factor(active_power_c, reactive_power_c)
+    reactive_power = round(reactive_power_a + reactive_power_b + reactive_power_c, 2)
+    power_factor = _calculate_power_factor(power, reactive_power)
 
     circuit_state_1 = (_build_mask(phase_a_groups) << 8) | _build_mask(phase_b_groups)
     circuit_state_2 = (_build_mask(phase_c_groups) << 8) | _build_mask(common_1_groups)
@@ -434,9 +896,9 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
         "active_power_a": round(active_power_a, 2),
         "active_power_b": round(active_power_b, 2),
         "active_power_c": round(active_power_c, 2),
-        "reactive_power_a": round(reactive_power_a, 2),
-        "reactive_power_b": round(reactive_power_b, 2),
-        "reactive_power_c": round(reactive_power_c, 2),
+        "reactive_power_a": reactive_power_a,
+        "reactive_power_b": reactive_power_b,
+        "reactive_power_c": reactive_power_c,
         "apparent_power_a": round(apparent_power_a, 2),
         "apparent_power_b": round(apparent_power_b, 2),
         "apparent_power_c": round(apparent_power_c, 2),
@@ -457,10 +919,10 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
         "switch_off_delay_seconds": 8,
         "common_output_circuit_count": common_configured_count,
         "split_output_circuit_count": split_configured_count,
-        "common_capacity_code": "4:1233",
-        "split_capacity_code": "7:1124",
-        "common_step_capacity_kvar": 30.0,
-        "split_step_capacity_kvar": 12.0,
+        "common_capacity_code": common_capacity_code,
+        "split_capacity_code": split_capacity_code,
+        "common_step_capacity_kvar": common_step_capacity_kvar,
+        "split_step_capacity_kvar": split_step_capacity_kvar,
         "ct_primary_current": 300,
         "overvoltage_threshold": 245.0,
         "voltage_harmonic_threshold": 4.5,
@@ -470,6 +932,15 @@ def _build_payload(device: Device, timestamp: datetime, tick: int, options: Scen
         "baud_rate": 9600,
         "terminal_assignment_scheme": "方案1",
         "current_polarity_identification_enabled": True,
+        "_load_reactive_demand_a": round(load_reactive_demand_a, 4),
+        "_load_reactive_demand_b": round(load_reactive_demand_b, 4),
+        "_load_reactive_demand_c": round(load_reactive_demand_c, 4),
+        "_split_phase_slot_kvar": simulated_split_phase_slots,
+        "_common_stage_slot_kvar": simulated_common_stage_slots,
+        "_split_group_kvar": 1.25,
+        "_common_1_group_kvar": 1.5,
+        "_common_2_group_kvar": 1.0,
+        "_common_3_group_kvar": 0.5,
     }
     return payload
 
@@ -514,8 +985,84 @@ def _with_control_state(payload: dict[str, Any], state: ControlSimulationState) 
         payload["circuit_state_2"] = 0
         payload["circuit_state_3"] = 0
         payload["simulated_device_enabled"] = False
+        payload.update(state.parameter_overrides)
+        return payload
     else:
         payload["simulated_device_enabled"] = True
+
+    group_counts = _extract_group_counts_from_payload(payload)
+    for key in group_counts:
+        if key in state.parameter_overrides:
+            group_counts[key] = max(0, int(state.parameter_overrides[key] or 0))
+
+    split_phase_slot_kvar = payload.get("_split_phase_slot_kvar")
+    if not isinstance(split_phase_slot_kvar, dict):
+        split_group_kvar = float(payload.get("_split_group_kvar", 1.25) or 1.25)
+        split_phase_slot_kvar = {
+            "phase_a_groups": [split_group_kvar] * 8,
+            "phase_b_groups": [split_group_kvar] * 8,
+            "phase_c_groups": [split_group_kvar] * 8,
+        }
+    common_stage_slot_kvar = payload.get("_common_stage_slot_kvar")
+    if not isinstance(common_stage_slot_kvar, dict):
+        common_stage_slot_kvar = {
+            "common_1_groups": [float(payload.get("_common_1_group_kvar", 1.5) or 1.5)] * 8,
+            "common_2_groups": [float(payload.get("_common_2_group_kvar", 1.0) or 1.0)] * 8,
+            "common_3_groups": [float(payload.get("_common_3_group_kvar", 0.5) or 0.5)] * 8,
+        }
+    load_reactive_demand_a = float(payload.get("_load_reactive_demand_a", 0.1) or 0.1)
+    load_reactive_demand_b = float(payload.get("_load_reactive_demand_b", 0.1) or 0.1)
+    load_reactive_demand_c = float(payload.get("_load_reactive_demand_c", 0.1) or 0.1)
+
+    phase_keys = ("phase_a_groups", "phase_b_groups", "phase_c_groups")
+    common_keys = ("common_1_groups", "common_2_groups", "common_3_groups")
+    for key in phase_keys:
+        group_counts[key] = min(group_counts[key], len(split_phase_slot_kvar.get(key, [])))
+    for key in common_keys:
+        group_counts[key] = min(group_counts[key], len(common_stage_slot_kvar.get(key, [])))
+
+    common_distribution = _distribute_by_weight(
+        sum(_sum_active_slot_kvar(common_stage_slot_kvar.get(key, []), group_counts[key]) for key in common_keys),
+        (load_reactive_demand_a, load_reactive_demand_b, load_reactive_demand_c),
+    )
+    reactive_power_a = round(
+        load_reactive_demand_a - (_sum_active_slot_kvar(split_phase_slot_kvar.get("phase_a_groups", []), group_counts["phase_a_groups"]) + common_distribution[0]),
+        4,
+    )
+    reactive_power_b = round(
+        load_reactive_demand_b - (_sum_active_slot_kvar(split_phase_slot_kvar.get("phase_b_groups", []), group_counts["phase_b_groups"]) + common_distribution[1]),
+        4,
+    )
+    reactive_power_c = round(
+        load_reactive_demand_c - (_sum_active_slot_kvar(split_phase_slot_kvar.get("phase_c_groups", []), group_counts["phase_c_groups"]) + common_distribution[2]),
+        4,
+    )
+    reactive_power = round(reactive_power_a + reactive_power_b + reactive_power_c, 4)
+
+    payload["reactive_power_a"] = round(reactive_power_a, 2)
+    payload["reactive_power_b"] = round(reactive_power_b, 2)
+    payload["reactive_power_c"] = round(reactive_power_c, 2)
+    payload["reactive_power"] = round(reactive_power, 2)
+    payload["apparent_power_a"] = round(math.sqrt(payload["active_power_a"] ** 2 + reactive_power_a ** 2), 2)
+    payload["apparent_power_b"] = round(math.sqrt(payload["active_power_b"] ** 2 + reactive_power_b ** 2), 2)
+    payload["apparent_power_c"] = round(math.sqrt(payload["active_power_c"] ** 2 + reactive_power_c ** 2), 2)
+    payload["power_factor_a"] = round(_calculate_power_factor(payload["active_power_a"], reactive_power_a), 4)
+    payload["power_factor_b"] = round(_calculate_power_factor(payload["active_power_b"], reactive_power_b), 4)
+    payload["power_factor_c"] = round(_calculate_power_factor(payload["active_power_c"], reactive_power_c), 4)
+    payload["power_factor"] = round(_calculate_power_factor(payload["power"], reactive_power), 4)
+    payload["leading_a"] = reactive_power_a < 0
+    payload["leading_b"] = reactive_power_b < 0
+    payload["leading_c"] = reactive_power_c < 0
+    payload["circuit_state_1"] = (_build_mask(group_counts["phase_a_groups"]) << 8) | _build_mask(group_counts["phase_b_groups"])
+    payload["circuit_state_2"] = (_build_mask(group_counts["phase_c_groups"]) << 8) | _build_mask(group_counts["common_1_groups"])
+    payload["circuit_state_3"] = (_build_mask(group_counts["common_2_groups"]) << 8) | _build_mask(group_counts["common_3_groups"])
+    payload["jkwf_status"] &= ~0x0007
+    if payload["leading_a"]:
+        payload["jkwf_status"] |= 1 << 0
+    if payload["leading_b"]:
+        payload["jkwf_status"] |= 1 << 1
+    if payload["leading_c"]:
+        payload["jkwf_status"] |= 1 << 2
 
     payload.update(state.parameter_overrides)
     return payload
@@ -635,16 +1182,20 @@ def send_one(
     *,
     state: ControlSimulationState | None = None,
 ) -> bool:
-    payload = _build_payload(device, timestamp, tick, options)
-    payload = _with_control_state(payload, state or ControlSimulationState())
-    ok = _publish_payload(client, TOPIC, payload)
+    simulation_state = state or ControlSimulationState()
+    base_payload = _build_payload(device, timestamp, tick, options)
+    payload = _with_control_state(dict(base_payload), simulation_state)
+    if _apply_auto_control_step(payload, simulation_state):
+        payload = _with_control_state(dict(base_payload), simulation_state)
+    publish_payload = {key: value for key, value in payload.items() if not key.startswith("_")}
+    ok = _publish_payload(client, TOPIC, publish_payload)
     if ok:
         print(
             f"  [{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] "
             f"profile={options.profile} topic={TOPIC} code={device.sn} "
-            f"P={payload['power']}kW Q={payload['reactive_power']}kvar PF={payload['power_factor']} "
-            f"status=0x{payload['jkwf_status']:04X} "
-            f"reg1=0x{payload['circuit_state_1']:04X} reg2=0x{payload['circuit_state_2']:04X} reg3=0x{payload['circuit_state_3']:04X}"
+            f"P={publish_payload['power']}kW Q={publish_payload['reactive_power']}kvar PF={publish_payload['power_factor']} "
+            f"status=0x{publish_payload['jkwf_status']:04X} "
+            f"reg1=0x{publish_payload['circuit_state_1']:04X} reg2=0x{publish_payload['circuit_state_2']:04X} reg3=0x{publish_payload['circuit_state_3']:04X}"
         )
     return ok
 
@@ -736,7 +1287,8 @@ def _publish_control_feedback(client: mqtt.Client, runtime: RuntimeContext, reas
         payload = _with_control_state(payload, runtime.state)
         payload["control_feedback_reason"] = reason
         payload["simulated_control_mode"] = runtime.state.control_mode
-    return _publish_payload(client, runtime.telemetry_topic, payload)
+    publish_payload = {key: value for key, value in payload.items() if not key.startswith("_")}
+    return _publish_payload(client, runtime.telemetry_topic, publish_payload)
 
 
 def _publish_control_receipt(
@@ -877,7 +1429,7 @@ def main() -> None:
             f"MQTT={BROKER}:{PORT} {TOPIC}  profile={options.profile}"
         )
         control_topic = f"{settings.mqtt_control_topic_prefix}{device.id}"
-        state = ControlSimulationState(enabled=bool(device.is_active))
+        state = ControlSimulationState(enabled=bool(device.is_active), tick_interval_seconds=args.interval)
         runtime = RuntimeContext(
             device=device,
             options=options,

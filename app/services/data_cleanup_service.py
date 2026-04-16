@@ -28,6 +28,8 @@ def cleanup_old_data() -> Dict[str, Any]:
         "alarm_data": 0,
         "carbon_emission": 0,
         "statistics": 0,
+        "mqtt_ingestion": 0,
+        "audit_event": 0,
         "errors": []
     }
     
@@ -77,13 +79,12 @@ def cleanup_old_data() -> Dict[str, Any]:
                     deleted_count = _count_unresolved_alarms_to_delete(session, cutoff_date)
 
                     if deleted_count > 0:
-                        session.exec(
+                        session.execute(
                             text("""
                                 DELETE FROM alarm
                                 WHERE timestamp < :cutoff_date
                                 AND is_resolved = true
-                            """),
-                            {"cutoff_date": cutoff_date},
+                            """).bindparams(cutoff_date=cutoff_date)
                         )
                         session.commit()
                         results["alarm_data"] = deleted_count
@@ -111,12 +112,11 @@ def cleanup_old_data() -> Dict[str, Any]:
                                 """)
                             )
                         except Exception:
-                            session.exec(
+                            session.execute(
                                 text("""
                                     DELETE FROM carbon_emission
                                     WHERE timestamp < :cutoff_date
-                                """),
-                                {"cutoff_date": cutoff_date},
+                                """).bindparams(cutoff_date=cutoff_date)
                             )
                         session.commit()
                         results["carbon_emission"] = count
@@ -131,23 +131,18 @@ def cleanup_old_data() -> Dict[str, Any]:
             if settings.statistics_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.statistics_retention_days)
                 try:
-                    count_result = session.exec(
-                        text("""
-                            SELECT COUNT(*) FROM energy_statistics
-                            WHERE stat_time < :cutoff_date
-                        """),
-                        {"cutoff_date": cutoff_date},
+                    deleted_count = _count_scalar_result(
+                        session=session,
+                        query=text("SELECT COUNT(*) FROM energy_statistics WHERE stat_time < :cutoff_date"),
+                        params={"cutoff_date": cutoff_date},
                     )
-                    deleted_count = count_result.one()
-                    deleted_count = deleted_count[0] if isinstance(deleted_count, tuple) else deleted_count
 
                     if deleted_count > 0:
-                        session.exec(
+                        session.execute(
                             text("""
                                 DELETE FROM energy_statistics
                                 WHERE stat_time < :cutoff_date
-                            """),
-                            {"cutoff_date": cutoff_date},
+                            """).bindparams(cutoff_date=cutoff_date)
                         )
                         session.commit()
                         results["statistics"] = deleted_count
@@ -158,14 +153,68 @@ def cleanup_old_data() -> Dict[str, Any]:
                     logger.warning(error_msg)
                     results["errors"].append(error_msg)
             
-            # 5. 执行 VACUUM 优化（可选，在非高峰时段）
+            # 5. 清理 MQTT 流水记录（最大表，增长最快）
+            if settings.mqtt_ingestion_retention_days > 0:
+                cutoff_date = datetime.now() - timedelta(days=settings.mqtt_ingestion_retention_days)
+                try:
+                    count = _count_scalar_result(
+                        session=session,
+                        query=text("SELECT COUNT(*) FROM mqtt_ingestion_record WHERE received_at < :cutoff"),
+                        params={"cutoff": cutoff_date},
+                    )
+                    if count > 0:
+                        session.execute(
+                            text("DELETE FROM mqtt_ingestion_record WHERE received_at < :cutoff")
+                            .bindparams(cutoff=cutoff_date)
+                        )
+                        session.commit()
+                        results["mqtt_ingestion"] = count
+                        logger.info(
+                            f"清理了 {count} 条 mqtt_ingestion_record 记录"
+                            f"（超过 {settings.mqtt_ingestion_retention_days} 天）"
+                        )
+                except Exception as e:
+                    session.rollback()
+                    error_msg = f"清理 mqtt_ingestion_record 失败: {e}"
+                    logger.error(error_msg)
+                    results["errors"].append(error_msg)
+
+            # 6. 清理审计事件记录
+            if settings.audit_event_retention_days > 0:
+                cutoff_date = datetime.now() - timedelta(days=settings.audit_event_retention_days)
+                try:
+                    count = _count_scalar_result(
+                        session=session,
+                        query=text("SELECT COUNT(*) FROM audit_event WHERE created_at < :cutoff"),
+                        params={"cutoff": cutoff_date},
+                    )
+                    if count > 0:
+                        session.execute(
+                            text("DELETE FROM audit_event WHERE created_at < :cutoff")
+                            .bindparams(cutoff=cutoff_date)
+                        )
+                        session.commit()
+                        results["audit_event"] = count
+                        logger.info(
+                            f"清理了 {count} 条 audit_event 记录"
+                            f"（超过 {settings.audit_event_retention_days} 天）"
+                        )
+                except Exception as e:
+                    session.rollback()
+                    error_msg = f"清理 audit_event 失败: {e}"
+                    logger.error(error_msg)
+                    results["errors"].append(error_msg)
+
+        # 7. 执行 VACUUM 优化（可选，在非高峰时段）
         _run_vacuum_analyze()
         
         total_deleted = (
-            results["energy_data"] + 
-            results["alarm_data"] + 
-            results["carbon_emission"] + 
-            results["statistics"]
+            results["energy_data"] +
+            results["alarm_data"] +
+            results["carbon_emission"] +
+            results["statistics"] +
+            results["mqtt_ingestion"] +
+            results["audit_event"]
         )
         
         if total_deleted > 0:
@@ -217,9 +266,9 @@ def _count_carbon_rows_to_delete(session: Session, cutoff_date: datetime) -> int
 
 def _count_scalar_result(session: Session, query, params: dict) -> int:
     """执行 count 查询并兼容 tuple / scalar 返回。"""
-    result = session.exec(query, params)
-    count = result.one()
-    return count[0] if isinstance(count, tuple) else count
+    result = session.execute(query.bindparams(**params))
+    count = result.scalar()
+    return int(count) if count is not None else 0
 
 
 def _run_vacuum_analyze() -> None:

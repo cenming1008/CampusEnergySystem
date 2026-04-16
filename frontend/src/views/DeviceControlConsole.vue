@@ -435,6 +435,24 @@ function sourceStatusText(status?: string) {
   return '状态未知'
 }
 
+function formatCapacitySlotList(values?: number[] | null) {
+  if (!values?.length) return '未配置'
+  return values.map((value) => `${Number(value).toFixed(1)} kvar`).join(' / ')
+}
+
+const capacityExpansionItems = computed(() => {
+  const profile = controlProfile.value
+  if (!profile) return []
+  return [
+    { label: 'A相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_a_groups) },
+    { label: 'B相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_b_groups) },
+    { label: 'C相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_c_groups) },
+    { label: '公补 1-8', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_1_groups) },
+    { label: '公补 9-16', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_2_groups) },
+    { label: '公补 17-24', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_3_groups) },
+  ]
+})
+
 function formatDateTime(value?: string | null) {
   if (!value) return '暂无记录'
   const date = new Date(value)
@@ -644,10 +662,12 @@ onBeforeUnmount(() => {
                 @click="card.handler?.()"
               >
                 <div class="remote-card__top">
-                  <component
-                    :is="card.icon"
-                    class="remote-card__icon"
-                  />
+                  <span class="remote-card__icon-wrap">
+                    <component
+                      :is="card.icon"
+                      class="remote-card__icon"
+                    />
+                  </span>
                   <component
                     :is="Lock"
                     v-if="!card.enabled"
@@ -656,17 +676,6 @@ onBeforeUnmount(() => {
                 </div>
                 <strong>{{ card.title }}</strong>
                 <span>{{ card.hint }}</span>
-                <el-button
-                  v-if="card.enabled"
-                  type="warning"
-                  size="small"
-                  :loading="toggleSubmitting"
-                  class="remote-card__action-btn"
-                  @click.stop="card.handler?.()"
-                >
-                  {{ card.actionLabel }}
-                </el-button>
-                <em v-else>{{ card.actionLabel }}</em>
               </button>
             </div>
             <div class="manual-switch-box">
@@ -674,56 +683,54 @@ onBeforeUnmount(() => {
                 <strong>协议手动控制</strong>
                 <span>按 JKWF-LCD `0x44` 原生语义下发：手动/自动、相位、投切动作。</span>
               </div>
-              <div class="manual-switch-box__grid">
-                <el-form-item label="模式">
-                  <el-select
-                    v-model="manualSwitchForm.manual_mode"
-                    :disabled="!canRunManualSwitch || toggleSubmitting"
-                  >
-                    <el-option
-                      v-for="item in manualModeOptions"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="相位">
-                  <el-select
-                    v-model="manualSwitchForm.phase"
-                    :disabled="!canRunManualSwitch || toggleSubmitting"
-                  >
-                    <el-option
-                      v-for="item in manualPhaseOptions"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="动作">
-                  <el-select
-                    v-model="manualSwitchForm.switch_action"
-                    :disabled="!canRunManualSwitch || toggleSubmitting"
-                  >
-                    <el-option
-                      v-for="item in manualSwitchActionOptions"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </el-form-item>
-                <div class="manual-switch-box__action">
-                  <el-button
-                    type="warning"
-                    :loading="toggleSubmitting"
-                    :disabled="!canRunManualSwitch"
-                    @click="handleManualSwitchCommand"
-                  >
-                    发送 0x44 手动控制
-                  </el-button>
-                </div>
+              <div class="manual-switch-row">
+                <label class="manual-switch-label">模式</label>
+                <el-select
+                  v-model="manualSwitchForm.manual_mode"
+                  :disabled="!canRunManualSwitch || toggleSubmitting"
+                  class="manual-switch-select"
+                >
+                  <el-option
+                    v-for="item in manualModeOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+                <label class="manual-switch-label">相位</label>
+                <el-select
+                  v-model="manualSwitchForm.phase"
+                  :disabled="!canRunManualSwitch || toggleSubmitting"
+                  class="manual-switch-select"
+                >
+                  <el-option
+                    v-for="item in manualPhaseOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+                <label class="manual-switch-label">动作</label>
+                <el-select
+                  v-model="manualSwitchForm.switch_action"
+                  :disabled="!canRunManualSwitch || toggleSubmitting"
+                  class="manual-switch-select"
+                >
+                  <el-option
+                    v-for="item in manualSwitchActionOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+                <el-button
+                  type="warning"
+                  :loading="toggleSubmitting"
+                  :disabled="!canRunManualSwitch"
+                  @click="handleManualSwitchCommand"
+                >
+                  发送 0x44 手动控制
+                </el-button>
               </div>
             </div>
             <div class="capability-note">
@@ -733,12 +740,14 @@ onBeforeUnmount(() => {
               >
                 {{ controlCapabilities?.supports_remote_control ? '已开通远程控制' : '远程控制待开通' }}
               </el-tag>
-              <small>
-                当前登录角色：{{ roleLabel(currentRole) }}
-                · {{ canControlDevices ? '可执行远程控制' : '没有远程控制权限' }}
-                · 最近结果：{{ latestControlLog ? `${resolveLogTitle(latestControlLog)} / ${resolveLogStatusText(latestControlLog)} / ${formatDateTime(latestControlLog.created_at)}` : '暂无记录' }}
-              </small>
-              <small v-if="protocolSummaryText">{{ protocolSummaryText }}</small>
+              <div class="capability-note__text">
+                <small>
+                  当前登录角色：{{ roleLabel(currentRole) }}
+                  · {{ canControlDevices ? '可执行远程控制' : '没有远程控制权限' }}
+                  · 最近结果：{{ latestControlLog ? `${resolveLogTitle(latestControlLog)} / ${resolveLogStatusText(latestControlLog)} / ${formatDateTime(latestControlLog.created_at)}` : '暂无记录' }}
+                </small>
+                <small v-if="protocolSummaryText">{{ protocolSummaryText }}</small>
+              </div>
             </div>
           </section>
 
@@ -772,6 +781,25 @@ onBeforeUnmount(() => {
                 >
                   <span>{{ item.label }}</span>
                   <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+              <div
+                v-if="capacityExpansionItems.length"
+                class="capacity-expansion-panel"
+              >
+                <div class="capacity-expansion-panel__head">
+                  <strong>容量展开详情</strong>
+                  <span>按容量编码与阶梯容量展开每一路实际配置</span>
+                </div>
+                <div class="capacity-expansion-grid">
+                  <div
+                    v-for="item in capacityExpansionItems"
+                    :key="item.label"
+                    class="capacity-expansion-card"
+                  >
+                    <span>{{ item.label }}</span>
+                    <strong>{{ item.value }}</strong>
+                  </div>
                 </div>
               </div>
               <div class="param-groups">
@@ -1235,55 +1263,71 @@ onBeforeUnmount(() => {
 }
 
 .remote-card {
-  min-height: 136px;
-  padding: 16px;
-  border-radius: 14px;
+  min-height: 150px;
+  padding: 18px 20px;
+  border-radius: 12px;
   border: 1px solid rgba(48, 70, 95, 0.6);
   background: rgba(19, 34, 53, 0.7);
   text-align: left;
   color: #a7b7cb;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  transition: border-color 0.18s ease;
 }
 
 .remote-card--locked {
   cursor: not-allowed;
-  opacity: 0.5;
-  filter: grayscale(0.25);
+  opacity: 0.45;
+  filter: grayscale(0.3);
 }
 
 .remote-card--enabled {
   cursor: pointer;
   opacity: 1;
-  border-color: rgba(251, 191, 36, 0.5);
-  background: linear-gradient(
-    135deg,
-    rgba(120, 80, 10, 0.28) 0%,
-    rgba(19, 34, 53, 0.85) 60%
-  );
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 191, 36, 0.12),
-    0 4px 16px rgba(251, 191, 36, 0.07);
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(19, 34, 53, 0.7);
 }
 
 .remote-card--enabled:hover {
-  border-color: rgba(251, 191, 36, 0.7);
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 191, 36, 0.2),
-    0 4px 20px rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.65);
+}
+
+.remote-card--enabled:active {
+  border-color: rgba(251, 191, 36, 0.5);
 }
 
 .remote-card__top {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+/* Icon badge wrapper */
+.remote-card__icon-wrap {
+  display: flex;
   align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(48, 70, 95, 0.55);
+  border: 1px solid rgba(48, 70, 95, 0.8);
+  flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.remote-card--enabled .remote-card__icon-wrap {
+  background: rgba(120, 80, 10, 0.38);
+  border-color: rgba(251, 191, 36, 0.28);
 }
 
 .remote-card__icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: #4b6282;
+  transition: color 0.2s ease;
 }
 
 .remote-card--enabled .remote-card__icon {
@@ -1295,6 +1339,11 @@ onBeforeUnmount(() => {
   height: 14px;
   color: #4b5e75;
   opacity: 0.7;
+}
+
+.remote-card strong {
+  display: block;
+  margin-bottom: 4px;
 }
 
 .remote-card--enabled strong {
@@ -1311,54 +1360,97 @@ onBeforeUnmount(() => {
   color: #8ca0ba;
 }
 
-.remote-card em {
-  margin-top: auto;
-  font-style: normal;
-  color: #4b6282;
-  font-size: 11px;
-}
-
-.remote-card__action-btn {
-  margin-top: auto;
-  width: 100%;
-}
-
 .manual-switch-box {
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: 20px;
+  padding: 16px 18px 18px;
   border-radius: 14px;
   border: 1px solid rgba(251, 191, 36, 0.28);
-  background: rgba(19, 34, 53, 0.78);
+  background: rgba(14, 26, 42, 0.55);
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+}
+
+/* Amber hairline divider above the box */
+.manual-switch-box::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(251, 191, 36, 0.22) 20%,
+    rgba(251, 191, 36, 0.22) 80%,
+    transparent 100%
+  );
 }
 
 .manual-switch-box__head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.15);
 }
 
 .manual-switch-box__head strong {
   color: #fde68a;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .manual-switch-box__head span {
+  color: #7a90ab;
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+}
+
+.manual-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-switch-label {
   color: #8ca0ba;
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.manual-switch-box__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  align-items: end;
+.manual-switch-select {
+  flex: 1;
+  min-width: 120px;
+  max-width: 220px;
 }
 
-.manual-switch-box__action {
-  display: flex;
-  align-items: flex-end;
+.manual-switch-row .el-button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Element Plus dark-theme overrides (scoped to manual-switch-box) */
+.manual-switch-box :deep(.el-select .el-input__wrapper) {
+  background: rgba(14, 26, 42, 0.75);
+  box-shadow: 0 0 0 1px rgba(48, 70, 95, 0.7) inset;
+}
+
+.manual-switch-box :deep(.el-select .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.4) inset;
+}
+
+.manual-switch-box :deep(.el-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.65) inset;
+}
+
+.manual-switch-box :deep(.el-input__inner) {
+  color: #d4e0f0;
 }
 
 /* ─── Capability note ────────────────────────────────────────── */
@@ -1366,15 +1458,35 @@ onBeforeUnmount(() => {
 .capability-note {
   margin-top: 16px;
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
   align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(14, 26, 42, 0.5);
+  border: 1px solid rgba(48, 70, 95, 0.5);
   flex-wrap: wrap;
+}
+
+.capability-note__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .capability-note small {
   color: #7a90ab;
   font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.capability-note__text small:last-child {
+  color: #5a7090;
+  font-size: 10.5px;
 }
 
 /* ─── Param zones ────────────────────────────────────────────── */
@@ -1468,6 +1580,60 @@ onBeforeUnmount(() => {
   color: #f7fbff;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.capacity-expansion-panel {
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background: rgba(12, 22, 38, 0.64);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.capacity-expansion-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.capacity-expansion-panel__head strong {
+  color: #f7fbff;
+  font-size: 13px;
+}
+
+.capacity-expansion-panel__head span {
+  color: #8ca0ba;
+  font-size: 11px;
+}
+
+.capacity-expansion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.capacity-expansion-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(55, 73, 96, 0.58);
+  background: rgba(16, 28, 44, 0.68);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.capacity-expansion-card span {
+  color: #91a5c2;
+  font-size: 11px;
+}
+
+.capacity-expansion-card strong {
+  color: #f7fbff;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* ─── Param groups & table ───────────────────────────────────── */

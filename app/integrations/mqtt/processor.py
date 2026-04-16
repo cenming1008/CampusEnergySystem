@@ -27,7 +27,8 @@ from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastM
 from app.services.mqtt_reliability_service import MqttReliabilityService
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import CapacitorBankTelemetry, Device, MqttIngestionRecord, SVGTelemetry
-from app.services.capacitor_bank_service import CapacitorBankService
+# CapacitorBankService imported lazily inside functions to avoid circular import
+# (services.__init__ → capacitor_bank_service → integrations.__init__ → mqtt/processor)
 
 
 FIELD_ALIASES = {
@@ -288,6 +289,7 @@ def is_control_receipt_payload(data: dict[str, Any]) -> bool:
 
 
 def process_control_receipt(session: Session, data: dict[str, Any], device_id: int) -> None:
+    from app.services.capacitor_bank_service import CapacitorBankService  # lazy import
     command_id = data.get("command_id")
     result = data.get("result")
     detail = data.get("detail") or data.get("reason") or data.get("message")
@@ -531,15 +533,24 @@ def persist_device_data(
 
         if raw_data is not None and _is_capacitor_bank_device(device_id, session):
             cap_fields = extract_capacitor_bank_telemetry(raw_data)
+            cap_profile_fields = extract_capacitor_bank_control_profile(raw_data)
             if cap_fields:
+                from app.services.alarm_service import AlarmService
                 cap_telemetry = CapacitorBankTelemetry(
                     device_id=device_id,
                     timestamp=timestamp,
                     **cap_fields,
                 )
                 session.add(cap_telemetry)
-            cap_profile_fields = extract_capacitor_bank_control_profile(raw_data)
+                AlarmService.check_capacitor_bank_faults(
+                    session,
+                    device_id,
+                    cap_fields,
+                    timestamp,
+                    profile_data=cap_profile_fields,
+                )
             if cap_profile_fields:
+                from app.services.capacitor_bank_service import CapacitorBankService  # lazy import
                 CapacitorBankService.upsert_control_profile(
                     session,
                     device_id,

@@ -147,6 +147,18 @@ export interface CompensationCapacitorBankControlCapabilities {
   supported_results: string[]
 }
 
+export interface CompensationCapacitorBankSplitCapacityExpansion {
+  phase_a_groups: number[]
+  phase_b_groups: number[]
+  phase_c_groups: number[]
+}
+
+export interface CompensationCapacitorBankCommonCapacityExpansion {
+  common_1_groups: number[]
+  common_2_groups: number[]
+  common_3_groups: number[]
+}
+
 export interface CompensationCapacitorBankControlProfile {
   device_id: number
   switch_on_power_factor?: number | null
@@ -174,6 +186,8 @@ export interface CompensationCapacitorBankControlProfile {
   is_stale: boolean
   created_at?: string | null
   updated_at?: string | null
+  split_capacity_expansion: CompensationCapacitorBankSplitCapacityExpansion
+  common_capacity_expansion: CompensationCapacitorBankCommonCapacityExpansion
   capabilities: CompensationCapacitorBankControlCapabilities
 }
 

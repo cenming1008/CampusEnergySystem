@@ -765,6 +765,18 @@ class Settings(BaseSettings):
         description="统计数据保留天数（EnergyStatistics等）"
     )
     
+    mqtt_ingestion_retention_days: int = Field(
+        default=30,
+        env="MQTT_INGESTION_RETENTION_DAYS",
+        description="MQTT 流水记录保留天数（mqtt_ingestion_record）"
+    )
+
+    audit_event_retention_days: int = Field(
+        default=30,
+        env="AUDIT_EVENT_RETENTION_DAYS",
+        description="审计事件保留天数（audit_event）"
+    )
+
     enable_auto_cleanup: bool = Field(
         default=True,
         env="ENABLE_AUTO_CLEANUP",

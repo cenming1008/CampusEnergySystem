@@ -282,6 +282,18 @@ class CapacitorBankRemoteCommandResponse(BaseModel):
     command_id: Optional[str] = None
 
 
+class CapacitorBankSplitCapacityExpansionResponse(BaseModel):
+    phase_a_groups: list[float] = []
+    phase_b_groups: list[float] = []
+    phase_c_groups: list[float] = []
+
+
+class CapacitorBankCommonCapacityExpansionResponse(BaseModel):
+    common_1_groups: list[float] = []
+    common_2_groups: list[float] = []
+    common_3_groups: list[float] = []
+
+
 class CapacitorBankControlProfileResponse(BaseModel):
     """电容补偿控制器控制台只读参数档案。"""
 
@@ -311,6 +323,8 @@ class CapacitorBankControlProfileResponse(BaseModel):
     is_stale: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    split_capacity_expansion: CapacitorBankSplitCapacityExpansionResponse = CapacitorBankSplitCapacityExpansionResponse()
+    common_capacity_expansion: CapacitorBankCommonCapacityExpansionResponse = CapacitorBankCommonCapacityExpansionResponse()
     capabilities: CapacitorBankControlCapabilitiesResponse
 
 
@@ -325,5 +339,7 @@ __all__ = [
     "CapacitorBankControlWriteResponse",
     "CapacitorBankRemoteCommandRequest",
     "CapacitorBankRemoteCommandResponse",
+    "CapacitorBankSplitCapacityExpansionResponse",
+    "CapacitorBankCommonCapacityExpansionResponse",
     "CapacitorBankControlProfileResponse",
 ]

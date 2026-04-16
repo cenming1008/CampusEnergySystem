@@ -6,6 +6,36 @@ import {
   getCapacitorBankControlParameterMeta,
 } from '../capacitorBankControlProfile'
 
+const baseProfile = {
+  device_id: 16,
+  source_status: 'fresh' as const,
+  is_stale: false,
+  split_capacity_expansion: {
+    phase_a_groups: [],
+    phase_b_groups: [],
+    phase_c_groups: [],
+  },
+  common_capacity_expansion: {
+    common_1_groups: [],
+    common_2_groups: [],
+    common_3_groups: [],
+  },
+  capabilities: {
+    supports_read: true,
+    supports_write: true,
+    supports_remote_control: true,
+    write_status_message: '',
+    remote_control_status_message: '',
+    protocol_version: 'campus-control.v1',
+    command_message_type: 'control_command',
+    receipt_message_type: 'control_receipt',
+    control_topic_template: 'campus/control/{device_id}',
+    receipt_topic: 'campus/telemetry',
+    receipt_timeout_seconds: 120,
+    supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
+  },
+}
+
 describe('capacitorBankControlProfile helpers', () => {
   it('exposes the full protocol write range to the control console', () => {
     expect(capacitorBankEditableParameterMeta.map((item) => item.key)).toEqual([
@@ -35,23 +65,7 @@ describe('capacitorBankControlProfile helpers', () => {
     const meta = getCapacitorBankControlParameterMeta('switch_on_power_factor')
     expect(meta).toBeTruthy()
     expect(getCapacitorBankControlEditableValue({
-      device_id: 16,
-      source_status: 'fresh',
-      is_stale: false,
-      capabilities: {
-        supports_read: true,
-        supports_write: true,
-        supports_remote_control: true,
-        write_status_message: '',
-        remote_control_status_message: '',
-        protocol_version: 'campus-control.v1',
-        command_message_type: 'control_command',
-        receipt_message_type: 'control_receipt',
-        control_topic_template: 'campus/control/{device_id}',
-        receipt_topic: 'campus/telemetry',
-        receipt_timeout_seconds: 120,
-        supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
-      },
+      ...baseProfile,
       switch_on_power_factor: 95,
     }, meta!)).toBe(0.95)
   })
@@ -60,23 +74,7 @@ describe('capacitorBankControlProfile helpers', () => {
     const meta = getCapacitorBankControlParameterMeta('current_polarity_identification_enabled')
     expect(meta).toBeTruthy()
     expect(formatCapacitorBankControlValue({
-      device_id: 16,
-      source_status: 'fresh',
-      is_stale: false,
-      capabilities: {
-        supports_read: true,
-        supports_write: true,
-        supports_remote_control: true,
-        write_status_message: '',
-        remote_control_status_message: '',
-        protocol_version: 'campus-control.v1',
-        command_message_type: 'control_command',
-        receipt_message_type: 'control_receipt',
-        control_topic_template: 'campus/control/{device_id}',
-        receipt_topic: 'campus/telemetry',
-        receipt_timeout_seconds: 120,
-        supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
-      },
+      ...baseProfile,
       current_polarity_identification_enabled: true,
     }, meta!)).toBe('开启')
   })

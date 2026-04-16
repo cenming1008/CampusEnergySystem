@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlmodel import Session, select
 
-from app.models.tables import Alarm
+from app.models.tables import Alarm, Device
 from app.core.logger import logger
 
 
@@ -397,6 +397,155 @@ class AlarmService:
             categories=managed_categories,
             source="svg_telemetry",
         )
+
+        return alarms
+
+    @staticmethod
+    def check_capacitor_bank_faults(
+        session: Session,
+        device_id: int,
+        cap_data: dict[str, Any],
+        timestamp: datetime,
+        profile_data: Optional[dict[str, Any]] = None,
+    ) -> list[Alarm]:
+        """
+        检查电容补偿控制器专属状态位/阈值并触发或恢复告警。
+
+        当前覆盖：
+        - 温度超限
+        - 各相过压
+        - 各相电压谐波超限
+        - 各相电流谐波超限
+        - 各相欠流
+        - 过补偿（Q 持续为负且至少两相超前）
+        """
+        alarms: list[Alarm] = []
+        active_instance_keys: set[str] = set()
+        mutated = False
+        source = "capacitor_bank_telemetry"
+        profile_data = profile_data or {}
+
+        def _to_float(value: Any) -> Optional[float]:
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        def _activate(category: str, severity: str, message: str) -> None:
+            nonlocal mutated
+            alarm, created = AlarmService.upsert_active_alarm(
+                session=session,
+                device_id=device_id,
+                message=message,
+                timestamp=timestamp,
+                severity=severity,
+                category=category,
+                source=source,
+            )
+            active_instance_keys.add(alarm.instance_key or "")
+            mutated = True
+            if created:
+                alarms.append(alarm)
+
+        managed_categories: set[str] = {
+            "cap_temp_alarm",
+            "cap_overcompensation",
+            *(f"cap_overvoltage_{phase}" for phase in ("a", "b", "c")),
+            *(f"cap_voltage_thd_{phase}" for phase in ("a", "b", "c")),
+            *(f"cap_current_thd_{phase}" for phase in ("a", "b", "c")),
+            *(f"cap_undercurrent_{phase}" for phase in ("a", "b", "c")),
+        }
+
+        temperature = _to_float(cap_data.get("temperature"))
+        temp_limit = _to_float(profile_data.get("temperature_upper_limit"))
+        if cap_data.get("temp_alarm") is True or (
+            temperature is not None and temp_limit is not None and temperature >= temp_limit
+        ):
+            detail = f"{temperature:.1f}°C" if temperature is not None else "状态位触发"
+            limit_text = f"（上限 {temp_limit:.1f}°C）" if temp_limit is not None else ""
+            _activate("cap_temp_alarm", "warning", f"电容补偿柜温度超限：{detail}{limit_text}")
+
+        overvoltage_limit = _to_float(profile_data.get("overvoltage_threshold"))
+        voltage_harmonic_limit = _to_float(profile_data.get("voltage_harmonic_threshold"))
+        current_harmonic_limit = _to_float(profile_data.get("current_harmonic_threshold"))
+        for phase in ("a", "b", "c"):
+            phase_upper = phase.upper()
+            phase_voltage = _to_float(cap_data.get(f"voltage_{phase}"))
+            if cap_data.get(f"overvoltage_alarm_{phase}") is True or (
+                phase_voltage is not None and overvoltage_limit is not None and phase_voltage >= overvoltage_limit
+            ):
+                detail = f"{phase_voltage:.1f}V" if phase_voltage is not None else "状态位触发"
+                limit_text = f"（门限 {overvoltage_limit:.1f}V）" if overvoltage_limit is not None else ""
+                _activate(
+                    f"cap_overvoltage_{phase}",
+                    "warning",
+                    f"{phase_upper} 相过压告警：{detail}{limit_text}",
+                )
+
+            phase_voltage_thd = _to_float(cap_data.get(f"voltage_thd_{phase}"))
+            if cap_data.get(f"voltage_thd_alarm_{phase}") is True or (
+                phase_voltage_thd is not None
+                and voltage_harmonic_limit is not None
+                and phase_voltage_thd >= voltage_harmonic_limit
+            ):
+                detail = f"{phase_voltage_thd:.2f}%" if phase_voltage_thd is not None else "状态位触发"
+                limit_text = f"（门限 {voltage_harmonic_limit:.2f}%）" if voltage_harmonic_limit is not None else ""
+                _activate(
+                    f"cap_voltage_thd_{phase}",
+                    "warning",
+                    f"{phase_upper} 相电压谐波超限：{detail}{limit_text}",
+                )
+
+            phase_current_harmonic = _to_float(cap_data.get(f"current_harmonic_{phase}"))
+            if cap_data.get(f"current_thd_alarm_{phase}") is True or (
+                phase_current_harmonic is not None
+                and current_harmonic_limit is not None
+                and phase_current_harmonic >= current_harmonic_limit
+            ):
+                detail = f"{phase_current_harmonic:.2f}A" if phase_current_harmonic is not None else "状态位触发"
+                limit_text = f"（门限 {current_harmonic_limit:.2f}A）" if current_harmonic_limit is not None else ""
+                _activate(
+                    f"cap_current_thd_{phase}",
+                    "warning",
+                    f"{phase_upper} 相电流谐波超限：{detail}{limit_text}",
+                )
+
+            if cap_data.get(f"undercurrent_{phase}") is True:
+                _activate(
+                    f"cap_undercurrent_{phase}",
+                    "info",
+                    f"{phase_upper} 相欠流告警",
+                )
+
+        reactive_power = _to_float(cap_data.get("reactive_power"))
+        leading_count = sum(
+            1
+            for field in ("leading_a", "leading_b", "leading_c")
+            if cap_data.get(field) is True
+        )
+        rated_capacity = session.exec(
+            select(Device.rated_capacity).where(Device.id == device_id)
+        ).first()
+        overcomp_limit = max(5.0, float(rated_capacity or 0) * 0.1)
+        if reactive_power is not None and reactive_power <= -overcomp_limit and leading_count >= 2:
+            _activate(
+                "cap_overcompensation",
+                "warning",
+                f"电容补偿器过补偿：Q={reactive_power:.2f}kVar，{leading_count} 相超前",
+            )
+
+        recovered_count = AlarmService.mark_recovered_alarms(
+            session=session,
+            device_id=device_id,
+            active_instance_keys={key for key in active_instance_keys if key},
+            timestamp=timestamp,
+            categories=managed_categories,
+            source=source,
+        )
+        if recovered_count:
+            mutated = True
 
         return alarms
 

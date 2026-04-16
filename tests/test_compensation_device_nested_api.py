@@ -105,6 +105,31 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
         self.assertTrue(result["capabilities"]["supports_remote_control"])
         self.assertEqual(result["source_status"], "fresh")
 
+    def test_nested_cap_bank_control_profile_returns_capacity_expansions(self):
+        user = _make_user()
+        mock_session = object()
+        device = SimpleNamespace(device_type="compensation", device_subtype="capacitor_bank_controller")
+        profile = CapacitorBankControlProfile(
+            device_id=1,
+            common_output_circuit_count=12,
+            split_output_circuit_count=8,
+            common_capacity_code="4:1233",
+            split_capacity_code="7:1124",
+            common_step_capacity_kvar=30.0,
+            split_step_capacity_kvar=12.0,
+            source="telemetry",
+        )
+        with patch.object(compensation_capacitor_bank, "ensure_device_access", return_value=device):
+            with patch.object(compensation_capacitor_bank.CapacitorBankService, "get_control_profile", return_value=profile):
+                with patch.object(compensation_capacitor_bank.CapacitorBankService, "get_profile_source_status", return_value="fresh"):
+                    result = compensation_capacitor_bank.get_device_capacitor_bank_control_profile(1, mock_session, user)
+
+        self.assertEqual(result["split_capacity_expansion"]["phase_a_groups"], [12.0, 48.0, 24.0])
+        self.assertEqual(
+            result["common_capacity_expansion"]["common_1_groups"],
+            [30.0, 60.0, 90.0, 90.0, 30.0, 60.0, 90.0, 90.0],
+        )
+
     def test_nested_cap_bank_control_profile_write_returns_accepted_result(self):
         user = _make_user()
         mock_session = object()

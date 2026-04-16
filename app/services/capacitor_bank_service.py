@@ -16,6 +16,7 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from app.core.settings import settings
+from app.integrations.jkwf_lcd.capacity import build_capacity_expansion
 from app.models.tables import CapacitorBankControlProfile, Device, DeviceControlLog
 from app.repositories.device_repository import DeviceRepository
 from app.services.ingestion_health_service import IngestionHealthService
@@ -180,6 +181,30 @@ class CapacitorBankService:
         if datetime.now() - snapshot > CONTROL_PROFILE_STALE_AFTER:
             return "stale"
         return "fresh"
+
+    @staticmethod
+    def build_capacity_expansion_payload(profile: Optional[CapacitorBankControlProfile]) -> dict[str, Any]:
+        if profile is None:
+            return {
+                "split_capacity_expansion": {
+                    "phase_a_groups": [],
+                    "phase_b_groups": [],
+                    "phase_c_groups": [],
+                },
+                "common_capacity_expansion": {
+                    "common_1_groups": [],
+                    "common_2_groups": [],
+                    "common_3_groups": [],
+                },
+            }
+        return build_capacity_expansion(
+            common_capacity_code=profile.common_capacity_code,
+            split_capacity_code=profile.split_capacity_code,
+            common_step_capacity_kvar=profile.common_step_capacity_kvar,
+            split_step_capacity_kvar=profile.split_step_capacity_kvar,
+            common_output_circuit_count=profile.common_output_circuit_count,
+            split_output_circuit_count=profile.split_output_circuit_count,
+        )
 
     @staticmethod
     def get_control_capabilities() -> dict[str, Any]:

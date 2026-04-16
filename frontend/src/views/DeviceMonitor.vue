@@ -1416,6 +1416,24 @@ function displayValueWithState(value: number | string | null | undefined, emptyT
   return String(value)
 }
 
+function formatCapacitySlotList(values?: number[] | null) {
+  if (!values?.length) return '未配置'
+  return values.map((value) => `${Number(value).toFixed(1)} kvar`).join(' / ')
+}
+
+const capacitorBankCapacityExpansionItems = computed(() => {
+  const profile = compensationCapacitorBankControlProfile.value
+  if (!profile) return []
+  return [
+    { label: 'A相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_a_groups) },
+    { label: 'B相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_b_groups) },
+    { label: 'C相分补', value: formatCapacitySlotList(profile.split_capacity_expansion?.phase_c_groups) },
+    { label: '公补 1-8', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_1_groups) },
+    { label: '公补 9-16', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_2_groups) },
+    { label: '公补 17-24', value: formatCapacitySlotList(profile.common_capacity_expansion?.common_3_groups) },
+  ]
+})
+
 function formatBooleanStatus(
   value: boolean | null | undefined,
   trueLabel: string,
@@ -1724,6 +1742,23 @@ function statusTagType(code?: string) {
                 v-for="item in capacitorBankControlSummaryItems"
                 :key="item.label"
                 class="profile-row"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+            <div
+              v-if="capacitorBankCapacityExpansionItems.length"
+              class="capacity-expansion-list"
+            >
+              <div class="capacity-expansion-list__head">
+                <strong>容量展开</strong>
+                <span>按 JKWF 容量编码与阶梯容量推导每一路配置</span>
+              </div>
+              <div
+                v-for="item in capacitorBankCapacityExpansionItems"
+                :key="item.label"
+                class="capacity-expansion-row"
               >
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
@@ -2103,6 +2138,52 @@ function statusTagType(code?: string) {
 
 .control-summary-empty strong {
   color: #eef4ff;
+}
+
+.capacity-expansion-list {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(93, 115, 145, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.capacity-expansion-list__head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.capacity-expansion-list__head strong {
+  color: #edf3ff;
+  font-size: 13px;
+}
+
+.capacity-expansion-list__head span {
+  color: #8ea0bc;
+  font-size: 11px;
+}
+
+.capacity-expansion-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(17, 28, 43, 0.56);
+  border: 1px solid rgba(55, 73, 96, 0.58);
+}
+
+.capacity-expansion-row span {
+  color: #90a2bf;
+  font-size: 11px;
+}
+
+.capacity-expansion-row strong {
+  color: #f5f7fb;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .control-summary-button {
