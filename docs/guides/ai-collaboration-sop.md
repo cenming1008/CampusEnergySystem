@@ -2,7 +2,7 @@
 
 > 适用于本仓库内的 Codex、Cursor 与人工协作者。用于统一多角色协作的启动、执行、归档、收口和主题切换动作。
 >
-> 本 SOP 负责治理层动作；若要在高频开发中判断角色分流、切换、并行边界与单轮闭环，请配合阅读 [Codex 五角色 Vibe Coding 框架](./five-thread-vibe-coding-framework.md)。
+> 本 SOP 负责治理层动作；若要在高频开发中判断角色分流、切换、并行边界与单轮闭环，请配合阅读 [Codex 五角色 Vibe Coding 框架](./five-role-vibe-coding-framework.md)。
 >
 > 兼容口径：本文正式使用“角色”作为主名；若历史材料出现“线程”，默认按角色理解。
 
@@ -186,15 +186,15 @@
 - 不替代正式 PLAN
 - 承担 `current-status.md` 与 `handoff.md` 的历史沉淀职责
 
-### 3.7 `docs/archive/plans/*`
+### 3.7 `docs/archive/`
 
 定位：
 
-- 已完成且不再作为当前执行依据的主题计划、审计和分析
+- 极简归档入口，仅在确有必要保留最小追溯材料时使用
 
 要求：
 
-- 仅保留追溯价值
+- 默认不囤积大批历史正文
 - 不再作为当前入口引用
 
 ---
@@ -398,7 +398,7 @@
 长期追溯优先查看：
 
 - `docs/plans/daily/`
-- `docs/archive/plans/`
+- 当前仍保留在 `docs/archive/` 的极少量材料（如存在）
 
 ---
 
@@ -418,7 +418,7 @@
 
 1. 是否仍作为执行依据
 2. 是否继续留在 `docs/plans/`
-3. 是否迁入 `docs/archive/plans/`
+3. 是否需要保留最小归档材料
 4. 是否清空当前主区并切换到下一个主题
 
 ### 7.3 收口动作
@@ -431,7 +431,8 @@
 
 若主题已完成且不再作为执行依据：
 
-- 将正式 PLAN、审计或专题分析迁入 `docs/archive/plans/`
+- 若无追溯需求，优先直接删除
+- 若短期仍需保留最小追溯材料，再放入 `docs/archive/`
 - 清理 `current-status.md` 主区
 - 清理 `handoff.md` 主区
 - 切换到下一个明确主主题
@@ -461,7 +462,7 @@
 
 - 是否继续保留为当前主主题
 - 是否已归档到 Daily
-- 是否迁入 `docs/archive/plans/`
+- 是否保留了最小归档材料
 
 ---
 
@@ -501,7 +502,7 @@
 
 - [AGENTS.md](../../AGENTS.md)
 - [规范指南 README](./README.md)
-- [Codex 五角色 Vibe Coding 框架](./five-thread-vibe-coding-framework.md)
+- [Codex 五角色 Vibe Coding 框架](./five-role-vibe-coding-framework.md)
 - [变更计划规范](./变更计划规范.md)
 - [计划目录 README](../plans/README.md)
 - [Current Status](../plans/current-status.md)

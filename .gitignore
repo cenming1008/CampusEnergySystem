@@ -3,7 +3,12 @@
 # ============================================
 # 字节码文件
 __pycache__/
+.pycache/
+.pycache_tmp/
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
 *$py.class
 *.so
 

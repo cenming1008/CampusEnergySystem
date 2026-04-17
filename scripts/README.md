@@ -13,8 +13,8 @@
 ## 当前规模
 
 - Shell 脚本：27 个
-- Python 脚本：24 个
-- 已归档脚本：2 个
+- Python 脚本：16 个
+- 已归档脚本：14 个
 
 以上数量以 [SCRIPT_LIST.md](./SCRIPT_LIST.md) 为事实来源。
 
@@ -106,16 +106,26 @@
 ### 已归档/历史脚本
 
 - `archive/python/rebuild_database.py`
+- `archive/python/demo_unified_system.py`
+- `archive/python/demo_device_group.py`
+- `archive/python/demo_location.py`
+- `archive/python/demo_maintenance.py`
+- `archive/python/mqtt_subscriber_template.py`
+- `archive/python/test_http_device.py`
+- `archive/python/test_modbus_tcp.py`
+- `archive/python/test_serial_port.py`
+- `archive/python/serial_device_sim.py`
+- `archive/python/serial_gateway_demo.py`
+- `archive/python/serial_pair_demo.py`
 - `archive/shell/start_frontend.sh`
+- `archive/shell/uninstall_local_services.sh`
 
 ### 初始化与演示
 
 - `init_complete_system.py`
 - `create_admin.py`
-- `demo_unified_system.py`
-- `demo_device_group.py`
-- `demo_location.py`
-- `demo_maintenance.py`
+
+历史演示脚本已归档到 `scripts/archive/python/`，避免继续占用当前正式/联调目录。
 
 ### 设备接入与协议调试
 
@@ -124,13 +134,8 @@
 - `mqtt_send_test.py`
 - `send_svg_telemetry.py`
 - `send_capacitor_bank_telemetry.py`
-- `mqtt_subscriber_template.py`
-- `test_http_device.py`
-- `test_modbus_tcp.py`
-- `test_serial_port.py`
-- `serial_device_sim.py`
-- `serial_gateway_demo.py`
-- `serial_pair_demo.py`
+
+低频协议模板、串口演示和一次性联调脚本已归档到 `scripts/archive/python/`。
 
 `send_capacitor_bank_telemetry.py` 常用联调模板：
 - 正常实时联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile normal --loop 30 --interval 5`

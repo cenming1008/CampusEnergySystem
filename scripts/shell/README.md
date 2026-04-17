@@ -46,7 +46,7 @@
 - [release_readiness.sh](/Users/todo/MineEnergySystem/scripts/shell/release_readiness.sh)：发布前总检查
 - [render_alertmanager_config.sh](/Users/todo/MineEnergySystem/scripts/shell/render_alertmanager_config.sh)：渲染 Alertmanager 配置
 - [setup_mqtt_auth.sh](/Users/todo/MineEnergySystem/scripts/shell/setup_mqtt_auth.sh)：配置 MQTT 认证
-- [uninstall_local_services.sh](/Users/todo/MineEnergySystem/scripts/shell/uninstall_local_services.sh)：卸载本机相关服务
+- [archive/shell/uninstall_local_services.sh](/Users/todo/CampusEnergySystem/scripts/archive/shell/uninstall_local_services.sh)：历史本机服务卸载脚本，已归档
 
 ## 最常用组合
 
@@ -68,7 +68,7 @@ cd frontend && npm run dev
 
 ## 使用建议
 
-- 日常快速启动优先看 [bin/README.md](/Users/todo/MineEnergySystem/bin/README.md)
+- 日常快速启动优先看 [bin/README.md](/Users/todo/CampusEnergySystem/bin/README.md)
 - 需要完整能力时使用这里的脚本
-- 详细总览见 [scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)
-- 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
+- 详细总览见 [scripts/README.md](/Users/todo/CampusEnergySystem/scripts/README.md)
+- 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/CampusEnergySystem/scripts/SCRIPT_LIST.md)

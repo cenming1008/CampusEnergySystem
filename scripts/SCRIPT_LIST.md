@@ -44,7 +44,6 @@
 | `render_alertmanager_config.sh` | 渲染 Alertmanager 配置。 |
 | `setup_mqtt_auth.sh` | 配置 MQTT 认证用户与密码文件。 |
 | `rollback_prod.sh` | 使用备份执行生产回滚。 |
-| `uninstall_local_services.sh` | 卸载本机安装的相关服务。 |
 
 ## Python 脚本
 
@@ -65,10 +64,6 @@
 
 | 脚本 | 作用 |
 |------|------|
-| `demo_unified_system.py` | 演示整套业务能力。 |
-| `demo_device_group.py` | 演示设备分组功能。 |
-| `demo_location.py` | 演示位置管理功能。 |
-| `demo_maintenance.py` | 演示维护管理功能。 |
 
 ### 模拟、网关与训练
 
@@ -86,34 +81,38 @@
 | `mqtt_send_test.py` | 发送 MQTT 测试消息。 |
 | `send_svg_telemetry.py` | 向 SVG 设备发送模拟 MQTT 遥测数据。 |
 | `send_capacitor_bank_telemetry.py` | 向电容补偿控制器发送可按场景和状态位控制的模拟 MQTT 遥测数据，并可监听 `start/stop/write_parameter` 控制指令回放最新快照。 |
-| `mqtt_subscriber_template.py` | MQTT 订阅模板。 |
-| `test_http_device.py` | 测试 HTTP 设备接口。 |
-| `test_modbus_tcp.py` | 测试 Modbus TCP 设备连接。 |
-| `test_serial_port.py` | 测试串口可用性。 |
 
 ### 串口演示工具
 
 | 脚本 | 作用 |
 |------|------|
-| `serial_device_sim.py` | 串口设备模拟。 |
-| `serial_gateway_demo.py` | 串口网关演示。 |
-| `serial_pair_demo.py` | 串口配对/联调演示。 |
-
 ## 已归档脚本
 
 | 脚本 | 作用 |
 |------|------|
 | `archive/shell/start_frontend.sh` | 旧前端启动包装脚本，已从正式入口降级，统一改用 `cd frontend && npm run dev`。 |
+| `archive/shell/uninstall_local_services.sh` | 历史本机服务卸载脚本，当前默认使用 Docker 中间件，不再作为主入口。 |
 | `archive/python/rebuild_database.py` | 历史数据库重建脚本，已从正式入口降级，当前应优先使用 Alembic 迁移与初始化脚本。 |
+| `archive/python/demo_unified_system.py` | 历史整套系统演示脚本。 |
+| `archive/python/demo_device_group.py` | 历史设备分组演示脚本。 |
+| `archive/python/demo_location.py` | 历史位置管理演示脚本。 |
+| `archive/python/demo_maintenance.py` | 历史维护管理演示脚本。 |
+| `archive/python/mqtt_subscriber_template.py` | 历史 MQTT 订阅模板。 |
+| `archive/python/test_http_device.py` | 历史 HTTP 设备联调脚本。 |
+| `archive/python/test_modbus_tcp.py` | 历史 Modbus TCP 联调脚本。 |
+| `archive/python/test_serial_port.py` | 历史串口联调脚本。 |
+| `archive/python/serial_device_sim.py` | 历史串口设备模拟脚本。 |
+| `archive/python/serial_gateway_demo.py` | 历史串口网关演示脚本。 |
+| `archive/python/serial_pair_demo.py` | 历史串口配对/联调演示脚本。 |
 
 ## 统计
 
 | 类型 | 数量 |
 |------|------|
 | Shell | 27 |
-| Python | 24 |
-| Archive | 2 |
-| 合计 | 53 |
+| Python | 16 |
+| Archive | 14 |
+| 合计 | 57 |
 
 ## 与 bin 的关系
 

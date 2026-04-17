@@ -303,20 +303,10 @@ docker stats
 
 ## 🎯 功能演示
 
-### 演示脚本
+演示脚本已归档到 `scripts/archive/python/`。如果仍需使用，请按归档路径手动执行，例如：
 
 ```bash
-# 完整系统演示
-python scripts/python/demo_unified_system.py
-
-# 设备分组演示
-python scripts/python/demo_device_group.py
-
-# 位置管理演示
-python scripts/python/demo_location.py
-
-# 维护管理演示
-python scripts/python/demo_maintenance.py
+python scripts/archive/python/demo_unified_system.py
 ```
 
 ---

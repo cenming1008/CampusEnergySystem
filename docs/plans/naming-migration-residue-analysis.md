@@ -96,10 +96,8 @@
 - `frontend/src/three/mine/MineSceneGenerator.ts`
   - 目录名保留 `mine`
   - 注释中仍有“通风设备”等矿区场景表达
-- `docs/archive/plans/park-ems-migration-analysis.md`
-  - 已明确把矿区叙事降级为历史背景
 - `docs/archive/`
-  - 多份归档材料保留迁移前上下文
+  - 作为历史占位目录保留
 
 判断标准：
 

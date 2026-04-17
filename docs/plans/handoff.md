@@ -8,6 +8,7 @@
 ---
 
 ## 阶段结论
+- 当前建议将本主题按“`MVP+` 阶段完成，待真实联调决定是否进入正式完善”进行收口，而不是继续作为实现中主题悬挂。
 - 主题已从“阶段收口候选”重开到“补偿器专属详情页 UI 优化”轮次。
 - 前端已完成补偿器专属工业监控页实现，验收已通过。
 - `reactive_power_compensator -> svg` 代码口径统一已完成，补偿类接口已统一收敛到设备主线下的 `/devices/{id}/compensation/*`。
@@ -80,11 +81,16 @@
     - `device_category=compensation`
     - `energy_type=electricity`
   - 该设备既有 `energydata` 的 `energy_type` 也已批量从 `water` 修正为 `electricity`，避免监控页继续按水表语义取数
+- 当前规则侧补口已完成：
+  - 正式 PLAN 已写明补偿类接口冻结口径，只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`
+  - 正式 PLAN 已补齐“正式完善门槛”，可直接作为后续真实联调的验收清单
+- 当前 Daily 归档已补齐：
+  - `2026-04-16-status.md`
+  - `2026-04-16-handoff.md`
 
 ## 下一棒
-- 下一棒交给规则角色确认补偿类接口正式口径：只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`。
 - 下一棒交给验收/设备联调角色：
-  - 验收确认“补偿器1已达到 MVP+ 阶段完成，但未到正式完善”的阶段结论是否通过
+  - 验收确认“补偿器1已达到 MVP+ 阶段完成，但未到正式完善”的阶段结论是否通过，并判断主区是否正式收口
   - 验收确认“正式控制状态语义 + 仅管理员参数写入 + 二次确认 + 超时提示”的前端开放边界是否通过
   - 设备/网关联调继续把当前模拟回执口径映射为真实设备/网关协议，确认：
     - 真实回执 topic / payload

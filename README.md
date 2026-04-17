@@ -240,25 +240,12 @@ bash ./scripts/shell/release_readiness.sh
 
 ## 文档入口
 
-### 新手与启动
-
-- [快速启动指南](/Users/todo/CampusEnergySystem/docs/01-新手入门/快速启动指南.md)
-- [安装配置完整指南](/Users/todo/CampusEnergySystem/docs/01-新手入门/安装配置完整指南.md)
-- [本地开发环境配置](/Users/todo/CampusEnergySystem/docs/01-新手入门/本地开发环境配置.md)
-
-### 开发与部署
-
-- [开发与部署总览](/Users/todo/CampusEnergySystem/docs/03-开发与部署/README.md)
-- [系统启动完整指南](/Users/todo/CampusEnergySystem/docs/03-开发与部署/系统启动完整指南.md)
-- [企业部署完整指南](/Users/todo/CampusEnergySystem/docs/03-开发与部署/企业部署完整指南.md)
-- [工业上线清单](/Users/todo/CampusEnergySystem/docs/03-开发与部署/工业上线清单.md)
-- [试点发布与现场演练手册](/Users/todo/CampusEnergySystem/docs/03-开发与部署/试点发布与现场演练手册.md)
-
 ### 协作与计划
 
+- [文档中心](/Users/todo/CampusEnergySystem/docs/README.md)
 - [协作规范总览](/Users/todo/CampusEnergySystem/docs/guides/README.md)
 - [产品定位规范](/Users/todo/CampusEnergySystem/docs/guides/product-positioning.md)
-- [五线程协作框架](/Users/todo/CampusEnergySystem/docs/guides/five-thread-vibe-coding-framework.md)
+- [五角色协作框架](/Users/todo/CampusEnergySystem/docs/guides/five-role-vibe-coding-framework.md)
 - [当前状态](/Users/todo/CampusEnergySystem/docs/plans/current-status.md)
 - [当前交接](/Users/todo/CampusEnergySystem/docs/plans/handoff.md)
 - [计划目录](/Users/todo/CampusEnergySystem/docs/plans/README.md)
@@ -280,7 +267,7 @@ bash ./scripts/shell/release_readiness.sh
 3. `docs/plans/handoff.md`
 4. 当前主题对应 `PLAN-*.md`
 5. `docs/guides/product-positioning.md`
-6. `docs/guides/five-thread-vibe-coding-framework.md`
+6. `docs/guides/five-role-vibe-coding-framework.md`
 
 如果涉及具体实现，再按线程继续阅读对应 guide：
 

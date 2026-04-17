@@ -167,7 +167,7 @@
 ## 相关文档
 
 - [docs/guides/product-positioning.md](/Users/todo/MineEnergySystem/docs/guides/product-positioning.md)
-- [docs/guides/five-thread-vibe-coding-framework.md](/Users/todo/MineEnergySystem/docs/guides/five-thread-vibe-coding-framework.md)
+- [docs/guides/five-role-vibe-coding-framework.md](/Users/todo/MineEnergySystem/docs/guides/five-role-vibe-coding-framework.md)
 - [docs/plans/naming-migration-residue-analysis.md](/Users/todo/MineEnergySystem/docs/plans/naming-migration-residue-analysis.md)
 - [docs/plans/current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md)
 - [docs/plans/handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md)

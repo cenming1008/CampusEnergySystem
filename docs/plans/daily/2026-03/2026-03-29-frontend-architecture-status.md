@@ -18,7 +18,7 @@
 - 当前主题可进入阶段收口。
 
 ### 验证结果
-- 已阅读 AGENTS.md、`docs/plans/current-status.md`、`docs/plans/handoff.md`、[PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md)、产品定位与五线程框架。
+- 已阅读 AGENTS.md、`docs/plans/current-status.md`、`docs/plans/handoff.md`、[PLAN-20260329-frontend-architecture-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260329-frontend-architecture-convergence.md)、产品定位与五角色框架。
 - 已复核 [Dashboard.vue](/Users/todo/MineEnergySystem/frontend/src/views/Dashboard.vue)、[useDashboardViewModel.ts](/Users/todo/MineEnergySystem/frontend/src/features/dashboard/composables/useDashboardViewModel.ts)、[useDashboardCharts.ts](/Users/todo/MineEnergySystem/frontend/src/features/dashboard/composables/useDashboardCharts.ts)。
 - 已复核工作树范围，确认改动只落在 `Dashboard.vue` 与两个新 composable，未外溢到第二个代表页或全局治理文件。
 - 已执行 `cd frontend && npm run build`，通过。

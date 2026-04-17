@@ -68,4 +68,4 @@
 ## 相关文档
 
 - `docs/guides/...`
-- `docs/05-架构与设计/...`
+- `docs/archive/...`

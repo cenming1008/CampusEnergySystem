@@ -1,6 +1,6 @@
 # python 脚本说明
 
-`scripts/python/` 主要放仓库级 Python 工具。当前目录同时包含正式工具、调试脚本和演示脚本，因此阅读时要区分“正式入口”和“辅助脚本”。
+`scripts/python/` 主要放仓库级 Python 工具。当前目录以正式工具和仍在使用的联调脚本为主，低频演示/一次性联调脚本已迁入 `scripts/archive/python/`。
 
 ## 使用优先级
 
@@ -22,14 +22,14 @@
 
 这些脚本优先视为正式入口。
 
-### 演示脚本
+### 已归档演示脚本
 
-- [demo_unified_system.py](/Users/todo/MineEnergySystem/scripts/python/demo_unified_system.py)：整套系统演示
-- [demo_device_group.py](/Users/todo/MineEnergySystem/scripts/python/demo_device_group.py)：设备分组演示
-- [demo_location.py](/Users/todo/MineEnergySystem/scripts/python/demo_location.py)：位置管理演示
-- [demo_maintenance.py](/Users/todo/MineEnergySystem/scripts/python/demo_maintenance.py)：维护管理演示
+- [demo_unified_system.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_unified_system.py)：整套系统演示
+- [demo_device_group.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_device_group.py)：设备分组演示
+- [demo_location.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_location.py)：位置管理演示
+- [demo_maintenance.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_maintenance.py)：维护管理演示
 
-这些脚本保留，但不应作为主 README 的第一层入口。
+这些脚本已归档，不再作为当前目录第一层入口。
 
 ### 模拟、网关与训练
 
@@ -43,20 +43,23 @@
 - [mqtt_send_test.py](/Users/todo/MineEnergySystem/scripts/python/mqtt_send_test.py)：发送 MQTT 测试消息
 - [send_svg_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_svg_telemetry.py)：向 SVG 设备发送模拟 MQTT 遥测数据
 - [send_capacitor_bank_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_telemetry.py)：向电容补偿控制器发送模拟 MQTT 遥测数据
-- [mqtt_subscriber_template.py](/Users/todo/MineEnergySystem/scripts/python/mqtt_subscriber_template.py)：MQTT 订阅模板
-- [test_http_device.py](/Users/todo/MineEnergySystem/scripts/python/test_http_device.py)：测试 HTTP 设备
-- [test_modbus_tcp.py](/Users/todo/MineEnergySystem/scripts/python/test_modbus_tcp.py)：测试 Modbus TCP 设备
-- [test_serial_port.py](/Users/todo/MineEnergySystem/scripts/python/test_serial_port.py)：测试串口
+
+低频协议模板和一次性联调脚本已归档：
+
+- [mqtt_subscriber_template.py](/Users/todo/CampusEnergySystem/scripts/archive/python/mqtt_subscriber_template.py)
+- [test_http_device.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_http_device.py)
+- [test_modbus_tcp.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_modbus_tcp.py)
+- [test_serial_port.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_serial_port.py)
 
 这些脚本优先视为联调/验证工具，而不是长期正式入口。
 
-### 串口演示
+### 已归档串口演示
 
-- [serial_device_sim.py](/Users/todo/MineEnergySystem/scripts/python/serial_device_sim.py)：串口设备模拟
-- [serial_gateway_demo.py](/Users/todo/MineEnergySystem/scripts/python/serial_gateway_demo.py)：串口网关演示
-- [serial_pair_demo.py](/Users/todo/MineEnergySystem/scripts/python/serial_pair_demo.py)：串口联调演示
+- [serial_device_sim.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_device_sim.py)：串口设备模拟
+- [serial_gateway_demo.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_gateway_demo.py)：串口网关演示
+- [serial_pair_demo.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_pair_demo.py)：串口联调演示
 
-这些脚本更接近专项演示和接入调试，后续若继续收敛，优先从文档入口降级。
+这些脚本已归档，保留给专项演示和接入排查使用。
 
 ## 最常用组合
 
@@ -81,6 +84,6 @@ python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/heal
 
 - 改真实设备接入时，优先配 [config/gateway_devices.json](/Users/todo/MineEnergySystem/config/gateway_devices.json)
 - 当前数据库结构应优先通过 `python -m alembic upgrade head` 维护，不再把重建数据库当正式流程
-- 历史脚本 [archive/python/rebuild_database.py](/Users/todo/MineEnergySystem/scripts/archive/python/rebuild_database.py) 已降级归档，仅供历史排查参考
-- 详细总览见 [scripts/README.md](/Users/todo/MineEnergySystem/scripts/README.md)
-- 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/MineEnergySystem/scripts/SCRIPT_LIST.md)
+- 历史脚本 [archive/python/rebuild_database.py](/Users/todo/CampusEnergySystem/scripts/archive/python/rebuild_database.py) 已降级归档，仅供历史排查参考
+- 详细总览见 [scripts/README.md](/Users/todo/CampusEnergySystem/scripts/README.md)
+- 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/CampusEnergySystem/scripts/SCRIPT_LIST.md)

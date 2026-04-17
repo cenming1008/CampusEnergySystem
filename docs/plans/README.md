@@ -155,6 +155,6 @@
 
 - [变更计划规范](../guides/变更计划规范.md)
 - [AI 多角色协作 SOP](../guides/ai-collaboration-sop.md)
-- [Codex 五角色 Vibe Coding 框架](../guides/five-thread-vibe-coding-framework.md)
+- [Codex 五角色 Vibe Coding 框架](../guides/five-role-vibe-coding-framework.md)
 - [文档体系规范](../guides/文档体系规范.md)
 - [docs 主目录](../README.md)

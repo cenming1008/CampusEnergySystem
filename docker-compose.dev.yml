@@ -14,7 +14,7 @@ services:
     ports:
       - "5432:5432"  # 使用标准端口 5432
     volumes:
-      - ./pg_data_dev:/var/lib/postgresql/data
+      - ./pg_data_dev/runtime:/var/lib/postgresql/data
     networks:
       - app_network
     healthcheck:

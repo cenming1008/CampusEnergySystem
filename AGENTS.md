@@ -11,7 +11,7 @@
 5. 预判（原：探索）
 
 协作流程、归档与主题收口的正式执行规范，统一以 `docs/guides/ai-collaboration-sop.md` 为准。
-高频开发下的角色分流、切换、并行边界、契约承载与单轮闭环，统一以 `docs/guides/five-thread-vibe-coding-framework.md` 为准。
+高频开发下的角色分流、切换、并行边界、契约承载与单轮闭环，统一以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
 
 所有角色开始工作前，必须先阅读：
 - AGENTS.md
@@ -19,11 +19,14 @@
 - docs/plans/handoff.md
 - 当前主题对应 `PLAN-*.md`（如存在）
 - docs/guides/product-positioning.md
-- docs/guides/five-thread-vibe-coding-framework.md
+- docs/guides/five-role-vibe-coding-framework.md
 
 如果涉及具体实现，还必须继续阅读：
 - 前端线程：docs/guides/frontend-guidelines.md
 - 后端线程：docs/guides/backend-guidelines.md
+
+如果涉及新增设备类型、设备协议接入、设备字段分层、专属遥测/参数/控制链建模，还必须继续阅读：
+- 设备分类：docs/guides/device-data-classification.md
 
 如果涉及脚本新增、迁移、整理或入口调整，还必须继续阅读：
 - 脚本治理：docs/guides/script-guidelines.md
@@ -71,7 +74,7 @@
 
 ## 角色职责
 
-以下职责按协作位置展开，不代表固定启动顺序；角色组合、切换与并行边界以 `docs/guides/five-thread-vibe-coding-framework.md` 为准。
+以下职责按协作位置展开，不代表固定启动顺序；角色组合、切换与并行边界以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
 
 ### 1. 规则角色（原：规范线程）
 职责：
@@ -175,7 +178,7 @@
 3. 阅读 handoff.md
 4. 阅读当前主题对应 `PLAN-*.md`（复杂任务必须具备正式 PLAN 或等价执行依据）
 5. 阅读 product-positioning.md
-6. 根据角色阅读对应 guide，并按 `docs/guides/five-thread-vibe-coding-framework.md` 的“30 秒分流卡”判断角色分流、接力与并行
+6. 根据角色阅读对应 guide，并按 `docs/guides/five-role-vibe-coding-framework.md` 的“30 秒分流卡”判断角色分流、接力与并行
 7. 先确认任务是否符合“园区能源管理系统”方向
 8. 先分析，再修改
 9. 修改后做最小验证

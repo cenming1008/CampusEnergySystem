@@ -128,3 +128,28 @@
 - 2026-04-13：主题重开，新增“补偿器专属详情页 UI 优化”轮次。
 - 2026-04-13：补偿器专属详情页 UI 优化已完成并通过验收，进入阶段收口判断。
 - 2026-04-14：已完成 `reactive_power_compensator -> svg` 代码口径统一，旧顶层 `/svg`、`/capacitor-bank` endpoint 与前端兼容 API 文件已删除，补偿类接口正式收敛为 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`，主题进入规则/验收收口判断。
+
+## 12. 补偿类接口冻结口径
+
+- 本专题后续默认只承认以下两组补偿类正式接口：
+  - `/devices/{id}/compensation/svg/*`
+  - `/devices/{id}/compensation/capacitor-bank/*`
+- 该口径的含义是：
+  - 补偿类扩展必须继续挂在设备主线 `/devices/{id}/compensation/*` 下
+  - `svg` 与 `capacitor-bank` 作为补偿类子型分流，不再恢复旧顶层 `/svg`、`/capacitor-bank`
+  - 不再新增与上述路径同义的并列入口，避免前后端、测试、联调脚本出现多套主口径
+- 若未来确需新增新的补偿类子型，应沿用同一层级继续扩展，例如 `/devices/{id}/compensation/<subtype>/*`，而不是重新开一套顶层业务族路径。
+- 若未来确需做 breaking change，必须先回规则角色重锁边界，再更新正式 PLAN、`current-status.md` 与 `handoff.md`，不得只在实现层偷偷漂移。
+
+## 13. 正式完善门槛
+
+当前 `MVP+` 阶段完成不等于“正式完善”。补偿器专题要进入“正式完善 / 可正式收口”至少还需同时满足：
+
+- 真实设备/真实网关联调完成，并确认正式回执 topic、payload、命令关联键与当前 `command_id` 口径是否一致。
+- 监控页关键指标已收敛为真实采集或真实参数回读，不再把“控制模式 / 补偿容量利用率 / 柜内温度健康度”等核心信息主要建立在估算或演示占位上。
+- 控制状态语义在真实设备侧验证通过，`accepted / running / success / failed / timeout / rejected` 的边界已稳定，不再只是模拟器约定。
+- 至少完成一轮真实设备侧受控参数写入与远程控制验证，并确认日志、回执、超时和失败路径都能落到最终可追踪状态。
+- 高风险动作边界已明确：
+  - 要么明确继续关闭并写入正式限制
+  - 要么完成真实联调验证后正式开放
+- 当前主区、正式 PLAN 与 Daily 快照已同步收口，不再存在“实现已完成但规则/验收结论仍悬空”的状态。
