@@ -2,6 +2,8 @@ import { computed, reactive, ref, watch, type Ref } from 'vue'
 import { getAnalysis, getHistory, type DeviceAnalysis } from '@/api/telemetry'
 import type { Device } from '@/api/device'
 
+const DASHBOARD_TREND_WINDOW_MS = 60 * 60 * 1000
+
 interface TelemetryMessage {
   type?: string
   data?: {
@@ -19,18 +21,59 @@ interface HistoryPoint {
 }
 
 function updateTrendFromHistory(
-  energyTrendData: { times: string[]; values: number[] },
+  energyTrendData: { times: string[]; values: number[]; timestamps: number[] },
   history: HistoryPoint[]
 ) {
   if (history.length === 0) {
     energyTrendData.times = []
     energyTrendData.values = []
+    energyTrendData.timestamps = []
     return
   }
 
-  const sortedHistory = [...history].reverse()
+  const sortedHistory = [...history].sort((left, right) => {
+    const leftTimestamp = left.timestamp ? new Date(left.timestamp).getTime() : 0
+    const rightTimestamp = right.timestamp ? new Date(right.timestamp).getTime() : 0
+    return leftTimestamp - rightTimestamp
+  })
   energyTrendData.times = sortedHistory.map((item) => item.timestamp?.substring(11, 19) || '')
   energyTrendData.values = sortedHistory.map((item) => Math.abs(item.flow_rate || 0))
+  energyTrendData.timestamps = sortedHistory.map((item) => {
+    const timestamp = item.timestamp ? new Date(item.timestamp).getTime() : Number.NaN
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  })
+}
+
+function toApiDateTime(value: Date) {
+  const year = value.getFullYear()
+  const month = `${value.getMonth() + 1}`.padStart(2, '0')
+  const day = `${value.getDate()}`.padStart(2, '0')
+  const hours = `${value.getHours()}`.padStart(2, '0')
+  const minutes = `${value.getMinutes()}`.padStart(2, '0')
+  const seconds = `${value.getSeconds()}`.padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+}
+
+function buildDashboardTrendRange() {
+  const end = new Date()
+  const start = new Date(end.getTime() - DASHBOARD_TREND_WINDOW_MS)
+  return {
+    start_time: toApiDateTime(start),
+    end_time: toApiDateTime(end),
+  }
+}
+
+function trimTrendToRecentWindow(
+  energyTrendData: { times: string[]; values: number[]; timestamps: number[] },
+  now: Date = new Date()
+) {
+  const cutoff = now.getTime() - DASHBOARD_TREND_WINDOW_MS
+
+  while (energyTrendData.timestamps.length > 0 && energyTrendData.timestamps[0] < cutoff) {
+    energyTrendData.timestamps.shift()
+    energyTrendData.times.shift()
+    energyTrendData.values.shift()
+  }
 }
 
 export function useDashboardRealtime(options: {
@@ -48,9 +91,10 @@ export function useDashboardRealtime(options: {
     voltage: 0
   })
 
-  const energyTrendData = reactive<{ times: string[]; values: number[] }>({
+  const energyTrendData = reactive<{ times: string[]; values: number[]; timestamps: number[] }>({
     times: [],
-    values: []
+    values: [],
+    timestamps: []
   })
   const loading = reactive({
     device: false,
@@ -89,7 +133,7 @@ export function useDashboardRealtime(options: {
     try {
       const [analysis, history] = await Promise.all([
         getAnalysis(deviceId),
-        getHistory(deviceId, 100)
+        getHistory(deviceId, 240, buildDashboardTrendRange())
       ])
 
       if (token !== requestToken || currentDeviceId.value !== deviceId) return
@@ -115,6 +159,7 @@ export function useDashboardRealtime(options: {
         })
         energyTrendData.times = []
         energyTrendData.values = []
+        energyTrendData.timestamps = []
       }
     } finally {
       if (token === requestToken) {
@@ -129,7 +174,7 @@ export function useDashboardRealtime(options: {
 
     try {
       loading.trend = true
-      const history = await getHistory(currentDeviceId.value, 100)
+      const history = await getHistory(currentDeviceId.value, 240, buildDashboardTrendRange())
       updateTrendFromHistory(energyTrendData, history as HistoryPoint[])
     } catch {
       // 负荷曲线加载失败
@@ -152,14 +197,12 @@ export function useDashboardRealtime(options: {
 
     const time = message.data.timestamp?.substring(11, 19) || new Date().toTimeString().substring(0, 8)
     const power = Math.abs(message.data.power || 0)
+    const timestamp = message.data.timestamp ? new Date(message.data.timestamp).getTime() : Date.now()
 
     energyTrendData.times.push(time)
     energyTrendData.values.push(power)
-
-    if (energyTrendData.times.length > 100) {
-      energyTrendData.times.shift()
-      energyTrendData.values.shift()
-    }
+    energyTrendData.timestamps.push(Number.isNaN(timestamp) ? Date.now() : timestamp)
+    trimTrendToRecentWindow(energyTrendData)
   })
 
   return {

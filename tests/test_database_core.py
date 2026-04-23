@@ -58,9 +58,17 @@ class DatabaseCoreTest(unittest.TestCase):
 
     def test_assert_required_columns_present_raises_for_missing_columns(self):
         inspector = _FakeInspector(
-            tables=["alarm", "mqtt_ingestion_record", "user"],
+            tables=[
+                "alarm",
+                "capacitor_bank_control_profile",
+                "capacitor_bank_telemetry",
+                "mqtt_ingestion_record",
+                "user",
+            ],
             columns={
                 "alarm": ["severity"],
+                "capacitor_bank_control_profile": ["source"],
+                "capacitor_bank_telemetry": ["phase_a_circuit_running_count"],
                 "mqtt_ingestion_record": ["raw_payload"],
                 "user": ["role"],
             },
@@ -71,6 +79,8 @@ class DatabaseCoreTest(unittest.TestCase):
                 database._assert_required_columns_present()
 
         self.assertIn("alarm.category", str(ctx.exception))
+        self.assertIn("capacitor_bank_control_profile.snapshot_timestamp", str(ctx.exception))
+        self.assertIn("capacitor_bank_telemetry.running_circuit_count", str(ctx.exception))
         self.assertIn("user.location_scope", str(ctx.exception))
 
     def test_get_session_yields_session_from_context_manager(self):

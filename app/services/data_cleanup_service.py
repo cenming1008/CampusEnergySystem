@@ -3,13 +3,38 @@
 自动清理过期的时序数据和历史记录
 """
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Any, Dict, Iterable, Optional
 
-from sqlmodel import Session, text, select
+from sqlmodel import Session, text
 from app.core.database import engine
 from app.core.logger import logger
 from app.core.settings import settings
-from app.models.tables import EnergyData, Alarm, CarbonEmission
+
+
+CLEANUP_RESULT_KEYS = (
+    "energy_data",
+    "alarm_data",
+    "carbon_emission",
+    "statistics",
+    "mqtt_ingestion",
+    "audit_event",
+    "svg_telemetry",
+    "capacitor_bank_telemetry",
+)
+
+MANUAL_CLEANUP_TARGETS = (
+    ("energy_data", "energydata", "timestamp", None),
+    ("alarm_data", "alarm", "timestamp", "is_resolved = true"),
+    ("carbon_emission", "carbon_emission", "timestamp", None),
+    ("mqtt_ingestion", "mqtt_ingestion_record", "received_at", None),
+    ("audit_event", "audit_event", "created_at", None),
+    ("svg_telemetry", "svg_telemetry", "timestamp", None),
+    ("capacitor_bank_telemetry", "capacitor_bank_telemetry", "timestamp", None),
+)
+
+ALL_RUNTIME_TARGETS = MANUAL_CLEANUP_TARGETS + (
+    ("statistics", "energy_statistics", "stat_time", None),
+)
 
 
 def cleanup_old_data() -> Dict[str, Any]:
@@ -22,200 +47,61 @@ def cleanup_old_data() -> Dict[str, Any]:
         logger.info("自动数据清理已禁用，跳过清理")
         return {"status": "disabled"}
     
-    results = {
-        "timestamp": datetime.now().isoformat(),
-        "energy_data": 0,
-        "alarm_data": 0,
-        "carbon_emission": 0,
-        "statistics": 0,
-        "mqtt_ingestion": 0,
-        "audit_event": 0,
-        "errors": []
-    }
+    results = _new_cleanup_result()
     
     try:
         with Session(engine) as session:
-            # 1. 清理时序数据（EnergyData）
             if settings.data_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.data_retention_days)
-                try:
-                    count = _count_rows_before_delete(
-                        session=session,
-                        count_statement=select(EnergyData).where(EnergyData.timestamp < cutoff_date),
-                    )
-
-                    if count > 0:
-                        try:
-                            session.exec(
-                                text(f"""
-                                    SELECT drop_chunks(
-                                        'energydata',
-                                        INTERVAL '{settings.data_retention_days} days'
-                                    );
-                                """)
-                            )
-                        except Exception:
-                            session.exec(
-                                text("""
-                                    DELETE FROM energydata
-                                    WHERE timestamp < :cutoff_date
-                                """),
-                                {"cutoff_date": cutoff_date},
-                            )
-
-                        session.commit()
-                        results["energy_data"] = count
-                        logger.info(f"清理了 {count} 条 EnergyData 记录（超过 {settings.data_retention_days} 天）")
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 EnergyData 失败: {e}"
-                    logger.error(error_msg)
-                    results["errors"].append(error_msg)
+                _merge_cleanup_results(
+                    results,
+                    cleanup_targets_before(
+                        session,
+                        cutoff_date,
+                        (
+                            ("energy_data", "energydata", "timestamp", None),
+                            ("carbon_emission", "carbon_emission", "timestamp", None),
+                            ("svg_telemetry", "svg_telemetry", "timestamp", None),
+                            ("capacitor_bank_telemetry", "capacitor_bank_telemetry", "timestamp", None),
+                        ),
+                    ),
+                )
             
-            # 2. 清理报警记录
             if settings.alarm_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.alarm_retention_days)
-                try:
-                    deleted_count = _count_unresolved_alarms_to_delete(session, cutoff_date)
-
-                    if deleted_count > 0:
-                        session.execute(
-                            text("""
-                                DELETE FROM alarm
-                                WHERE timestamp < :cutoff_date
-                                AND is_resolved = true
-                            """).bindparams(cutoff_date=cutoff_date)
-                        )
-                        session.commit()
-                        results["alarm_data"] = deleted_count
-                        logger.info(f"清理了 {deleted_count} 条已解决的报警记录（超过 {settings.alarm_retention_days} 天）")
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 Alarm 失败: {e}"
-                    logger.error(error_msg)
-                    results["errors"].append(error_msg)
+                _merge_cleanup_results(
+                    results,
+                    cleanup_targets_before(session, cutoff_date, (("alarm_data", "alarm", "timestamp", "is_resolved = true"),)),
+                )
             
-            # 3. 清理碳排放记录
-            if settings.data_retention_days > 0:
-                cutoff_date = datetime.now() - timedelta(days=settings.data_retention_days)
-                try:
-                    count = _count_carbon_rows_to_delete(session, cutoff_date)
-
-                    if count > 0:
-                        try:
-                            session.exec(
-                                text(f"""
-                                    SELECT drop_chunks(
-                                        'carbon_emission',
-                                        INTERVAL '{settings.data_retention_days} days'
-                                    );
-                                """)
-                            )
-                        except Exception:
-                            session.execute(
-                                text("""
-                                    DELETE FROM carbon_emission
-                                    WHERE timestamp < :cutoff_date
-                                """).bindparams(cutoff_date=cutoff_date)
-                            )
-                        session.commit()
-                        results["carbon_emission"] = count
-                        logger.info(f"清理了 {count} 条 CarbonEmission 记录（超过 {settings.data_retention_days} 天）")
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 CarbonEmission 失败: {e}"
-                    logger.warning(error_msg)
-                    results["errors"].append(error_msg)
-            
-            # 4. 清理统计数据（保留时间更长）
             if settings.statistics_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.statistics_retention_days)
-                try:
-                    deleted_count = _count_scalar_result(
-                        session=session,
-                        query=text("SELECT COUNT(*) FROM energy_statistics WHERE stat_time < :cutoff_date"),
-                        params={"cutoff_date": cutoff_date},
-                    )
-
-                    if deleted_count > 0:
-                        session.execute(
-                            text("""
-                                DELETE FROM energy_statistics
-                                WHERE stat_time < :cutoff_date
-                            """).bindparams(cutoff_date=cutoff_date)
-                        )
-                        session.commit()
-                        results["statistics"] = deleted_count
-                        logger.info(f"清理了 {deleted_count} 条 EnergyStatistics 记录（超过 {settings.statistics_retention_days} 天）")
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 EnergyStatistics 失败: {e}"
-                    logger.warning(error_msg)
-                    results["errors"].append(error_msg)
+                _merge_cleanup_results(
+                    results,
+                    cleanup_targets_before(session, cutoff_date, (("statistics", "energy_statistics", "stat_time", None),)),
+                )
             
-            # 5. 清理 MQTT 流水记录（最大表，增长最快）
             if settings.mqtt_ingestion_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.mqtt_ingestion_retention_days)
-                try:
-                    count = _count_scalar_result(
-                        session=session,
-                        query=text("SELECT COUNT(*) FROM mqtt_ingestion_record WHERE received_at < :cutoff"),
-                        params={"cutoff": cutoff_date},
-                    )
-                    if count > 0:
-                        session.execute(
-                            text("DELETE FROM mqtt_ingestion_record WHERE received_at < :cutoff")
-                            .bindparams(cutoff=cutoff_date)
-                        )
-                        session.commit()
-                        results["mqtt_ingestion"] = count
-                        logger.info(
-                            f"清理了 {count} 条 mqtt_ingestion_record 记录"
-                            f"（超过 {settings.mqtt_ingestion_retention_days} 天）"
-                        )
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 mqtt_ingestion_record 失败: {e}"
-                    logger.error(error_msg)
-                    results["errors"].append(error_msg)
+                _merge_cleanup_results(
+                    results,
+                    cleanup_targets_before(
+                        session,
+                        cutoff_date,
+                        (("mqtt_ingestion", "mqtt_ingestion_record", "received_at", None),),
+                    ),
+                )
 
-            # 6. 清理审计事件记录
             if settings.audit_event_retention_days > 0:
                 cutoff_date = datetime.now() - timedelta(days=settings.audit_event_retention_days)
-                try:
-                    count = _count_scalar_result(
-                        session=session,
-                        query=text("SELECT COUNT(*) FROM audit_event WHERE created_at < :cutoff"),
-                        params={"cutoff": cutoff_date},
-                    )
-                    if count > 0:
-                        session.execute(
-                            text("DELETE FROM audit_event WHERE created_at < :cutoff")
-                            .bindparams(cutoff=cutoff_date)
-                        )
-                        session.commit()
-                        results["audit_event"] = count
-                        logger.info(
-                            f"清理了 {count} 条 audit_event 记录"
-                            f"（超过 {settings.audit_event_retention_days} 天）"
-                        )
-                except Exception as e:
-                    session.rollback()
-                    error_msg = f"清理 audit_event 失败: {e}"
-                    logger.error(error_msg)
-                    results["errors"].append(error_msg)
+                _merge_cleanup_results(
+                    results,
+                    cleanup_targets_before(session, cutoff_date, (("audit_event", "audit_event", "created_at", None),)),
+                )
 
-        # 7. 执行 VACUUM 优化（可选，在非高峰时段）
         _run_vacuum_analyze()
         
-        total_deleted = (
-            results["energy_data"] +
-            results["alarm_data"] +
-            results["carbon_emission"] +
-            results["statistics"] +
-            results["mqtt_ingestion"] +
-            results["audit_event"]
-        )
+        total_deleted = _total_deleted(results)
         
         if total_deleted > 0:
             logger.info(f"✅ 数据清理完成：共清理 {total_deleted} 条记录")
@@ -234,9 +120,116 @@ def cleanup_old_data() -> Dict[str, Any]:
     return results
 
 
-def _count_rows_before_delete(session: Session, count_statement) -> int:
-    """统计 SQLModel 查询结果条数。"""
-    return len(session.exec(count_statement).all())
+def cleanup_runtime_data_before(session: Session, cutoff_time: datetime, *, hours: Optional[int] = None) -> Dict[str, Any]:
+    """清理指定时间前的运行/历史数据，供手动清理接口复用。"""
+    results = _new_cleanup_result(cutoff_time=cutoff_time, hours=hours)
+    _merge_cleanup_results(results, cleanup_targets_before(session, cutoff_time, MANUAL_CLEANUP_TARGETS))
+    results["total_deleted"] = _total_deleted(results)
+    results["status"] = "success" if not results["errors"] else "partial"
+    return results
+
+
+def cleanup_all_runtime_data(session: Session) -> Dict[str, Any]:
+    """清空运行/历史数据，不删除设备、用户、位置和参数档案等主数据。"""
+    results = _new_cleanup_result()
+    for key, table_name, _time_column, where_clause in ALL_RUNTIME_TARGETS:
+        try:
+            results[key] = _clear_table(session, table_name, where_clause)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            error_msg = f"清空 {table_name} 失败: {exc}"
+            logger.error(error_msg)
+            results["errors"].append(error_msg)
+    results["total_deleted"] = _total_deleted(results)
+    results["status"] = "success" if not results["errors"] else "partial"
+    return results
+
+
+def cleanup_targets_before(
+    session: Session,
+    cutoff_time: datetime,
+    targets: Iterable[tuple[str, str, str, Optional[str]]],
+) -> Dict[str, Any]:
+    """按统一口径删除指定时间前的目标表记录。"""
+    results = _new_cleanup_result(cutoff_time=cutoff_time)
+    for key, table_name, time_column, where_clause in targets:
+        try:
+            results[key] = _delete_rows_before(session, table_name, time_column, cutoff_time, where_clause)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            error_msg = f"清理 {table_name} 失败: {exc}"
+            logger.error(error_msg)
+            results["errors"].append(error_msg)
+    results["total_deleted"] = _total_deleted(results)
+    results["status"] = "success" if not results["errors"] else "partial"
+    return results
+
+
+def _new_cleanup_result(*, cutoff_time: Optional[datetime] = None, hours: Optional[int] = None) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "timestamp": datetime.now().isoformat(),
+        "errors": [],
+    }
+    for key in CLEANUP_RESULT_KEYS:
+        result[key] = 0
+    if cutoff_time is not None:
+        result["cutoff_time"] = cutoff_time.isoformat()
+    if hours is not None:
+        result["hours"] = hours
+    return result
+
+
+def _merge_cleanup_results(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    for key in CLEANUP_RESULT_KEYS:
+        target[key] = int(target.get(key, 0)) + int(source.get(key, 0))
+    target["errors"].extend(source.get("errors", []))
+
+
+def _total_deleted(results: Dict[str, Any]) -> int:
+    return sum(int(results.get(key, 0)) for key in CLEANUP_RESULT_KEYS)
+
+
+def _delete_rows_before(
+    session: Session,
+    table_name: str,
+    time_column: str,
+    cutoff_time: datetime,
+    where_clause: Optional[str] = None,
+) -> int:
+    extra_where = f" AND {where_clause}" if where_clause else ""
+    deleted_stmt = text(
+        f"""
+        WITH deleted AS (
+            DELETE FROM {table_name}
+            WHERE {time_column} < :cutoff_time
+            {extra_where}
+            RETURNING 1
+        )
+        SELECT COUNT(*) FROM deleted
+        """
+    )
+    return _execute_scalar_count(session, deleted_stmt, {"cutoff_time": cutoff_time})
+
+
+def _clear_table(session: Session, table_name: str, where_clause: Optional[str] = None) -> int:
+    if where_clause:
+        deleted_stmt = text(
+            f"""
+            WITH deleted AS (
+                DELETE FROM {table_name}
+                WHERE {where_clause}
+                RETURNING 1
+            )
+            SELECT COUNT(*) FROM deleted
+            """
+        )
+        return _execute_scalar_count(session, deleted_stmt, {})
+
+    total = _execute_scalar_count(session, text(f"SELECT COUNT(*) FROM {table_name}"), {})
+    session.execute(text(f"TRUNCATE TABLE {table_name}"))
+    return total
 
 
 def _count_unresolved_alarms_to_delete(session: Session, cutoff_date: datetime) -> int:
@@ -266,7 +259,11 @@ def _count_carbon_rows_to_delete(session: Session, cutoff_date: datetime) -> int
 
 def _count_scalar_result(session: Session, query, params: dict) -> int:
     """执行 count 查询并兼容 tuple / scalar 返回。"""
-    result = session.execute(query.bindparams(**params))
+    return _execute_scalar_count(session, query, params)
+
+
+def _execute_scalar_count(session: Session, query, params: dict) -> int:
+    result = session.execute(query.bindparams(**params) if params else query)
     count = result.scalar()
     return int(count) if count is not None else 0
 
@@ -285,54 +282,76 @@ def get_data_statistics() -> Dict[str, Any]:
     """
     获取数据统计信息（用于监控）
     """
-    stats = {
-        "timestamp": datetime.now().isoformat(),
-        "energy_data": {},
-        "alarm_data": {},
-        "carbon_emission": {},
-        "statistics": {}
-    }
+    stats: Dict[str, Any] = {"timestamp": datetime.now().isoformat()}
     
     try:
         with Session(engine) as session:
-            # EnergyData 统计
-            result = session.exec(
-                text("""
-                    SELECT 
-                        COUNT(*) as total,
-                        MIN(timestamp) as oldest,
-                        MAX(timestamp) as newest
-                    FROM energydata
-                """)
-            ).first()
-            if result:
-                stats["energy_data"] = {
-                    "total": result[0] if isinstance(result, tuple) else result.total,
-                    "oldest": str(result[1]) if isinstance(result, tuple) else str(result.oldest),
-                    "newest": str(result[2]) if isinstance(result, tuple) else str(result.newest)
-                }
-            
-            # Alarm 统计
-            result = session.exec(
-                text("""
-                    SELECT 
-                        COUNT(*) as total,
-                        COUNT(*) FILTER (WHERE is_resolved = false) as unresolved,
-                        MIN(timestamp) as oldest,
-                        MAX(timestamp) as newest
-                    FROM alarm
-                """)
-            ).first()
-            if result:
-                stats["alarm_data"] = {
-                    "total": result[0] if isinstance(result, tuple) else result.total,
-                    "unresolved": result[1] if isinstance(result, tuple) else result.unresolved,
-                    "oldest": str(result[2]) if isinstance(result, tuple) else str(result.oldest),
-                    "newest": str(result[3]) if isinstance(result, tuple) else str(result.newest)
-                }
+            stats["energy_data"] = _table_statistics(session, "energydata", "timestamp")
+            stats["alarm_data"] = _alarm_statistics(session)
+            stats["carbon_emission"] = _table_statistics(session, "carbon_emission", "timestamp")
+            stats["statistics"] = _table_statistics(session, "energy_statistics", "stat_time")
+            stats["mqtt_ingestion"] = _table_statistics(session, "mqtt_ingestion_record", "received_at")
+            stats["audit_event"] = _table_statistics(session, "audit_event", "created_at")
+            stats["svg_telemetry"] = _table_statistics(session, "svg_telemetry", "timestamp")
+            stats["capacitor_bank_telemetry"] = _table_statistics(
+                session,
+                "capacitor_bank_telemetry",
+                "timestamp",
+            )
     
     except Exception as e:
         logger.error(f"获取数据统计失败: {e}")
         stats["error"] = str(e)
     
     return stats
+
+
+def _table_statistics(session: Session, table_name: str, time_column: str) -> Dict[str, Any]:
+    result = session.exec(
+        text(
+            f"""
+            SELECT
+                COUNT(*) as total,
+                MIN({time_column}) as oldest,
+                MAX({time_column}) as newest
+            FROM {table_name}
+            """
+        )
+    ).first()
+    if not result:
+        return {"total": 0, "oldest": None, "newest": None}
+    total = result[0] if isinstance(result, tuple) else result.total
+    oldest = result[1] if isinstance(result, tuple) else result.oldest
+    newest = result[2] if isinstance(result, tuple) else result.newest
+    return {
+        "total": total,
+        "oldest": str(oldest) if oldest else None,
+        "newest": str(newest) if newest else None,
+    }
+
+
+def _alarm_statistics(session: Session) -> Dict[str, Any]:
+    result = session.exec(
+        text(
+            """
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE is_resolved = false) as unresolved,
+                MIN(timestamp) as oldest,
+                MAX(timestamp) as newest
+            FROM alarm
+            """
+        )
+    ).first()
+    if not result:
+        return {"total": 0, "unresolved": 0, "oldest": None, "newest": None}
+    total = result[0] if isinstance(result, tuple) else result.total
+    unresolved = result[1] if isinstance(result, tuple) else result.unresolved
+    oldest = result[2] if isinstance(result, tuple) else result.oldest
+    newest = result[3] if isinstance(result, tuple) else result.newest
+    return {
+        "total": total,
+        "unresolved": unresolved,
+        "oldest": str(oldest) if oldest else None,
+        "newest": str(newest) if newest else None,
+    }

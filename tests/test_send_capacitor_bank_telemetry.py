@@ -987,9 +987,29 @@ class TestSendCapacitorBankTelemetry(unittest.TestCase):
 
         self.assertTrue(accepted)
         self.assertEqual(state.control_mode, "manual")
+        self.assertEqual(state.parameter_overrides["terminal_assignment_scheme"], "手动模式")
         self.assertEqual(state.parameter_overrides["circuit_state_phase_a"], 1)
         self.assertIn("A", message)
         self.assertIn("投入", message)
+
+    def test_apply_control_command_switches_manual_payload_back_to_auto_profile_mode(self):
+        state = simulator.ControlSimulationState(
+            enabled=True,
+            control_mode="manual",
+            parameter_overrides={"terminal_assignment_scheme": "手动模式"},
+        )
+
+        accepted, message = simulator._apply_control_command(state, {
+            "command": "manual_switch",
+            "manual_mode": "auto",
+            "phase": "COMMON",
+            "switch_action": "none",
+        })
+
+        self.assertTrue(accepted)
+        self.assertEqual(state.control_mode, "auto")
+        self.assertEqual(state.parameter_overrides["terminal_assignment_scheme"], "自动模式")
+        self.assertIn("自动模式", message)
 
     def test_with_control_state_zeros_runtime_metrics_when_disabled(self):
         payload = {

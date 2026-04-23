@@ -13,7 +13,8 @@ from app.models.tables import Device, DeviceControlLog
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.energy_repository import EnergyRepository
 from app.services.alarm_service import AlarmService
-from app.services.capacitor_bank_service import CapacitorBankService
+from app.services.devices.compensation.capacitor_bank.control_command_service import CapacitorBankControlCommandService
+from app.services.devices.compensation.monitor_service import CompensationMonitorService
 from app.services.device_service import DeviceService
 from app.services.ingestion_health_service import IngestionHealthService
 from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
@@ -156,7 +157,7 @@ class DeviceMonitorService:
         limit: int = 50,
     ) -> list[DeviceControlLog]:
         DeviceService.get_device_by_id(session, device_id)
-        CapacitorBankService.expire_pending_control_logs(session, device_id=device_id)
+        CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device_id)
         return DeviceRepository.list_control_logs(
             session,
             device_id=device_id,
@@ -272,11 +273,13 @@ class DeviceMonitorService:
     @staticmethod
     def get_monitor_overview(session: Session, device_id: int) -> dict[str, Any]:
         device = DeviceService.get_device_by_id(session, device_id)
+        realtime = DeviceMonitorService.get_latest_realtime(session, device_id)
         archive = {
             "id": device.id,
             "name": device.name,
             "sn": device.sn,
             "device_type": device.device_type,
+            "device_subtype": device.device_subtype,
             "device_category": device.device_category,
             "energy_type": device.energy_type,
             "location": device.location,
@@ -290,7 +293,7 @@ class DeviceMonitorService:
         return {
             "archive": archive,
             "runtime_status": DeviceMonitorService.get_runtime_status(session, device_id),
-            "realtime": DeviceMonitorService.get_latest_realtime(session, device_id),
+            "realtime": realtime,
             "ingestion_health": IngestionHealthService.get_device_health(session, device_id),
             "recent_alarms": [
                 {
@@ -317,19 +320,24 @@ class DeviceMonitorService:
                 }
                 for log in DeviceMonitorService.get_control_logs(session, device_id, limit=10)
             ],
+            "compensation_monitor": CompensationMonitorService.build_monitor(
+                session,
+                device,
+                realtime,
+            ),
         }
 
     @staticmethod
     def _control_event_status(record: DeviceControlLog) -> str:
-        return CapacitorBankService.normalize_control_result(record.result)
+        return CapacitorBankControlCommandService.normalize_control_result(record.result)
 
     @staticmethod
     def _control_event_title(record: DeviceControlLog) -> str:
-        return CapacitorBankService.get_action_label(record.action)
+        return CapacitorBankControlCommandService.get_action_label(record.action)
 
     @staticmethod
     def _control_event_detail(record: DeviceControlLog) -> str:
-        detail_parts = [CapacitorBankService.get_result_label(record.result)]
+        detail_parts = [CapacitorBankControlCommandService.get_result_label(record.result)]
         if record.operator:
             detail_parts.append(record.operator)
         if record.reason:

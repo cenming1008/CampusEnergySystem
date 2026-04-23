@@ -147,6 +147,49 @@ class TestApplicationUseCases(unittest.TestCase):
         mock_check_and_create_alarm.assert_called_once()
         mock_mark_ingestion_success.assert_called_once()
 
+    @patch("app.application.telemetry_ingestion.IngestionHealthService.mark_ingestion_success")
+    @patch("app.application.telemetry_ingestion.AlarmService.check_and_create_alarm")
+    @patch("app.application.telemetry_ingestion.report_device_data_ingestion_use_case")
+    @patch("app.application.telemetry_ingestion.IngestionHealthService.mark_message_received")
+    def test_ingest_telemetry_use_case_uses_receive_time_for_online_health(
+        self,
+        mock_mark_message_received,
+        mock_report_device_data,
+        mock_check_and_create_alarm,
+        mock_mark_ingestion_success,
+    ):
+        session = MagicMock()
+        stale_device_timestamp = datetime(2026, 3, 24, 12, 0, 0)
+        mock_report_device_data.return_value = SimpleNamespace(
+            voltage=380.0,
+            current=12.0,
+            flow_rate=4.56,
+            consumption=8.9,
+            timestamp=stale_device_timestamp,
+        )
+
+        ingest_telemetry_use_case(
+            session=session,
+            device_id=7,
+            data={"consumption": 8.9, "power": 4.56},
+            timestamp=stale_device_timestamp,
+        )
+
+        mock_mark_message_received.assert_called_once_with(session, device_id=7)
+        mock_mark_ingestion_success.assert_called_once_with(session, device_id=7)
+        mock_report_device_data.assert_called_once_with(
+            session=session,
+            device_id=7,
+            data={"consumption": 8.9, "power": 4.56},
+            timestamp=stale_device_timestamp,
+        )
+        mock_check_and_create_alarm.assert_called_once_with(
+            session=session,
+            device_id=7,
+            data={"consumption": 8.9, "power": 4.56},
+            timestamp=stale_device_timestamp,
+        )
+
     @patch("app.application.analysis.AnalysisService.analyze_device")
     @patch("app.application.analysis.ensure_device_access")
     def test_analyze_device_use_case_builds_response_in_application(self, mock_ensure_access, mock_analyze_device):

@@ -13,10 +13,35 @@ export interface CleanupResult {
   energy_data: number
   alarm_data: number
   carbon_emission: number
+  statistics: number
+  mqtt_ingestion: number
+  audit_event: number
+  svg_telemetry: number
+  capacitor_bank_telemetry: number
   errors: string[]
   timestamp?: string
   cutoff_time?: string
   hours?: number
+}
+
+export interface CleanupStat {
+  total?: number
+  unresolved?: number
+  oldest?: string | null
+  newest?: string | null
+}
+
+export interface CleanupStats {
+  timestamp?: string
+  energy_data?: CleanupStat
+  alarm_data?: CleanupStat
+  carbon_emission?: CleanupStat
+  statistics?: CleanupStat
+  mqtt_ingestion?: CleanupStat
+  audit_event?: CleanupStat
+  svg_telemetry?: CleanupStat
+  capacitor_bank_telemetry?: CleanupStat
+  error?: string
 }
 
 /**
@@ -34,7 +59,7 @@ export async function cleanupData(hours: number = 1) {
  */
 export async function getCleanupStats() {
   return request
-    .get<never, SuccessResponse<Record<string, unknown>>>('/data-cleanup/stats')
+    .get<never, SuccessResponse<CleanupStats>>('/data-cleanup/stats')
     .then((response) => response.data)
 }
 

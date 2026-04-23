@@ -41,11 +41,11 @@ function progressValue(value: string) {
 }
 
 function stateTagText(state: CompensationMetric['state']) {
-  if (state === 'live') return '实时采集'
-  if (state === 'mock') return '估算/占位'
-  if (state === 'missing') return '当前缺测'
-  if (state === 'offline') return '设备离线'
-  if (state === 'unconfigured') return '待配置'
+  if (state === 'live') return '● 实时'
+  if (state === 'mock') return '◑ 估算'
+  if (state === 'missing') return '✕ 缺测'
+  if (state === 'offline') return '⊘ 离线'
+  if (state === 'unconfigured') return '○ 待配置'
   return ''
 }
 
@@ -71,9 +71,11 @@ const capacityUsagePct = computed(() => {
     <div class="bento-top">
       <div class="bento-pf">
         <div class="metric-label-row">
-          <span class="bento-pf__label">{{ pfMetric.label }}</span>
+          <el-tooltip :content="pfMetric.hint" placement="top" :disabled="!pfMetric.hint">
+            <span class="bento-pf__label">{{ pfMetric.label }}</span>
+          </el-tooltip>
           <el-tag
-            v-if="stateTagText(pfMetric.state)"
+            v-if="pfMetric.state && pfMetric.state !== 'live'"
             size="small"
             effect="plain"
             :type="stateTagType(pfMetric.state)"
@@ -97,15 +99,16 @@ const capacityUsagePct = computed(() => {
             </template>
           </el-progress>
         </div>
-        <small class="bento-pf__hint">{{ pfMetric.hint }}</small>
       </div>
 
       <div class="bento-hero">
         <div class="bento-hero__top">
           <div class="metric-label-row">
-            <span class="bento-hero__label">{{ coreMetric.label }}</span>
+            <el-tooltip :content="coreMetric.hint" placement="top" :disabled="!coreMetric.hint">
+              <span class="bento-hero__label">{{ coreMetric.label }}</span>
+            </el-tooltip>
             <el-tag
-              v-if="stateTagText(coreMetric.state)"
+              v-if="coreMetric.state && coreMetric.state !== 'live'"
               size="small"
               effect="plain"
               :type="stateTagType(coreMetric.state)"
@@ -113,7 +116,6 @@ const capacityUsagePct = computed(() => {
               {{ stateTagText(coreMetric.state) }}
             </el-tag>
           </div>
-          <small class="bento-hero__hint">{{ coreMetric.hint }}</small>
         </div>
         <div class="bento-hero__value">
           <strong>{{ coreMetric.value }}</strong>
@@ -148,9 +150,11 @@ const capacityUsagePct = computed(() => {
         class="strip-cell"
       >
         <div class="metric-label-row metric-label-row--compact">
-          <span class="strip-cell__label">{{ item.label }}</span>
+          <el-tooltip :content="item.hint" placement="top" :disabled="!item.hint">
+            <span class="strip-cell__label">{{ item.label }}</span>
+          </el-tooltip>
           <el-tag
-            v-if="stateTagText(item.state)"
+            v-if="item.state && item.state !== 'live'"
             size="small"
             effect="plain"
             :type="stateTagType(item.state)"
@@ -165,7 +169,6 @@ const capacityUsagePct = computed(() => {
           <strong>{{ item.value }}</strong>
           <small v-if="item.unit">{{ item.unit }}</small>
         </div>
-        <span class="strip-cell__hint">{{ item.hint }}</span>
       </div>
     </div>
   </section>
@@ -255,11 +258,6 @@ const capacityUsagePct = computed(() => {
   color: #8ea0bc;
 }
 
-.bento-pf__hint {
-  font-size: 11px;
-  color: #7f93b2;
-}
-
 /* Hero panel */
 .bento-hero {
   padding: 22px 24px;
@@ -278,11 +276,6 @@ const capacityUsagePct = computed(() => {
 .bento-hero__label {
   font-size: 13px;
   color: #c5d2e7;
-}
-
-.bento-hero__hint {
-  font-size: 11px;
-  color: #7f93b2;
 }
 
 .bento-hero__value {
@@ -413,11 +406,6 @@ const capacityUsagePct = computed(() => {
   color: #7f93b2;
 }
 
-.strip-cell__hint {
-  font-size: 10px;
-  color: #5d7699;
-  line-height: 1.3;
-}
 
 /* Tone modifiers */
 .tone-success .strip-cell__value strong { color: #4ade80; }
@@ -449,7 +437,7 @@ const capacityUsagePct = computed(() => {
 
 @media (max-width: 900px) {
   .bento-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

@@ -80,6 +80,47 @@ export interface DeviceStatusEvent {
   detail?: string | null
 }
 
+export interface CompensationMonitorSemanticValue {
+  value: string | number | null
+  source: string
+  state: string
+}
+
+export interface CompensationMonitorControlMode {
+  value: string
+  source: string
+  state: string
+}
+
+export interface CompensationMonitorCircuitSummary {
+  running_count: number
+  total_count: number
+  has_realtime_state: boolean
+  source: string
+  state: string
+}
+
+export interface CompensationMonitorProfileStatus {
+  source_status: string
+  is_stale: boolean
+}
+
+export interface CompensationMonitorCapabilitiesSummary {
+  supports_read: boolean
+  supports_write: boolean
+  supports_remote_control: boolean
+}
+
+export interface CompensationMonitor {
+  subtype: 'svg' | 'capacitor_bank_controller'
+  control_mode: CompensationMonitorControlMode
+  circuit_summary: CompensationMonitorCircuitSummary
+  profile_status?: CompensationMonitorProfileStatus | null
+  key_metrics: Record<string, CompensationMonitorSemanticValue>
+  capabilities_summary: CompensationMonitorCapabilitiesSummary
+  status_tags?: string[]
+}
+
 export interface MonitorOverview {
   archive: DeviceArchive
   runtime_status: RuntimeStatus
@@ -87,6 +128,7 @@ export interface MonitorOverview {
   ingestion_health: JsonObject
   recent_alarms: DeviceAlarmRecord[]
   recent_control_logs: DeviceControlLog[]
+  compensation_monitor?: CompensationMonitor | null
 }
 
 export interface TrendPoint {

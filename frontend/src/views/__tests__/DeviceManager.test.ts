@@ -298,7 +298,7 @@ describe('DeviceManager view', () => {
     }
 
     vm.openDeviceConsole({ id: 16 })
-    expect(routerPushMock).toHaveBeenCalledWith('/devices/16/console')
+    expect(routerPushMock).toHaveBeenCalledWith('/device-console/16')
   })
 
   it('creates a device after successful validation', async () => {

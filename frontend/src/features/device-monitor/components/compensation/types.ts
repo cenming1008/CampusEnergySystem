@@ -58,9 +58,11 @@ export interface CompensationTrendAxis {
   position?: 'left' | 'right'
 }
 
+export type CompensationTrendPoint = number | null | [string, number | null]
+
 export interface CompensationTrendSeries {
   name: string
-  data: Array<number | null>
+  data: CompensationTrendPoint[]
   color: string
   yAxisIndex?: number
   area?: boolean
@@ -76,6 +78,9 @@ export interface CompensationTrendModel {
   legend: string[]
   axes: CompensationTrendAxis[]
   series: CompensationTrendSeries[]
+  xAxisType?: 'category' | 'time'
+  xAxisMin?: string
+  xAxisMax?: string
   summary: CompensationTrendSummaryItem[]
   empty: boolean
   emptyText: string

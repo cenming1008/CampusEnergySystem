@@ -23,10 +23,33 @@ from app.api.endpoints.devices.compensation_schemas import (
 from app.core.access_control import ensure_device_access
 from app.core.database import get_session
 from app.models.tables import CapacitorBankTelemetry, User
-from app.services.capacitor_bank_service import CapacitorBankService, ControlProfileWritePreconditionError
+from app.services.devices.compensation.capacitor_bank.service import (
+    CapacitorBankService,
+    ControlProfileWritePreconditionError,
+)
 from app.domain.device_payloads import resolve_compensation_subtype
 
 router = APIRouter()
+
+
+def _sample_history_records(records: list, limit: int):
+    if len(records) <= limit or limit < 3:
+        return records
+
+    sampled = [records[0]]
+    interior_target = limit - 2
+    last_index = len(records) - 1
+
+    for index in range(1, interior_target + 1):
+        point_index = round((index * last_index) / (interior_target + 1))
+        point = records[min(last_index - 1, max(1, point_index))]
+        if sampled[-1] is not point:
+            sampled.append(point)
+
+    if sampled[-1] is not records[last_index]:
+        sampled.append(records[last_index])
+
+    return sampled
 
 
 @router.get(
@@ -68,8 +91,8 @@ def get_device_capacitor_bank_telemetry_history(
         stmt = stmt.where(CapacitorBankTelemetry.timestamp >= start)
     if end:
         stmt = stmt.where(CapacitorBankTelemetry.timestamp <= end)
-    stmt = stmt.order_by(CapacitorBankTelemetry.timestamp.desc()).limit(limit)
-    return session.exec(stmt).all()
+    records = session.exec(stmt.order_by(CapacitorBankTelemetry.timestamp.asc())).all()
+    return _sample_history_records(records, limit)
 
 
 @router.get(

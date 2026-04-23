@@ -235,6 +235,19 @@ class CapacitorBankTelemetryResponse(BaseModel):
     circuit_state_common_1: Optional[int] = None
     circuit_state_common_2: Optional[int] = None
     circuit_state_common_3: Optional[int] = None
+    phase_a_circuit_running_count: Optional[int] = None
+    phase_b_circuit_running_count: Optional[int] = None
+    phase_c_circuit_running_count: Optional[int] = None
+    common_group_1_running_count: Optional[int] = None
+    common_group_2_running_count: Optional[int] = None
+    common_group_3_running_count: Optional[int] = None
+    split_circuit_running_count: Optional[int] = None
+    common_circuit_running_count: Optional[int] = None
+    running_circuit_count: Optional[int] = None
+    control_mode: Optional[str] = None
+    auto_on_elapsed_seconds: Optional[int] = None
+    auto_off_elapsed_seconds: Optional[int] = None
+    last_auto_action: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -304,6 +317,18 @@ class CapacitorBankControlProfileResponse(BaseModel):
     switch_off_delay_seconds: Optional[int] = None
     common_output_circuit_count: Optional[int] = None
     split_output_circuit_count: Optional[int] = None
+    phase_a_circuit_total_count: Optional[int] = None
+    phase_b_circuit_total_count: Optional[int] = None
+    phase_c_circuit_total_count: Optional[int] = None
+    common_1_circuit_total_count: Optional[int] = None
+    common_2_circuit_total_count: Optional[int] = None
+    common_3_circuit_total_count: Optional[int] = None
+    phase_a_capacity_steps_kvar: list[float] = []
+    phase_b_capacity_steps_kvar: list[float] = []
+    phase_c_capacity_steps_kvar: list[float] = []
+    common_1_capacity_steps_kvar: list[float] = []
+    common_2_capacity_steps_kvar: list[float] = []
+    common_3_capacity_steps_kvar: list[float] = []
     common_capacity_code: Optional[str] = None
     split_capacity_code: Optional[str] = None
     common_step_capacity_kvar: Optional[float] = None

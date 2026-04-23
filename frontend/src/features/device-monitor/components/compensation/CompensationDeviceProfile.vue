@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
+import { Edit } from '@element-plus/icons-vue'
 import type { CompensationProfileItem } from './types'
 
 defineProps({
@@ -7,14 +8,29 @@ defineProps({
     type: Array as PropType<CompensationProfileItem[]>,
     default: () => [],
   },
+  editable: {
+    type: Boolean,
+    default: false,
+  },
 })
+
+const emit = defineEmits<{ (e: 'edit'): void }>()
 </script>
 
 <template>
   <section class="side-panel side-panel--muted">
     <div class="side-panel__head">
-      <h3>设备档案</h3>
-      <span>基础信息与安装资料，仅作信息参考</span>
+      <div>
+        <h3>设备档案</h3>
+      </div>
+      <button
+        v-if="editable"
+        class="edit-btn"
+        @click="emit('edit')"
+      >
+        <el-icon><Edit /></el-icon>
+        编辑
+      </button>
     </div>
 
     <div class="profile-list">
@@ -43,6 +59,10 @@ defineProps({
 }
 
 .side-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -57,6 +77,26 @@ defineProps({
   margin-top: 4px;
   color: #8ea0bc;
   font-size: 12px;
+}
+
+.edit-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(53, 72, 97, 0.6);
+  border-radius: 6px;
+  background: transparent;
+  color: #8ea0bc;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.edit-btn:hover {
+  color: #c5d2e7;
+  border-color: rgba(90, 120, 160, 0.6);
 }
 
 .profile-list {

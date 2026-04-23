@@ -1,1 +1,0 @@
-export { MineSceneGenerator } from './MineSceneGenerator'

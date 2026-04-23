@@ -48,34 +48,62 @@ def _get_publisher() -> mqtt.Client:
         return c
 
 
-def _publish_control_payload_sync(device_id: int, payload: dict[str, Any], wait_timeout: float = 5.0) -> bool:
+def _resolve_control_route_key(device_code: str | None, device_id: int) -> str:
+    normalized = (device_code or "").strip()
+    return normalized or str(device_id)
+
+
+def _publish_control_payload_sync(
+    device_id: int,
+    payload: dict[str, Any],
+    *,
+    device_code: str | None = None,
+    wait_timeout: float = 5.0,
+) -> bool:
     """同步发送控制指令 payload，并等待 MQTT publish ack。"""
     try:
         pub = _get_publisher()
-        topic = f"{settings.mqtt_control_topic_prefix}{device_id}"
+        route_key = _resolve_control_route_key(device_code, device_id)
+        topic = f"{settings.mqtt_control_topic_prefix}{route_key}"
         normalized_payload = dict(payload)
         normalized_payload.setdefault("device_id", device_id)
+        if device_code:
+            normalized_payload.setdefault("device_code", device_code)
         normalized_payload.setdefault("timestamp", datetime.now().isoformat())
         raw_payload = json.dumps(normalized_payload, ensure_ascii=False)
         info = pub.publish(topic, raw_payload, qos=1)
         info.wait_for_publish(timeout=wait_timeout)
-        logger.info(f"MQTT control published: device_id={device_id} payload={raw_payload}")
+        logger.info(
+            f"MQTT control published: device_id={device_id} device_code={device_code or '-'} "
+            f"topic={topic} payload={raw_payload}"
+        )
         return True
     except Exception as e:
-        logger.warning(f"MQTT control publish failed: device_id={device_id} payload={payload} err={e}")
+        logger.warning(
+            f"MQTT control publish failed: device_id={device_id} device_code={device_code or '-'} "
+            f"payload={payload} err={e}"
+        )
         return False
 
 
-def publish_control_command(device_id: int, action: str) -> bool:
+def publish_control_command(device_id: int, action: str, *, device_code: str | None = None) -> bool:
     """发送反向控制指令给设备（成功返回 True）。"""
-    return _publish_control_payload_sync(device_id, {"command": action, "device_id": device_id})
+    return _publish_control_payload_sync(
+        device_id,
+        {"command": action, "device_id": device_id},
+        device_code=device_code,
+    )
 
 
-def publish_control_command_async(device_id: int, action: str) -> None:
+def publish_control_command_async(device_id: int, action: str, *, device_code: str | None = None) -> None:
     """后台异步发送控制指令，避免阻塞 API 返回。"""
 
     def _worker() -> None:
-        _publish_control_payload_sync(device_id, {"command": action, "device_id": device_id})
+        _publish_control_payload_sync(
+            device_id,
+            {"command": action, "device_id": device_id},
+            device_code=device_code,
+        )
 
     threading.Thread(
         target=_worker,
@@ -84,11 +112,17 @@ def publish_control_command_async(device_id: int, action: str) -> None:
     ).start()
 
 
-def publish_control_payload_async(device_id: int, payload: dict[str, Any], worker_name: str = "mqtt-publish") -> None:
+def publish_control_payload_async(
+    device_id: int,
+    payload: dict[str, Any],
+    *,
+    device_code: str | None = None,
+    worker_name: str = "mqtt-publish",
+) -> None:
     """后台异步发送结构化控制 payload。"""
 
     def _worker() -> None:
-        _publish_control_payload_sync(device_id, payload)
+        _publish_control_payload_sync(device_id, payload, device_code=device_code)
 
     threading.Thread(
         target=_worker,
@@ -102,6 +136,7 @@ def publish_parameter_write_async(
     parameter_key: str,
     target_value: Any,
     *,
+    device_code: str | None = None,
     command_id: str | None = None,
     reason: str | None = None,
     register: str | None = None,
@@ -130,7 +165,7 @@ def publish_parameter_write_async(
         payload["timestamp"] = sent_at
 
     threading.Thread(
-        target=lambda: _publish_control_payload_sync(device_id, payload),
+        target=lambda: _publish_control_payload_sync(device_id, payload, device_code=device_code),
         daemon=True,
         name=f"mqtt-write-{device_id}-{parameter_key}",
     ).start()

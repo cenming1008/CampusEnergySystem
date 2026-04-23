@@ -29,7 +29,7 @@ const baseProfile = {
     protocol_version: 'campus-control.v1',
     command_message_type: 'control_command',
     receipt_message_type: 'control_receipt',
-    control_topic_template: 'campus/control/{device_id}',
+    control_topic_template: 'campus/control/{device_code}',
     receipt_topic: 'campus/telemetry',
     receipt_timeout_seconds: 120,
     supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],

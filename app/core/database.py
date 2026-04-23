@@ -140,10 +140,44 @@ def _sync_runtime_schema() -> None:
             cap_profile_column_sql = {
                 "source": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN source VARCHAR NULL",
                 "snapshot_timestamp": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN snapshot_timestamp TIMESTAMP NULL",
+                "phase_a_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_a_circuit_total_count INTEGER NULL",
+                "phase_b_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_b_circuit_total_count INTEGER NULL",
+                "phase_c_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_c_circuit_total_count INTEGER NULL",
+                "common_1_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_1_circuit_total_count INTEGER NULL",
+                "common_2_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_2_circuit_total_count INTEGER NULL",
+                "common_3_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_3_circuit_total_count INTEGER NULL",
+                "phase_a_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_a_capacity_steps_kvar_json TEXT NULL",
+                "phase_b_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_b_capacity_steps_kvar_json TEXT NULL",
+                "phase_c_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_c_capacity_steps_kvar_json TEXT NULL",
+                "common_1_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_1_capacity_steps_kvar_json TEXT NULL",
+                "common_2_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_2_capacity_steps_kvar_json TEXT NULL",
+                "common_3_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_3_capacity_steps_kvar_json TEXT NULL",
             }
             for column_name, sql in cap_profile_column_sql.items():
                 if column_name not in existing_columns:
                     logger.info(f"Schema sync: adding capacitor_bank_control_profile.{column_name}")
+                    session.exec(text(sql))
+
+        if "capacitor_bank_telemetry" in table_names:
+            existing_columns = {column["name"] for column in inspector.get_columns("capacitor_bank_telemetry")}
+            cap_telemetry_column_sql = {
+                "phase_a_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_a_circuit_running_count INTEGER NULL",
+                "phase_b_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_b_circuit_running_count INTEGER NULL",
+                "phase_c_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_c_circuit_running_count INTEGER NULL",
+                "common_group_1_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_1_running_count INTEGER NULL",
+                "common_group_2_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_2_running_count INTEGER NULL",
+                "common_group_3_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_3_running_count INTEGER NULL",
+                "split_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN split_circuit_running_count INTEGER NULL",
+                "common_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_circuit_running_count INTEGER NULL",
+                "running_circuit_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN running_circuit_count INTEGER NULL",
+                "control_mode": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN control_mode VARCHAR(32) NULL",
+                "auto_on_elapsed_seconds": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN auto_on_elapsed_seconds INTEGER NULL",
+                "auto_off_elapsed_seconds": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN auto_off_elapsed_seconds INTEGER NULL",
+                "last_auto_action": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN last_auto_action VARCHAR(64) NULL",
+            }
+            for column_name, sql in cap_telemetry_column_sql.items():
+                if column_name not in existing_columns:
+                    logger.info(f"Schema sync: adding capacitor_bank_telemetry.{column_name}")
                     session.exec(text(sql))
 
         if "user" in table_names:
@@ -256,6 +290,33 @@ def _assert_required_columns_present() -> None:
         "capacitor_bank_control_profile": {
             "source",
             "snapshot_timestamp",
+            "phase_a_circuit_total_count",
+            "phase_b_circuit_total_count",
+            "phase_c_circuit_total_count",
+            "common_1_circuit_total_count",
+            "common_2_circuit_total_count",
+            "common_3_circuit_total_count",
+            "phase_a_capacity_steps_kvar_json",
+            "phase_b_capacity_steps_kvar_json",
+            "phase_c_capacity_steps_kvar_json",
+            "common_1_capacity_steps_kvar_json",
+            "common_2_capacity_steps_kvar_json",
+            "common_3_capacity_steps_kvar_json",
+        },
+        "capacitor_bank_telemetry": {
+            "phase_a_circuit_running_count",
+            "phase_b_circuit_running_count",
+            "phase_c_circuit_running_count",
+            "common_group_1_running_count",
+            "common_group_2_running_count",
+            "common_group_3_running_count",
+            "split_circuit_running_count",
+            "common_circuit_running_count",
+            "running_circuit_count",
+            "control_mode",
+            "auto_on_elapsed_seconds",
+            "auto_off_elapsed_seconds",
+            "last_auto_action",
         },
         "alarm": {
             "severity",

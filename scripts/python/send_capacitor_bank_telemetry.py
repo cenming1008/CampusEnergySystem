@@ -1233,6 +1233,8 @@ def _apply_control_command(state: ControlSimulationState, command_payload: dict[
             return False, "缺少合法 switch_action=none/on/off"
 
         state.control_mode = manual_mode
+        state.parameter_overrides["terminal_assignment_scheme"] = "手动模式" if manual_mode == "manual" else "自动模式"
+        state.parameter_overrides["auto_mode"] = manual_mode == "auto"
         if manual_mode == "auto":
             return True, "已切回自动模式"
 
@@ -1275,6 +1277,7 @@ def _apply_control_command(state: ControlSimulationState, command_payload: dict[
     if command == "switch_control_mode":
         state.control_mode = "manual" if state.control_mode == "auto" else "auto"
         state.parameter_overrides["terminal_assignment_scheme"] = "手动模式" if state.control_mode == "manual" else "自动模式"
+        state.parameter_overrides["auto_mode"] = state.control_mode == "auto"
         return True, f"已切换控制模式为 {state.control_mode}"
     return False, f"暂不支持命令 {command or '<empty>'}"
 
@@ -1428,7 +1431,7 @@ def main() -> None:
             f"\n▶  目标设备: [{device.id}] {device.name}  SN={device.sn}  "
             f"MQTT={BROKER}:{PORT} {TOPIC}  profile={options.profile}"
         )
-        control_topic = f"{settings.mqtt_control_topic_prefix}{device.id}"
+        control_topic = f"{settings.mqtt_control_topic_prefix}{device.sn}"
         state = ControlSimulationState(enabled=bool(device.is_active), tick_interval_seconds=args.interval)
         runtime = RuntimeContext(
             device=device,

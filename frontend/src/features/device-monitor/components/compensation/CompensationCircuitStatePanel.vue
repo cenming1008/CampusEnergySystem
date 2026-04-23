@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
+import {
+  countOnSlots,
+  getFlagGroups,
+  getCircuitGroups,
+  hasAnyActiveFlag,
+  resolvedConfiguredCounts,
+  toBits,
+} from './circuitStateUtils'
+import type { CircuitGroup, FlagGroup, SlotState } from './circuitStateUtils'
 
 const props = defineProps({
   capacitorBankTelemetry: {
@@ -16,61 +25,33 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  phaseACircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
+  phaseBCircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
+  phaseCCircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
+  common1CircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
+  common2CircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
+  common3CircuitTotalCount: {
+    type: Number,
+    default: null,
+  },
 })
 
-interface CircuitGroup {
-  label: string
-  mask: number | null | undefined
-  alarmFlag?: boolean | null
-}
-
-type SlotState = boolean | null | 'unconfigured'
-
-function getCircuitGroups(t: CompensationCapacitorBankTelemetry): CircuitGroup[] {
-  return [
-    { label: 'A 相分补', mask: t.circuit_state_phase_a, alarmFlag: t.overvoltage_alarm_a },
-    { label: 'B 相分补', mask: t.circuit_state_phase_b, alarmFlag: t.overvoltage_alarm_b },
-    { label: 'C 相分补', mask: t.circuit_state_phase_c, alarmFlag: t.overvoltage_alarm_c },
-    { label: '公补 1-8', mask: t.circuit_state_common_1 },
-    { label: '公补 9-16', mask: t.circuit_state_common_2 },
-    { label: '公补 17-24', mask: t.circuit_state_common_3 },
-  ]
-}
-
-function distributeBalanced(total: number | null | undefined, buckets: number, maxPerBucket: number): number[] {
-  const normalized = Math.max(0, Math.min(Number(total || 0), buckets * maxPerBucket))
-  const base = Math.floor(normalized / buckets)
-  const remainder = normalized % buckets
-  return Array.from({ length: buckets }, (_, index) => Math.min(maxPerBucket, base + (index < remainder ? 1 : 0)))
-}
-
-function distributeSequential(total: number | null | undefined, bucketSizes: number[]): number[] {
-  let remaining = Math.max(0, Number(total || 0))
-  return bucketSizes.map((size) => {
-    const allocated = Math.min(size, remaining)
-    remaining -= allocated
-    return allocated
-  })
-}
-
-function resolvedConfiguredCounts(props: {
-  configuredSplitCircuitCount?: number | null
-  configuredCommonCircuitCount?: number | null
-}) {
-  return [
-    ...distributeBalanced(props.configuredSplitCircuitCount, 3, 8),
-    ...distributeSequential(props.configuredCommonCircuitCount, [8, 8, 8]),
-  ]
-}
-
-/** 将 8-bit mask 展开为 8 个槽位状态，bit0 = 第 1 路 */
-function toBits(mask: number | null | undefined, configuredCount: number): SlotState[] {
-  return Array.from({ length: 8 }, (_, i) => {
-    if (i >= configuredCount) return 'unconfigured'
-    if (mask == null) return null
-    return Boolean(mask & (1 << i))
-  })
-}
+const legendVisible = ref(false)
 
 function stepLabel(groupIdx: number, bitIdx: number): string {
   const base = groupIdx >= 3 ? (groupIdx - 3) * 8 + 1 : 1
@@ -83,9 +64,33 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
 <template>
   <section class="circuit-panel">
     <div class="circuit-panel__head">
-      <h3>电容回路投切状态</h3>
-      <span>来自 JKWF-LCD 投切寄存器（0x01~0x03）</span>
+      <div>
+        <h3>
+          电容回路投切状态
+          <el-tooltip content="来自 JKWF-LCD 投切寄存器（0x01~0x03）" placement="top">
+            <span class="head-info-icon">ℹ</span>
+          </el-tooltip>
+        </h3>
+      </div>
+      <button
+        class="legend-toggle"
+        @click="legendVisible = !legendVisible"
+      >
+        {{ legendVisible ? '收起图例' : '图例说明' }}
+      </button>
     </div>
+
+    <transition name="legend-fade">
+      <div
+        v-if="legendVisible"
+        class="legend-bar"
+      >
+        <span class="legend-item legend-item--on"><i />投入</span>
+        <span class="legend-item legend-item--off"><i />切除</span>
+        <span class="legend-item legend-item--unconfigured"><i />未配置</span>
+        <span class="legend-item legend-item--na"><i />等待回读</span>
+      </div>
+    </transition>
 
     <template v-if="capacitorBankTelemetry">
       <div class="groups-grid">
@@ -95,20 +100,39 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
           class="group-card"
           :class="{ 'group-card--alarm': group.alarmFlag }"
         >
-          <div class="group-card__label">
-            {{ group.label }}
-            <span
-              v-if="group.alarmFlag"
-              class="alarm-badge"
-            >过压</span>
+          <div class="group-card__header">
+            <div class="group-card__label">
+              {{ group.label }}
+              <span
+                v-if="group.alarmFlag"
+                class="alarm-badge"
+              >过压</span>
+            </div>
+            <span class="group-card__count">
+              <template v-if="groupConfiguredCounts[gi] !== null">
+                {{ countOnSlots(group.mask, groupConfiguredCounts[gi]) }}/{{ groupConfiguredCounts[gi] }} 投入
+              </template>
+              <template v-else>等待 MQTT 回读</template>
+            </span>
+          </div>
+          <div class="group-card__progress">
+            <div
+              class="group-card__progress-fill"
+              :style="{
+                width: groupConfiguredCounts[gi]
+                  ? `${(countOnSlots(group.mask, groupConfiguredCounts[gi]) / groupConfiguredCounts[gi]!) * 100}%`
+                  : '0%',
+                background: group.alarmFlag ? '#f87171' : '#22c55e',
+              }"
+            />
           </div>
           <div class="steps-grid">
             <div
-              v-for="(on, bi) in toBits(group.mask, groupConfiguredCounts[gi] || 0)"
+              v-for="(on, bi) in toBits(group.mask, groupConfiguredCounts[gi])"
               :key="bi"
               class="step-badge"
               :class="on === 'unconfigured' ? 'step-badge--unconfigured' : on === null ? 'step-badge--na' : on ? 'step-badge--on' : 'step-badge--off'"
-              :title="on === 'unconfigured' ? `第 ${stepLabel(gi, bi)} 路 — 未配置` : on === null ? '无数据' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`"
+              :title="on === 'unconfigured' ? `第 ${stepLabel(gi, bi)} 路 — 未配置` : on === null ? '等待 MQTT 回读回路配置' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`"
             >
               {{ stepLabel(gi, bi) }}
             </div>
@@ -116,30 +140,35 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
         </div>
       </div>
 
-      <!-- 状态标志摘要 -->
-      <div class="flags-row">
-        <span
-          v-for="(flag, label) in {
-            'A超前': capacitorBankTelemetry.leading_a,
-            'B超前': capacitorBankTelemetry.leading_b,
-            'C超前': capacitorBankTelemetry.leading_c,
-            'A欠流': capacitorBankTelemetry.undercurrent_a,
-            'B欠流': capacitorBankTelemetry.undercurrent_b,
-            'C欠流': capacitorBankTelemetry.undercurrent_c,
-            'V_THD告警A': capacitorBankTelemetry.voltage_thd_alarm_a,
-            'V_THD告警B': capacitorBankTelemetry.voltage_thd_alarm_b,
-            'V_THD告警C': capacitorBankTelemetry.voltage_thd_alarm_c,
-            'I_THD告警A': capacitorBankTelemetry.current_thd_alarm_a,
-            'I_THD告警B': capacitorBankTelemetry.current_thd_alarm_b,
-            'I_THD告警C': capacitorBankTelemetry.current_thd_alarm_c,
-            '温度告警': capacitorBankTelemetry.temp_alarm,
-          }"
-          :key="label"
-          class="flag-chip"
-          :class="flag ? 'flag-chip--active' : 'flag-chip--ok'"
+      <!-- 分组告警标志 -->
+      <div class="flags-section">
+        <div
+          v-for="group in getFlagGroups(capacitorBankTelemetry)"
+          :key="group.label"
+          class="flag-group"
+          :title="group.title"
         >
-          {{ label }}
-        </span>
+          <span
+            class="flag-group__label"
+            :class="{ 'flag-group__label--active': group.flags.some(f => f.active) }"
+          >{{ group.label }}</span>
+          <div class="flag-group__chips">
+            <span
+              v-for="flag in group.flags"
+              :key="flag.key || group.label"
+              class="flag-chip"
+              :class="flag.active ? 'flag-chip--active' : 'flag-chip--ok'"
+            >
+              {{ flag.key || '！' }}
+            </span>
+          </div>
+        </div>
+        <div
+          v-if="!hasAnyActiveFlag(getFlagGroups(capacitorBankTelemetry))"
+          class="flags-all-ok"
+        >
+          所有标志正常
+        </div>
       </div>
     </template>
 
@@ -161,7 +190,11 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
 }
 
 .circuit-panel__head {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .circuit-panel__head h3 {
@@ -170,13 +203,88 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
   color: #f5f7fb;
 }
 
-.circuit-panel__head span {
-  display: block;
-  margin-top: 4px;
-  color: #8ea0bc;
+.head-info-icon {
+  display: inline-block;
+  margin-left: 6px;
+  color: #5d7699;
   font-size: 12px;
+  cursor: default;
+  vertical-align: middle;
 }
 
+.legend-toggle {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(53, 72, 97, 0.6);
+  border-radius: 6px;
+  background: transparent;
+  color: #8ea0bc;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.legend-toggle:hover {
+  color: #c5d2e7;
+  border-color: rgba(90, 120, 160, 0.6);
+}
+
+/* Legend */
+.legend-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: rgba(14, 22, 34, 0.5);
+  border: 1px solid rgba(53, 72, 97, 0.4);
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #aebbd0;
+}
+
+.legend-item i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-item--on i {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+}
+.legend-item--off i {
+  background: rgba(30, 48, 70, 0.4);
+  border: 1px solid rgba(53, 72, 97, 0.4);
+}
+.legend-item--unconfigured i {
+  background: rgba(33, 42, 55, 0.24);
+  border: 1px dashed rgba(120, 135, 156, 0.25);
+}
+.legend-item--na i {
+  background: rgba(30, 48, 70, 0.2);
+  border: 1px dashed rgba(53, 72, 97, 0.3);
+}
+
+.legend-fade-enter-active,
+.legend-fade-leave-active {
+  transition: opacity 0.18s, transform 0.18s;
+}
+.legend-fade-enter-from,
+.legend-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* Group cards */
 .groups-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -195,6 +303,14 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
   background: rgba(60, 22, 22, 0.4);
 }
 
+.group-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
 .group-card__label {
   display: flex;
   align-items: center;
@@ -202,7 +318,28 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
   font-size: 11px;
   color: #7f93b2;
   font-weight: 600;
+}
+
+.group-card__count {
+  font-size: 10px;
+  color: #5d7699;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.group-card__progress {
+  height: 3px;
+  background: rgba(53, 72, 97, 0.4);
+  border-radius: 999px;
+  overflow: hidden;
   margin-bottom: 8px;
+}
+
+.group-card__progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  opacity: 0.7;
+  transition: width 0.3s ease;
 }
 
 .alarm-badge {
@@ -257,18 +394,49 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
   opacity: 0.72;
 }
 
-/* 状态标志行 */
-.flags-row {
+/* Grouped flags */
+.flags-section {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(41, 57, 77, 0.5);
+}
+
+.flag-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.flag-group__label {
+  font-size: 10px;
+  color: #4a6080;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.flag-group__label--active {
+  color: #fbbf24;
+}
+
+.flag-group__chips {
+  display: flex;
+  gap: 3px;
 }
 
 .flag-chip {
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .flag-chip--active {
@@ -278,9 +446,16 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
 }
 
 .flag-chip--ok {
-  background: rgba(30, 48, 70, 0.4);
-  border: 1px solid rgba(53, 72, 97, 0.4);
-  color: #4a6080;
+  background: rgba(30, 48, 70, 0.35);
+  border: 1px solid rgba(53, 72, 97, 0.35);
+  color: #3f5572;
+}
+
+.flags-all-ok {
+  margin-left: auto;
+  font-size: 11px;
+  color: #4ade80;
+  opacity: 0.7;
 }
 
 .empty-hint {

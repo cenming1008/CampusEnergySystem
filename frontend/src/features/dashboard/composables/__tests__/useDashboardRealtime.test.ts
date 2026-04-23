@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, ref } from 'vue'
 import { useDashboardRealtime } from '../useDashboardRealtime'
 
@@ -14,8 +14,14 @@ vi.mock('@/api/telemetry', () => ({
 
 describe('useDashboardRealtime', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-26T12:40:00'))
     getAnalysisMock.mockReset()
     getHistoryMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('loads analysis and history into realtime metrics and trend data', async () => {
@@ -42,8 +48,8 @@ describe('useDashboardRealtime', () => {
     expect(state.realTimeData.energy).toBe(180.4)
     expect(state.realTimeData.current).toBe(12.4)
     expect(state.realTimeData.voltage).toBe(219.5)
-    expect(state.energyTrendData.times).toEqual(['11:00:00', '10:00:00'])
-    expect(state.energyTrendData.values).toEqual([50, 40])
+    expect(state.energyTrendData.times).toEqual(['10:00:00', '11:00:00'])
+    expect(state.energyTrendData.values).toEqual([40, 50])
   })
 
   it('applies websocket telemetry updates only for the active device', async () => {

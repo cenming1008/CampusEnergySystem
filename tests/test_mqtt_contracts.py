@@ -37,14 +37,15 @@ class TestMqttContracts(unittest.TestCase):
         mock_get_publisher.return_value = fake_publisher
 
         with patch.object(mqtt_publisher.settings, "mqtt_control_topic_prefix", "campus/control/"):
-            result = mqtt_publisher.publish_control_command(12, "stop")
+            result = mqtt_publisher.publish_control_command(12, "stop", device_code="CAP-001")
 
         self.assertTrue(result)
         self.assertEqual(len(fake_publisher.published), 1)
         topic, payload, qos = fake_publisher.published[0]
-        self.assertEqual(topic, "campus/control/12")
+        self.assertEqual(topic, "campus/control/CAP-001")
         self.assertEqual(qos, 1)
         self.assertIn('"command": "stop"', payload)
+        self.assertIn('"device_code": "CAP-001"', payload)
 
 
 if __name__ == "__main__":

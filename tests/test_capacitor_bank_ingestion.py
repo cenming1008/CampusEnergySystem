@@ -58,6 +58,28 @@ RAW_PAYLOAD = {
     "switch_off_power_factor": 105,
     "switch_on_delay_seconds": 10,
     "switch_off_delay_seconds": 8,
+    "phase_a_circuit_total_count": 3,
+    "phase_b_circuit_total_count": 3,
+    "phase_c_circuit_total_count": 2,
+    "common_1_circuit_total_count": 6,
+    "common_2_circuit_total_count": 4,
+    "common_3_circuit_total_count": 2,
+    "phase_a_capacity_steps_kvar": [12.0, 12.0, 24.0],
+    "phase_b_capacity_steps_kvar": [48.0, 12.0, 12.0],
+    "phase_c_capacity_steps_kvar": [24.0, 48.0],
+    "common_1_capacity_steps_kvar": [30.0, 60.0, 90.0, 90.0, 30.0, 60.0],
+    "common_2_capacity_steps_kvar": [90.0, 90.0, 30.0, 60.0],
+    "common_3_capacity_steps_kvar": [90.0, 90.0],
+    "running_circuit_count": 12,
+    "split_circuit_running_count": 6,
+    "common_circuit_running_count": 6,
+    "phase_a_circuit_running_count": 2,
+    "phase_b_circuit_running_count": 3,
+    "phase_c_circuit_running_count": 1,
+    "common_group_1_running_count": 4,
+    "common_group_2_running_count": 2,
+    "common_group_3_running_count": 0,
+    "control_mode": "manual",
     "common_capacity_code": "4:1233",
     "split_capacity_code": "7:1124",
     "temperature_upper_limit": 55.0,
@@ -85,6 +107,13 @@ class TestCapacitorBankExtraction(unittest.TestCase):
         self.assertAlmostEqual(result["reactive_power_a"], -8.0, places=1)
         self.assertAlmostEqual(result["reactive_power_b"], -7.0, places=1)
         self.assertAlmostEqual(result["reactive_power_c"], -9.0, places=1)
+
+    def test_running_count_and_control_mode_fields_extracted(self):
+        result = extract_capacitor_bank_telemetry(self.data)
+        self.assertEqual(result["running_circuit_count"], 12)
+        self.assertEqual(result["split_circuit_running_count"], 6)
+        self.assertEqual(result["common_group_2_running_count"], 2)
+        self.assertEqual(result["control_mode"], "manual")
 
     def test_apparent_power_extracted_via_alias(self):
         result = extract_capacitor_bank_telemetry(self.data)
@@ -142,6 +171,10 @@ class TestCapacitorBankControlProfileExtraction(unittest.TestCase):
         self.assertEqual(result["switch_on_power_factor"], 95)
         self.assertEqual(result["switch_off_power_factor"], 105)
         self.assertEqual(result["baud_rate"], 9600)
+        self.assertEqual(result["phase_a_circuit_total_count"], 3)
+        self.assertEqual(result["common_2_circuit_total_count"], 4)
+        self.assertEqual(result["phase_a_capacity_steps_kvar_json"], [12.0, 12.0, 24.0])
+        self.assertEqual(result["common_3_capacity_steps_kvar_json"], [90.0, 90.0])
         self.assertEqual(result["common_capacity_code"], "4:1233")
 
 
@@ -270,6 +303,52 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
         self.assertIn("cap_overvoltage_a", categories)
         self.assertIn("cap_voltage_thd_a", categories)
         self.assertIn("cap_current_thd_a", categories)
+
+    def test_persist_device_data_updates_existing_capacitor_bank_telemetry_on_same_timestamp(self):
+        ts = datetime(2026, 4, 14, 10, 0, 0)
+        with Session(self.engine) as session:
+            device = Device(
+                name="JKWF 去重柜",
+                sn="JKWF-TEST-DEDUP",
+                device_type="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+            device_id = device.id
+
+        payload = dict(RAW_PAYLOAD)
+        payload["device_code"] = "JKWF-TEST-DEDUP"
+        normalized = normalize_compensation_measurements(apply_field_aliases(payload))
+        data_dict = {
+            "voltage": normalized["voltage"],
+            "current": normalized["current"],
+            "power": normalized["power"],
+            "consumption": 0.0,
+            "reactive_power": normalized["reactive_power"],
+            "power_factor": normalized["power_factor"],
+            "temperature": normalized["temperature"],
+        }
+
+        with patch("app.integrations.mqtt.processor.engine", self.engine):
+            persist_device_data(device_id, data_dict, ts, raw_data=normalized)
+
+            normalized_second = dict(normalized)
+            normalized_second["temperature"] = 48.6
+            normalized_second["frequency"] = 49.92
+            persist_device_data(device_id, data_dict, ts, raw_data=normalized_second)
+
+        with Session(self.engine) as session:
+            rows = session.exec(
+                select(CapacitorBankTelemetry)
+                .where(CapacitorBankTelemetry.device_id == device_id)
+            ).all()
+
+        self.assertEqual(len(rows), 1)
+        self.assertAlmostEqual(rows[0].temperature, 48.6, places=1)
+        self.assertAlmostEqual(rows[0].frequency, 49.92, places=2)
 
 
 if __name__ == "__main__":

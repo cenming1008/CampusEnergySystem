@@ -369,7 +369,7 @@
 
     const openDeviceConsole = (row: Device) => {
       if (!row.id) return
-      router.push(`/devices/${row.id}/console`)
+      router.push(`/device-console/${row.id}`)
     }
     
     // --- 获取设备类型列表 ---

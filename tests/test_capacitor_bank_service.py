@@ -1,5 +1,6 @@
 import os
 import unittest
+import json
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -7,7 +8,7 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.models.tables import CapacitorBankControlProfile, DeviceControlLog
-from app.services.capacitor_bank_service import (
+from app.services.devices.compensation.capacitor_bank.service import (
     CONTROL_RECEIPT_TIMEOUT,
     CapacitorBankService,
     ControlProfileWritePreconditionError,
@@ -49,11 +50,33 @@ class TestCapacitorBankService(unittest.TestCase):
         with self.assertRaises(ValueError):
             CapacitorBankService.normalize_write_value("temperature_upper_limit", 120)
 
-    @patch("app.services.capacitor_bank_service.publish_parameter_write_async")
-    @patch("app.services.capacitor_bank_service.IngestionHealthService.get_device_health")
+    def test_build_capacity_expansion_payload_prefers_direct_capacity_step_arrays(self):
+        profile = CapacitorBankControlProfile(
+            device_id=16,
+            common_capacity_code="4:1233",
+            split_capacity_code="7:1124",
+            common_step_capacity_kvar=30.0,
+            split_step_capacity_kvar=12.0,
+            phase_a_capacity_steps_kvar_json=json.dumps([12.0, 12.0, 24.0]),
+            phase_b_capacity_steps_kvar_json=json.dumps([48.0, 12.0, 12.0]),
+            phase_c_capacity_steps_kvar_json=json.dumps([24.0, 48.0]),
+            common_1_capacity_steps_kvar_json=json.dumps([30.0, 60.0, 90.0]),
+            common_2_capacity_steps_kvar_json=json.dumps([90.0, 30.0]),
+            common_3_capacity_steps_kvar_json=json.dumps([90.0]),
+        )
+
+        payload = CapacitorBankService.build_capacity_expansion_payload(profile)
+
+        self.assertEqual(payload["phase_a_capacity_steps_kvar"], [12.0, 12.0, 24.0])
+        self.assertEqual(payload["common_2_capacity_steps_kvar"], [90.0, 30.0])
+        self.assertEqual(payload["split_capacity_expansion"]["phase_b_groups"], [48.0, 12.0, 12.0])
+        self.assertEqual(payload["common_capacity_expansion"]["common_3_groups"], [90.0])
+
+    @patch("app.services.devices.compensation.capacitor_bank.service.publish_parameter_write_async")
+    @patch("app.services.devices.compensation.capacitor_bank.service.IngestionHealthService.get_device_health")
     def test_submit_control_profile_write_records_log_and_publishes(self, mock_health, mock_publish):
         session = MagicMock()
-        device = SimpleNamespace(id=16, is_active=True)
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
         profile = CapacitorBankControlProfile(
             device_id=16,
             source="telemetry",
@@ -84,6 +107,7 @@ class TestCapacitorBankService(unittest.TestCase):
             16,
             "switch_on_power_factor",
             95,
+            device_code="CAP-016",
             command_id="88",
             reason="联调验证",
             register="0xD2",
@@ -97,9 +121,12 @@ class TestCapacitorBankService(unittest.TestCase):
 
     def test_submit_control_profile_write_requires_real_readback(self):
         session = MagicMock()
-        device = SimpleNamespace(id=16, is_active=True)
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
 
-        with patch("app.services.capacitor_bank_service.IngestionHealthService.get_device_health", return_value={"is_online": True}):
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.IngestionHealthService.get_device_health",
+            return_value={"is_online": True},
+        ):
             with patch.object(CapacitorBankService, "get_control_profile", return_value=None):
                 with self.assertRaises(ControlProfileWritePreconditionError):
                     CapacitorBankService.submit_control_profile_write(
@@ -112,9 +139,12 @@ class TestCapacitorBankService(unittest.TestCase):
 
     def test_submit_control_profile_write_rejects_offline_device(self):
         session = MagicMock()
-        device = SimpleNamespace(id=16, is_active=True)
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
 
-        with patch("app.services.capacitor_bank_service.IngestionHealthService.get_device_health", return_value={"is_online": False}):
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.IngestionHealthService.get_device_health",
+            return_value={"is_online": False},
+        ):
             with self.assertRaises(ControlProfileWritePreconditionError):
                 CapacitorBankService.submit_control_profile_write(
                     session,
@@ -124,10 +154,10 @@ class TestCapacitorBankService(unittest.TestCase):
                     operator="admin",
                 )
 
-    @patch("app.services.capacitor_bank_service.publish_control_payload_async")
+    @patch("app.services.devices.compensation.capacitor_bank.service.publish_control_payload_async")
     def test_submit_remote_control_command_records_log_and_publishes(self, mock_publish):
         session = MagicMock()
-        device = SimpleNamespace(id=16, is_active=True)
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
         session.add = MagicMock()
         session.commit = MagicMock()
         session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 66))
@@ -154,8 +184,10 @@ class TestCapacitorBankService(unittest.TestCase):
                 "command": "reset_alarm",
                 "command_id": "66",
                 "device_id": 16,
+                "device_code": "CAP-016",
                 "reason": "前端联调",
             },
+            device_code="CAP-016",
             worker_name="mqtt-remote-reset_alarm",
         )
         self.assertTrue(result["accepted"])
@@ -177,7 +209,10 @@ class TestCapacitorBankService(unittest.TestCase):
         session.add = MagicMock()
         session.flush = MagicMock()
 
-        with patch("app.services.capacitor_bank_service.DeviceRepository.get_control_log_by_id", return_value=control_log):
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
             updated = CapacitorBankService.apply_control_receipt(
                 session,
                 device_id=16,
@@ -233,7 +268,10 @@ class TestCapacitorBankService(unittest.TestCase):
         session.add = MagicMock()
         session.flush = MagicMock()
 
-        with patch("app.services.capacitor_bank_service.DeviceRepository.get_control_log_by_id", return_value=control_log):
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
             updated_running = CapacitorBankService.apply_control_receipt(
                 session,
                 device_id=16,
@@ -254,10 +292,10 @@ class TestCapacitorBankService(unittest.TestCase):
         self.assertEqual(updated_rejected.result, "rejected")
         self.assertIn("设备拒绝执行", updated_rejected.reason)
 
-    @patch("app.services.capacitor_bank_service.publish_control_payload_async")
+    @patch("app.services.devices.compensation.capacitor_bank.service.publish_control_payload_async")
     def test_submit_manual_switch_command_publishes_native_jkwf_payload(self, mock_publish):
         session = MagicMock()
-        device = SimpleNamespace(id=16, is_active=True)
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
         session.add = MagicMock()
         session.commit = MagicMock()
         session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 93))
@@ -282,6 +320,7 @@ class TestCapacitorBankService(unittest.TestCase):
                 "protocol_version": "campus-control.v1",
                 "timestamp": unittest.mock.ANY,
                 "device_id": 16,
+                "device_code": "CAP-016",
                 "command_id": "93",
                 "command": "manual_switch",
                 "reason": "协议联调",
@@ -293,10 +332,52 @@ class TestCapacitorBankService(unittest.TestCase):
                 "phase_code": 0,
                 "switch_action_code": 17,
             },
+            device_code="CAP-016",
             worker_name="mqtt-remote-manual_switch",
         )
         self.assertTrue(result["accepted"])
         self.assertEqual(result["command_id"], "93")
+
+    @patch("app.services.devices.compensation.capacitor_bank.service.publish_control_payload_async")
+    def test_submit_switch_control_mode_bridges_to_manual_switch_protocol(self, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
+        session.add = MagicMock()
+        session.commit = MagicMock()
+        session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 94))
+
+        result = CapacitorBankService.submit_remote_control_command(
+            session,
+            device,
+            action="switch_control_mode",
+            operator="operator",
+            reason="控制台控制模式切换 -> 自动模式",
+        )
+
+        mock_publish.assert_called_once_with(
+            16,
+            {
+                "message_type": "control_command",
+                "protocol_version": "campus-control.v1",
+                "timestamp": unittest.mock.ANY,
+                "device_id": 16,
+                "device_code": "CAP-016",
+                "command_id": "94",
+                "command": "manual_switch",
+                "reason": "控制台控制模式切换 -> 自动模式",
+                "manual_mode": "auto",
+                "phase": "COMMON",
+                "switch_action": "none",
+                "protocol_function_code": "0x44",
+                "manual_mode_code": 0,
+                "phase_code": 3,
+                "switch_action_code": 0,
+            },
+            device_code="CAP-016",
+            worker_name="mqtt-remote-switch_control_mode",
+        )
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["command_id"], "94")
 
 
 if __name__ == "__main__":

@@ -282,6 +282,11 @@ describe('SystemSettings view', () => {
       energy_data: 12,
       alarm_data: 4,
       carbon_emission: 2,
+      statistics: 0,
+      mqtt_ingestion: 5,
+      audit_event: 3,
+      svg_telemetry: 1,
+      capacitor_bank_telemetry: 2,
       errors: [],
     })
 
@@ -298,7 +303,7 @@ describe('SystemSettings view', () => {
 
     expect(cleanupDataMock).toHaveBeenCalledWith(6)
     expect(successMock).toHaveBeenCalledWith(expect.objectContaining({
-      message: '清理完成！共删除 18 条记录',
+      message: expect.stringContaining('清理完成！共删除 18 条记录'),
     }))
     expect(vm.cleanupStats?.energy_data?.total).toBe(20)
   })
@@ -317,6 +322,11 @@ describe('SystemSettings view', () => {
       energy_data: 80,
       alarm_data: 10,
       carbon_emission: 9,
+      statistics: 0,
+      mqtt_ingestion: 0,
+      audit_event: 0,
+      svg_telemetry: 0,
+      capacitor_bank_telemetry: 0,
       errors: [],
     })
 
@@ -331,7 +341,39 @@ describe('SystemSettings view', () => {
     expect(confirmMock).toHaveBeenCalledTimes(2)
     expect(cleanupAllDataMock).toHaveBeenCalledTimes(1)
     expect(successMock).toHaveBeenCalledWith(expect.objectContaining({
-      message: '清除完成！共删除 99 条记录',
+      message: expect.stringContaining('清除完成！共删除 99 条记录'),
     }))
+  })
+
+  it('renders cleanup stats with mqtt, audit and compensation telemetry categories', async () => {
+    getDevicesMock.mockResolvedValue([])
+    requestGetMock.mockResolvedValue({})
+    getCleanupStatsMock.mockResolvedValue({
+      energy_data: { total: 20 },
+      mqtt_ingestion: { total: 8 },
+      audit_event: { total: 6 },
+      svg_telemetry: { total: 4 },
+      capacitor_bank_telemetry: { total: 2 },
+      carbon_emission: { total: 1 },
+      alarm_data: { total: 0 },
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+    const vm = wrapper.vm as unknown as {
+      loadCleanupStats: () => Promise<void>
+      cleanupStats: {
+        mqtt_ingestion?: { total?: number }
+        audit_event?: { total?: number }
+        svg_telemetry?: { total?: number }
+        capacitor_bank_telemetry?: { total?: number }
+      } | null
+    }
+    await vm.loadCleanupStats()
+
+    expect(vm.cleanupStats?.mqtt_ingestion?.total).toBe(8)
+    expect(vm.cleanupStats?.audit_event?.total).toBe(6)
+    expect(vm.cleanupStats?.svg_telemetry?.total).toBe(4)
+    expect(vm.cleanupStats?.capacitor_bank_telemetry?.total).toBe(2)
   })
 })

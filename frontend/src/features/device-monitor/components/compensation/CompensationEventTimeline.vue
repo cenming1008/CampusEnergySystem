@@ -22,7 +22,7 @@ function tagType(tone?: CompensationEventItem['tone']) {
   <section class="side-panel">
     <div class="side-panel__head">
       <h3>运行事件</h3>
-      <span>最近投切、恢复与异常变化</span>
+      <span v-if="events.length" class="event-count">共 {{ events.length }} 条</span>
     </div>
 
     <div
@@ -90,17 +90,22 @@ function tagType(tone?: CompensationEventItem['tone']) {
   color: #f5f7fb;
 }
 
-.side-panel__head span {
-  display: block;
-  margin-top: 4px;
-  color: #8ea0bc;
+.event-count {
   font-size: 12px;
+  color: #5d7699;
+}
+
+.side-panel__head em {
+  font-style: normal;
+  color: #5d7699;
 }
 
 .timeline-wrap {
-  max-height: 340px;
-  overflow: auto;
+  max-height: 420px;
+  overflow-y: auto;
   padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(53, 72, 97, 0.5) transparent;
 }
 
 .timeline-card {

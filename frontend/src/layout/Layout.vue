@@ -84,10 +84,6 @@ const handleSettingsClick = async () => {
           <el-icon><DataLine /></el-icon>
           <span>首页总览</span>
         </el-menu-item>
-        <el-menu-item index="/campus-overview">
-          <el-icon><OfficeBuilding /></el-icon>
-          <span>园区总览</span>
-        </el-menu-item>
         <el-menu-item index="/energy">
           <el-icon><Lightning /></el-icon>
           <span>区域/楼栋能耗</span>

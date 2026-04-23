@@ -30,12 +30,6 @@ const router = createRouter({
           meta: { title: '首页总览' }
         },
         {
-          path: 'campus-overview',
-          name: 'CampusOverview',
-          component: () => import('@/views/CampusScene.vue'),
-          meta: { title: '园区总览' }
-        },
-        {
           path: 'devices',
           name: 'Devices',
           component: () => import('@/views/DeviceManager.vue'),
@@ -48,7 +42,7 @@ const router = createRouter({
           meta: { title: '实时监控' }
         },
         {
-          path: 'devices/:id/console',
+          path: 'device-console/:id',
           name: 'DeviceControlConsole',
           component: () => import('@/views/DeviceControlConsole.vue'),
           meta: { title: '设备控制台' }

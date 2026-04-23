@@ -83,11 +83,19 @@ async function renderChart() {
     },
     grid: { left: 56, right: 48, top: 48, bottom: 30 },
     xAxis: {
-      type: 'category',
-      data: props.model.labels,
+      type: props.model.xAxisType || 'category',
+      data: props.model.xAxisType === 'time' ? undefined : props.model.labels,
+      min: props.model.xAxisType === 'time' ? props.model.xAxisMin : undefined,
+      max: props.model.xAxisType === 'time' ? props.model.xAxisMax : undefined,
       axisLine: { lineStyle: { color: '#314055' } },
-      axisLabel: { color: '#8ea0bc', fontSize: 11 },
-    },
+      axisLabel: {
+        color: '#8ea0bc',
+        fontSize: 11,
+        formatter: props.model.xAxisType === 'time'
+          ? (value: number) => formatTimeAxisLabel(value, props.model.xAxisMin, props.model.xAxisMax)
+          : undefined,
+      },
+    } as any,
     yAxis: props.model.axes.map((axis, index) => ({
       type: 'value',
       name: axis.name,
@@ -130,6 +138,23 @@ async function renderChart() {
   }, { notMerge: true })
 }
 
+function formatTimeAxisLabel(value: number, min?: string, max?: string) {
+  const date = new Date(value)
+  const start = min ? new Date(min) : null
+  const end = max ? new Date(max) : null
+  const crossesDay = start && end
+    ? start.getFullYear() !== end.getFullYear()
+      || start.getMonth() !== end.getMonth()
+      || start.getDate() !== end.getDate()
+    : false
+
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  const hours = `${date.getHours()}`.padStart(2, '0')
+  const minutes = `${date.getMinutes()}`.padStart(2, '0')
+  return crossesDay ? `${month}/${day} ${hours}:${minutes}` : `${hours}:${minutes}`
+}
+
 watch(() => props.model, () => {
   void renderChart()
 }, { deep: true })
@@ -150,16 +175,19 @@ watch(() => chart.chartRef.value, async () => {
     <div class="trend-panel__head">
       <div class="trend-panel__intro">
         <h3>历史趋势</h3>
-        <span>{{ model.hint || '默认围绕补偿效果展示，支持时间范围切换' }}</span>
+        <span v-if="model.hint">{{ model.hint }}</span>
       </div>
       <div class="trend-panel__toolbar">
-        <div class="trend-panel__tab-switcher">
-          <el-segmented
-            :model-value="activeTab"
-            :options="segmentedOptions"
-            size="small"
-            @change="$emit('update:activeTab', $event as CompensationTrendTab)"
-          />
+        <div class="trend-panel__tab-wrapper">
+          <div class="trend-panel__tab-switcher">
+            <el-segmented
+              :model-value="activeTab"
+              :options="segmentedOptions"
+              size="small"
+              @change="$emit('update:activeTab', $event as CompensationTrendTab)"
+            />
+          </div>
+          <div class="trend-panel__tab-fade" />
         </div>
         <div class="trend-panel__range-picker">
           <el-date-picker
@@ -244,15 +272,39 @@ watch(() => chart.chartRef.value, async () => {
   min-width: 0;
 }
 
-.trend-panel__tab-switcher {
+.trend-panel__tab-wrapper {
   flex: 1 1 560px;
   min-width: 0;
+  position: relative;
+}
+
+.trend-panel__tab-switcher {
   overflow-x: auto;
   padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.trend-panel__tab-switcher::-webkit-scrollbar {
+  display: none;
 }
 
 .trend-panel__tab-switcher :deep(.el-segmented) {
-  max-width: 100%;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.trend-panel__tab-switcher :deep(.el-segmented__group) {
+  flex-wrap: nowrap;
+}
+
+.trend-panel__tab-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(13, 22, 35, 0.9));
+  pointer-events: none;
 }
 
 .trend-panel__range-picker {

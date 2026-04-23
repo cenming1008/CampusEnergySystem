@@ -21,9 +21,29 @@ from app.api.endpoints.devices.serializers import serialize_svg_operations_profi
 from app.core.access_control import ensure_device_access
 from app.core.database import get_session
 from app.models.tables import SVGTelemetry, User
-from app.services.svg_service import SVGService
+from app.services.devices.compensation.svg.service import SVGService
 
 router = APIRouter()
+
+
+def _sample_history_records(records: list, limit: int):
+    if len(records) <= limit or limit < 3:
+        return records
+
+    sampled = [records[0]]
+    interior_target = limit - 2
+    last_index = len(records) - 1
+
+    for index in range(1, interior_target + 1):
+        point_index = round((index * last_index) / (interior_target + 1))
+        point = records[min(last_index - 1, max(1, point_index))]
+        if sampled[-1] is not point:
+            sampled.append(point)
+
+    if sampled[-1] is not records[last_index]:
+        sampled.append(records[last_index])
+
+    return sampled
 
 
 @router.get(
@@ -100,5 +120,5 @@ def get_device_svg_telemetry_history(
         stmt = stmt.where(SVGTelemetry.timestamp >= start)
     if end:
         stmt = stmt.where(SVGTelemetry.timestamp <= end)
-    stmt = stmt.order_by(SVGTelemetry.timestamp.desc()).limit(limit)
-    return list(session.exec(stmt).all())
+    records = list(session.exec(stmt.order_by(SVGTelemetry.timestamp.asc())).all())
+    return _sample_history_records(records, limit)

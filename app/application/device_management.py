@@ -15,7 +15,7 @@ from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import Device, User
 from app.services.device_service import DeviceService
 from app.services.mqtt_publisher import publish_control_command_async
-from app.services.svg_service import SVGService
+from app.services.devices.compensation.svg.service import SVGService
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,7 @@ def toggle_device_status_use_case(
         reason=normalized_reason,
         command_source="api",
     )
-    publish_control_command_async(device.id, command_action)
+    publish_control_command_async(device.id, command_action, device_code=device.sn)
     audit_log(
         "device.toggle",
         current_user.username,

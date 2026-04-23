@@ -30,7 +30,8 @@ def ingest_telemetry_use_case(
     timestamp: datetime,
 ) -> TelemetryIngestionResult:
     """处理单条设备遥测的落库、告警和健康状态更新。"""
-    IngestionHealthService.mark_message_received(session, device_id=device_id, timestamp=timestamp)
+    # 在线健康应表达服务端最近接收/成功处理时间；设备 timestamp 仍用于遥测时序落库。
+    IngestionHealthService.mark_message_received(session, device_id=device_id)
 
     record = report_device_data_ingestion_use_case(
         session=session,
@@ -45,7 +46,7 @@ def ingest_telemetry_use_case(
         data=data,
         timestamp=timestamp,
     )
-    IngestionHealthService.mark_ingestion_success(session, device_id=device_id, timestamp=timestamp)
+    IngestionHealthService.mark_ingestion_success(session, device_id=device_id)
 
     return TelemetryIngestionResult(
         broadcast_data=TelemetryBroadcastData(

@@ -10,7 +10,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test
 from app.api.endpoints.devices import compensation_capacitor_bank, compensation_svg
 from app.api.endpoints.devices.compensation_schemas import SVGOperationsProfileUpdate
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, SVGAssetProfile, SVGTelemetry
-from app.services.capacitor_bank_service import ControlProfileWritePreconditionError
+from app.services.devices.compensation.capacitor_bank.service import ControlProfileWritePreconditionError
 
 
 def _make_user() -> SimpleNamespace:
@@ -87,6 +87,35 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
         mock_access.assert_called_once_with(mock_session, user, 1)
         self.assertEqual(result, [expected])
 
+    def test_nested_cap_bank_history_samples_full_selected_range(self):
+        user = _make_user()
+        expected = [
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:00:00")),
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:10:00")),
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:20:00")),
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:30:00")),
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:40:00")),
+            CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:50:00")),
+        ]
+        mock_session = SimpleNamespace(
+            exec=lambda q: SimpleNamespace(all=lambda: expected)
+        )
+        with patch.object(compensation_capacitor_bank, "ensure_device_access"):
+            result = compensation_capacitor_bank.get_device_capacitor_bank_telemetry_history(
+                1,
+                None,
+                None,
+                4,
+                mock_session,
+                user,
+            )
+        self.assertEqual([row.timestamp for row in result], [
+            datetime.fromisoformat("2026-04-14T10:00:00"),
+            datetime.fromisoformat("2026-04-14T10:20:00"),
+            datetime.fromisoformat("2026-04-14T10:30:00"),
+            datetime.fromisoformat("2026-04-14T10:50:00"),
+        ])
+
     def test_nested_cap_bank_control_profile_returns_capabilities_and_values(self):
         user = _make_user()
         mock_session = object()
@@ -113,6 +142,18 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
             device_id=1,
             common_output_circuit_count=12,
             split_output_circuit_count=8,
+            phase_a_circuit_total_count=3,
+            phase_b_circuit_total_count=3,
+            phase_c_circuit_total_count=2,
+            common_1_circuit_total_count=6,
+            common_2_circuit_total_count=4,
+            common_3_circuit_total_count=2,
+            phase_a_capacity_steps_kvar_json="[12.0, 12.0, 24.0]",
+            phase_b_capacity_steps_kvar_json="[48.0, 12.0, 12.0]",
+            phase_c_capacity_steps_kvar_json="[24.0, 48.0]",
+            common_1_capacity_steps_kvar_json="[30.0, 60.0, 90.0, 90.0, 30.0, 60.0]",
+            common_2_capacity_steps_kvar_json="[90.0, 90.0, 30.0, 60.0]",
+            common_3_capacity_steps_kvar_json="[90.0, 90.0]",
             common_capacity_code="4:1233",
             split_capacity_code="7:1124",
             common_step_capacity_kvar=30.0,
@@ -124,11 +165,17 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
                 with patch.object(compensation_capacitor_bank.CapacitorBankService, "get_profile_source_status", return_value="fresh"):
                     result = compensation_capacitor_bank.get_device_capacitor_bank_control_profile(1, mock_session, user)
 
-        self.assertEqual(result["split_capacity_expansion"]["phase_a_groups"], [12.0, 48.0, 24.0])
+        self.assertEqual(result["phase_a_capacity_steps_kvar"], [12.0, 12.0, 24.0])
+        self.assertEqual(result["common_2_capacity_steps_kvar"], [90.0, 90.0, 30.0, 60.0])
+        self.assertEqual(result["split_capacity_expansion"]["phase_a_groups"], [12.0, 12.0, 24.0])
+        self.assertEqual(result["split_capacity_expansion"]["phase_b_groups"], [48.0, 12.0, 12.0])
+        self.assertEqual(result["split_capacity_expansion"]["phase_c_groups"], [24.0, 48.0])
         self.assertEqual(
             result["common_capacity_expansion"]["common_1_groups"],
-            [30.0, 60.0, 90.0, 90.0, 30.0, 60.0, 90.0, 90.0],
+            [30.0, 60.0, 90.0, 90.0, 30.0, 60.0],
         )
+        self.assertEqual(result["common_capacity_expansion"]["common_2_groups"], [90.0, 90.0, 30.0, 60.0])
+        self.assertEqual(result["common_capacity_expansion"]["common_3_groups"], [90.0, 90.0])
 
     def test_nested_cap_bank_control_profile_write_returns_accepted_result(self):
         user = _make_user()

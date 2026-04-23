@@ -6,6 +6,22 @@ import path from 'path'
 
 const backendTarget = 'http://127.0.0.1:8088'
 
+function spaAwareProxy(overlapWithSpa: boolean = false) {
+  return {
+    target: backendTarget,
+    changeOrigin: true,
+    secure: false,
+    bypass(req: { method?: string; headers?: Record<string, string | string[] | undefined> }) {
+      if (!overlapWithSpa || req.method !== 'GET') return
+      const acceptHeader = req.headers?.accept
+      const accept = Array.isArray(acceptHeader) ? acceptHeader.join(',') : (acceptHeader || '')
+      if (accept.includes('text/html')) {
+        return '/index.html'
+      }
+    },
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
@@ -27,106 +43,26 @@ export default defineConfig({
     // 让前端请求 /auth, /devices 等接口时，自动转发给后端 FastAPI (8088)
     // 解决跨域问题 (CORS)
     proxy: {
-      '/auth': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/devices': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/alarms': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/analysis': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/fdd': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/reports': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/energy/': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/forecast': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/data-generator': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/maintenance': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/inspection': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/locations': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/campus': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/device-groups': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/data-cleanup': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/health': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/metrics': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/users': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/audit': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
-      '/frontend-errors': {
-        target: backendTarget,
-        changeOrigin: true,
-        secure: false
-      },
+      '/auth': spaAwareProxy(false),
+      '/devices': spaAwareProxy(true),
+      '/alarms': spaAwareProxy(true),
+      '/analysis': spaAwareProxy(false),
+      '/fdd': spaAwareProxy(true),
+      '/reports': spaAwareProxy(false),
+      '/energy/': spaAwareProxy(false),
+      '/forecast': spaAwareProxy(false),
+      '/data-generator': spaAwareProxy(false),
+      '/maintenance': spaAwareProxy(true),
+      '/inspection': spaAwareProxy(true),
+      '/locations': spaAwareProxy(false),
+      '/campus': spaAwareProxy(false),
+      '/device-groups': spaAwareProxy(false),
+      '/data-cleanup': spaAwareProxy(false),
+      '/health': spaAwareProxy(false),
+      '/metrics': spaAwareProxy(false),
+      '/users': spaAwareProxy(true),
+      '/audit': spaAwareProxy(true),
+      '/frontend-errors': spaAwareProxy(false),
       // WebSocket 代理
       '/ws': {
         target: backendTarget,

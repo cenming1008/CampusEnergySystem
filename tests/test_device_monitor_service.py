@@ -9,7 +9,7 @@ from sqlmodel import Session, SQLModel, create_engine
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.api.endpoints.devices import monitoring
-from app.models.tables import Device, DeviceControlLog
+from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog, SVGAssetProfile, SVGTelemetry
 from app.services.alarm_service import AlarmService
 from app.services.device_monitor_service import DeviceMonitorService
 from app.services.energy_service import EnergyService
@@ -94,9 +94,302 @@ class TestDeviceMonitorService(unittest.TestCase):
             overview = DeviceMonitorService.get_monitor_overview(session, device.id)
 
             self.assertEqual(overview["archive"]["name"], "2号水表")
+            self.assertIsNone(overview["archive"]["device_subtype"])
             self.assertEqual(overview["runtime_status"]["code"], "alarm")
             self.assertEqual(overview["realtime"]["flow_rate"], 2.2)
             self.assertEqual(len(overview["recent_alarms"]), 1)
+
+    def test_monitor_overview_preserves_device_subtype_for_compensation_devices(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器子类型测试",
+                sn="CAP-SUB-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+
+            self.assertEqual(overview["archive"]["device_type"], "compensation")
+            self.assertEqual(overview["archive"]["device_subtype"], "capacitor_bank_controller")
+            self.assertIsNotNone(overview["compensation_monitor"])
+            self.assertEqual(overview["compensation_monitor"]["subtype"], "capacitor_bank_controller")
+
+    def test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器监控语义测试",
+                sn="CAP-MON-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=120.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=12.0,
+                flow_rate=26.0,
+                timestamp=now - timedelta(minutes=1),
+                reactive_power=-32.0,
+                power_factor=0.95,
+                voltage=389.0,
+                current=43.0,
+                temperature=38.6,
+            )
+            session.add(
+                CapacitorBankTelemetry(
+                    device_id=device.id,
+                    timestamp=now,
+                    control_mode="manual",
+                    running_circuit_count=6,
+                    circuit_state_phase_a=0b00000011,
+                    circuit_state_phase_b=0b00000001,
+                    temperature=39.8,
+                )
+            )
+            session.add(
+                CapacitorBankControlProfile(
+                    device_id=device.id,
+                    source="telemetry",
+                    snapshot_timestamp=now,
+                    terminal_assignment_scheme="自动模式",
+                    common_output_circuit_count=18,
+                    split_output_circuit_count=6,
+                )
+            )
+            session.add(
+                DeviceControlLog(
+                    device_id=device.id,
+                    action="switch_control_mode",
+                    target_status=True,
+                    previous_status=True,
+                    operator="admin",
+                    command_source="remote-control-api",
+                    result="success",
+                    reason="控制模式切换到自动模式",
+                    created_at=now - timedelta(minutes=2),
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+
+            compensation_monitor = overview["compensation_monitor"]
+            self.assertEqual(compensation_monitor["subtype"], "capacitor_bank_controller")
+            self.assertEqual(compensation_monitor["control_mode"]["value"], "手动")
+            self.assertEqual(compensation_monitor["control_mode"]["source"], "telemetry")
+            self.assertEqual(compensation_monitor["control_mode"]["state"], "live")
+            self.assertEqual(compensation_monitor["circuit_summary"]["running_count"], 6)
+            self.assertEqual(compensation_monitor["circuit_summary"]["total_count"], 24)
+            self.assertEqual(compensation_monitor["circuit_summary"]["source"], "telemetry")
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["value"], 25.0)
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["source"], "telemetry")
+            self.assertEqual(compensation_monitor["key_metrics"]["cabinet_temperature"]["value"], 39.8)
+            self.assertEqual(compensation_monitor["profile_status"]["source_status"], "fresh")
+            self.assertTrue(compensation_monitor["capabilities_summary"]["supports_remote_control"])
+
+    def test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器回退优先级测试",
+                sn="CAP-MON-002",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=120.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=10.0,
+                flow_rate=20.0,
+                timestamp=now - timedelta(minutes=1),
+                reactive_power=-24.0,
+                power_factor=0.96,
+                voltage=390.0,
+                current=40.0,
+            )
+            session.add(
+                CapacitorBankControlProfile(
+                    device_id=device.id,
+                    source="telemetry",
+                    snapshot_timestamp=now,
+                    terminal_assignment_scheme="手动模式",
+                    common_output_circuit_count=16,
+                    split_output_circuit_count=8,
+                )
+            )
+            session.add(
+                DeviceControlLog(
+                    device_id=device.id,
+                    action="switch_control_mode",
+                    target_status=True,
+                    previous_status=True,
+                    operator="admin",
+                    command_source="remote-control-api",
+                    result="success",
+                    reason="控制模式切换到自动模式",
+                    created_at=now - timedelta(minutes=2),
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            compensation_monitor = overview["compensation_monitor"]
+
+            self.assertEqual(compensation_monitor["control_mode"]["value"], "手动")
+            self.assertEqual(compensation_monitor["control_mode"]["source"], "profile")
+            self.assertEqual(compensation_monitor["circuit_summary"]["source"], "configured_fallback")
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["source"], "estimated")
+
+            session.exec(CapacitorBankControlProfile.__table__.delete())
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            compensation_monitor = overview["compensation_monitor"]
+
+            self.assertEqual(compensation_monitor["control_mode"]["value"], "自动")
+            self.assertEqual(compensation_monitor["control_mode"]["source"], "control_log")
+
+            session.exec(DeviceControlLog.__table__.delete())
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            compensation_monitor = overview["compensation_monitor"]
+
+            self.assertEqual(compensation_monitor["control_mode"]["value"], "自动")
+            self.assertEqual(compensation_monitor["control_mode"]["source"], "placeholder")
+            self.assertEqual(compensation_monitor["control_mode"]["state"], "mock")
+
+    def test_monitor_overview_returns_svg_compensation_monitor_semantics(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="SVG 语义测试",
+                sn="SVG-MON-001",
+                device_type="svg",
+                device_subtype="svg",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=150.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=16.0,
+                flow_rate=28.0,
+                timestamp=now - timedelta(minutes=1),
+                reactive_power=42.0,
+                power_factor=0.99,
+                voltage=398.0,
+                current=38.0,
+            )
+            session.add(
+                SVGTelemetry(
+                    device_id=device.id,
+                    timestamp=now,
+                    auto_mode=True,
+                    capacity_utilization=64.5,
+                    cabinet_temp=35.6,
+                    svg_reactive_output=48.0,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            compensation_monitor = overview["compensation_monitor"]
+
+            self.assertEqual(compensation_monitor["subtype"], "svg")
+            self.assertEqual(compensation_monitor["control_mode"]["value"], "自动")
+            self.assertEqual(compensation_monitor["control_mode"]["source"], "telemetry")
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["value"], 64.5)
+            self.assertEqual(compensation_monitor["key_metrics"]["cabinet_temperature"]["value"], 35.6)
+
+    def test_monitor_overview_svg_circuit_summary_prefers_asset_profile_module_count(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="SVG 模块数测试",
+                sn="SVG-MON-002",
+                device_type="svg",
+                device_subtype="svg",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=150.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            session.add(
+                SVGAssetProfile(
+                    device_id=device.id,
+                    module_count=12,
+                )
+            )
+            session.add(
+                SVGTelemetry(
+                    device_id=device.id,
+                    timestamp=now,
+                    capacity_utilization=50.0,
+                    auto_mode=True,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            compensation_monitor = overview["compensation_monitor"]
+
+            self.assertEqual(compensation_monitor["circuit_summary"]["total_count"], 12)
+            self.assertEqual(compensation_monitor["circuit_summary"]["running_count"], 6)
+
+    def test_monitor_overview_non_compensation_device_does_not_return_compensation_monitor(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="普通负荷",
+                sn="LOAD-002",
+                device_type="load",
+                device_category="load",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+
+            self.assertIsNone(overview["compensation_monitor"])
 
     def test_reactive_power_compensator_realtime_includes_specialized_fields(self):
         now = datetime.now()

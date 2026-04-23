@@ -22,7 +22,7 @@ type EnergyMixChartItem = {
 
 export function useDashboardCharts(options: {
   currentDevice: ComputedRef<Device | undefined>
-  energyTrendData: { times: string[]; values: number[] }
+  energyTrendData: { times: string[]; values: number[]; timestamps?: number[] }
   warningThreshold: ComputedRef<number>
   displayPower: ComputedRef<number>
   /** Override the value shown in the gauge (defaults to displayPower) */
@@ -38,6 +38,16 @@ export function useDashboardCharts(options: {
   const pieChart = useECharts()
 
   const _gaugeMax = options.gaugeMax ?? 100
+
+  const formatTrendTime = (value: string | number | Date, withSeconds = false) => {
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) return '--'
+    const hours = `${date.getHours()}`.padStart(2, '0')
+    const minutes = `${date.getMinutes()}`.padStart(2, '0')
+    if (!withSeconds) return `${hours}:${minutes}`
+    const seconds = `${date.getSeconds()}`.padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
+  }
 
   const renderGauge = async (value: number) => {
     await gaugeChart.setOptions({
@@ -89,8 +99,26 @@ export function useDashboardCharts(options: {
   }
 
   const renderMainChart = async () => {
-    const { times, values } = options.energyTrendData
+    const { times, values, timestamps = [] } = options.energyTrendData
     const deviceName = options.currentDevice.value?.name || '设备'
+    const hasTimestampSeries = timestamps.length === values.length && timestamps.length > 0
+    const now = Date.now()
+    const defaultStart = now - 60 * 60 * 1000
+    const trendStart = hasTimestampSeries ? timestamps[0] : defaultStart
+    const trendEnd = hasTimestampSeries ? timestamps[timestamps.length - 1] : now
+    const seriesData = hasTimestampSeries
+      ? timestamps.map((timestamp, index) => [timestamp, values[index] ?? 0])
+      : values.map((value, index) => [index, value])
+    const maxValue = values.length ? Math.max(...values) : 0
+    const minValue = values.length ? Math.min(...values) : 0
+    const maxIndex = values.findIndex((value) => value === maxValue)
+    const minIndex = values.findIndex((value) => value === minValue)
+    const maxCoord = hasTimestampSeries
+      ? [timestamps[Math.max(0, maxIndex)] || trendEnd, maxValue]
+      : [Math.max(0, maxIndex), maxValue]
+    const minCoord = hasTimestampSeries
+      ? [timestamps[Math.max(0, minIndex)] || trendStart, minValue]
+      : [Math.max(0, minIndex), minValue]
 
     await mainChart.setOptions({
       tooltip: {
@@ -100,7 +128,9 @@ export function useDashboardCharts(options: {
         textStyle: { color: '#fff' },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params
-          const axisValue = 'axisValueLabel' in point ? point.axisValueLabel : String(point.name ?? '')
+          const axisValue = Array.isArray(point.value)
+            ? formatTrendTime(point.value[0] ?? point.name ?? Date.now(), true)
+            : ('axisValueLabel' in point ? point.axisValueLabel : String(point.name ?? ''))
           const rawValue = Array.isArray(point.value) ? point.value[1] ?? point.value[0] : point.value
           const value = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
 
@@ -113,12 +143,23 @@ export function useDashboardCharts(options: {
       },
       grid: { left: 58, right: 24, top: 42, bottom: 42 },
       xAxis: {
-        type: 'category',
-        data: times.length ? times : ['--'],
+        type: hasTimestampSeries ? 'time' : 'category',
+        data: hasTimestampSeries ? undefined : (times.length ? times : ['--']),
+        min: hasTimestampSeries ? trendStart : undefined,
+        max: hasTimestampSeries ? trendEnd : undefined,
+        interval: hasTimestampSeries ? undefined : 'auto',
         axisLine: { lineStyle: { color: '#1e3a5f' } },
-        axisLabel: { color: '#8ba0bd', fontSize: 11, interval: 'auto' },
+        axisLabel: {
+          color: '#8ba0bd',
+          fontSize: 11,
+          hideOverlap: true,
+          formatter: hasTimestampSeries
+            ? (value: number) => formatTrendTime(value)
+            : undefined,
+        },
+        splitNumber: hasTimestampSeries ? 6 : undefined,
         splitLine: { show: false }
-      },
+      } as any,
       yAxis: {
         type: 'value',
         name: '负荷 (kW)',
@@ -131,10 +172,10 @@ export function useDashboardCharts(options: {
         {
           name: deviceName,
           type: 'line',
-          data: values.length ? values : [0],
+          data: seriesData.length ? seriesData : (hasTimestampSeries ? [[trendEnd, 0]] : [0]),
           smooth: true,
           showSymbol: true,
-          symbolSize: (_value: number, params: { dataIndex: number }) => (params.dataIndex === values.length - 1 ? 8 : 0),
+          symbolSize: (_value: number, params: { dataIndex: number }) => (params.dataIndex === seriesData.length - 1 ? 8 : 0),
           lineStyle: { width: 2.5, color: '#5eead4' },
           areaStyle: {
             color: {
@@ -171,8 +212,8 @@ export function useDashboardCharts(options: {
               borderWidth: 1
             },
             data: [
-              { type: 'max', name: '峰值' },
-              { type: 'min', name: '谷值' }
+              { name: '峰值', coord: maxCoord, value: maxValue },
+              { name: '谷值', coord: minCoord, value: minValue }
             ]
           }
         }

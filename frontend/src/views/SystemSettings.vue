@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataAnalysis, DataBoard, Monitor, InfoFilled, Refresh, CircleCheck, Connection, Delete } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { getDevices, type Device } from '@/api/device'
-import { cleanupData, getCleanupStats, cleanupAllData, type CleanupResult } from '@/api/dataCleanup'
+import { cleanupData, getCleanupStats, cleanupAllData, type CleanupResult, type CleanupStats } from '@/api/dataCleanup'
 
 interface MessageResponse {
   message?: string
@@ -46,15 +46,41 @@ interface DeviceStats {
   [key: string]: unknown
 }
 
-interface CleanupStats {
-  energy_data?: { total?: number }
-  alarm_data?: { total?: number }
-  [key: string]: unknown
-}
-
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message
   return fallback
+}
+
+const cleanupResultLabels: Array<{ key: keyof CleanupResult; label: string }> = [
+  { key: 'energy_data', label: '业务时序' },
+  { key: 'alarm_data', label: '已解决告警' },
+  { key: 'carbon_emission', label: '碳排放记录' },
+  { key: 'mqtt_ingestion', label: 'MQTT 接入流水' },
+  { key: 'audit_event', label: '审计事件' },
+  { key: 'svg_telemetry', label: 'SVG 遥测' },
+  { key: 'capacitor_bank_telemetry', label: '电容补偿遥测' },
+  { key: 'statistics', label: '统计汇总' },
+]
+
+const cleanupStatRows: Array<{ key: keyof CleanupStats; label: string }> = [
+  { key: 'energy_data', label: '业务时序' },
+  { key: 'mqtt_ingestion', label: 'MQTT 接入流水' },
+  { key: 'audit_event', label: '审计事件' },
+  { key: 'capacitor_bank_telemetry', label: '电容补偿遥测' },
+  { key: 'svg_telemetry', label: 'SVG 遥测' },
+  { key: 'carbon_emission', label: '碳排放记录' },
+  { key: 'alarm_data', label: '告警记录' },
+]
+
+const buildCleanupDetails = (result: CleanupResult) => cleanupResultLabels
+  .map(({ key, label }) => ({ label, count: Number(result[key] || 0) }))
+  .filter(({ count }) => count > 0)
+  .map(({ label, count }) => `${label}: ${count.toLocaleString()} 条`)
+
+const formatCleanupTotal = (stats: CleanupStats | null, key: keyof CleanupStats) => {
+  const stat = stats?.[key]
+  if (!stat || typeof stat !== 'object' || !('total' in stat)) return '0'
+  return Number(stat.total || 0).toLocaleString()
 }
 
 // --- 状态 ---
@@ -239,7 +265,7 @@ const loadDevices = async () => {
 const handleCleanupData = async () => {
   try {
     await ElMessageBox.confirm(
-      `确定要清理 ${cleanupHours.value} 小时之前的所有数据吗？\n\n此操作将永久删除以下数据：\n- 时序数据（EnergyData）\n- 已解决的报警记录\n- 碳排放记录\n\n⚠️ 此操作不可恢复！`,
+      `确定要清理 ${cleanupHours.value} 小时之前的历史数据和运行流水吗？\n\n此操作将永久删除以下数据：\n- 业务时序数据与碳排放记录\n- 已解决的报警记录\n- MQTT 接入流水与审计事件\n- SVG / 电容补偿控制器遥测\n\n⚠️ 此操作不可恢复！`,
       '警告',
       {
         type: 'warning',
@@ -258,16 +284,11 @@ const handleCleanupData = async () => {
     
     if (result.status === 'success' || result.status === 'partial') {
       const total = result.total_deleted || 0
+      const details = buildCleanupDetails(result)
       ElMessage.success({
-        message: `清理完成！共删除 ${total} 条记录`,
+        message: `清理完成！共删除 ${total} 条记录${details.length ? `（${details.join('，')}）` : ''}`,
         duration: 5000
       })
-      
-      // 显示详细结果
-      const details = []
-      if (result.energy_data > 0) details.push(`时序数据: ${result.energy_data} 条`)
-      if (result.alarm_data > 0) details.push(`报警记录: ${result.alarm_data} 条`)
-      if (result.carbon_emission > 0) details.push(`碳排放记录: ${result.carbon_emission} 条`)
       
       // 重新加载统计信息
       await loadCleanupStats()
@@ -298,9 +319,12 @@ const handleCleanupAllData = async () => {
     await ElMessageBox.confirm(
       '⚠️ 危险操作警告！\n\n' +
       '此操作将永久删除以下所有数据：\n' +
-      '• 所有时序数据（EnergyData）\n' +
+      '• 所有业务时序数据（EnergyData）\n' +
       '• 所有已解决的报警记录\n' +
-      '• 所有碳排放记录\n\n' +
+      '• 所有碳排放记录和统计汇总\n' +
+      '• 所有 MQTT 接入流水和审计事件\n' +
+      '• 所有 SVG / 电容补偿控制器遥测\n\n' +
+      '设备、用户、位置、控制日志和参数档案将保留。\n\n' +
       '⚠️ 此操作不可恢复！\n' +
       '⚠️ 建议先备份数据库！\n\n' +
       '确定要继续吗？',
@@ -338,16 +362,11 @@ const handleCleanupAllData = async () => {
     
     if (result.status === 'success' || result.status === 'partial') {
       const total = result.total_deleted || 0
+      const details = buildCleanupDetails(result)
       ElMessage.success({
-        message: `清除完成！共删除 ${total} 条记录`,
+        message: `清除完成！共删除 ${total} 条记录${details.length ? `（${details.join('，')}）` : ''}`,
         duration: 5000
       })
-      
-      // 显示详细结果
-      const details = []
-      if (result.energy_data > 0) details.push(`时序数据: ${result.energy_data} 条`)
-      if (result.alarm_data > 0) details.push(`报警记录: ${result.alarm_data} 条`)
-      if (result.carbon_emission > 0) details.push(`碳排放记录: ${result.carbon_emission} 条`)
       
       // 重新加载统计信息
       await loadCleanupStats()
@@ -573,7 +592,7 @@ onMounted(async () => {
               </div>
               <div class="card-body">
                 <p class="section-desc">
-                  清理指定时间之前的历史数据，释放存储空间。
+                  清理指定时间之前的历史数据、运行流水与补偿类遥测，释放存储空间。
                 </p>
                 
                 <el-form label-position="top">
@@ -606,13 +625,13 @@ onMounted(async () => {
                   v-if="cleanupStats"
                   class="cleanup-info"
                 >
-                  <div class="info-item">
-                    <span class="label">时序数据总量：</span>
-                    <span class="value">{{ cleanupStats.energy_data?.total?.toLocaleString() || 0 }} 条</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="label">报警记录总量：</span>
-                    <span class="value">{{ cleanupStats.alarm_data?.total?.toLocaleString() || 0 }} 条</span>
+                  <div
+                    v-for="row in cleanupStatRows"
+                    :key="row.key"
+                    class="info-item"
+                  >
+                    <span class="label">{{ row.label }}：</span>
+                    <span class="value">{{ formatCleanupTotal(cleanupStats, row.key) }} 条</span>
                   </div>
                 </div>
                 
@@ -648,7 +667,8 @@ onMounted(async () => {
                 >
                   <template #title>
                     <div style="font-size: 13px;">
-                      <strong>🚨 危险操作：</strong>清除所有数据将删除数据库中的所有历史记录！<br>
+                      <strong>🚨 危险操作：</strong>清除所有数据将删除数据库中的历史数据、运行流水和补偿类遥测！<br>
+                      设备、用户、位置、控制日志和参数档案会保留。<br>
                       此操作不可恢复，请务必先备份数据库！
                     </div>
                   </template>
@@ -917,7 +937,7 @@ onMounted(async () => {
                 <h4>系统功能</h4>
                 <ul>
                   <li>🏠 首页驾驶舱 - 园区能耗、负荷与告警概览</li>
-                  <li>🏢 园区总览 - 园区空间、设备与子系统态势展示</li>
+                  <li>🏢 园区空间 - 园区、区域、楼栋与房间层级管理</li>
                   <li>📊 设备与表计 - 设备全生命周期与计量对象管理</li>
                   <li>⚡ 区域/楼栋能耗 - 园区分层能耗统计与分析</li>
                   <li>📈 能耗分析 - 趋势、预测与能效研判</li>

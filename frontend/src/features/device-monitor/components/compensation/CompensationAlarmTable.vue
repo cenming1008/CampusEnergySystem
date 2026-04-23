@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 import type { PropType } from 'vue'
 import type { DeviceAlarmRecord } from '@/api/deviceMonitor'
 
-defineProps({
+const props = defineProps({
   rows: {
     type: Array as PropType<DeviceAlarmRecord[]>,
     default: () => [],
@@ -18,6 +19,34 @@ defineEmits<{
   resolve: [row: DeviceAlarmRecord]
 }>()
 
+const PAGE_SIZE = 20
+
+const severityFilter = ref<string>('')
+const resolvedFilter = ref<string>('')
+const currentPage = ref(1)
+
+const filteredRows = computed(() => {
+  let result = props.rows
+  if (severityFilter.value) {
+    result = result.filter(r => r.severity === severityFilter.value)
+  }
+  if (resolvedFilter.value === 'resolved') {
+    result = result.filter(r => r.is_resolved)
+  } else if (resolvedFilter.value === 'unresolved') {
+    result = result.filter(r => !r.is_resolved)
+  }
+  return result
+})
+
+const pagedRows = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredRows.value.slice(start, start + PAGE_SIZE)
+})
+
+const showPagination = computed(() => filteredRows.value.length > PAGE_SIZE)
+
+const unresolvedCount = computed(() => props.rows.filter(r => !r.is_resolved).length)
+
 function severityTagType(severity?: string) {
   if (severity === 'critical') return 'danger'
   if (severity === 'warning') return 'warning'
@@ -29,21 +58,56 @@ function formatTime(value?: string | null) {
   if (!value) return '暂无数据'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
+
+function resetPage() {
+  currentPage.value = 1
+}
 </script>
 
 <template>
   <section class="alarm-panel">
     <div class="alarm-panel__head">
       <div>
-        <h3>告警记录</h3>
-        <span>仅保留与补偿器当前运行相关的告警信息</span>
+        <h3>
+          告警记录
+          <span
+            v-if="unresolvedCount > 0"
+            class="unresolved-badge"
+          >{{ unresolvedCount }} 未处理</span>
+        </h3>
+      </div>
+
+      <div class="alarm-filters">
+        <el-select
+          v-model="severityFilter"
+          placeholder="全部级别"
+          size="small"
+          clearable
+          style="width: 100px"
+          @change="resetPage"
+        >
+          <el-option label="紧急" value="critical" />
+          <el-option label="警告" value="warning" />
+          <el-option label="信息" value="info" />
+        </el-select>
+        <el-select
+          v-model="resolvedFilter"
+          placeholder="全部状态"
+          size="small"
+          clearable
+          style="width: 100px"
+          @change="resetPage"
+        >
+          <el-option label="未处理" value="unresolved" />
+          <el-option label="已处理" value="resolved" />
+        </el-select>
       </div>
     </div>
 
     <el-table
-      :data="rows"
+      :data="pagedRows"
       class="dark-table"
-      empty-text="当前暂无补偿器告警记录"
+      empty-text="当前暂无匹配告警记录"
     >
       <el-table-column
         prop="timestamp"
@@ -95,7 +159,7 @@ function formatTime(value?: string | null) {
             :loading="actionId === row.id"
             @click="$emit('resolve', row)"
           >
-            处理
+            标记处理
           </el-button>
           <span
             v-else
@@ -106,6 +170,20 @@ function formatTime(value?: string | null) {
         </template>
       </el-table-column>
     </el-table>
+
+    <div
+      v-if="showPagination"
+      class="alarm-pagination"
+    >
+      <el-pagination
+        v-model:current-page="currentPage"
+        :page-size="PAGE_SIZE"
+        :total="filteredRows.length"
+        layout="prev, pager, next, total"
+        small
+        background
+      />
+    </div>
   </section>
 </template>
 
@@ -129,6 +207,9 @@ function formatTime(value?: string | null) {
   margin: 0;
   font-size: 16px;
   color: #f5f7fb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .alarm-panel__head span {
@@ -138,9 +219,32 @@ function formatTime(value?: string | null) {
   color: #8ea0bc;
 }
 
+.unresolved-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fb7185;
+}
+
+.alarm-filters {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
 .muted-text {
   color: #8ea0bc;
   font-size: 12px;
+}
+
+.alarm-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 :deep(.dark-table) {

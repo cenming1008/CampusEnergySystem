@@ -97,10 +97,21 @@ function normalizeAnalysis(payload: Partial<DeviceAnalysis>): DeviceAnalysis {
 
 // 获取单个设备的历史趋势 (默认取最近50条)
 // 注意：已修改为使用新的设备数据端点
-export function getHistory(deviceId: number, limit: number = 50) {
+export function getHistory(
+  deviceId: number,
+  limit: number = 50,
+  options?: {
+    start_time?: string
+    end_time?: string
+  }
+) {
   return request
     .get<never, DeviceData[] | WrappedResponse<DeviceData[]>>(`/devices/${deviceId}/data`, {
-      params: { limit }
+      params: {
+        limit,
+        start_time: options?.start_time,
+        end_time: options?.end_time,
+      }
     })
     .then((payload) => {
       const history = unwrapResponse<DeviceData[]>(payload)
