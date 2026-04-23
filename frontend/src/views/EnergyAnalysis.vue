@@ -254,9 +254,6 @@ onMounted(() => {
           >
             查看区域 / 楼栋能耗
           </el-button>
-          <el-button @click="router.push('/forecast-tools')">
-            进入预测 / 模型工具
-          </el-button>
         </div>
       </div>
 
@@ -700,12 +697,6 @@ onMounted(() => {
               @click="router.push('/energy')"
             >
               区域 / 楼栋能耗
-            </el-button>
-            <el-button
-              plain
-              @click="router.push('/forecast-tools')"
-            >
-              预测 / 模型工具
             </el-button>
           </div>
         </article>

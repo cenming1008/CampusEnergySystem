@@ -31,11 +31,10 @@
 
 这些脚本已归档，不再作为当前目录第一层入口。
 
-### 模拟、网关与训练
+### 模拟、网关与压测
 
 - [simulator_unified.py](/Users/todo/MineEnergySystem/scripts/python/simulator_unified.py)：统一设备模拟器
 - [device_gateway.py](/Users/todo/MineEnergySystem/scripts/python/device_gateway.py)：真实设备网关
-- [generate_training_data.py](/Users/todo/MineEnergySystem/scripts/python/generate_training_data.py)：生成训练数据
 - [stress_test.py](/Users/todo/MineEnergySystem/scripts/python/stress_test.py)：压力测试
 
 ### MQTT/协议调试

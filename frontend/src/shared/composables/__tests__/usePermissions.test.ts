@@ -13,7 +13,6 @@ describe('usePermissions', () => {
     expect(perms.currentRole.value).toBe('viewer')
     expect(perms.canManageDevices.value).toBe(false)
     expect(perms.canControlDevices.value).toBe(false)
-    expect(perms.canTrainModels.value).toBe(false)
   })
 
   it('admin has full access', () => {
@@ -24,8 +23,6 @@ describe('usePermissions', () => {
     expect(perms.isAdmin.value).toBe(true)
     expect(perms.canManageDevices.value).toBe(true)
     expect(perms.canControlDevices.value).toBe(true)
-    expect(perms.canManageForecast.value).toBe(true)
-    expect(perms.canTrainModels.value).toBe(true)
     expect(perms.canManageLocations.value).toBe(true)
     expect(perms.canManageMaintenance.value).toBe(true)
   })
@@ -37,7 +34,6 @@ describe('usePermissions', () => {
     const perms = usePermissions()
     expect(perms.canControlDevices.value).toBe(true)
     expect(perms.canManageDevices.value).toBe(false)
-    expect(perms.canManageForecast.value).toBe(false)
     expect(perms.canOperateMaintenance.value).toBe(true)
   })
 
@@ -48,7 +44,6 @@ describe('usePermissions', () => {
     const perms = usePermissions()
     expect(perms.canManageDevices.value).toBe(true)
     expect(perms.canControlDevices.value).toBe(false)
-    expect(perms.canTrainModels.value).toBe(false)
   })
 
   it('normalizes role casing before evaluating permissions', () => {

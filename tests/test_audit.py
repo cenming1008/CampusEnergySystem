@@ -99,6 +99,22 @@ class TestAudit(unittest.TestCase):
 
     @patch("app.core.audit.logger")
     @patch("app.core.audit.Session")
+    def test_high_frequency_device_report_audit_logs_at_debug_level(self, mock_session_cls, mock_logger):
+        session = MagicMock()
+        context = MagicMock()
+        context.__enter__.return_value = session
+        context.__exit__.return_value = None
+        mock_session_cls.return_value = context
+
+        audit_log("device.report_data", "mqtt-ingestion", "device:7")
+
+        session.add.assert_called_once()
+        session.commit.assert_called_once()
+        mock_logger.debug.assert_called_once()
+        mock_logger.warning.assert_not_called()
+
+    @patch("app.core.audit.logger")
+    @patch("app.core.audit.Session")
     def test_audit_log_does_not_raise_when_persistence_fails(self, mock_session_cls, mock_logger):
         context = MagicMock()
         context.__enter__.side_effect = RuntimeError("db unavailable")

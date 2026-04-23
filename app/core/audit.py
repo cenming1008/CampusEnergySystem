@@ -90,7 +90,10 @@ def audit_log(action: str, actor: str, target: str, outcome: str = "success", **
         "actor_role": actor_role,
         "details": serialized_details,
     }
-    logger.warning(f"AUDIT {payload}")
+    if action == "device.report_data" and actor == "mqtt-ingestion":
+        logger.debug(f"AUDIT {payload}")
+    else:
+        logger.warning(f"AUDIT {payload}")
 
     try:
         with Session(engine) as session:

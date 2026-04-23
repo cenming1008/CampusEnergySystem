@@ -394,23 +394,6 @@ class EnergyStatistics(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class Prediction(SQLModel, table=True):
-    """预测结果表（负荷预测、风光预测等）。"""
-    
-    __tablename__ = "prediction"
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    prediction_type: str = Field(index=True, description="预测类型：load(负荷)、solar(光伏)、wind(风电)")
-    device_id: Optional[int] = Field(default=None, index=True, foreign_key="device.id", description="设备ID，None表示系统级预测")
-    forecast_time: datetime = Field(index=True, description="预测时间点")
-    predicted_value: float = Field(description="预测值（功率，单位：kW）")
-    confidence: Optional[float] = Field(default=None, description="置信度（0-1）")
-    actual_value: Optional[float] = Field(default=None, description="实际值（用于评估预测准确性）")
-    algorithm: str = Field(default="moving_average", description="使用的预测算法")
-    created_at: datetime = Field(default_factory=datetime.now, index=True)
-    meta_info: Optional[str] = Field(default=None, description="额外元数据（JSON字符串）")
-
-
 class DeviceMaintenance(SQLModel, table=True):
     """设备维护记录表"""
     
@@ -836,6 +819,19 @@ class CapacitorBankControlProfile(SQLModel, table=True):
     common_1_capacity_steps_kvar_json: Optional[str] = Field(default=None, description="公补 1-8 每路容量数组（JSON）")
     common_2_capacity_steps_kvar_json: Optional[str] = Field(default=None, description="公补 9-16 每路容量数组（JSON）")
     common_3_capacity_steps_kvar_json: Optional[str] = Field(default=None, description="公补 17-24 每路容量数组（JSON）")
+    phase_a_circuit_running_count: Optional[int] = Field(default=None, description="A相分补当前投入回路数")
+    phase_b_circuit_running_count: Optional[int] = Field(default=None, description="B相分补当前投入回路数")
+    phase_c_circuit_running_count: Optional[int] = Field(default=None, description="C相分补当前投入回路数")
+    common_group_1_running_count: Optional[int] = Field(default=None, description="公补 1-8 当前投入回路数")
+    common_group_2_running_count: Optional[int] = Field(default=None, description="公补 9-16 当前投入回路数")
+    common_group_3_running_count: Optional[int] = Field(default=None, description="公补 17-24 当前投入回路数")
+    split_circuit_running_count: Optional[int] = Field(default=None, description="分补当前投入回路数")
+    common_circuit_running_count: Optional[int] = Field(default=None, description="共补当前投入回路数")
+    running_circuit_count: Optional[int] = Field(default=None, description="当前总投入回路数")
+    control_mode: Optional[str] = Field(default=None, description="控制模式：auto/manual")
+    auto_on_elapsed_seconds: Optional[int] = Field(default=None, description="自动投入已累计等待秒数")
+    auto_off_elapsed_seconds: Optional[int] = Field(default=None, description="自动切除已累计等待秒数")
+    last_auto_action: Optional[str] = Field(default=None, description="最近一次自动投切动作")
     common_capacity_code: Optional[str] = Field(default=None, description="共补容量编码")
     split_capacity_code: Optional[str] = Field(default=None, description="分补容量编码")
     common_step_capacity_kvar: Optional[float] = Field(default=None, description="共补阶梯容量（kVar）")

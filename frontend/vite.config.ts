@@ -51,7 +51,6 @@ export default defineConfig({
       '/reports': spaAwareProxy(false),
       '/energy/': spaAwareProxy(false),
       '/forecast': spaAwareProxy(false),
-      '/data-generator': spaAwareProxy(false),
       '/maintenance': spaAwareProxy(true),
       '/inspection': spaAwareProxy(true),
       '/locations': spaAwareProxy(false),

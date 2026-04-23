@@ -20,8 +20,6 @@ from app.services.report_service import ReportService
 from app.services.user_service import UserService
 from app.services.scheduler_jobs import (
     auto_cleanup_data,
-    auto_train_lstm_models,
-    auto_update_forecasts,
 )
 
 
@@ -36,64 +34,32 @@ def process_payload_dict(*args, **kwargs):
 
     return _process_payload_dict(*args, **kwargs)
 
-# 可选服务（预测和深度学习相关）
-try:
-    from app.integrations.forecasting import ForecastAdapter
-    from app.services.scheduler_service import start_scheduler, stop_scheduler, get_jobs
-    __all__ = [
-        "DeviceService",
-        "DeviceMonitorService",
-        "AlarmService",
-        "AnalysisService",
-        "CampusService",
-        "data_cleanup_service",
-        "cleanup_old_data",
-        "get_data_statistics",
-        "FDDService",
-        "EnergyService",
-        "DeviceGroupService",
-        "ingestion_health_service",
-        "IngestionHealthService",
-        "auto_cleanup_data",
-        "auto_train_lstm_models",
-        "auto_update_forecasts",
-        "LocationService",
-        "MaintenanceService",
-        "MqttReliabilityService",
-        "ReportService",
-        "UserService",
-        "InspectionService",
-        "process_payload",
-        "process_payload_dict",
-        "ForecastAdapter",
-        "start_scheduler",
-        "stop_scheduler",
-        "get_jobs",
-    ]
-except ImportError:
-    __all__ = [
-        "DeviceService",
-        "DeviceMonitorService",
-        "AlarmService",
-        "AnalysisService",
-        "CampusService",
-        "data_cleanup_service",
-        "cleanup_old_data",
-        "get_data_statistics",
-        "FDDService",
-        "EnergyService",
-        "DeviceGroupService",
-        "ingestion_health_service",
-        "IngestionHealthService",
-        "auto_cleanup_data",
-        "auto_train_lstm_models",
-        "auto_update_forecasts",
-        "LocationService",
-        "MaintenanceService",
-        "MqttReliabilityService",
-        "ReportService",
-        "UserService",
-        "InspectionService",
-        "process_payload",
-        "process_payload_dict",
-    ]
+from app.services.scheduler_service import start_scheduler, stop_scheduler, get_jobs
+
+__all__ = [
+    "DeviceService",
+    "DeviceMonitorService",
+    "AlarmService",
+    "AnalysisService",
+    "CampusService",
+    "data_cleanup_service",
+    "cleanup_old_data",
+    "get_data_statistics",
+    "FDDService",
+    "EnergyService",
+    "DeviceGroupService",
+    "ingestion_health_service",
+    "IngestionHealthService",
+    "auto_cleanup_data",
+    "LocationService",
+    "MaintenanceService",
+    "MqttReliabilityService",
+    "ReportService",
+    "UserService",
+    "InspectionService",
+    "process_payload",
+    "process_payload_dict",
+    "start_scheduler",
+    "stop_scheduler",
+    "get_jobs",
+]

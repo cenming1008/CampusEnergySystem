@@ -78,7 +78,7 @@ class TestDeviceManagementUseCases(unittest.TestCase):
     ):
         session = MagicMock()
         current_user = SimpleNamespace(username="operator", role="operator")
-        toggled = SimpleNamespace(id=11, is_active=False)
+        toggled = SimpleNamespace(id=11, sn="MTR-011", is_active=False)
         mock_toggle_device.return_value = toggled
 
         result = toggle_device_status_use_case(
@@ -99,7 +99,7 @@ class TestDeviceManagementUseCases(unittest.TestCase):
             reason="API停用设备",
             command_source="api",
         )
-        mock_publish_command.assert_called_once_with(11, "stop")
+        mock_publish_command.assert_called_once_with(11, "stop", device_code="MTR-011")
         mock_audit_log.assert_called_once_with(
             "device.toggle",
             "operator",

@@ -59,6 +59,9 @@ export interface CompensationSemanticView {
   switchPermission: boolean
   cabinetTemperature: number | null
   cabinetTemperatureSource: string
+  cabinetTemperatureHealthText: string
+  cabinetTemperatureHealthHint: string
+  cabinetTemperatureHealthTone: CompensationTone
   targetPowerFactor: number
   dailySwitchCount: number
   hourlySwitchCount: number
@@ -67,6 +70,7 @@ export interface CompensationSemanticView {
 }
 
 export interface CompensationBaseStatusItemsInput {
+  isSvgDevice: boolean
   subtypeLabel: string
   deviceStatus: string
   isActive?: boolean
@@ -101,6 +105,7 @@ export interface CompensationHeaderViewInput {
 }
 
 export interface CompensationOverviewMetricsInput {
+  isSvgDevice: boolean
   reactivePowerValue: string
   reactivePowerHint: string
   reactivePowerMissing: boolean
@@ -122,6 +127,9 @@ export interface CompensationOverviewMetricsInput {
   cabinetTemperatureValue: string
   cabinetTemperature: number | null
   cabinetTemperatureSource: string
+  cabinetTemperatureHealthText?: string | null
+  cabinetTemperatureHealthHint?: string | null
+  cabinetTemperatureHealthTone?: CompensationTone
 }
 
 export interface CompensationModuleStatusInput {
@@ -142,12 +150,12 @@ export interface CompensationModuleStatusInput {
 }
 
 export interface CompensationExtendedHintInput {
+  isSvgDevice: boolean
   capacityUsageSource: string
   capacityUsageState: 'live' | 'mock' | 'missing'
   controlModeSource: string
   controlModeState: 'live' | 'mock' | 'missing'
   cabinetTemperature: number | null
-  isSvgDevice: boolean
 }
 
 export interface CompensationStatusItemsInput extends CompensationBaseStatusItemsInput {
@@ -196,6 +204,22 @@ function normalizeState(value?: string | null, fallback: CompensationSemanticVie
 
 function normalizeSource(source?: string | null) {
   return `${source || ''}`.trim().toLowerCase()
+}
+
+function describeTemperatureHealthHint(source?: string | null, value?: string | null) {
+  const normalized = normalizeSource(source)
+  if (normalized === 'telemetry' && value === '温度告警') return '实时温度告警位'
+  if (normalized === 'telemetry') return '实时温度告警位正常'
+  if (normalized === 'profile') return '基于参数上限回读判定'
+  if (normalized === 'missing') return '当前缺少温度健康度判定依据'
+  return '当前缺少温度健康度判定依据'
+}
+
+function resolveTemperatureHealthTone(value?: string | null): CompensationTone {
+  if (value === '温度告警' || value === '超过上限') return 'danger'
+  if (value === '接近上限') return 'warning'
+  if (value === '正常') return 'success'
+  return 'neutral'
 }
 
 function displayValue(value: number | string | null | undefined, emptyText: string, digits: number = 1) {
@@ -380,11 +404,13 @@ export function describeCompensationSource(
     if (normalized === 'telemetry') {
       return subtype === 'svg' ? '遥测回读' : '按投切回路回读换算'
     }
+    if (normalized === 'profile') return '按参数快照回读换算'
     if (normalized === 'estimated') return '按额定容量估算'
     return '演示占位'
   }
   if (kind === 'circuit_summary') {
     if (normalized === 'telemetry') return '投切回路回读'
+    if (normalized === 'profile') return '参数快照回读'
     if (normalized === 'configured_fallback') return '当前无回路回读，按配置总回路展示'
     if (normalized === 'estimated') return '按额定容量估算'
     return '估算/占位'
@@ -431,6 +457,15 @@ export function buildCompensationSemanticView(input: CompensationSemanticViewInp
     : subtype === 'svg'
       ? (input.svgCabinetTemperature ?? input.realtimeTemperature ?? null)
       : (input.capacitorBankTemperature ?? input.realtimeTemperature ?? null)
+  const temperatureHealthMetric = input.monitor?.key_metrics?.temperature_health
+  const cabinetTemperatureHealthText = typeof temperatureHealthMetric?.value === 'string'
+    ? temperatureHealthMetric.value
+    : '待判断'
+  const cabinetTemperatureHealthHint = describeTemperatureHealthHint(
+    temperatureHealthMetric?.source,
+    cabinetTemperatureHealthText,
+  )
+  const cabinetTemperatureHealthTone = resolveTemperatureHealthTone(cabinetTemperatureHealthText)
 
   return {
     controlMode: normalizedControlMode,
@@ -445,6 +480,9 @@ export function buildCompensationSemanticView(input: CompensationSemanticViewInp
     switchPermission: input.canControlDevices && input.isOnline !== false,
     cabinetTemperature,
     cabinetTemperatureSource: describeCompensationSource('temperature', cabinetTemperatureMetric?.source, subtype),
+    cabinetTemperatureHealthText,
+    cabinetTemperatureHealthHint,
+    cabinetTemperatureHealthTone,
     targetPowerFactor: 0.98,
     dailySwitchCount: 12,
     hourlySwitchCount: 2,
@@ -466,6 +504,40 @@ function profileStatusTone(sourceStatus?: string | null): CompensationTone {
   return 'neutral'
 }
 
+function platformEnableStatusText(isActive?: boolean) {
+  if (isActive === true) return '已启用'
+  if (isActive === false) return '已停用'
+  return '状态未知'
+}
+
+function runtimeStatusTone(deviceStatus?: string | null, isOnline?: boolean): CompensationTone {
+  const normalized = `${deviceStatus || ''}`.trim()
+  if (!normalized) return isOnline ? 'info' : 'neutral'
+  if (normalized.includes('告警')) return 'danger'
+  if (normalized.includes('离线')) return 'warning'
+  if (normalized.includes('停机') || normalized.includes('停止')) return 'warning'
+  if (normalized.includes('运行')) return 'success'
+  return isOnline ? 'info' : 'neutral'
+}
+
+function isCapacitorBankCircuitRateSource(source: string) {
+  return source.includes('回路') || source.includes('参数快照') || source.includes('配置总回路')
+}
+
+function capacityUsageMetricLabel(isSvgDevice: boolean, source: string) {
+  if (isSvgDevice) return '补偿容量利用率'
+  if (isCapacitorBankCircuitRateSource(source)) return '回路投入率'
+  if (source.includes('额定容量估算')) return '容量利用率（估算）'
+  return '补偿容量利用率'
+}
+
+function capacityUsageSourceLabel(isSvgDevice: boolean, source: string) {
+  if (isSvgDevice) return '容量利用率来源'
+  if (isCapacitorBankCircuitRateSource(source)) return '回路投入率来源'
+  if (source.includes('额定容量估算')) return '容量利用率来源'
+  return '补偿容量利用率来源'
+}
+
 export function buildCompensationBaseStatusItems(input: CompensationBaseStatusItemsInput): CompensationStatusItem[] {
   const items: CompensationStatusItem[] = [
     {
@@ -474,9 +546,16 @@ export function buildCompensationBaseStatusItems(input: CompensationBaseStatusIt
       tone: 'info',
     },
     {
-      label: '设备状态',
-      value: input.deviceStatus || '状态未知',
+      label: '平台启用状态',
+      value: platformEnableStatusText(input.isActive),
       tone: input.isActive ? 'success' : 'warning',
+      hint: '表示平台侧是否允许该设备参与监控与控制，不等于柜内回路已实际投入。',
+    },
+    {
+      label: '内部运行状态',
+      value: input.deviceStatus || '状态未知',
+      tone: runtimeStatusTone(input.deviceStatus, input.isOnline),
+      hint: '表示设备当前运行语义，综合在线状态、采集健康度、告警与停机状态判定。',
     },
     {
       label: '在线状态',
@@ -501,7 +580,7 @@ export function buildCompensationBaseStatusItems(input: CompensationBaseStatusIt
       tone: 'info',
     },
     {
-      label: '容量利用率来源',
+      label: capacityUsageSourceLabel(input.isSvgDevice, input.capacityUsageSource),
       value: input.capacityUsageSource,
       tone: input.capacityUsageState === 'live' ? 'success' : 'warning',
     },
@@ -575,12 +654,9 @@ export function buildCompensationOverviewMetrics(input: CompensationOverviewMetr
   metrics: CompensationMetric[]
 } {
   const cabinetTemperatureHint = input.cabinetTemperature == null
-    ? input.cabinetTemperatureSource
-    : input.cabinetTemperature >= 45
-      ? `温度偏高，请关注通风散热 · ${input.cabinetTemperatureSource}`
-      : input.cabinetTemperature >= 40
-        ? `温度轻微预警 · ${input.cabinetTemperatureSource}`
-        : `柜内温度正常 · ${input.cabinetTemperatureSource}`
+    ? `${input.cabinetTemperatureHealthText || '待判断'} · ${input.cabinetTemperatureHealthHint || input.cabinetTemperatureSource}`
+    : `${input.cabinetTemperatureHealthText || '待判断'} · ${input.cabinetTemperatureHealthHint || input.cabinetTemperatureSource} · ${input.cabinetTemperatureSource}`
+  const usageMetricLabel = capacityUsageMetricLabel(input.isSvgDevice, input.capacityUsageSource)
 
   return {
     coreMetric: {
@@ -629,7 +705,7 @@ export function buildCompensationOverviewMetrics(input: CompensationOverviewMetr
       },
       {
         key: 'capacityUsage',
-        label: '补偿容量利用率',
+        label: usageMetricLabel,
         value: `${input.capacityUsageValue.toFixed(1)}`,
         unit: '%',
         hint: input.capacityUsageSource,
@@ -651,13 +727,14 @@ export function buildCompensationOverviewMetrics(input: CompensationOverviewMetr
         value: input.cabinetTemperatureValue,
         unit: '°C',
         hint: cabinetTemperatureHint,
-        tone: input.cabinetTemperature == null
-          ? 'neutral'
-          : input.cabinetTemperature >= 45
-            ? 'danger'
-            : input.cabinetTemperature >= 40
-              ? 'warning'
-              : 'success',
+        tone: input.cabinetTemperatureHealthTone
+          || (input.cabinetTemperature == null
+            ? 'neutral'
+            : input.cabinetTemperature >= 45
+              ? 'danger'
+              : input.cabinetTemperature >= 40
+                ? 'warning'
+                : 'success'),
         state: input.cabinetTemperature == null ? 'missing' : 'live',
       },
     ],
@@ -717,7 +794,7 @@ export function buildCompensationModuleStatusView(input: CompensationModuleStatu
 export function buildCompensationExtendedHint(input: CompensationExtendedHintInput) {
   const messages: string[] = []
   if (input.capacityUsageState !== 'live') {
-    messages.push(`补偿容量利用率当前来源：${input.capacityUsageSource}。`)
+    messages.push(`${capacityUsageSourceLabel(input.isSvgDevice, input.capacityUsageSource)}：${input.capacityUsageSource}。`)
   }
   if (input.controlModeState !== 'live') {
     messages.push(`控制模式当前来源：${input.controlModeSource}。`)

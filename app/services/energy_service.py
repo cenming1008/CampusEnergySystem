@@ -208,7 +208,7 @@ class EnergyService:
         session.commit()
         session.refresh(energy_data)
         
-        logger.info(
+        logger.debug(
             f"保存能源数据: 设备={device_id}, 类型={energy_type}, "
             f"消耗={consumption}, 时间={timestamp}, 模式={'update' if is_update else 'insert'}"
         )
@@ -255,7 +255,7 @@ class EnergyService:
 
         session.refresh(carbon_record)
         
-        logger.info(
+        logger.debug(
             f"计算碳排放: 设备={device_id}, 排放={carbon_emission_value:.2f} kg CO2"
         )
         

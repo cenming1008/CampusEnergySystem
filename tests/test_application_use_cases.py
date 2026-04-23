@@ -17,11 +17,6 @@ from app.application.energy_management import (
     get_energy_statistics_use_case,
     save_energy_data_use_case,
 )
-from app.application.forecasting import (
-    evaluate_prediction_accuracy_use_case,
-    forecast_load_use_case,
-    train_lstm_model_use_case,
-)
 from app.application.reporting import list_energy_report_rows_use_case
 from app.application.reporting import build_report_csv_export_use_case
 from app.application.telemetry_ingestion import ingest_telemetry_use_case
@@ -412,58 +407,6 @@ class TestApplicationUseCases(unittest.TestCase):
 
         self.assertEqual(result["total_carbon"], 1.23)
         mock_get_carbon_summary.assert_called_once()
-
-    @patch("app.application.forecasting.get_forecast_adapter")
-    def test_forecast_load_use_case_delegates_to_adapter(self, mock_get_forecast_adapter):
-        session = MagicMock()
-        adapter = MagicMock()
-        adapter.forecast_load.return_value = [{"forecast_time": "t1", "predicted_value": 4.2}]
-        mock_get_forecast_adapter.return_value = adapter
-
-        result = forecast_load_use_case(
-            session=session,
-            device_id=1,
-            hours=24,
-            algorithm="moving_average",
-        )
-
-        self.assertEqual(result["count"], 1)
-        adapter.forecast_load.assert_called_once()
-
-    @patch("app.application.forecasting.get_forecast_adapter")
-    def test_evaluate_prediction_accuracy_use_case_delegates_to_adapter(self, mock_get_forecast_adapter):
-        session = MagicMock()
-        adapter = MagicMock()
-        adapter.evaluate_prediction_accuracy.return_value = {"mae": 1.0, "count": 3}
-        mock_get_forecast_adapter.return_value = adapter
-
-        result = evaluate_prediction_accuracy_use_case(
-            session=session,
-            prediction_type="load",
-            device_id=1,
-            days=7,
-        )
-
-        self.assertEqual(result["mae"], 1.0)
-        adapter.evaluate_prediction_accuracy.assert_called_once()
-
-    @patch("app.application.forecasting.get_forecast_adapter")
-    def test_train_lstm_model_use_case_generates_version_when_missing(self, mock_get_forecast_adapter):
-        session = MagicMock()
-        adapter = MagicMock()
-        adapter.train_lstm_model.return_value = {"status": "success"}
-        mock_get_forecast_adapter.return_value = adapter
-
-        result = train_lstm_model_use_case(
-            session=session,
-            prediction_type="load",
-            device_id=1,
-            days=60,
-        )
-
-        self.assertEqual(result["status"], "success")
-        self.assertTrue(adapter.train_lstm_model.call_args.kwargs["version"].startswith("v"))
-
 
 if __name__ == "__main__":
     unittest.main()

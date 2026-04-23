@@ -64,4 +64,38 @@ describe('useControlConsoleData', () => {
     expect(state!.isCapacitorBankController.value).toBe(false)
     scope.stop()
   })
+
+  it('degrades gracefully when control profile request fails', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValue({
+      archive: {
+        id: 2,
+        name: '测试补偿柜',
+        device_type: 'capacitor_bank_controller',
+        device_subtype: 'capacitor_bank_controller',
+      },
+      runtime_status: {
+        device_id: 2,
+        is_online: true,
+      },
+    })
+    getCompensationCapBankControlProfileMock.mockRejectedValue(new Error('参数档案接口异常'))
+    getDeviceMonitorControlLogsMock.mockResolvedValue({ items: [] })
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => 2),
+      enableLifecycle: false,
+    }))
+
+    expect(state).toBeTruthy()
+    await state!.loadPage()
+
+    expect(state!.loadError.value).toBe('')
+    expect(state!.profileWarning.value).toBe('参数档案接口异常')
+    expect(state!.isCapacitorBankController.value).toBe(true)
+    expect(state!.controlProfile.value?.capabilities.supports_remote_control).toBe(true)
+    expect(state!.controlProfile.value?.capabilities.supports_write).toBe(false)
+    expect(state!.controlProfile.value?.source_status).toBe('unknown')
+    scope.stop()
+  })
 })

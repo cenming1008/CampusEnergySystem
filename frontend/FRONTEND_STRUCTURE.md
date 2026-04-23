@@ -54,7 +54,6 @@ frontend/
 | **deviceGroup.ts** | 设备分组：分组 CRUD、分组下设备 |
 | **energy.ts** | 多能源：能耗统计、趋势、碳排放等 |
 | **fdd.ts** | 故障诊断（FDD）：故障记录、统计 |
-| **forecast.ts** | 负荷/能源预测：预测任务、结果查询 |
 | **inspection.ts** | 巡检运维：巡检任务、记录、统计 |
 | **location.ts** | 位置管理：位置树、CRUD、设备关联 |
 | **maintenance.ts** | 设备维护：维护计划、任务、记录 |
@@ -127,7 +126,6 @@ frontend/
 | **LocationManager.vue** | /locations | 位置管理 |
 | **DeviceGroups.vue** | /groups | 设备分组 |
 | **EnergyManagement.vue** | /energy | 多能源管理 |
-| **Forecast.vue** | /forecast | 负荷预测 |
 | **FDD.vue** | /fdd | 故障诊断 |
 | **Maintenance.vue** | /maintenance | 设备维护 |
 | **Inspection.vue** | /inspection | 巡检运维 |
@@ -153,7 +151,6 @@ frontend/
 | 位置管理 | LocationManager.vue | location |
 | 设备分组 | DeviceGroups.vue | deviceGroup、device |
 | 多能源管理 | EnergyManagement.vue | energy |
-| 负荷预测 | Forecast.vue | forecast、device |
 | 故障诊断 | FDD.vue | fdd |
 | 设备维护 | Maintenance.vue | maintenance |
 | 巡检运维 | Inspection.vue | inspection |

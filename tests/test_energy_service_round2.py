@@ -62,7 +62,9 @@ class EnergyServiceRound2Test(unittest.TestCase):
             carbon_factor=0.0,
         )
 
-        with patch("app.services.energy_service.EnergyRepository.get_carbon_record", return_value=record):
+        with patch("app.services.energy_service.EnergyRepository.get_carbon_record", return_value=record), patch(
+            "app.services.energy_service.logger"
+        ) as mock_logger:
             result = EnergyService.calculate_carbon_emission(
                 session=session,
                 device_id=1,
@@ -77,6 +79,8 @@ class EnergyServiceRound2Test(unittest.TestCase):
         session.commit.assert_not_called()
         session.refresh.assert_called_once_with(record)
         self.assertGreater(record.carbon_emission, 0)
+        mock_logger.debug.assert_called_once()
+        mock_logger.info.assert_not_called()
 
     def test_get_statistics_by_type_returns_zero_payload_when_empty(self):
         with patch("app.services.energy_service.EnergyRepository.list_energy_statistics_rows", return_value=[]):

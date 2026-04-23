@@ -7,10 +7,7 @@ export function buildControlModeRemoteCommand(
   const switchingToAuto = normalized.includes('手动')
 
   return {
-    action: 'manual_switch',
-    manual_mode: switchingToAuto ? 'auto' : 'manual',
-    phase: 'COMMON',
-    switch_action: 'none',
+    action: 'switch_control_mode',
     reason: `控制台控制模式切换 -> ${switchingToAuto ? '自动模式' : '手动模式'}`,
   }
 }

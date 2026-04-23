@@ -28,6 +28,9 @@
 - [x] 已修复 Windows 补偿器模拟链路首条设备自动注册误判：`CAP-001` 不再因 `power -> flow_rate` 兼容映射被识别为 `water_meter`
 - [x] 已在正式 PLAN 中补充补偿类接口冻结口径与“正式完善”门槛
 - [x] 已补充 `2026-04-16` Daily 状态/交接快照，主区与 Daily 归档口径已对齐
+- [x] 已修复 `DeviceControlConsole` 前端单测桩件与当前控制台组件接口漂移：控制台视图测试不再误向远程控制面板注入 `logView`
+- [x] 已完成 `P1` 第一轮关键监控指标真实化压缩：电容补偿控制器的控制模式、回路投入数、容量利用率已优先消费参数快照回读，不再在“无遥测但有快照”时退回 `configured_fallback / estimated`
+- [x] 已继续完成 `P1` 温度健康度收口：电容补偿控制器监控页新增 `temperature_health` 语义，优先基于实时温度、温度告警位和参数上限回读输出“正常 / 接近上限 / 超过上限 / 温度告警 / 待判断”
 
 ---
 
@@ -67,6 +70,16 @@
 - `./venv/bin/python -m pytest tests/test_device_monitor_service.py tests/test_capacitor_bank_service.py tests/test_compensation_device_nested_api.py tests/test_send_capacitor_bank_telemetry.py -q` 已通过（`34 passed`）。
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- capacitorBankControlProfile` 已通过（`3 passed`）。
 - `./venv/bin/python -m pytest tests/test_ingestion_reliability.py tests/test_capacitor_bank_ingestion.py tests/test_mqtt_processor.py -q` 已通过（`34 passed`）。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- src/views/__tests__/DeviceControlConsole.test.ts` 已通过（`1 passed`），控制台页面测试桩件已与当前组件分层同步。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- src/views/__tests__/DeviceMonitor.test.ts src/features/device-control/__tests__/useControlConsoleData.test.ts` 已通过（`4 passed`）。
+- `./venv/bin/python -m pytest tests/test_compensation_device_contract.py tests/test_compensation_monitor_service_boundary.py tests/test_capacitor_bank_service.py -q` 已通过（`16 passed`）。
+- `./venv/bin/python -m pytest tests/test_database_core.py tests/test_device_monitor_service.py -q` 已通过（`21 passed`），已覆盖 `CapacitorBankControlProfile` 新增字段、schema 断言与监控页 profile 回退链路。
+- `./venv/bin/python -m pytest tests/test_compensation_device_contract.py tests/test_compensation_monitor_service_boundary.py tests/test_capacitor_bank_service.py tests/test_device_monitor_service.py tests/test_database_core.py -q` 已通过（`37 passed`）。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- src/features/device-monitor/components/compensation/__tests__/viewMapping.test.ts` 已通过（`18 passed`），监控页来源文案已补齐 `profile` 来源。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- DeviceMonitor DeviceControlConsole capacitorBankControlProfile src/features/device-monitor/components/compensation/__tests__/viewMapping.test.ts` 已通过（`25 passed`）。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 已通过。
+- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py tests/test_database_core.py tests/test_capacitor_bank_service.py -q` 已通过（`36 passed`），已覆盖温度健康度的阈值判定与告警位优先级。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- DeviceMonitor src/features/device-monitor/components/compensation/__tests__/viewMapping.test.ts` 已通过（`21 passed`）。
 - 电容补偿控制器控制台已完成以下最小闭环：
   - MQTT 参数快照可更新 `capacitor_bank_control_profile`
   - `GET /devices/{id}/compensation/capacitor-bank/control-profile` 可返回真实参数值、`source`、`snapshot_timestamp`、`source_status`
@@ -111,8 +124,18 @@
 - 若验收标准是“是否已经达到真实设备正式完善、所有关键字段均为真实采集、所有高风险控制均已开放且协议冻结”，当前不可判定为通过。
 - 当前主区正式口径统一为：补偿器1已达到 `MVP+` 阶段完成，适合按“通过当前轮次、保留真实联调后续动作”的方式执行收口判断；在真实设备 / 网关联调完成前，不认定为正式完善。
 
+## 正式交付缺口清单
+- `P0 / 设备联调`：完成真实设备或真实网关控制回执联调，确认正式 `topic`、`payload`、`command_id` 关联键是否继续复用当前口径。
+- `P0 / 验收`：至少完成一轮真实设备侧参数写入与远程控制闭环验证，确认日志最终态、失败态、拒绝态、超时态都能稳定落库。
+- `P1 / 后端`：将当前仍为 `placeholder / estimated / configured_fallback / mock` 的关键监控指标继续压缩到只剩明确允许的演示字段，重点是控制模式、容量利用率、柜内温度健康度。
+- `P1 / 后端` 当前进度：控制模式、回路投入数、容量利用率、温度健康度已完成收口；剩余重点已从“字段来源真实化”转向“真实设备协议闭环”和“高风险动作边界”。
+- `P1 / 前端`：在真实字段补齐后，继续收敛监控页来源标识与展示权重，避免估算值与真实值在视觉上同权。
+- `P1 / 规则`：明确高风险控制动作边界，决定“继续关闭并写入正式限制”还是“真实联调后正式开放”，不要长期停留在演示态。
+- `P2 / 前端测试`：继续把补偿控制台与监控页的视图测试保持为当前组件分层口径，避免后续再出现测试桩件滞后于页面结构的假红。
+- 推荐执行顺序：先做真实协议闭环，再做真实字段收口，最后再做高风险动作开放判断与最终验收。
+
 ## 当前剩余风险
-- 当前补偿器页中的“补偿级数 / 控制模式 / 柜内温度健康度”等部分仍含演示占位，后续如接真实字段需新开后端/联调轮次。
+- 当前补偿器页的控制模式、回路投入数、容量利用率、温度健康度已优先切到真实遥测或参数快照回读；但这仍不等于真实设备/网关控制协议已经冻结。
 - 若仓库外联调脚本、第三方调用或人工调试习惯仍访问旧 `/svg`、`/capacitor-bank`，现在会直接返回 404；这是预期的 breaking cleanup。
 - `tests/test_device_domain.py` 仍有 1 个既有断言未跟随当前 `public_fields` 口径更新：`timestamp` 已不在该测试期望中，需要后续单独收敛测试口径。
 - 电容补偿控制器专属历史趋势当前已接入，但图例较多；若后续联调认为信息密度过高，可单独再做交互收敛。

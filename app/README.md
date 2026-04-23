@@ -24,7 +24,6 @@ app/
 │       ├── fdd.py
 │       ├── reports.py
 │       ├── health.py          # 健康检查（公开）
-│       ├── data_generator.py
 │       ├── maintenance.py
 │       ├── locations.py
 │       ├── device_groups.py
@@ -32,7 +31,6 @@ app/
 │       ├── users.py
 │       ├── devices/           # 设备：管理、数据上报、接入健康
 │       ├── energy/            # 能源数据与碳相关
-│       ├── forecast/          # 预测与 LSTM
 │       └── data_cleanup/      # 数据清理
 │
 ├── core/                      # 基础设施
@@ -62,7 +60,8 @@ app/
 │   ├── energy_management.py
 │   ├── reporting.py
 │   ├── analysis.py
-│   └── forecasting.py
+│   ├── reporting.py
+│   └── telemetry_ingestion.py
 │
 ├── domain/                    # 领域模型与规则（与框架无关的纯逻辑）
 │   ├── device_payloads.py
@@ -77,8 +76,6 @@ app/
 ├── integrations/              # 外部系统适配
 │   ├── mqtt/
 │   │   └── processor.py     # MQTT 解析、校验、别名、落库与广播消息构造（主实现）
-│   └── forecasting/
-│       └── adapter.py        # 预测相关适配（与 forecast 服务配合）
 │
 ├── services/                  # 业务服务（可被 application / 集成层调用）
 │   ├── device_service.py
@@ -90,7 +87,6 @@ app/
 │   ├── location_service.py
 │   ├── maintenance_service.py
 │   ├── inspection_service.py
-│   ├── forecast_adapter.py
 │   ├── data_cleanup_service.py
 │   ├── ingestion_health_service.py
 │   ├── mqtt_worker.py        # paho 订阅线程，收到消息后调用 integrations.mqtt.process_payload
@@ -100,7 +96,7 @@ app/
 │   ├── mqtt_processor.py     # 兼容旧导入路径，内部转发到 integrations.mqtt.processor
 │   ├── scheduler_service.py  # APScheduler 启停
 │   ├── scheduler_registry.py # 默认任务定义与注册（读 settings）
-│   └── scheduler_jobs.py     # 定时任务实际函数（清理、预测、LSTM 等）
+│   └── scheduler_jobs.py     # 定时任务实际函数（数据清理等）
 │
 └── models/
     └── tables.py              # SQLModel 表定义
@@ -135,7 +131,6 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 | `analysis.py` | 单设备数据分析（今日能耗/费用等）。 |
 | `fdd.py` | 全系统故障诊断统计与单设备诊断。 |
 | `reports.py` | 设备能源历史数据 CSV 导出。 |
-| `data_generator.py` | 模拟负荷/光伏/风电数据生成（经预测适配器）。 |
 | `maintenance.py` | 设备维护计划与维护记录 CRUD。 |
 | `locations.py` | 位置层级、设备挂载与位置统计。 |
 | `device_groups.py` | 设备分组及组成员管理。 |
@@ -159,16 +154,6 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 | `data.py` | 通用能源数据写入、查询、统计（走能源管理用例）。 |
 | `carbon.py` | 碳排放查询、汇总及手动试算（领域规则）。 |
 | `shared.py` | 能源与碳相关请求/响应模型及字段提取工具。 |
-
-### `api/endpoints/forecast/`
-
-| 文件 | 说明 |
-|------|------|
-| `__init__.py` | 聚合 `basic`、`lstm`、`admin` 路由；导出预测/LSTM 可用性等。 |
-| `basic.py` | 负荷与可再生预测、预测历史、最新结果与准确度评估。 |
-| `lstm.py` | LSTM 训练、评估、版本列表/切换、超参搜索等。 |
-| `admin.py` | 查询当前进程内 APScheduler 已注册任务列表。 |
-| `shared.py` | 预测类型校验、结果序列化、适配器获取与可选依赖探测。 |
 
 ### `api/endpoints/data_cleanup/`
 
@@ -267,7 +252,7 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 
 - **domain/**：与存储、HTTP 无关的规则与数据结构
 - **repositories/**：按表或聚合封装查询与写入，供 Service 或 application 使用
-- **integrations/**：MQTT、预测等外部边界，便于单测与替换实现
+- **integrations/**：MQTT 等外部边界，便于单测与替换实现
 
 ---
 

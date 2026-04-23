@@ -63,6 +63,11 @@ const capacityUsagePct = computed(() => {
   const n = Number(found.value)
   return Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n))
 })
+
+const capacityUsageLabel = computed(() => {
+  const found = props.metrics.find(m => m.key === 'capacityUsage')
+  return found?.label || '容量利用率'
+})
 </script>
 
 <template>
@@ -122,7 +127,7 @@ const capacityUsagePct = computed(() => {
           <small>{{ coreMetric.unit }}</small>
         </div>
         <div class="bento-hero__bar-row">
-          <span class="bento-hero__bar-label">补偿容量</span>
+          <span class="bento-hero__bar-label">{{ capacityUsageLabel }}</span>
           <div class="bento-hero__bar-track">
             <div
               class="bento-hero__bar-fill"

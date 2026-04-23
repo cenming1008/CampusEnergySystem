@@ -322,18 +322,6 @@ class Settings(BaseSettings):
         description="报表导出接口限流窗口（秒）"
     )
 
-    forecast_training_rate_limit_count: int = Field(
-        default=5,
-        env="FORECAST_TRAINING_RATE_LIMIT_COUNT",
-        description="模型训练接口窗口内最大请求数"
-    )
-
-    forecast_training_rate_limit_window_seconds: int = Field(
-        default=600,
-        env="FORECAST_TRAINING_RATE_LIMIT_WINDOW_SECONDS",
-        description="模型训练接口限流窗口（秒）"
-    )
-
     rate_limit_backend: str = Field(
         default="auto",
         env="RATE_LIMIT_BACKEND",
@@ -678,53 +666,6 @@ class Settings(BaseSettings):
         default=5,
         env="FDD_FREQUENT_START_COUNT",
         description="频繁启动次数阈值"
-    )
-
-    # ==================== 预测配置 ====================
-    forecast_horizon_hours: int = Field(
-        default=24,
-        env="FORECAST_HORIZON_HOURS",
-        description="预测时间范围（小时），默认24小时"
-    )
-    forecast_interval_minutes: int = Field(
-        default=60,
-        env="FORECAST_INTERVAL_MINUTES",
-        description="预测时间间隔（分钟），默认60分钟"
-    )
-    forecast_history_days: int = Field(
-        default=30,
-        env="FORECAST_HISTORY_DAYS",
-        description="用于预测的历史数据天数，默认30天"
-    )
-    forecast_algorithm: str = Field(
-        default="moving_average",
-        env="FORECAST_ALGORITHM",
-        description="默认预测算法：moving_average, linear_regression, arima"
-    )
-    forecast_auto_update: bool = Field(
-        default=True,
-        env="FORECAST_AUTO_UPDATE",
-        description="是否自动更新预测（定时任务）"
-    )
-    forecast_lstm_enabled: bool = Field(
-        default=True,
-        env="FORECAST_LSTM_ENABLED",
-        description="是否启用LSTM预测（需要安装TensorFlow）"
-    )
-    forecast_lstm_sequence_length: int = Field(
-        default=24,
-        env="FORECAST_LSTM_SEQUENCE_LENGTH",
-        description="LSTM输入序列长度（小时）"
-    )
-    forecast_lstm_units: str = Field(
-        default="64,32",
-        env="FORECAST_LSTM_UNITS",
-        description="LSTM层单元数（逗号分隔，如：64,32）"
-    )
-    forecast_lstm_epochs: int = Field(
-        default=50,
-        env="FORECAST_LSTM_EPOCHS",
-        description="LSTM训练轮数"
     )
 
     # ==================== 日志配置 ====================

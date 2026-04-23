@@ -72,6 +72,15 @@ describe('compensation view mapping', () => {
       .toBe('当前无回路回读，按配置总回路展示')
   })
 
+  it('renders profile source text for capacitor bank semantic fields', () => {
+    expect(describeCompensationSource('circuit_summary', 'profile', 'capacitor_bank_controller'))
+      .toBe('参数快照回读')
+    expect(describeCompensationSource('capacity_utilization', 'profile', 'capacitor_bank_controller'))
+      .toBe('按参数快照回读换算')
+    expect(describeCompensationSource('control_mode', 'profile', 'capacitor_bank_controller'))
+      .toBe('参数回读')
+  })
+
   it('falls back to svg telemetry control mode only when backend semantics are absent', () => {
     const view = buildCompensationSemanticView({
       subtype: 'svg',
@@ -87,6 +96,7 @@ describe('compensation view mapping', () => {
 
   it('builds stable base status items for capacitor bank pages', () => {
     const items = buildCompensationBaseStatusItems({
+      isSvgDevice: false,
       subtypeLabel: '电容补偿控制器',
       deviceStatus: '运行中',
       isActive: true,
@@ -108,6 +118,9 @@ describe('compensation view mapping', () => {
       totalModuleCount: 24,
     })
 
+    expect(items.some((item) => item.label === '平台启用状态' && item.value === '已启用')).toBe(true)
+    expect(items.some((item) => item.label === '内部运行状态' && item.value === '运行中')).toBe(true)
+    expect(items.some((item) => item.label === '回路投入率来源' && item.value === '按投切回路回读换算')).toBe(true)
     expect(items.some((item) => item.label === '参数快照' && item.value === '最新参数')).toBe(true)
     expect(items.some((item) => item.label === '回路状态' && item.value === '6 / 24 回路投入')).toBe(true)
   })
@@ -133,6 +146,7 @@ describe('compensation view mapping', () => {
 
   it('builds overview metrics with formatted capacity usage and temperature tone', () => {
     const overview = buildCompensationOverviewMetrics({
+      isSvgDevice: false,
       reactivePowerValue: '-28.0',
       reactivePowerHint: '实时采集值',
       reactivePowerMissing: false,
@@ -154,10 +168,15 @@ describe('compensation view mapping', () => {
       cabinetTemperatureValue: '41.2',
       cabinetTemperature: 41.2,
       cabinetTemperatureSource: '实时采集',
+      cabinetTemperatureHealthText: '温度告警',
+      cabinetTemperatureHealthHint: '实时温度告警位',
+      cabinetTemperatureHealthTone: 'danger',
     })
 
     expect(overview.metrics.find((item) => item.key === 'capacityUsage')?.value).toBe('25.0')
-    expect(overview.metrics.find((item) => item.key === 'cabinetTemperature')?.tone).toBe('warning')
+    expect(overview.metrics.find((item) => item.key === 'capacityUsage')?.label).toBe('回路投入率')
+    expect(overview.metrics.find((item) => item.key === 'cabinetTemperature')?.tone).toBe('danger')
+    expect(overview.metrics.find((item) => item.key === 'cabinetTemperature')?.hint).toContain('温度告警')
   })
 
   it('builds capacitor bank module status view from circuit summary', () => {
@@ -208,7 +227,7 @@ describe('compensation view mapping', () => {
       isSvgDevice: false,
     })
 
-    expect(hint).toContain('补偿容量利用率当前来源：按额定容量估算。')
+    expect(hint).toContain('容量利用率来源：按额定容量估算。')
     expect(hint).toContain('控制模式当前来源：参数回读。')
     expect(hint).toContain('柜内温度当前缺测')
     expect(hint).toContain('JKWF-LCD 专属快照与历史曲线')

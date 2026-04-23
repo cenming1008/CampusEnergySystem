@@ -15,9 +15,27 @@ branch_labels = None
 depends_on = None
 
 
+def _has_column(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if table_name not in inspector.get_table_names():
+        return False
+    return column_name in {column["name"] for column in inspector.get_columns(table_name)}
+
+
+def _has_index(table_name: str, index_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if table_name not in inspector.get_table_names():
+        return False
+    return index_name in {index["name"] for index in inspector.get_indexes(table_name)}
+
+
 def upgrade() -> None:
-    op.add_column("device", sa.Column("device_subtype", sa.String(length=64), nullable=True))
-    op.create_index("ix_device_device_subtype", "device", ["device_subtype"], unique=False)
+    if not _has_column("device", "device_subtype"):
+        op.add_column("device", sa.Column("device_subtype", sa.String(length=64), nullable=True))
+    if not _has_index("device", "ix_device_device_subtype"):
+        op.create_index("ix_device_device_subtype", "device", ["device_subtype"], unique=False)
 
     op.execute(
         sa.text(
@@ -107,5 +125,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_device_device_subtype", table_name="device")
-    op.drop_column("device", "device_subtype")
+    if _has_index("device", "ix_device_device_subtype"):
+        op.drop_index("ix_device_device_subtype", table_name="device")
+    if _has_column("device", "device_subtype"):
+        op.drop_column("device", "device_subtype")

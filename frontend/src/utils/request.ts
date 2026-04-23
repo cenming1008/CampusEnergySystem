@@ -16,7 +16,6 @@ interface SilentAxiosConfig extends InternalAxiosRequestConfig {
 
 const TIMEOUT_DEFAULT = 15_000
 const TIMEOUT_LONG = 60_000   // reports export, batch operations
-const TIMEOUT_TRAINING = 300_000 // LSTM training, hyperparameter search
 
 const service = axios.create({
   baseURL: '',
@@ -24,7 +23,7 @@ const service = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-export { TIMEOUT_LONG, TIMEOUT_TRAINING }
+export { TIMEOUT_LONG }
 
 let refreshPromise: Promise<string | null> | null = null
 

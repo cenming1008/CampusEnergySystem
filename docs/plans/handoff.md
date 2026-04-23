@@ -87,6 +87,39 @@
 - 当前 Daily 归档已补齐：
   - `2026-04-16-status.md`
   - `2026-04-16-handoff.md`
+- `2026-04-23` 已补做一轮文档同步与前端测试收敛：
+  - 已修复 `frontend/src/views/__tests__/DeviceControlConsole.test.ts` 的测试桩件接口漂移
+  - 根因是控制台页面已经拆分为“远程控制面板”和“日志面板”两个独立子组件，但旧测试桩件仍把 `logView` 当作远程控制面板必需 props
+  - 当前控制台页面目标单测已重新通过，可继续作为补偿控制台视图层回归基线
+  - 已补跑补偿相关前后端回归：
+    - `DeviceMonitor.test.ts`、`useControlConsoleData.test.ts` 通过
+    - `test_compensation_device_contract.py`、`test_compensation_monitor_service_boundary.py`、`test_capacitor_bank_service.py` 通过
+- `2026-04-23` 已继续完成 `P1` 第一轮字段真实化收口：
+  - 根因已确认：MQTT 其实已能提取 `running_circuit_count / control_mode / auto_*` 等参数快照字段，但 `CapacitorBankControlProfile` 模型未定义这些列，导致快照写入时被 `hasattr` 过滤掉，监控页只能继续退回 `configured_fallback / estimated`
+  - 当前已补齐 `CapacitorBankControlProfile` 模型、runtime schema sync、必需列断言与控制档案响应 schema
+  - 监控页电容补偿控制器语义已改为：优先 `telemetry`，次选 `profile`，最后才退回 `configured_fallback / placeholder`
+  - 已实际压缩的字段：
+    - `control_mode`
+    - `circuit_summary.running_count`
+    - `capacity_utilization`
+  - 前端来源文案已补齐 `profile` 显示：`参数回读 / 参数快照回读 / 按参数快照回读换算`
+  - 当前新鲜验证已通过：
+    - `tests/test_database_core.py` + `tests/test_device_monitor_service.py`：`21 passed`
+    - 补偿后端回归：`37 passed`
+    - 补偿前端回归：`25 passed`
+    - `npm run typecheck`：通过
+- `2026-04-23` 已继续完成 `P1` 温度健康度收口：
+  - 当前后端已新增 `temperature_health` 语义，不再只返回原始柜内温度值
+  - 语义优先级为：
+    - `temp_alarm=True` -> `温度告警`
+    - 有 `temperature_upper_limit` + 实时温度 -> `正常 / 接近上限 / 超过上限`
+    - 无足够真实依据 -> `待判断`
+  - 前端概览卡片已消费该语义，柜内温度的 hint / tone 不再只靠固定温度阈值猜测
+  - 当前新鲜验证已通过：
+    - `tests/test_device_monitor_service.py`：`16 passed`
+    - `tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py tests/test_database_core.py tests/test_capacitor_bank_service.py`：`36 passed`
+    - `DeviceMonitor + compensation viewMapping`：`21 passed`
+    - `npm run typecheck`：通过
 
 ## 下一棒
 - 下一棒交给验收/设备联调角色：
@@ -100,3 +133,8 @@
     - 方案 A：Windows payload 显式补 `device_type/device_subtype`
     - 方案 B：补偿器模拟协议增加更稳定的专属特征字段
     - 当前这轮只修到“避免误判成水表 + 修正现有 `CAP-001`”
+  - 建议按以下顺序推进正式交付缺口：
+    - 第一步：真实设备/网关回执闭环
+    - 第二步：继续完成关键监控指标真实化，当前已收口 `control_mode / circuit_summary / capacity_utilization / temperature_health`
+    - 第三步：高风险控制动作边界定版
+    - 第四步：最终验收决定是否正式收口

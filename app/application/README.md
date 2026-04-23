@@ -48,7 +48,6 @@ app/application/
 ├── analysis.py
 ├── device_reporting.py
 ├── energy_management.py
-├── forecasting.py
 ├── reporting.py
 └── telemetry_ingestion.py
 ```
@@ -62,7 +61,6 @@ app/application/
 | `reporting.py` | 报表查询与 CSV 导出 payload 组装 | `api/endpoints/reports.py` |
 | `energy_management.py` | 通用能源统计、碳排放汇总等 use case | `api/endpoints/energy/*` |
 | `telemetry_ingestion.py` | 遥测接入内部工作流：接收、落库、告警、健康状态更新、广播数据准备 | MQTT / 接入链路 |
-| `forecasting.py` | 预测与 LSTM 相关 use case | `api/endpoints/forecast/*` |
 | `__init__.py` | 统一导出 application 对外 use case 入口 | 其他模块 import |
 
 ---
@@ -192,24 +190,6 @@ app/application/
 - 广播 payload 构造
 
 这类内部工作流是 `application` 层非常典型的承载对象。
-
----
-
-### 3.6 `forecasting.py`
-
-面向预测主线，提供以下入口：
-
-- 负荷预测
-- 预测准确率评估
-- LSTM 训练
-- LSTM 评估
-- 最新预测记录读取
-
-当前特点：
-
-- 通过 `integrations/forecasting/adapter.py` 对接预测实现
-- application 负责收口统一输入、默认参数与输出组织
-- 这类“对外暴露稳定 use case、对内依赖适配器”的结构适合继续保持
 
 ---
 
@@ -384,7 +364,6 @@ MQTT 消息
 仍需注意：
 
 - `energy_management.py` 整体还偏轻量，后续如出现更复杂园区聚合流程，可继续增强
-- `forecasting.py` 主要承担适配器入口与参数组织，复杂训练编排仍需继续观察是否应进一步收口
 - `telemetry_ingestion.py` 属于内部主流程，后续如果接入链路继续扩展，应继续保持它作为统一工作流入口
 - `three` 等前端主线页面如果需要稳定聚合口径，后端应优先新增稳定 use case / 聚合接口，而不是把逻辑继续堆回 endpoint
 

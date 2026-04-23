@@ -174,7 +174,9 @@ class TestEnergyServiceReliability(unittest.TestCase):
         session.get.return_value = device
         session.exec.return_value = query_result
 
-        with patch.object(EnergyService, "calculate_carbon_emission") as mock_carbon:
+        with patch.object(EnergyService, "calculate_carbon_emission") as mock_carbon, patch(
+            "app.services.energy_service.logger"
+        ) as mock_logger:
             result = EnergyService.save_energy_data(
                 session=session,
                 device_id=1,
@@ -192,6 +194,8 @@ class TestEnergyServiceReliability(unittest.TestCase):
         session.add.assert_not_called()
         session.commit.assert_called_once()
         mock_carbon.assert_called_once()
+        mock_logger.debug.assert_called_once()
+        mock_logger.info.assert_not_called()
 
 
 if __name__ == "__main__":

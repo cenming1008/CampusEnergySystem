@@ -17,7 +17,5 @@ export function usePermissions() {
     canOperateMaintenance: computed(() => ['admin', 'maintainer', 'operator'].includes(currentRole.value)),
     canManageInspection: computed(() => ['admin', 'maintainer'].includes(currentRole.value)),
     canOperateInspection: computed(() => ['admin', 'maintainer', 'operator'].includes(currentRole.value)),
-    canManageForecast: computed(() => currentRole.value === 'admin'),
-    canTrainModels: computed(() => currentRole.value === 'admin'),
   }
 }

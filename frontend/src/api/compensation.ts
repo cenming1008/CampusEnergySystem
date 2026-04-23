@@ -192,6 +192,19 @@ export interface CompensationCapacitorBankControlProfile {
   common_1_capacity_steps_kvar?: number[]
   common_2_capacity_steps_kvar?: number[]
   common_3_capacity_steps_kvar?: number[]
+  phase_a_circuit_running_count?: number | null
+  phase_b_circuit_running_count?: number | null
+  phase_c_circuit_running_count?: number | null
+  common_group_1_running_count?: number | null
+  common_group_2_running_count?: number | null
+  common_group_3_running_count?: number | null
+  split_circuit_running_count?: number | null
+  common_circuit_running_count?: number | null
+  running_circuit_count?: number | null
+  control_mode?: string | null
+  auto_on_elapsed_seconds?: number | null
+  auto_off_elapsed_seconds?: number | null
+  last_auto_action?: string | null
   common_capacity_code?: string | null
   split_capacity_code?: string | null
   common_step_capacity_kvar?: number | null

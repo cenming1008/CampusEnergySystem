@@ -8,16 +8,10 @@ from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.logger import logger
 from app.core.settings import settings
-from app.services.scheduler_jobs import (
-    LSTM_AVAILABLE,
-    auto_cleanup_data,
-    auto_train_lstm_models,
-    auto_update_forecasts,
-)
+from app.services.scheduler_jobs import auto_cleanup_data
 
 
 @dataclass(frozen=True)
@@ -32,28 +26,6 @@ class JobDefinition:
 def get_enabled_job_definitions() -> Iterable[JobDefinition]:
     """返回当前配置下启用的调度任务定义。"""
     jobs: list[JobDefinition] = []
-
-    if settings.forecast_auto_update and LSTM_AVAILABLE:
-        jobs.append(
-            JobDefinition(
-                id="auto_train_lstm",
-                name="自动训练LSTM模型",
-                trigger=CronTrigger(hour=2, minute=0),
-                func=auto_train_lstm_models,
-                log_message="已添加LSTM自动训练任务：每天凌晨2点执行",
-            )
-        )
-
-    if settings.forecast_auto_update:
-        jobs.append(
-            JobDefinition(
-                id="auto_update_forecasts",
-                name="自动更新预测",
-                trigger=IntervalTrigger(hours=1),
-                func=auto_update_forecasts,
-                log_message="已添加自动更新预测任务：每小时执行",
-            )
-        )
 
     if settings.enable_auto_cleanup:
         jobs.append(

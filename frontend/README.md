@@ -14,20 +14,24 @@ frontend/
 │   └── textures/           # HDR 等贴图
 │
 ├── src/
-│   ├── api/                # API 接口层（14 个模块）
+│   ├── api/                # API 接口层（17 个模块）
 │   │   ├── alarm.ts        # 告警
+│   │   ├── analysis.ts     # 园区运营分析
+│   │   ├── audit.ts        # 审计日志
 │   │   ├── auth.ts         # 认证
+│   │   ├── compensation.ts # 补偿类设备
 │   │   ├── dataCleanup.ts  # 数据清理（系统设置页用）
 │   │   ├── device.ts       # 设备
 │   │   ├── deviceGroup.ts  # 设备分组
+│   │   ├── deviceMonitor.ts # 设备监控
 │   │   ├── energy.ts       # 能源管理
 │   │   ├── fdd.ts          # 故障诊断
-│   │   ├── forecast.ts     # 预测
 │   │   ├── inspection.ts   # 巡检运维
 │   │   ├── location.ts     # 位置管理
 │   │   ├── maintenance.ts  # 维护管理
 │   │   ├── report.ts       # 报表
-│   │   └── telemetry.ts    # 遥测
+│   │   ├── telemetry.ts    # 遥测
+│   │   └── users.ts        # 用户管理
 │   │
 │   ├── assets/main.css     # 全局样式
 │   ├── layout/Layout.vue   # 主布局（侧栏、顶栏、告警、用户）
@@ -42,12 +46,13 @@ frontend/
 │   │   └── mine/           # 历史 3D 场景生成器（兼容目录）
 │   │
 │   ├── utils/request.ts    # Axios 封装与 Token 注入
-│   ├── views/              # 页面（13 个，与路由一一对应）
-│   │   ├── Login.vue, Dashboard.vue, CampusScene.vue
-│   │   ├── DeviceManager.vue, LocationManager.vue, DeviceGroups.vue
-│   │   ├── EnergyManagement.vue, Forecast.vue, FDD.vue
-│   │   ├── Maintenance.vue, Inspection.vue, Report.vue
-│   │   └── SystemSettings.vue
+│   ├── views/              # 页面（20 个，含异常页与管理页）
+│   │   ├── Login.vue, Dashboard.vue, AlarmCenter.vue
+│   │   ├── DeviceManager.vue, DeviceMonitor.vue, DeviceControlConsole.vue
+│   │   ├── LocationManager.vue, DeviceGroups.vue, EnergyManagement.vue
+│   │   ├── EnergyAnalysis.vue, FDD.vue, Maintenance.vue
+│   │   ├── Inspection.vue, Report.vue, SystemSettings.vue
+│   │   └── AuditCenter.vue, UserManagement.vue, AccountSecurity.vue, Forbidden.vue, NotFound.vue
 │   │
 │   ├── App.vue
 │   └── main.ts
@@ -128,8 +133,8 @@ npm run preview
 - 告警状态可视化
 - 光效特效（光墙、光雷达、飞线等）
 
-### 4. 预测分析
-- 能源消耗预测（LSTM）
+### 4. 能耗分析
+- 园区运营分析总览
 - 趋势分析图表
 - 历史数据对比
 

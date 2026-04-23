@@ -26,6 +26,7 @@ const {
   writeDialogVisible,
   controlProfile,
   loadError,
+  profileWarning,
   writeForm,
   manualSwitchForm,
   archive,
@@ -118,6 +119,13 @@ function goMonitor() {
       <div class="console-body">
         <!-- Left: main panels -->
         <div class="console-main">
+          <MonitorInlineAlert
+            v-if="profileWarning"
+            title="参数档案暂时不可用"
+            :message="profileWarning"
+            tone="warning"
+          />
+
           <!-- Section 1: 设备概览 -->
           <MonitorSectionPanel
             shell="console"

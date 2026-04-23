@@ -30,7 +30,7 @@ sys.path.insert(0, str(project_root))
 from app.core.database import engine
 from app.models.tables import (
     Device, EnergyData, CarbonEmission, EnergyStatistics,
-    Alarm, User, Prediction
+    Alarm, User
 )
 from app.services.device_service import DeviceService
 from app.core.security import get_password_hash
@@ -76,7 +76,6 @@ def create_all_tables():
     logger.info("  - EnergyStatistics (能源统计表)")
     logger.info("  - Alarm (报警表)")
     logger.info("  - User (用户表)")
-    logger.info("  - Prediction (预测表)")
 
 
 def create_default_user():

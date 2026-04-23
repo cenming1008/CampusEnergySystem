@@ -80,6 +80,7 @@ class DatabaseCoreTest(unittest.TestCase):
 
         self.assertIn("alarm.category", str(ctx.exception))
         self.assertIn("capacitor_bank_control_profile.snapshot_timestamp", str(ctx.exception))
+        self.assertIn("capacitor_bank_control_profile.running_circuit_count", str(ctx.exception))
         self.assertIn("capacitor_bank_telemetry.running_circuit_count", str(ctx.exception))
         self.assertIn("user.location_scope", str(ctx.exception))
 

@@ -47,7 +47,6 @@
 - `test_energy_domain.py`
 - `test_energy_endpoint_semantics.py`
 - `test_energy_service_round2.py`
-- `test_forecast_endpoint.py`
 
 ### MQTT 与采集
 - `test_capacitor_bank_ingestion.py`

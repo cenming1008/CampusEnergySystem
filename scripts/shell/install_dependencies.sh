@@ -48,8 +48,6 @@ echo "检查关键包："
 "$VENV_PYTHON" -c "import fastapi; print('✓ FastAPI 已安装')" 2>/dev/null || echo "✗ FastAPI 未安装"
 "$VENV_PYTHON" -c "import sqlmodel; print('✓ SQLModel 已安装')" 2>/dev/null || echo "✗ SQLModel 未安装"
 "$VENV_PYTHON" -c "import dotenv; print('✓ python-dotenv 已安装')" 2>/dev/null || echo "✗ python-dotenv 未安装"
-"$VENV_PYTHON" -c "import tensorflow; print('✓ TensorFlow 已安装')" 2>/dev/null || echo "✗ TensorFlow 未安装（可选）"
-"$VENV_PYTHON" -c "import sklearn; print('✓ scikit-learn 已安装')" 2>/dev/null || echo "✗ scikit-learn 未安装（可选）"
 
 echo ""
 echo "💡 提示：下次使用时，先运行: source venv/bin/activate"

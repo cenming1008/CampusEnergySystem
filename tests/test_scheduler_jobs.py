@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.services import scheduler_jobs
+from app.services import scheduler_jobs, scheduler_registry
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -27,20 +27,11 @@ class TestSchedulerJobs(unittest.TestCase):
 
         mock_logger.debug.assert_called_with("自动数据清理已禁用")
 
-    @patch("app.services.scheduler_jobs.logger")
-    def test_auto_update_forecasts_skips_when_forecast_unavailable(self, mock_logger):
-        with patch.object(scheduler_jobs, "FORECAST_AVAILABLE", False):
-            scheduler_jobs.auto_update_forecasts()
+    def test_scheduler_registry_only_registers_cleanup_job(self):
+        with patch.object(scheduler_registry.settings, "enable_auto_cleanup", True):
+            jobs = list(scheduler_registry.get_enabled_job_definitions())
 
-        mock_logger.warning.assert_called_with("预测模块不可用，跳过自动更新")
-
-    @patch("app.services.scheduler_jobs.logger")
-    def test_auto_train_lstm_skips_when_lstm_unavailable(self, mock_logger):
-        with patch.object(scheduler_jobs, "LSTM_AVAILABLE", False):
-            scheduler_jobs.auto_train_lstm_models()
-
-        mock_logger.warning.assert_called_with("LSTM服务不可用，跳过自动训练")
-
+        self.assertEqual([job.id for job in jobs], ["auto_cleanup_data"])
 
 if __name__ == "__main__":
     unittest.main()

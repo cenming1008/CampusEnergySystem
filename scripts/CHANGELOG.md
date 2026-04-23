@@ -98,10 +98,9 @@
 - `demo_location.py` - 位置管理演示
 - `demo_maintenance.py` - 维护管理演示
 
-**开发工具** (4个):
+**开发工具** (3个):
 - ⭐ `simulator_unified.py` - 统一设备模拟器（支持远程控制）
 - `device_gateway.py` - 设备网关采集器（真实设备 → MQTT）
-- `generate_training_data.py` - 生成训练数据
 - `stress_test.py` - 压力测试工具
 
 #### 1.2 文档内容
@@ -332,8 +331,7 @@ scripts/
 | 8 | `demo_maintenance.py` | 功能演示 | ⭐⭐ |
 | 9 | `simulator_unified.py` | 开发工具 | ⭐⭐⭐⭐⭐ |
 | 10 | `device_gateway.py` | 开发工具 | ⭐⭐⭐ |
-| 11 | `generate_training_data.py` | 开发工具 | ⭐⭐ |
-| 12 | `stress_test.py` | 开发工具 | ⭐⭐ |
+| 11 | `stress_test.py` | 开发工具 | ⭐⭐ |
 
 ### Shell 脚本 (19个)
 

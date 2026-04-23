@@ -71,14 +71,10 @@ const RemotePanelProbe = defineComponent({
       type: Array,
       required: true,
     },
-    logView: {
-      type: Object,
-      required: true,
-    },
   },
   template: `
     <div class="remote-panel-probe">
-      {{ actionCards[2]?.actionLabel }}|{{ logView.latestLogText }}
+      {{ actionCards[2]?.actionLabel }}
     </div>
   `,
 })
@@ -92,7 +88,7 @@ const LogPanelProbe = defineComponent({
   },
   template: `
     <div class="log-panel-probe">
-      {{ logView.entries[0]?.title }}|{{ logView.entries[0]?.statusText }}
+      {{ logView.entries[0]?.title }}|{{ logView.entries[0]?.statusText }}|{{ logView.latestLogText }}
     </div>
   `,
 })
@@ -311,8 +307,8 @@ describe('DeviceControlConsole view', () => {
     const text = wrapper.text()
     expect(text).toContain('设备名称')
     expect(wrapper.find('.remote-panel-probe').text()).toContain('切到手动')
-    expect(wrapper.find('.remote-panel-probe').text()).toContain('执行成功 · 2026-04-22 18:01:00')
     expect(wrapper.find('.log-panel-probe').text()).toContain('控制模式切换|执行成功')
+    expect(wrapper.find('.log-panel-probe').text()).toContain('执行成功 · 2026-04-22 18:01:00')
     expect(wrapper.find('.readonly-params-probe').text()).toContain('参数可能过期|投入功率因数')
     expect(wrapper.find('.writable-params-probe').text()).toContain('管理员，可发起受控写入|投入功率因数')
   })

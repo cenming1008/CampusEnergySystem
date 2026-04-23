@@ -81,6 +81,7 @@ export function useCapacitorBankControlConsole(input: {
     writeDialogVisible: actions.writeDialogVisible,
     controlProfile: data.controlProfile,
     loadError: data.loadError,
+    profileWarning: data.profileWarning,
     writeForm: actions.writeForm,
     manualSwitchForm: actions.manualSwitchForm,
     archive: data.archive,

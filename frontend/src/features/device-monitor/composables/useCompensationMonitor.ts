@@ -251,6 +251,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
   const compensationOverviewView = computed(() => {
     const temperature = fallbackCompensation.value.cabinetTemperature
     return buildCompensationOverviewMetrics({
+      isSvgDevice: isSvgDevice.value,
       reactivePowerValue: displayValueWithState(realtime.value?.reactive_power, '暂无数据'),
       reactivePowerHint: compensationReactiveHint.value,
       reactivePowerMissing: realtime.value?.reactive_power === null || realtime.value?.reactive_power === undefined,
@@ -272,6 +273,9 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
       cabinetTemperatureValue: displayValueWithState(temperature, '暂无数据'),
       cabinetTemperature: temperature,
       cabinetTemperatureSource: fallbackCompensation.value.cabinetTemperatureSource,
+      cabinetTemperatureHealthText: fallbackCompensation.value.cabinetTemperatureHealthText,
+      cabinetTemperatureHealthHint: fallbackCompensation.value.cabinetTemperatureHealthHint,
+      cabinetTemperatureHealthTone: fallbackCompensation.value.cabinetTemperatureHealthTone,
     })
   })
 

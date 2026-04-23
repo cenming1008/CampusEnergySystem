@@ -12,7 +12,6 @@ class TestLayerExports(unittest.TestCase):
         self.assertTrue(callable(application.get_device_data_use_case))
         self.assertTrue(callable(application.analyze_device_use_case))
         self.assertTrue(callable(application.ingest_telemetry_use_case))
-        self.assertTrue(callable(application.forecast_load_use_case))
 
     def test_domain_exports_key_rules(self):
         self.assertTrue(callable(domain.get_electricity_price))

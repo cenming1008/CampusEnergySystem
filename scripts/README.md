@@ -144,10 +144,11 @@
 - 过温 + 投切状态联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile overtemp --phase-a-groups 6 --phase-b-groups 5 --phase-c-groups 7 --common-1-groups 4`
 - 控制台联调：脚本运行时会默认监听 `campus/control/{device_code}`，响应 `start` / `stop` / `write_parameter`，并自动补发一条最新参数/遥测快照
 
-### 模拟与训练
+### 模拟、网关与压测
 
 - `simulator_unified.py`
-- `generate_training_data.py`
+- `device_gateway.py`
+- `stress_test.py`
 
 ## 与 bin 的关系
 

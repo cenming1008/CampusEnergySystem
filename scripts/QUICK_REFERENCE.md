@@ -152,8 +152,6 @@ python scripts/python/init_complete_system.py
 # 仅创建管理员
 python scripts/python/create_admin.py
 
-# 生成LSTM训练数据
-python scripts/python/generate_training_data.py
 ```
 
 ### 备份与恢复

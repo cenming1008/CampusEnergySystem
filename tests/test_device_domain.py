@@ -38,7 +38,7 @@ class TestDeviceDomainHelpers(unittest.TestCase):
     def test_describe_energy_data_fields_marks_public_and_specialized_fields(self):
         fields = describe_energy_data_fields("heat_meter")
 
-        self.assertEqual(fields["public_fields"], ["consumption", "flow_rate", "timestamp"])
+        self.assertEqual(fields["public_fields"], ["consumption", "flow_rate"])
         self.assertIn("heat_flow", fields["specialized_fields"])
 
     def test_normalize_device_report_payload_maps_power_to_flow_rate(self):

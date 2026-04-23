@@ -33,14 +33,12 @@ app/api/
     ├── analysis.py
     ├── fdd.py
     ├── reports.py
-    ├── data_generator.py
     ├── maintenance.py
     ├── locations.py
     ├── device_groups.py
     ├── inspection.py
     ├── devices/
     ├── energy/
-    ├── forecast/
     └── data_cleanup/
 ```
 
@@ -200,14 +198,10 @@ WebSocket 入口位于 [websocket.py](/Users/todo/MineEnergySystem/app/api/webso
 - `device_groups.py`：设备分组与成员维护
 - `data_cleanup/`：数据清理、统计、管理级清理能力
 
-### 7.5 分析与预测
+### 7.5 分析与诊断
 
 - `analysis.py`：分析类接口
 - `fdd.py`：故障诊断
-- `forecast/basic.py`：基础预测能力
-- `forecast/lstm.py`：LSTM 训练、评估、版本切换、搜索
-- `forecast/admin.py`：调度任务查看等管理能力
-- `data_generator.py`：训练 / 测试数据生成入口
 
 ## 8. 与 application / service 层的关系
 
@@ -216,7 +210,7 @@ WebSocket 入口位于 [websocket.py](/Users/todo/MineEnergySystem/app/api/webso
 - API 层：接收请求、做鉴权和参数校验
 - application 层：编排完整用例
 - service 层：封装领域服务和持久化协作
-- integrations 层：MQTT / forecasting 等外部边界
+- integrations 层：MQTT 等外部边界
 
 典型链路：
 

@@ -103,8 +103,6 @@ npm run dev
 | `tests/` | 后端测试与验证脚本。 |
 | `config/` | 运行配置，如告警阈值、设备网关或业务配置。 |
 | `migrations/` | Alembic 数据库迁移目录，管理正式 schema 变更。 |
-| `models/` | LSTM 训练产物目录，不是 ORM；用于保存模型、scaler 和版本文件。 |
-| `lstm_forecast/` | 预测能力实现，包括训练、推理和版本管理。 |
 | `monitoring/` | Prometheus、Grafana、Alertmanager、Loki、Promtail 等观测配置。 |
 | `mosquitto/` | MQTT Broker 配置与本地挂载目录，含配置、运行数据和日志。 |
 | `nginx/` | 反向代理与 HTTPS 模板配置。 |
@@ -147,7 +145,7 @@ npm run dev
 | `app/domain/` | 领域规则和纯业务逻辑。 |
 | `app/services/` | 业务服务层。 |
 | `app/repositories/` | 数据访问封装。 |
-| `app/integrations/` | MQTT、预测等外部集成适配。 |
+| `app/integrations/` | MQTT 等外部集成适配。 |
 | `app/core/` | 数据库、配置、安全、日志、运行状态、指标和生命周期。 |
 | `app/models/` | 后端 SQLModel 表结构定义。 |
 
@@ -170,13 +168,9 @@ alembic stamp 20260325_0001
 alembic upgrade head
 ```
 
-### `models/`
+### 已移除：预测与模型训练
 
-这是机器学习模型产物目录，不是数据库模型目录。
-
-- `models/lstm/`：训练后的 `.h5` / `.keras` 文件
-- `models/scalers/`：数据标准化器 `.pkl`
-- `models/versions/`：版本相关保留目录
+预测、模型训练与本地模型产物目录已从当前园区 EMS 主线中移除。
 
 数据库表模型请看 `app/models/`。
 

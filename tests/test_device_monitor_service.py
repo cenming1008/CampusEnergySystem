@@ -237,6 +237,8 @@ class TestDeviceMonitorService(unittest.TestCase):
                     device_id=device.id,
                     source="telemetry",
                     snapshot_timestamp=now,
+                    control_mode="manual",
+                    running_circuit_count=5,
                     terminal_assignment_scheme="手动模式",
                     common_output_circuit_count=16,
                     split_output_circuit_count=8,
@@ -262,8 +264,12 @@ class TestDeviceMonitorService(unittest.TestCase):
 
             self.assertEqual(compensation_monitor["control_mode"]["value"], "手动")
             self.assertEqual(compensation_monitor["control_mode"]["source"], "profile")
-            self.assertEqual(compensation_monitor["circuit_summary"]["source"], "configured_fallback")
-            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["source"], "estimated")
+            self.assertEqual(compensation_monitor["circuit_summary"]["running_count"], 5)
+            self.assertEqual(compensation_monitor["circuit_summary"]["source"], "profile")
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["value"], 20.8)
+            self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["source"], "profile")
+            self.assertEqual(compensation_monitor["key_metrics"]["temperature_health"]["value"], "待判断")
+            self.assertEqual(compensation_monitor["key_metrics"]["temperature_health"]["source"], "missing")
 
             session.exec(CapacitorBankControlProfile.__table__.delete())
             session.commit()
@@ -283,6 +289,63 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(compensation_monitor["control_mode"]["value"], "自动")
             self.assertEqual(compensation_monitor["control_mode"]["source"], "placeholder")
             self.assertEqual(compensation_monitor["control_mode"]["state"], "mock")
+
+    def test_monitor_overview_capacitor_bank_builds_temperature_health_from_threshold_and_alarm(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器温度健康度测试",
+                sn="CAP-TEMP-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=12.0,
+                flow_rate=21.0,
+                timestamp=now - timedelta(minutes=1),
+                temperature=54.0,
+            )
+            session.add(
+                CapacitorBankControlProfile(
+                    device_id=device.id,
+                    source="telemetry",
+                    snapshot_timestamp=now,
+                    temperature_upper_limit=55.0,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            health_metric = overview["compensation_monitor"]["key_metrics"]["temperature_health"]
+            self.assertEqual(health_metric["value"], "接近上限")
+            self.assertEqual(health_metric["source"], "profile")
+            self.assertEqual(health_metric["state"], "live")
+
+            session.add(
+                CapacitorBankTelemetry(
+                    device_id=device.id,
+                    timestamp=now,
+                    temperature=56.0,
+                    temp_alarm=True,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            health_metric = overview["compensation_monitor"]["key_metrics"]["temperature_health"]
+            self.assertEqual(health_metric["value"], "温度告警")
+            self.assertEqual(health_metric["source"], "telemetry")
+            self.assertEqual(health_metric["state"], "live")
 
     def test_monitor_overview_returns_svg_compensation_monitor_semantics(self):
         now = datetime.now()

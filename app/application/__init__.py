@@ -19,14 +19,6 @@ from app.application.energy_management import (
 )
 from app.application.inspection import create_inspection_task_use_case
 from app.application.inspection import get_inspection_statistics_use_case
-from app.application.forecasting import (
-    evaluate_lstm_model_use_case,
-    evaluate_prediction_accuracy_use_case,
-    forecast_load_use_case,
-    get_forecast_adapter,
-    list_latest_predictions_use_case,
-    train_lstm_model_use_case,
-)
 from app.application.maintenance import create_maintenance_record_use_case
 from app.application.maintenance import summarize_maintenance_statistics_use_case
 from app.application.telemetry_ingestion import (
@@ -52,25 +44,19 @@ __all__ = [
     "create_inspection_task_use_case",
     "create_maintenance_record_use_case",
     "create_user_use_case",
-    "evaluate_lstm_model_use_case",
-    "evaluate_prediction_accuracy_use_case",
-    "forecast_load_use_case",
     "get_device_data_use_case",
     "get_device_statistics_use_case",
     "get_inspection_statistics_use_case",
     "get_carbon_summary_use_case",
     "get_energy_statistics_use_case",
-    "get_forecast_adapter",
     "ingest_telemetry_use_case",
     "list_energy_report_rows_use_case",
     "list_alarm_report_rows_use_case",
     "list_carbon_report_rows_use_case",
     "list_carbon_emissions_use_case",
-    "list_latest_predictions_use_case",
     "revoke_user_sessions_use_case",
     "report_device_data_use_case",
     "save_energy_data_use_case",
     "summarize_maintenance_statistics_use_case",
     "toggle_device_status_use_case",
-    "train_lstm_model_use_case",
 ]

@@ -7,12 +7,14 @@ const {
   errorMock,
   confirmMock,
   writeProfileMock,
+  sendRemoteCommandMock,
 } = vi.hoisted(() => ({
   warningMock: vi.fn(),
   successMock: vi.fn(),
   errorMock: vi.fn(),
   confirmMock: vi.fn(),
   writeProfileMock: vi.fn(),
+  sendRemoteCommandMock: vi.fn(),
 }))
 
 vi.mock('element-plus', async () => {
@@ -35,7 +37,7 @@ vi.mock('@/api/device', () => ({
 }))
 
 vi.mock('@/api/compensation', () => ({
-  sendCompensationCapacitorBankRemoteCommand: vi.fn(),
+  sendCompensationCapacitorBankRemoteCommand: sendRemoteCommandMock,
   writeCompensationCapacitorBankControlProfile: writeProfileMock,
 }))
 
@@ -119,6 +121,46 @@ describe('useControlConsoleActions', () => {
     expect(warningMock).toHaveBeenCalledWith('目标值与当前快照一致，无需重复下发')
     expect(writeProfileMock).not.toHaveBeenCalled()
     expect(loadPageMock).not.toHaveBeenCalled()
+    scope.stop()
+  })
+
+  it('sends switch_control_mode semantic command for mode switching', async () => {
+    const loadPageMock = vi.fn().mockResolvedValue(undefined)
+    sendRemoteCommandMock.mockResolvedValue({
+      accepted: true,
+      status: 'accepted',
+      message: '控制模式切换指令已发送',
+    })
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleActions({
+      deviceId: computed(() => 2),
+      canManageDevices: computed(() => true),
+      canControlDevices: computed(() => true),
+      currentRole: computed(() => 'admin'),
+      isAdmin: computed(() => true),
+      archive: computed(() => ({ name: '设备-CAP-001' })),
+      runtimeStatus: computed(() => ({ is_active: true, is_online: true })),
+      controlProfile: ref({
+        device_id: 2,
+        source_status: 'fresh',
+        capabilities: baseCapabilities,
+        terminal_assignment_scheme: '自动模式',
+      } as any),
+      controlCapabilities: computed(() => baseCapabilities),
+      controlLogs: ref([]),
+      loadPage: loadPageMock,
+    }))
+
+    state!.handleActionCard('switch_control_mode')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(sendRemoteCommandMock).toHaveBeenCalledWith(2, {
+      action: 'switch_control_mode',
+      reason: '控制台控制模式切换 -> 手动模式',
+    })
+    expect(loadPageMock).toHaveBeenCalled()
     scope.stop()
   })
 })
