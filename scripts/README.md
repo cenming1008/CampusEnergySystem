@@ -7,32 +7,17 @@
 - `shell/`：启动、停止、检查、备份、恢复、清理、部署
 - `python/`：系统初始化、演示数据、模拟器、网关、协议调试、压力测试
 - `archive/`：已从正式入口降级的历史脚本
-- `QUICK_REFERENCE.md`：常用命令速查
 - `SCRIPT_LIST.md`：完整脚本清单
-
-## 当前规模
-
-- Shell 脚本：27 个
-- Python 脚本：16 个
-- 已归档脚本：14 个
-
-以上数量以 [SCRIPT_LIST.md](./SCRIPT_LIST.md) 为事实来源。
 
 ## 推荐使用方式
 
-### 1. 日常执行先看快捷参考
-
-- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)
-
-适合“我现在要做一件事，直接给我命令”。
-
-### 2. 需要确认事实来源时看完整清单
+### 1. 需要确认事实来源时看完整清单
 
 - [SCRIPT_LIST.md](./SCRIPT_LIST.md)
 
 适合“我想知道这个目录里到底都有什么，不重复地看一遍”。
 
-### 3. 需要按职责查看时看子目录文档
+### 2. 需要按职责查看时看子目录文档
 
 - [shell/README.md](./shell/README.md)
 - [python/README.md](./python/README.md)
@@ -53,10 +38,6 @@
 - [start_dev_env.sh](./shell/start_dev_env.sh)：启动开发环境中间件
 - [status.sh](./shell/status.sh)：查看系统状态
 - [test_health.sh](./shell/test_health.sh)：健康检查
-- [pilot_smoke_test.sh](./shell/pilot_smoke_test.sh)：试点联调冒烟检查
-- [pilot_readiness.sh](./shell/pilot_readiness.sh)：试点前总检查并输出证据目录
-- [pilot_drill.sh](./shell/pilot_drill.sh)：串联 readiness、容量基线和冒烟
-- [load_baseline.sh](./shell/load_baseline.sh)：生成容量基线和 Markdown 验收摘要
 
 ### Python
 
@@ -72,7 +53,6 @@
 ### 服务管理
 
 - 启动/停止：`start.sh`、`stop.sh`、`start_dev_env.sh`、`stop_dev_env.sh`
-- 局部包装：`restart_backend.sh`、`rebuild_backend.sh`
 
 ### 前端开发入口
 
@@ -85,11 +65,6 @@
 
 - `status.sh`
 - `test_health.sh`
-- `pilot_smoke_test.sh`
-- `pilot_readiness.sh`
-- `pilot_drill.sh`
-- `check_websocket.sh`
-- `check_mac_env.sh`
 - `check_config.py`
 - `stress_test.py`
 - `evaluate_capacity_baseline.py`
@@ -98,9 +73,6 @@
 
 - `backup.sh`
 - `restore.sh`
-- `cleanup_logs.sh`
-- `cleanup_docker.sh`
-- `fix_venv.sh`
 - `install_dependencies.sh`
 
 ### 已归档/历史脚本
@@ -131,7 +103,6 @@
 
 - `device_gateway.py`
 - `send_test_alert.py`
-- `mqtt_send_test.py`
 - `send_svg_telemetry.py`
 - `send_capacitor_bank_telemetry.py`
 
@@ -165,5 +136,6 @@
 
 - 不移动现有脚本路径，避免打断文档和使用习惯
 - 新脚本先补进 `SCRIPT_LIST.md`
+- 不再维护第二份“快捷参考型”脚本总表，`SCRIPT_LIST.md` 是唯一总览
 - 先判断脚本属于正式入口、调试脚本还是历史脚本，再决定是否进入 README 第一层入口
 - 生成文件不留在目录里，比如 `__pycache__`、`.DS_Store`

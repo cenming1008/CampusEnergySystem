@@ -39,7 +39,6 @@
 
 ### MQTT/协议调试
 
-- [mqtt_send_test.py](/Users/todo/MineEnergySystem/scripts/python/mqtt_send_test.py)：发送 MQTT 测试消息
 - [send_svg_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_svg_telemetry.py)：向 SVG 设备发送模拟 MQTT 遥测数据
 - [send_capacitor_bank_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_telemetry.py)：向电容补偿控制器发送模拟 MQTT 遥测数据
 

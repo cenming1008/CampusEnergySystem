@@ -143,7 +143,6 @@
 - `test_http_device.py`
 - `test_modbus_tcp.py`
 - `test_serial_port.py`
-- `mqtt_send_test.py`
 - `mqtt_subscriber_template.py`
 - `serial_*`
 - `stress_test.py`
@@ -371,17 +370,14 @@
 
 - `scripts/python/demo_*.py`
 - `scripts/python/test_*.py`
-- `scripts/python/mqtt_send_test.py`
 - `scripts/python/mqtt_subscriber_template.py`
 - `scripts/python/serial_*`
 - `scripts/python/stress_test.py`
-- `scripts/shell/check_websocket.sh`
-- `scripts/shell/check_mac_env.sh`
 - `scripts/archive/shell/start_frontend.sh`
 
 ### 8.3 后续优先人工确认
 
-- 是否需要把 `scripts/QUICK_REFERENCE.md` 与 `scripts/SCRIPT_LIST.md` 继续同时维护
+- `scripts/SCRIPT_LIST.md` 作为唯一总览是否仍足够清晰
 - 是否需要为历史性脚本单独建立 `scripts/archive/`
 - 是否存在文档仍引用但脚本文件已不存在的情况，应先校正文档再决定脚本治理动作
 

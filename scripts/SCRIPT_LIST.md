@@ -12,8 +12,6 @@
 | `start_dev_env.sh` | 启动开发环境中间件，不启动本地后端和前端。 |
 | `stop.sh` | 停止整套 Docker 服务。 |
 | `stop_dev_env.sh` | 停止开发环境中间件。 |
-| `restart_backend.sh` | 只重启后端容器。 |
-| `rebuild_backend.sh` | 重建并重启后端容器。 |
 
 ### 状态检查
 
@@ -21,13 +19,6 @@
 |------|------|
 | `status.sh` | 查看容器状态、端口映射和整体运行情况。 |
 | `test_health.sh` | 调用后端健康检查接口。 |
-| `pilot_smoke_test.sh` | 试点部署后的冒烟验收。 |
-| `pilot_readiness.sh` | 执行试点前总检查并归档证据。 |
-| `pilot_drill.sh` | 串联 readiness、容量基线和冒烟验收。 |
-| `load_baseline.sh` | 生成后端容量基线并输出 Markdown 验收摘要。 |
-| `check_websocket.sh` | 检查 WebSocket 链路。 |
-| `check_mac_env.sh` | 检查 macOS 本地开发环境。 |
-| `restore_drill.sh` | 执行备份恢复演练并验证恢复结果。 |
 
 ### 维护与部署
 
@@ -35,15 +26,11 @@
 |------|------|
 | `backup.sh` | 备份数据库。 |
 | `restore.sh` | 从备份恢复数据库。 |
-| `cleanup_logs.sh` | 清理日志文件。 |
-| `cleanup_docker.sh` | 清理 Docker 资源。 |
-| `fix_venv.sh` | 修复 Python 虚拟环境。 |
 | `install_dependencies.sh` | 安装本地依赖。 |
 | `deploy_prod.sh` | 执行生产部署流程。 |
 | `release_readiness.sh` | 发布前总检查。 |
 | `render_alertmanager_config.sh` | 渲染 Alertmanager 配置。 |
 | `setup_mqtt_auth.sh` | 配置 MQTT 认证用户与密码文件。 |
-| `rollback_prod.sh` | 使用备份执行生产回滚。 |
 
 ## Python 脚本
 
@@ -77,7 +64,6 @@
 
 | 脚本 | 作用 |
 |------|------|
-| `mqtt_send_test.py` | 发送 MQTT 测试消息。 |
 | `send_svg_telemetry.py` | 向 SVG 设备发送模拟 MQTT 遥测数据。 |
 | `send_capacitor_bank_telemetry.py` | 向电容补偿控制器发送可按场景和状态位控制的模拟 MQTT 遥测数据，并可监听 `start/stop/write_parameter` 控制指令回放最新快照。 |
 
@@ -108,10 +94,10 @@
 
 | 类型 | 数量 |
 |------|------|
-| Shell | 27 |
-| Python | 15 |
+| Shell | 14 |
+| Python | 14 |
 | Archive | 14 |
-| 合计 | 56 |
+| 合计 | 42 |
 
 ## 与 bin 的关系
 

@@ -120,7 +120,7 @@ done
 if [ $attempt -eq $max_attempts ]; then
     echo -e "${RED}❌ 健康检查失败，请查看日志:${NC}"
     echo "docker compose -f $COMPOSE_FILE logs backend"
-    echo "如需回滚，可执行: bash ./scripts/shell/rollback_prod.sh backups/latest_pre_deploy.dump"
+    echo "如需回滚，请手动使用 ./scripts/shell/restore.sh 恢复预部署备份"
     exit 1
 fi
 
