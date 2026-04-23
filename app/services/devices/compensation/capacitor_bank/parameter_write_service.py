@@ -9,17 +9,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models.tables import Device, DeviceControlLog
+from app.repositories.device_repository import DeviceRepository
+from app.services.devices.compensation.capacitor_bank.control_command_service import CapacitorBankControlCommandService
 from app.services.devices.compensation.capacitor_bank.control_profile_service import CapacitorBankControlProfileService
 from app.services.devices.compensation.capacitor_bank.specs import (
     CONTROL_COMMAND_MESSAGE_TYPE,
     CONTROL_PROTOCOL_VERSION,
     CONTROL_RESULT_ACCEPTED,
+    PENDING_CONTROL_RESULTS,
     PARAMETER_WRITE_SPECS,
     CapacitorBankControlParameterSpec,
     ControlProfileWritePreconditionError,
+    PendingParameterWriteConflictError,
 )
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_publisher import publish_parameter_write_async
@@ -27,6 +31,25 @@ from app.services.mqtt_publisher import publish_parameter_write_async
 
 class CapacitorBankParameterWriteService:
     """电容补偿控制器参数写入层。"""
+
+    @staticmethod
+    def _lock_device_row(session: Session, device_id: int) -> Optional[Device]:
+        stmt = select(Device).where(Device.id == device_id)
+        if hasattr(stmt, "with_for_update"):
+            stmt = stmt.with_for_update()
+        return session.exec(stmt).first()
+
+    @staticmethod
+    def _get_pending_parameter_write_log(session: Session, device_id: int) -> Optional[DeviceControlLog]:
+        stmt = (
+            select(DeviceControlLog)
+            .where(DeviceControlLog.device_id == device_id)
+            .where(DeviceControlLog.result.in_(tuple(PENDING_CONTROL_RESULTS)))
+            .where(DeviceControlLog.action.like("write:%"))
+            .order_by(DeviceControlLog.created_at.desc())
+            .limit(1)
+        )
+        return session.exec(stmt).first()
 
     @staticmethod
     def get_parameter_spec(parameter_key: str) -> CapacitorBankControlParameterSpec:
@@ -124,6 +147,12 @@ class CapacitorBankParameterWriteService:
         get_profile_source_status = (
             get_profile_source_status or CapacitorBankControlProfileService.get_profile_source_status
         )
+
+        CapacitorBankParameterWriteService._lock_device_row(session, device.id)
+        CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device.id)
+        pending_log = CapacitorBankParameterWriteService._get_pending_parameter_write_log(session, device.id)
+        if pending_log is not None:
+            raise PendingParameterWriteConflictError("当前设备已有待完成的参数写入，请等待设备回执或超时收口后再试。")
 
         health = health_service.get_device_health(session, device.id)
         if health.get("is_online") is False:

@@ -86,6 +86,7 @@ class TestCapacitorBankService(unittest.TestCase):
         session.add = MagicMock()
         session.commit = MagicMock()
         session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 88))
+        session.exec.return_value.first.return_value = None
 
         with patch.object(CapacitorBankService, "get_control_profile", return_value=profile):
             result = CapacitorBankService.submit_control_profile_write(

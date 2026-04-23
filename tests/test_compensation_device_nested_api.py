@@ -10,7 +10,10 @@ os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test
 from app.api.endpoints.devices import compensation_capacitor_bank, compensation_svg
 from app.api.endpoints.devices.compensation_schemas import SVGOperationsProfileUpdate
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, SVGAssetProfile, SVGTelemetry
-from app.services.devices.compensation.capacitor_bank.service import ControlProfileWritePreconditionError
+from app.services.devices.compensation.capacitor_bank.service import (
+    ControlProfileWritePreconditionError,
+    PendingParameterWriteConflictError,
+)
 
 
 def _make_user() -> SimpleNamespace:
@@ -236,6 +239,22 @@ class TestCompensationNestedCapBankApi(unittest.TestCase):
                     compensation_capacitor_bank.write_device_capacitor_bank_control_profile(1, body, mock_session, user)
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(ctx.exception.detail, "当前设备尚未完成真实参数回读")
+
+    def test_nested_cap_bank_control_profile_write_returns_pending_write_conflict(self):
+        user = _make_user()
+        mock_session = object()
+        device = SimpleNamespace(device_type="compensation", device_subtype="capacitor_bank_controller")
+        body = compensation_capacitor_bank.CapacitorBankControlWriteRequest(parameter_key="switch_on_power_factor", target_value="95")
+        with patch.object(compensation_capacitor_bank, "ensure_device_access", return_value=device):
+            with patch.object(
+                compensation_capacitor_bank.CapacitorBankService,
+                "submit_control_profile_write",
+                side_effect=PendingParameterWriteConflictError("当前设备已有待完成的参数写入，请等待设备回执或超时收口后再试。"),
+            ):
+                with self.assertRaises(HTTPException) as ctx:
+                    compensation_capacitor_bank.write_device_capacitor_bank_control_profile(1, body, mock_session, user)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(ctx.exception.detail, "当前设备已有待完成的参数写入，请等待设备回执或超时收口后再试。")
 
     def test_nested_cap_bank_remote_command_returns_accepted_result(self):
         user = _make_user()

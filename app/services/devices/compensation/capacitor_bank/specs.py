@@ -100,3 +100,7 @@ REMOTE_COMMAND_SPECS: dict[str, dict[str, str]] = {
 
 class ControlProfileWritePreconditionError(RuntimeError):
     """参数写入前置条件不满足。"""
+
+
+class PendingParameterWriteConflictError(ControlProfileWritePreconditionError):
+    """当前设备已有待完成的参数写入，拒绝新的并发写入。"""

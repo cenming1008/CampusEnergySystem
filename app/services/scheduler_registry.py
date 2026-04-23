@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.core.logger import logger
 from app.core.settings import settings
-from app.services.scheduler_jobs import auto_cleanup_data
+from app.services.scheduler_jobs import auto_cleanup_data, expire_compensation_control_timeouts
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,16 @@ def get_enabled_job_definitions() -> Iterable[JobDefinition]:
                 log_message="已添加自动数据清理任务：每天凌晨3点执行",
             )
         )
+
+    jobs.append(
+        JobDefinition(
+            id="expire_compensation_control_timeouts",
+            name="补偿控制超时收口",
+            trigger=CronTrigger(minute="*"),
+            func=expire_compensation_control_timeouts,
+            log_message="已添加补偿控制超时收口任务：每分钟执行",
+        )
+    )
 
     return jobs
 

@@ -20,6 +20,7 @@ from app.services.report_service import ReportService
 from app.services.user_service import UserService
 from app.services.scheduler_jobs import (
     auto_cleanup_data,
+    expire_compensation_control_timeouts,
 )
 
 
@@ -51,6 +52,7 @@ __all__ = [
     "ingestion_health_service",
     "IngestionHealthService",
     "auto_cleanup_data",
+    "expire_compensation_control_timeouts",
     "LocationService",
     "MaintenanceService",
     "MqttReliabilityService",

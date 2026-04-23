@@ -723,6 +723,12 @@ class Settings(BaseSettings):
         env="ENABLE_AUTO_CLEANUP",
         description="是否启用自动数据清理"
     )
+
+    compensation_temperature_warning_margin_c: float = Field(
+        default=5.0,
+        env="COMPENSATION_TEMPERATURE_WARNING_MARGIN_C",
+        description="补偿器温度“接近上限”预警边距（摄氏度）"
+    )
     
     # ==================== 服务器配置 ====================
     host: str = Field(

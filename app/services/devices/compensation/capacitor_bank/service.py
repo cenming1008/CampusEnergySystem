@@ -33,6 +33,7 @@ from app.services.devices.compensation.capacitor_bank.specs import (
     SUPPORTED_CONTROL_RESULTS,
     CapacitorBankControlParameterSpec,
     ControlProfileWritePreconditionError,
+    PendingParameterWriteConflictError,
 )
 from app.services.devices.compensation.capacitor_bank.parameter_write_service import CapacitorBankParameterWriteService
 from app.services.ingestion_health_service import IngestionHealthService

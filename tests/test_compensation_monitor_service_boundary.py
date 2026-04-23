@@ -64,6 +64,34 @@ class TestCompensationMonitorServiceBoundary(unittest.TestCase):
         self.assertEqual(monitor["key_metrics"]["capacity_utilization"]["value"], 25.0)
         self.assertEqual(monitor["key_metrics"]["cabinet_temperature"]["value"], 38.8)
 
+    def test_build_monitor_marks_svg_as_read_only_capability(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="SVG 能力边界测试",
+                sn="SVG-BND-001",
+                device_type="svg",
+                device_subtype="svg",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=150.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            monitor = CompensationMonitorService.build_monitor(
+                session,
+                device,
+                {"reactive_power": 30.0, "temperature": 32.5},
+            )
+
+        self.assertEqual(monitor["subtype"], "svg")
+        self.assertTrue(monitor["capabilities_summary"]["supports_read"])
+        self.assertFalse(monitor["capabilities_summary"]["supports_write"])
+        self.assertFalse(monitor["capabilities_summary"]["supports_remote_control"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,11 +27,32 @@ class TestSchedulerJobs(unittest.TestCase):
 
         mock_logger.debug.assert_called_with("自动数据清理已禁用")
 
+    @patch("app.services.scheduler_jobs.CapacitorBankService.expire_pending_control_logs")
+    @patch("app.services.scheduler_jobs.Session")
+    @patch("app.services.scheduler_jobs.logger")
+    def test_expire_compensation_control_timeouts_logs_processed_count(
+        self,
+        mock_logger,
+        mock_session_cls,
+        mock_expire_pending,
+    ):
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+        mock_expire_pending.return_value = [object(), object()]
+
+        scheduler_jobs.expire_compensation_control_timeouts()
+
+        mock_logger.info.assert_any_call("开始扫描补偿控制待定日志超时状态...")
+        mock_expire_pending.assert_called_once_with(mock_session)
+        mock_logger.info.assert_any_call("✅ 补偿控制超时收口完成：共更新 2 条控制日志")
+
     def test_scheduler_registry_only_registers_cleanup_job(self):
         with patch.object(scheduler_registry.settings, "enable_auto_cleanup", True):
             jobs = list(scheduler_registry.get_enabled_job_definitions())
 
-        self.assertEqual([job.id for job in jobs], ["auto_cleanup_data"])
+        self.assertEqual(
+            [job.id for job in jobs],
+            ["auto_cleanup_data", "expire_compensation_control_timeouts"],
+        )
 
 if __name__ == "__main__":
     unittest.main()

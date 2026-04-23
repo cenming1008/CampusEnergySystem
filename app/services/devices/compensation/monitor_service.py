@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from sqlmodel import Session, select
 
+from app.core.settings import settings
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog, SVGTelemetry
 from app.repositories.device_repository import DeviceRepository
@@ -227,9 +228,10 @@ class CompensationMonitorService:
         if threshold is not None:
             current = float(cabinet_temperature)
             upper_limit = float(threshold)
+            warning_margin = max(0.0, float(settings.compensation_temperature_warning_margin_c or 0.0))
             if current >= upper_limit:
                 return CompensationMonitorService._build_metric("超过上限", source="profile", state="live")
-            if current >= upper_limit - 5:
+            if current >= upper_limit - warning_margin:
                 return CompensationMonitorService._build_metric("接近上限", source="profile", state="live")
             return CompensationMonitorService._build_metric("正常", source="profile", state="live")
 
@@ -398,11 +400,7 @@ class CompensationMonitorService:
                     state=circuit_state,
                 ),
             },
-            "capabilities_summary": {
-                "supports_read": True,
-                "supports_write": False,
-                "supports_remote_control": False,
-            },
+            "capabilities_summary": SVGService.get_control_capabilities(),
             "status_tags": [],
         }
 

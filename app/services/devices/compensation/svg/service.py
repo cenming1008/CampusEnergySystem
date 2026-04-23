@@ -21,6 +21,20 @@ class SVGService:
     """SVG 统一运维档案服务。"""
 
     @staticmethod
+    def get_control_capabilities() -> dict[str, bool]:
+        """返回 SVG 当前开放能力。
+
+        当前 SVG 子型在平台内仅开放监视与运维档案维护，不开放协议写控制或远程控制。
+        这里的 `supports_write=False` 属于明确业务边界，而不是遗漏实现；若后续接入
+        真实 SVG 控制协议，应统一从这里收口能力开关，而不是在监控聚合层零散改布尔值。
+        """
+        return {
+            "supports_read": True,
+            "supports_write": False,
+            "supports_remote_control": False,
+        }
+
+    @staticmethod
     def get_operations_profile(session: Session, device_id: int) -> Optional[SVGAssetProfile]:
         return session.exec(
             select(SVGAssetProfile).where(SVGAssetProfile.device_id == device_id)

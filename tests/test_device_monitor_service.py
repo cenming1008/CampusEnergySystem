@@ -347,6 +347,52 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(health_metric["source"], "telemetry")
             self.assertEqual(health_metric["state"], "live")
 
+    def test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器温度边距配置测试",
+                sn="CAP-TEMP-002",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=12.0,
+                flow_rate=21.0,
+                timestamp=now - timedelta(minutes=1),
+                temperature=54.0,
+            )
+            session.add(
+                CapacitorBankControlProfile(
+                    device_id=device.id,
+                    source="telemetry",
+                    snapshot_timestamp=now,
+                    temperature_upper_limit=55.0,
+                )
+            )
+            session.commit()
+
+            with patch(
+                "app.services.devices.compensation.monitor_service.settings.compensation_temperature_warning_margin_c",
+                0.5,
+            ):
+                overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+
+            health_metric = overview["compensation_monitor"]["key_metrics"]["temperature_health"]
+            self.assertEqual(health_metric["value"], "正常")
+            self.assertEqual(health_metric["source"], "profile")
+            self.assertEqual(health_metric["state"], "live")
+
     def test_monitor_overview_returns_svg_compensation_monitor_semantics(self):
         now = datetime.now()
         with Session(self.engine) as session:
