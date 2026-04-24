@@ -253,6 +253,12 @@ class CapacitorBankTelemetryResponse(BaseModel):
 
 
 class CapacitorBankControlCapabilitiesResponse(BaseModel):
+    class RemoteCommandCapability(BaseModel):
+        action: str
+        label: str
+        supported: bool
+        disabled_reason: Optional[str] = None
+
     supports_read: bool
     supports_write: bool
     supports_remote_control: bool
@@ -265,6 +271,8 @@ class CapacitorBankControlCapabilitiesResponse(BaseModel):
     receipt_topic: str
     receipt_timeout_seconds: int
     supported_results: list[str]
+    remote_commands: list[RemoteCommandCapability] = []
+    writable_parameters: list[str] = []
 
 
 class CapacitorBankControlWriteRequest(BaseModel):

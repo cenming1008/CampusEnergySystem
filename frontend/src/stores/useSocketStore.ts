@@ -9,6 +9,11 @@ interface SocketTelemetryPayload {
   current?: number
   voltage?: number
   timestamp?: string
+  command_id?: string
+  action?: string
+  result?: string
+  reason?: string | null
+  updated_at?: string
 }
 
 export interface SocketMessage {

@@ -56,6 +56,27 @@ const baseCapabilities = {
   receipt_topic: 'campus/telemetry',
   receipt_timeout_seconds: 120,
   supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
+  writable_parameters: [
+    'switch_on_power_factor',
+    'switch_off_power_factor',
+    'switch_on_delay_seconds',
+    'switch_off_delay_seconds',
+    'overvoltage_threshold',
+    'temperature_upper_limit',
+  ],
+  remote_commands: [
+    {
+      action: 'reset_alarm',
+      label: '报警复位',
+      supported: false,
+      disabled_reason: '真实网关暂未提供报警复位寄存器/功能码',
+    },
+    {
+      action: 'switch_control_mode',
+      label: '控制模式切换',
+      supported: true,
+    },
+  ],
 }
 
 describe('useControlConsoleActions', () => {
@@ -120,6 +141,64 @@ describe('useControlConsoleActions', () => {
 
     expect(warningMock).toHaveBeenCalledWith('目标值与当前快照一致，无需重复下发')
     expect(writeProfileMock).not.toHaveBeenCalled()
+    expect(loadPageMock).not.toHaveBeenCalled()
+    scope.stop()
+  })
+
+  it('blocks write dialog for parameters outside backend writable allowlist', () => {
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleActions({
+      deviceId: computed(() => 2),
+      canManageDevices: computed(() => true),
+      canControlDevices: computed(() => true),
+      currentRole: computed(() => 'admin'),
+      isAdmin: computed(() => true),
+      archive: computed(() => ({ name: '设备-CAP-001' })),
+      runtimeStatus: computed(() => ({ is_active: true, is_online: true })),
+      controlProfile: ref({
+        device_id: 2,
+        source_status: 'fresh',
+        capabilities: baseCapabilities,
+        baud_rate: 9600,
+      } as any),
+      controlCapabilities: computed(() => baseCapabilities),
+      controlLogs: ref([]),
+      loadPage: vi.fn().mockResolvedValue(undefined),
+    }))
+
+    state!.openWriteDialog('baud_rate')
+
+    expect(warningMock).toHaveBeenCalledWith('真实网关暂未确认该参数写入编码，当前暂不开放写入。')
+    expect(state!.writeDialogVisible.value).toBe(false)
+    scope.stop()
+  })
+
+  it('blocks unsupported remote command from backend capabilities', async () => {
+    const loadPageMock = vi.fn().mockResolvedValue(undefined)
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleActions({
+      deviceId: computed(() => 2),
+      canManageDevices: computed(() => true),
+      canControlDevices: computed(() => true),
+      currentRole: computed(() => 'admin'),
+      isAdmin: computed(() => true),
+      archive: computed(() => ({ name: '设备-CAP-001' })),
+      runtimeStatus: computed(() => ({ is_active: true, is_online: true })),
+      controlProfile: ref({
+        device_id: 2,
+        source_status: 'fresh',
+        capabilities: baseCapabilities,
+      } as any),
+      controlCapabilities: computed(() => baseCapabilities),
+      controlLogs: ref([]),
+      loadPage: loadPageMock,
+    }))
+
+    state!.handleActionCard('reset_alarm')
+    await Promise.resolve()
+
+    expect(warningMock).toHaveBeenCalledWith('真实网关暂未提供报警复位寄存器/功能码')
+    expect(sendRemoteCommandMock).not.toHaveBeenCalled()
     expect(loadPageMock).not.toHaveBeenCalled()
     scope.stop()
   })

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Optional
 
@@ -19,6 +20,7 @@ from app.services.devices.compensation.capacitor_bank.specs import (
     CONTROL_COMMAND_MESSAGE_TYPE,
     CONTROL_PROTOCOL_VERSION,
     CONTROL_RESULT_ACCEPTED,
+    GATEWAY_UAT_WRITABLE_PARAMETERS,
     PENDING_CONTROL_RESULTS,
     PARAMETER_WRITE_SPECS,
     CapacitorBankControlParameterSpec,
@@ -27,6 +29,8 @@ from app.services.devices.compensation.capacitor_bank.specs import (
 )
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_publisher import publish_parameter_write_async
+
+logger = logging.getLogger(__name__)
 
 
 class CapacitorBankParameterWriteService:
@@ -148,22 +152,51 @@ class CapacitorBankParameterWriteService:
             get_profile_source_status or CapacitorBankControlProfileService.get_profile_source_status
         )
 
+        spec = CapacitorBankParameterWriteService.get_parameter_spec(parameter_key)
+        if parameter_key not in GATEWAY_UAT_WRITABLE_PARAMETERS:
+            logger.warning(
+                "capacitor bank parameter write rejected because parameter is outside gateway allowlist: device_id=%s parameter_key=%s source=%s",
+                device.id,
+                parameter_key,
+                "control-profile-api",
+            )
+            raise ControlProfileWritePreconditionError("真实网关暂未确认该参数写入编码，当前暂不开放写入。")
+
         CapacitorBankParameterWriteService._lock_device_row(session, device.id)
         CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device.id)
         pending_log = CapacitorBankParameterWriteService._get_pending_parameter_write_log(session, device.id)
         if pending_log is not None:
+            logger.warning(
+                "capacitor bank parameter write rejected due to pending command: device_id=%s command_id=%s parameter_key=%s source=%s",
+                device.id,
+                pending_log.id,
+                parameter_key,
+                "control-profile-api",
+            )
             raise PendingParameterWriteConflictError("当前设备已有待完成的参数写入，请等待设备回执或超时收口后再试。")
 
         health = health_service.get_device_health(session, device.id)
         if health.get("is_online") is False:
+            logger.warning(
+                "capacitor bank parameter write rejected because device offline: device_id=%s parameter_key=%s source=%s",
+                device.id,
+                parameter_key,
+                "control-profile-api",
+            )
             raise ControlProfileWritePreconditionError("当前设备离线，暂不允许下发参数写入。")
 
         profile = get_control_profile(session, device.id)
         source_status = get_profile_source_status(profile)
         if source_status in {"empty", "unknown"}:
+            logger.warning(
+                "capacitor bank parameter write rejected without readback: device_id=%s parameter_key=%s source_status=%s source=%s",
+                device.id,
+                parameter_key,
+                source_status,
+                "control-profile-api",
+            )
             raise ControlProfileWritePreconditionError("当前设备尚未完成真实参数回读，暂不允许下发参数写入。")
 
-        spec = CapacitorBankParameterWriteService.get_parameter_spec(parameter_key)
         normalized_value = CapacitorBankParameterWriteService.normalize_write_value(parameter_key, target_value)
         normalized_reason = reason.strip() if reason else ""
 
@@ -183,6 +216,16 @@ class CapacitorBankParameterWriteService:
         session.add(control_log)
         session.commit()
         session.refresh(control_log)
+        logger.info(
+            "capacitor bank parameter write queued: device_id=%s device_code=%s command_id=%s parameter_key=%s target_value=%s operator=%s source=%s",
+            device.id,
+            device.sn or "-",
+            control_log.id,
+            parameter_key,
+            normalized_value,
+            operator,
+            "control-profile-api",
+        )
 
         publish_parameter_write(
             device.id,

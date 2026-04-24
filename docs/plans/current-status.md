@@ -31,11 +31,13 @@
 - [x] 已修复 `DeviceControlConsole` 前端单测桩件与当前控制台组件接口漂移：控制台视图测试不再误向远程控制面板注入 `logView`
 - [x] 已完成 `P1` 第一轮关键监控指标真实化压缩：电容补偿控制器的控制模式、回路投入数、容量利用率已优先消费参数快照回读，不再在“无遥测但有快照”时退回 `configured_fallback / estimated`
 - [x] 已继续完成 `P1` 温度健康度收口：电容补偿控制器监控页新增 `temperature_health` 语义，优先基于实时温度、温度告警位和参数上限回读输出“正常 / 接近上限 / 超过上限 / 温度告警 / 待判断”
+- [x] 已完成补偿器控制链路 UAT 打磨：控制回执主动推送、控制链路日志、JKWF 解码异常 warning、控制回执超时配置化、SQLite 写参风险启动提示与前端控制日志事件刷新均已落地
+- [x] 已完成补偿器真实网关适配系统侧收敛：能力接口新增 `remote_commands / writable_parameters`，默认禁用未确认的 `reset_alarm`，参数写入收窄到 6 个 UAT 低风险字段，控制回执已兼容 `refused/unsupported/invalid` 等真实网关拒绝语义并保护终态不被迟到回执覆盖
 
 ---
 
 ## 当前阻塞
-- 当前无代码阻塞；剩余事项集中在最终验收结论与是否正式收口。
+- 当前无代码阻塞；补偿器控制链路已完成 UAT 打磨，剩余事项集中在真实设备/网关联调、最终验收结论与是否正式收口。
 
 ## 当前待办
 - [x] 进入阶段收口判断（不默认继续下一轮）
@@ -80,6 +82,13 @@
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 已通过。
 - `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py tests/test_database_core.py tests/test_capacitor_bank_service.py -q` 已通过（`36 passed`），已覆盖温度健康度的阈值判定与告警位优先级。
 - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- DeviceMonitor src/features/device-monitor/components/compensation/__tests__/viewMapping.test.ts` 已通过（`21 passed`）。
+- `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_capacitor_bank_ingestion.py tests/test_compensation_mqtt_boundary.py tests/test_jkwf_lcd_decoder.py tests/test_alarm_service.py tests/test_scheduler_jobs.py tests/test_startup_checks.py -q` 已通过（`75 passed, 1 warning`），已覆盖控制回执推送、notifier 容错、超时配置、JKWF warning、SQLite 写参风险提示与补偿相关回归。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts` 已通过（`8 files / 27 tests passed`），已覆盖当前设备收到 `device_control_log_update` 后刷新控制日志、非当前设备事件不刷新、既有轮询继续保留。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 已通过。
+- `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_compensation_mqtt_boundary.py tests/test_scheduler_jobs.py tests/test_startup_checks.py tests/test_compensation_device_nested_api.py -q` 已通过（`53 passed, 1 warning`），已覆盖真实网关能力收敛、写参 allowlist、回执拒绝别名、迟到/重复回执终态保护和补偿嵌套路由回归。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts` 已通过（`8 files / 30 tests passed`），已覆盖禁用 `reset_alarm`、按 `writable_parameters` 过滤写参卡片和既有 WebSocket 刷新。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 已通过。
+- `git diff --check -- <本轮触碰文件>` 已通过；全仓 `git diff --check` 仍会命中既有文档行尾空格，位置在 `docs/guides/five-role-vibe-coding-framework.md`，不属于本轮改动范围。
 - 电容补偿控制器控制台已完成以下最小闭环：
   - MQTT 参数快照可更新 `capacitor_bank_control_profile`
   - `GET /devices/{id}/compensation/capacitor-bank/control-profile` 可返回真实参数值、`source`、`snapshot_timestamp`、`source_status`
@@ -96,7 +105,20 @@
     - 后端下发 payload 附带 `command_id`
     - 模拟器执行后通过 `campus/telemetry` 发送 `message_type=control_receipt`
     - MQTT ingest 会按 `device_id + command_id` 回写对应 `DeviceControlLog.result`
-    - 当前回写结果已支持 `running` / `success` / `failed` / `timeout` / `rejected`
+  - 当前回写结果已支持 `running` / `success` / `failed` / `timeout` / `rejected`
+- 本轮控制链路 UAT 打磨新增收敛点：
+  - MQTT 控制回执成功更新 `DeviceControlLog` 后，会发布 `device_control_log_update` 实时事件；推送失败只打 warning，不影响回执落库
+  - 前端控制台继续保留 2 秒 / 5 秒轮询，同时收到当前设备的控制日志事件时会立即触发刷新
+  - 远程控制下发、参数写入下发、回执落库、pending 超时收敛均已补结构化日志
+  - JKWF 状态寄存器与投切寄存器非法值会打 warning，并保持“不丢整条 payload”的 fallback 行为
+  - 控制回执超时由 `COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS` 配置驱动，默认仍为 120 秒
+  - 启动检查会在 SQLite 且补偿器参数写入能力启用时输出 warning，明确生产环境应使用 PostgreSQL 行级锁语义
+- 本轮真实网关适配系统侧新增收敛点：
+  - 补偿器能力接口新增 `remote_commands` 与 `writable_parameters`，前端不再只依赖本地参数元数据判断可写
+  - `reset_alarm` 默认禁用，原因明确为真实网关暂未提供报警复位寄存器/功能码
+  - 参数写入后端强制限制到投入/切除功率因数、投入/切除延时、过压门限、温度上限 6 个低风险字段
+  - 控制回执将 `unsupported / not_supported / refused / invalid / reject` 等值归一为 `rejected`
+  - 已进入 `success / failed / timeout / rejected` 终态的控制日志不会被迟到的不同结果覆盖；重复相同终态回执幂等跳过
 - 本轮监视与控制语义新增收敛点：
   - 监视页中“当前模式 / 补偿容量利用率 / 柜内温度”已显式标注真实采集、参数回读、估算/占位、缺测来源，不再默认给出伪造默认值
   - 控制台日志、监控页事件流、控制台最近结果已统一状态文案：`已入队`、`设备执行中`、`执行成功`、`执行失败`、`设备回执超时`、`设备拒绝执行`
@@ -144,5 +166,9 @@
 - 电容补偿控制器控制台当前仅开放“启用/停用控制器”和少数字段的受控参数写入；单回路手动投切、模式切换、批量参数下发等高风险动作仍未纳入本轮。
 - 当前新开放的“手动投切测试 / 报警复位 / 控制模式切换”虽已按正式命令/回执结构收敛，但设备端执行仍主要依赖模拟器；后续接真实设备时仍需按真实网关协议联调。
 - 当前 `timeout` 仍按固定超时阈值推断，尚未接入真实设备侧“已接收但稍后执行”的长耗时状态策略。
+- 当前 `timeout` 阈值已配置化，但真实设备侧若存在长耗时执行或延迟回执，仍需在真实联调后决定是否扩展为动作级超时策略。
+- 当前参数写入并发保护仍依赖数据库行级锁和 pending 写入拒绝；若生产确认使用 SQLite 或多 API 实例高并发写参，需要单独引入 Redis/数据库级分布式锁方案。
+- 当前系统侧已按真实网关能力禁用 `reset_alarm`；若后续工控网关脚本补齐报警复位寄存器/功能码，需要新开一轮重新开放能力并补真实回归。
+- `baud_rate`、容量编码、极性识别等参数仍保留只读展示或协议元数据，不开放写入；需等工控脚本编码规则确认后再评估。
 - 历史控制日志中仍能看到停留在 `accepted` 的旧记录；这说明旧命令或未回执场景仍存在，不能将“当前主链可闭环”外推为“所有历史命令均已闭环”。
 - 当前主题已完成规则补口与 Daily 归档；最终是否正式收口与主区切换仍需验收角色拍板。

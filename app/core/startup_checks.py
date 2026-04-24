@@ -19,6 +19,10 @@ _BUSINESS_DEFAULTS = {
 }
 
 
+def _is_sqlite_database_url(database_url: str | None) -> bool:
+    return bool(database_url) and database_url.lower().startswith("sqlite")
+
+
 def _shannon_entropy(s: str) -> float:
     """Calculate Shannon entropy (bits per character)."""
     if not s:
@@ -45,9 +49,26 @@ def _check_business_defaults(settings: Settings) -> None:
         )
 
 
+def _check_compensation_parameter_write_database(settings: Settings) -> None:
+    """提示 SQLite 不适合补偿器参数写入的并发保护。"""
+    parameter_write_enabled = getattr(
+        settings,
+        "compensation_capacitor_bank_parameter_write_enabled",
+        True,
+    )
+    if parameter_write_enabled and _is_sqlite_database_url(getattr(settings, "database_url", None)):
+        warnings.warn(
+            "检测到 SQLite 数据库且补偿器参数写入能力处于启用状态；"
+            "SQLite 不保证 with_for_update() 行级锁语义，生产环境请使用 PostgreSQL。",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
 def validate_runtime_configuration(settings: Settings) -> None:
     """对高风险生产配置做硬性校验。"""
     _check_business_defaults(settings)
+    _check_compensation_parameter_write_database(settings)
 
     if not settings.strict_startup_checks:
         return

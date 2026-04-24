@@ -127,6 +127,24 @@ export function useControlConsoleActions(input: {
     && input.runtimeStatus.value?.is_online !== false
     && input.controlCapabilities.value?.supports_remote_control === true,
   )
+  function getRemoteCommandCapability(action: string) {
+    return input.controlCapabilities.value?.remote_commands?.find((item) => item.action === action)
+  }
+  function isRemoteCommandSupported(action: string) {
+    const capability = getRemoteCommandCapability(action)
+    return capability ? capability.supported !== false : true
+  }
+  function remoteCommandDisabledReason(action: string) {
+    const capability = getRemoteCommandCapability(action)
+    if (capability?.supported === false) {
+      return capability.disabled_reason || '真实网关暂未确认该远程动作，当前暂不开放。'
+    }
+    return remoteActionDisabledReason.value || '当前暂不允许执行远程控制'
+  }
+  function isParameterWritableByGateway(parameterKey: string) {
+    const writableKeys = input.controlCapabilities.value?.writable_parameters
+    return !writableKeys?.length || writableKeys.includes(parameterKey)
+  }
   const remoteActionDisabledReason = computed(() => {
     if (!input.canControlDevices.value) return '无控制权限'
     if (input.runtimeStatus.value?.is_online === false) return '设备离线'
@@ -207,6 +225,10 @@ export function useControlConsoleActions(input: {
 
   async function handleRemoteCommand(action: keyof typeof remoteCommandMeta) {
     if (!input.deviceId.value || !canRunRemoteAction.value) return
+    if (!isRemoteCommandSupported(action)) {
+      ElMessage.warning(remoteCommandDisabledReason(action))
+      return
+    }
     const meta = remoteCommandMeta[action]
     const request = action === 'switch_control_mode'
       ? buildControlModeRemoteCommand(currentControlModeLabel.value)
@@ -288,6 +310,10 @@ export function useControlConsoleActions(input: {
     const meta = getCapacitorBankEditableParameterMeta(parameterKey)
     if (!meta) {
       ElMessage.error('未找到对应参数配置')
+      return
+    }
+    if (!isParameterWritableByGateway(parameterKey)) {
+      ElMessage.warning('真实网关暂未确认该参数写入编码，当前暂不开放写入。')
       return
     }
     selectedParameterKey.value = parameterKey

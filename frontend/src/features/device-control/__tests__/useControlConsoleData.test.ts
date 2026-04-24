@@ -1,4 +1,4 @@
-import { computed, effectScope } from 'vue'
+import { computed, effectScope, ref, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -96,6 +96,124 @@ describe('useControlConsoleData', () => {
     expect(state!.controlProfile.value?.capabilities.supports_remote_control).toBe(true)
     expect(state!.controlProfile.value?.capabilities.supports_write).toBe(false)
     expect(state!.controlProfile.value?.source_status).toBe('unknown')
+    scope.stop()
+  })
+
+  it('refreshes when websocket emits current device control log update', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValue({
+      archive: {
+        id: 2,
+        name: '测试补偿柜',
+        device_type: 'capacitor_bank_controller',
+        device_subtype: 'capacitor_bank_controller',
+      },
+      runtime_status: {
+        device_id: 2,
+        is_online: true,
+      },
+    })
+    getCompensationCapBankControlProfileMock.mockResolvedValue({
+      device_id: 2,
+      source_status: 'fresh',
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: true,
+      },
+      split_capacity_expansion: {
+        phase_a_groups: [],
+        phase_b_groups: [],
+        phase_c_groups: [],
+      },
+      common_capacity_expansion: {
+        common_1_groups: [],
+        common_2_groups: [],
+        common_3_groups: [],
+      },
+    })
+    getDeviceMonitorControlLogsMock.mockResolvedValue({ items: [] })
+    const socketMessage = ref(null as any)
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => 2),
+      enableLifecycle: false,
+      socketMessage,
+    }))
+
+    await state!.loadPage()
+    expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(1)
+
+    socketMessage.value = {
+      type: 'device_control_log_update',
+      data: {
+        device_id: 2,
+        command_id: '91',
+        result: 'success',
+      },
+    }
+    await nextTick()
+    await Promise.resolve()
+
+    expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(2)
+    scope.stop()
+  })
+
+  it('ignores websocket control log updates for other devices', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValue({
+      archive: {
+        id: 2,
+        name: '测试补偿柜',
+        device_type: 'capacitor_bank_controller',
+        device_subtype: 'capacitor_bank_controller',
+      },
+      runtime_status: {
+        device_id: 2,
+        is_online: true,
+      },
+    })
+    getCompensationCapBankControlProfileMock.mockResolvedValue({
+      device_id: 2,
+      source_status: 'fresh',
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: true,
+      },
+      split_capacity_expansion: {
+        phase_a_groups: [],
+        phase_b_groups: [],
+        phase_c_groups: [],
+      },
+      common_capacity_expansion: {
+        common_1_groups: [],
+        common_2_groups: [],
+        common_3_groups: [],
+      },
+    })
+    getDeviceMonitorControlLogsMock.mockResolvedValue({ items: [] })
+    const socketMessage = ref(null as any)
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => 2),
+      enableLifecycle: false,
+      socketMessage,
+    }))
+
+    await state!.loadPage()
+    socketMessage.value = {
+      type: 'device_control_log_update',
+      data: {
+        device_id: 3,
+        command_id: '91',
+        result: 'success',
+      },
+    }
+    await nextTick()
+    await Promise.resolve()
+
+    expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(1)
     scope.stop()
   })
 })

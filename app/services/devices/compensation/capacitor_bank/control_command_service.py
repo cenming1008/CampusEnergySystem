@@ -6,8 +6,9 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from sqlmodel import Session, select
 
@@ -27,8 +28,21 @@ from app.services.devices.compensation.capacitor_bank.specs import (
     PENDING_CONTROL_RESULTS,
     REMOTE_COMMAND_SPECS,
     SUPPORTED_CONTROL_RESULTS,
+    TERMINAL_CONTROL_RESULTS,
+    get_control_receipt_timeout,
 )
 from app.services.mqtt_publisher import publish_control_payload_async
+
+logger = logging.getLogger(__name__)
+ControlEventNotifier = Callable[[dict[str, Any]], None]
+CONTROL_RECEIPT_RESULT_ALIASES = {
+    "unsupported": CONTROL_RESULT_REJECTED,
+    "not_supported": CONTROL_RESULT_REJECTED,
+    "not-supported": CONTROL_RESULT_REJECTED,
+    "refused": CONTROL_RESULT_REJECTED,
+    "invalid": CONTROL_RESULT_REJECTED,
+    "reject": CONTROL_RESULT_REJECTED,
+}
 
 
 class CapacitorBankControlCommandService:
@@ -53,11 +67,23 @@ class CapacitorBankControlCommandService:
     }
 
     @staticmethod
-    def get_remote_command_spec(action: str) -> dict[str, str]:
+    def get_remote_command_spec(action: str) -> dict[str, Any]:
         spec = REMOTE_COMMAND_SPECS.get(action)
         if spec is None:
             raise ValueError(f"当前不支持远程控制动作 `{action}`。")
         return spec
+
+    @staticmethod
+    def get_remote_command_capabilities() -> list[dict[str, Any]]:
+        return [
+            {
+                "action": action,
+                "label": spec["label"],
+                "supported": bool(spec.get("supported", True)),
+                **({"disabled_reason": spec["disabled_reason"]} if spec.get("disabled_reason") else {}),
+            }
+            for action, spec in REMOTE_COMMAND_SPECS.items()
+        ]
 
     @staticmethod
     def get_action_label(action: str) -> str:
@@ -72,9 +98,14 @@ class CapacitorBankControlCommandService:
     @staticmethod
     def normalize_control_result(result: Optional[str]) -> str:
         normalized = str(result or "").strip().lower()
+        normalized = CONTROL_RECEIPT_RESULT_ALIASES.get(normalized, normalized)
         if normalized in SUPPORTED_CONTROL_RESULTS:
             return normalized
         return CONTROL_RESULT_FAILED
+
+    @staticmethod
+    def _is_terminal_result(result: Optional[str]) -> bool:
+        return CapacitorBankControlCommandService.normalize_control_result(result) in TERMINAL_CONTROL_RESULTS
 
     @staticmethod
     def get_result_label(result: Optional[str]) -> str:
@@ -108,6 +139,47 @@ class CapacitorBankControlCommandService:
         if extras:
             payload.update(extras)
         return payload
+
+    @staticmethod
+    def build_control_log_update_event(control_log: DeviceControlLog) -> dict[str, Any]:
+        now = datetime.now().isoformat()
+        return {
+            "type": "device_control_log_update",
+            "data": {
+                "device_id": control_log.device_id,
+                "command_id": str(control_log.id) if control_log.id is not None else None,
+                "action": control_log.action,
+                "result": control_log.result,
+                "reason": control_log.reason,
+                "updated_at": now,
+            },
+        }
+
+    @staticmethod
+    def publish_control_log_update_event(event: dict[str, Any]) -> None:
+        from app.services.mqtt_realtime_bridge import publish_realtime_event
+
+        publish_realtime_event(event)
+
+    @staticmethod
+    def _notify_control_log_update(
+        control_log: DeviceControlLog,
+        control_event_notifier: Optional[ControlEventNotifier],
+    ) -> None:
+        if control_event_notifier is None:
+            return
+        event = CapacitorBankControlCommandService.build_control_log_update_event(control_log)
+        try:
+            control_event_notifier(event)
+        except Exception as exc:
+            logger.warning(
+                "control log notifier failed: device_id=%s command_id=%s action=%s result=%s err=%s",
+                control_log.device_id,
+                control_log.id,
+                control_log.action,
+                control_log.result,
+                exc,
+            )
 
     @staticmethod
     def build_manual_switch_command_args(command_args: Optional[dict[str, Any]]) -> dict[str, Any]:
@@ -155,8 +227,9 @@ class CapacitorBankControlCommandService:
         *,
         device_id: Optional[int] = None,
         now: Optional[datetime] = None,
+        control_event_notifier: Optional[ControlEventNotifier] = None,
     ) -> list[DeviceControlLog]:
-        cutoff = (now or datetime.now()) - CONTROL_RECEIPT_TIMEOUT
+        cutoff = (now or datetime.now()) - get_control_receipt_timeout()
         stmt = select(DeviceControlLog).where(DeviceControlLog.result.in_(tuple(PENDING_CONTROL_RESULTS)))
         if device_id is not None:
             stmt = stmt.where(DeviceControlLog.device_id == device_id)
@@ -174,7 +247,16 @@ class CapacitorBankControlCommandService:
             else:
                 log.reason = timeout_suffix
             session.add(log)
+            logger.warning(
+                "capacitor bank control timeout: device_id=%s command_id=%s action=%s source=%s",
+                log.device_id,
+                log.id,
+                log.action,
+                log.command_source,
+            )
         session.commit()
+        for log in expired_logs:
+            CapacitorBankControlCommandService._notify_control_log_update(log, control_event_notifier)
         return expired_logs
 
     @staticmethod
@@ -191,6 +273,8 @@ class CapacitorBankControlCommandService:
         publish_control_payload = publish_control_payload or publish_control_payload_async
 
         spec = CapacitorBankControlCommandService.get_remote_command_spec(action)
+        if spec.get("supported") is False:
+            raise ValueError(str(spec.get("disabled_reason") or f"当前暂不支持远程控制动作 `{action}`。"))
         device_code = getattr(device, "sn", None)
         normalized_reason = reason.strip() if reason else ""
         log_reason = normalized_reason or f"控制台{spec['label']}"
@@ -213,6 +297,15 @@ class CapacitorBankControlCommandService:
         session.add(control_log)
         session.commit()
         session.refresh(control_log)
+        logger.info(
+            "capacitor bank remote control queued: device_id=%s device_code=%s command_id=%s action=%s operator=%s source=%s",
+            device.id,
+            device_code or "-",
+            control_log.id,
+            action,
+            operator,
+            "remote-control-api",
+        )
 
         publish_control_payload(
             device.id,
@@ -243,6 +336,7 @@ class CapacitorBankControlCommandService:
         result: str,
         detail: Optional[str] = None,
         device_repository=None,
+        control_event_notifier: Optional[ControlEventNotifier] = None,
     ) -> DeviceControlLog:
         device_repository = device_repository or DeviceRepository
 
@@ -258,6 +352,39 @@ class CapacitorBankControlCommandService:
         normalized_result = CapacitorBankControlCommandService.normalize_control_result(result)
         if normalized_result not in set(SUPPORTED_CONTROL_RESULTS) - {CONTROL_RESULT_ACCEPTED}:
             raise ValueError("控制回执 result 仅支持 running/success/failed/timeout/rejected。")
+
+        current_result = CapacitorBankControlCommandService.normalize_control_result(control_log.result)
+        if current_result in TERMINAL_CONTROL_RESULTS:
+            if current_result == normalized_result:
+                logger.info(
+                    "duplicate terminal control receipt skipped: device_id=%s command_id=%s action=%s result=%s",
+                    device_id,
+                    control_log.id,
+                    control_log.action,
+                    normalized_result,
+                )
+                return control_log
+
+            detail_text = (detail or "").strip()
+            suffix = f"迟到回执已忽略: {normalized_result}"
+            if detail_text:
+                suffix = f"{suffix}: {detail_text}"
+            if control_log.reason:
+                if suffix not in control_log.reason:
+                    control_log.reason = f"{control_log.reason} | {suffix}"
+            else:
+                control_log.reason = suffix
+            session.add(control_log)
+            session.flush()
+            logger.warning(
+                "late terminal receipt ignored: device_id=%s command_id=%s action=%s current_result=%s incoming_result=%s",
+                device_id,
+                control_log.id,
+                control_log.action,
+                current_result,
+                normalized_result,
+            )
+            return control_log
 
         control_log.result = normalized_result
         detail_text = (detail or "").strip()
@@ -281,4 +408,13 @@ class CapacitorBankControlCommandService:
 
         session.add(control_log)
         session.flush()
+        logger.info(
+            "capacitor bank control receipt applied: device_id=%s command_id=%s action=%s result=%s source=%s",
+            device_id,
+            control_log.id,
+            control_log.action,
+            normalized_result,
+            control_log.command_source,
+        )
+        CapacitorBankControlCommandService._notify_control_log_update(control_log, control_event_notifier)
         return control_log

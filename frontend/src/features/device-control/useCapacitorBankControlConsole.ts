@@ -1,6 +1,6 @@
 import { computed, type ComputedRef } from 'vue'
 import {
-  capacitorBankEditableParameterMeta,
+  filterCapacitorBankWritableParameterMeta,
   formatCapacitorBankControlValue,
 } from '@/features/device-control/capacitorBankControlProfile'
 import {
@@ -44,7 +44,7 @@ export function useCapacitorBankControlConsole(input: {
     profileSourceStatus: data.controlProfile.value?.source_status,
   }))
   const editableParameterCards = computed(() =>
-    capacitorBankEditableParameterMeta.map((item) => ({
+    filterCapacitorBankWritableParameterMeta(data.controlCapabilities.value).map((item) => ({
       ...item,
       currentValue: formatCapacitorBankControlValue(data.controlProfile.value, item),
     })),
@@ -55,6 +55,7 @@ export function useCapacitorBankControlConsole(input: {
     canRunRemoteAction: actions.canRunRemoteAction.value,
     currentControlModeLabel: actions.currentControlModeLabel.value,
     disabledReason: actions.remoteActionDisabledReason.value,
+    remoteCommands: data.controlCapabilities.value?.remote_commands,
   }))
   const readonlySummaryView = computed(() => buildControlConsoleReadonlySummaryView({
     profile: data.controlProfile.value,

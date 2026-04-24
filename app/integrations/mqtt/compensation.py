@@ -337,7 +337,7 @@ def process_control_receipt(session: Session, data: dict[str, Any], device_id: i
     from app.services.devices.compensation.capacitor_bank.control_command_service import CapacitorBankControlCommandService
 
     command_id = data.get("command_id")
-    result = data.get("result")
+    result = CapacitorBankControlCommandService.normalize_control_result(data.get("result"))
     detail = data.get("detail") or data.get("reason") or data.get("message")
     CapacitorBankControlCommandService.apply_control_receipt(
         session,
@@ -345,4 +345,5 @@ def process_control_receipt(session: Session, data: dict[str, Any], device_id: i
         command_id=command_id,
         result=result,
         detail=detail,
+        control_event_notifier=CapacitorBankControlCommandService.publish_control_log_update_event,
     )

@@ -29,11 +29,13 @@ from app.services.devices.compensation.capacitor_bank.specs import (
     CONTROL_RESULT_RUNNING,
     CONTROL_RESULT_SUCCESS,
     CONTROL_RESULT_TIMEOUT,
+    GATEWAY_UAT_WRITABLE_PARAMETERS,
     PARAMETER_WRITE_SPECS,
     SUPPORTED_CONTROL_RESULTS,
     CapacitorBankControlParameterSpec,
     ControlProfileWritePreconditionError,
     PendingParameterWriteConflictError,
+    get_control_receipt_timeout,
 )
 from app.services.devices.compensation.capacitor_bank.parameter_write_service import CapacitorBankParameterWriteService
 from app.services.ingestion_health_service import IngestionHealthService
@@ -104,12 +106,14 @@ class CapacitorBankService:
             "receipt_message_type": CONTROL_RECEIPT_MESSAGE_TYPE,
             "control_topic_template": f"{settings.mqtt_control_topic_prefix}{{device_code}}",
             "receipt_topic": settings.mqtt_topic,
-            "receipt_timeout_seconds": int(CONTROL_RECEIPT_TIMEOUT.total_seconds()),
+            "receipt_timeout_seconds": int(get_control_receipt_timeout().total_seconds()),
             "supported_results": list(SUPPORTED_CONTROL_RESULTS),
+            "remote_commands": CapacitorBankControlCommandService.get_remote_command_capabilities(),
+            "writable_parameters": list(GATEWAY_UAT_WRITABLE_PARAMETERS),
         }
 
     @staticmethod
-    def get_remote_command_spec(action: str) -> dict[str, str]:
+    def get_remote_command_spec(action: str) -> dict[str, Any]:
         return CapacitorBankControlCommandService.get_remote_command_spec(action)
 
     @staticmethod
@@ -144,6 +148,10 @@ class CapacitorBankService:
         )
 
     @staticmethod
+    def publish_control_log_update_event(event: dict[str, Any]) -> None:
+        return CapacitorBankControlCommandService.publish_control_log_update_event(event)
+
+    @staticmethod
     def build_manual_switch_command_args(command_args: Optional[dict[str, Any]]) -> dict[str, Any]:
         return CapacitorBankControlCommandService.build_manual_switch_command_args(command_args)
 
@@ -157,8 +165,14 @@ class CapacitorBankService:
         *,
         device_id: Optional[int] = None,
         now: Optional[Any] = None,
+        control_event_notifier: Optional[Any] = None,
     ) -> list[DeviceControlLog]:
-        return CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device_id, now=now)
+        return CapacitorBankControlCommandService.expire_pending_control_logs(
+            session,
+            device_id=device_id,
+            now=now,
+            control_event_notifier=control_event_notifier,
+        )
 
     @staticmethod
     def normalize_write_value(parameter_key: str, target_value: Any) -> Any:
@@ -215,6 +229,7 @@ class CapacitorBankService:
         command_id: str | int,
         result: str,
         detail: Optional[str] = None,
+        control_event_notifier: Optional[Any] = None,
     ) -> DeviceControlLog:
         return CapacitorBankControlCommandService.apply_control_receipt(
             session,
@@ -223,4 +238,5 @@ class CapacitorBankService:
             result=result,
             detail=detail,
             device_repository=DeviceRepository,
+            control_event_notifier=control_event_notifier,
         )

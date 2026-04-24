@@ -39,7 +39,10 @@ def expire_compensation_control_timeouts() -> None:
 
     try:
         with Session(engine) as session:
-            expired_logs = CapacitorBankService.expire_pending_control_logs(session)
+            expired_logs = CapacitorBankService.expire_pending_control_logs(
+                session,
+                control_event_notifier=CapacitorBankService.publish_control_log_update_event,
+            )
 
         if expired_logs:
             logger.info(f"✅ 补偿控制超时收口完成：共更新 {len(expired_logs)} 条控制日志")

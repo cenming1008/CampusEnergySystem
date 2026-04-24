@@ -142,6 +142,26 @@ class TestCapacitorBankParameterWriteServiceBoundary(unittest.TestCase):
         mock_publish.assert_not_called()
         session.add.assert_not_called()
 
+    @patch("app.services.devices.compensation.capacitor_bank.parameter_write_service.publish_parameter_write_async")
+    @patch("app.services.devices.compensation.capacitor_bank.parameter_write_service.IngestionHealthService.get_device_health")
+    def test_submit_write_rejects_parameters_outside_gateway_uat_allowlist(self, mock_health, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
+        mock_health.return_value = {"is_online": True}
+
+        with self.assertRaises(ControlProfileWritePreconditionError) as ctx:
+            CapacitorBankParameterWriteService.submit_control_profile_write(
+                session,
+                device,
+                parameter_key="baud_rate",
+                target_value=9600,
+                operator="admin",
+            )
+
+        self.assertIn("真实网关暂未确认该参数写入编码", str(ctx.exception))
+        mock_publish.assert_not_called()
+        session.add.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

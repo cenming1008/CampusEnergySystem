@@ -295,6 +295,15 @@ export const capacitorBankControlGroupLabels = {
 export const capacitorBankEditableParameterMeta = capacitorBankControlParameterMeta
   .filter((item) => item.editable)
 
+export function filterCapacitorBankWritableParameterMeta(
+  capabilities?: { writable_parameters?: string[] | null } | null,
+) {
+  const writableKeys = capabilities?.writable_parameters
+  if (!writableKeys?.length) return capacitorBankEditableParameterMeta
+  const allowed = new Set(writableKeys)
+  return capacitorBankEditableParameterMeta.filter((item) => allowed.has(String(item.key)))
+}
+
 export function getCapacitorBankControlParameterMeta(key: string) {
   return capacitorBankControlParameterMeta.find((item) => item.key === key)
 }

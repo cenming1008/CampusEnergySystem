@@ -1,7 +1,9 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import {
   getDeviceMonitorControlLogs,
   getDeviceMonitorOverview,
+  type DeviceControlLog,
   type MonitorOverview,
 } from '@/api/deviceMonitor'
 import {
@@ -11,6 +13,7 @@ import {
 } from '@/api/compensation'
 import { resolveCompensationSubtype } from '@/shared/compensationDevices'
 import { extractControlConsoleErrorMessage } from '@/features/device-control/controlConsoleUtils'
+import { useSocketStore, type SocketMessage } from '@/stores/useSocketStore'
 
 const REFRESH_INTERVAL_IDLE_MS = 5000
 const REFRESH_INTERVAL_PENDING_MS = 2000
@@ -54,13 +57,17 @@ function buildDegradedControlProfile(deviceId: number): CompensationCapacitorBan
 export function useControlConsoleData(input: {
   deviceId: ComputedRef<number>
   enableLifecycle?: boolean
+  socketMessage?: Ref<SocketMessage | null>
 }) {
   const loading = ref(false)
   const overview = ref<MonitorOverview | null>(null)
   const controlProfile = ref<CompensationCapacitorBankControlProfile | null>(null)
-  const controlLogs = ref<Awaited<ReturnType<typeof getDeviceMonitorControlLogs>>['items']>([])
+  const controlLogs = ref<DeviceControlLog[]>([])
   const loadError = ref('')
   const profileWarning = ref('')
+  const socketStore = input.socketMessage || input.enableLifecycle === false ? null : useSocketStore()
+  const socketRefs = socketStore ? storeToRefs(socketStore) : null
+  const socketMessage = input.socketMessage || socketRefs?.latestMessage || ref<SocketMessage | null>(null)
   let refreshTimer: ReturnType<typeof setInterval> | null = null
   let currentInterval = REFRESH_INTERVAL_IDLE_MS
 
@@ -132,6 +139,15 @@ export function useControlConsoleData(input: {
   watch(() => input.deviceId.value, () => {
     void loadPage()
   })
+
+  watch(
+    () => socketMessage.value,
+    (message) => {
+      if (message?.type !== 'device_control_log_update') return
+      if (Number(message.data?.device_id) !== Number(input.deviceId.value)) return
+      void loadPage()
+    },
+  )
 
   if (input.enableLifecycle !== false) {
     onMounted(() => {

@@ -10,7 +10,7 @@
   - [AGENTS.md](../AGENTS.md)
   - [规范指南](./guides/README.md)
   - [AI 多角色协作 SOP](./guides/ai-collaboration-sop.md)
-  - [Codex 五角色 Vibe Coding 框架](./guides/five-role-vibe-coding-framework.md)
+  - [CampusEnergySystem 五角色项目适配说明](./guides/five-role-vibe-coding-framework.md)
 - 当前执行：
   - [计划目录](./plans/README.md)
   - [当前状态](./plans/current-status.md)

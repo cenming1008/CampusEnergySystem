@@ -196,6 +196,12 @@ class Settings(BaseSettings):
         description="MQTT控制指令主题前缀"
     )
 
+    compensation_control_receipt_timeout_seconds: int = Field(
+        default=120,
+        env="COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS",
+        description="补偿控制指令等待设备回执的超时时间（秒）"
+    )
+
     mqtt_consumer_enabled: bool = Field(
         default=False,
         env="MQTT_CONSUMER_ENABLED",

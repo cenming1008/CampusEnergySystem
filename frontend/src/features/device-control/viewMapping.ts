@@ -191,7 +191,19 @@ export function buildControlConsoleActionCards(input: {
   canRunRemoteAction: boolean
   currentControlModeLabel: string
   disabledReason?: string
+  remoteCommands?: CompensationCapacitorBankControlCapabilities['remote_commands']
 }) {
+  const remoteCommand = (action: string) => input.remoteCommands?.find((item) => item.action === action)
+  const isRemoteCommandEnabled = (action: string) => {
+    const capability = remoteCommand(action)
+    return input.canRunRemoteAction && (capability ? capability.supported !== false : true)
+  }
+  const remoteDisabledReason = (action: string) => {
+    const capability = remoteCommand(action)
+    if (capability?.supported === false) return capability.disabled_reason || input.disabledReason
+    return input.disabledReason
+  }
+
   return [
     {
       key: 'toggle_device',
@@ -206,16 +218,16 @@ export function buildControlConsoleActionCards(input: {
       title: '报警复位',
       iconKey: 'refresh',
       actionLabel: '立即复位',
-      enabled: input.canRunRemoteAction,
-      disabledReason: input.canRunRemoteAction ? undefined : input.disabledReason,
+      enabled: isRemoteCommandEnabled('reset_alarm'),
+      disabledReason: isRemoteCommandEnabled('reset_alarm') ? undefined : remoteDisabledReason('reset_alarm'),
     },
     {
       key: 'switch_control_mode',
       title: '控制模式切换',
       iconKey: 'setting',
       actionLabel: `切到${input.currentControlModeLabel === '手动' ? '自动' : '手动'}`,
-      enabled: input.canRunRemoteAction,
-      disabledReason: input.canRunRemoteAction ? undefined : input.disabledReason,
+      enabled: isRemoteCommandEnabled('switch_control_mode'),
+      disabledReason: isRemoteCommandEnabled('switch_control_mode') ? undefined : remoteDisabledReason('switch_control_mode'),
     },
   ] satisfies ControlConsoleActionCard[]
 }
@@ -303,7 +315,7 @@ export function buildControlConsoleWriteSectionView(input: {
     title: '参数修改',
     sectionLabel: '参数修改',
     tone: 'writable',
-    description: '当前已按协议范围开放全部可写参数，提交前仍需二次确认；设备端结果仍需等待回读或回执核对。',
+    description: '当前仅开放真实网关 UAT 已确认编码的低风险参数，提交前仍需二次确认；设备端结果仍需等待回读或回执核对。',
     tags: [
       {
         text: input.canWriteParameters ? '当前允许写入' : '当前禁止写入',

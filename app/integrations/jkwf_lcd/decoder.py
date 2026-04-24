@@ -16,7 +16,10 @@ JKWF-LCD V5.0 协议解码
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 寄存器 0x00 状态标志位定义（位序 0=LSB）
@@ -95,8 +98,8 @@ def decode_jkwf_payload(data: dict[str, Any]) -> dict[str, Any]:
     if raw_flags is not None:
         try:
             result.update(decode_status_flags(int(raw_flags)))
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.warning("JKWF status flags decode failed: value=%r err=%s", raw_flags, exc)
 
     # 投切状态寄存器解码（三个寄存器必须同时存在）
     reg1 = data.get("circuit_state_reg_1")
@@ -105,7 +108,13 @@ def decode_jkwf_payload(data: dict[str, Any]) -> dict[str, Any]:
     if reg1 is not None and reg2 is not None and reg3 is not None:
         try:
             result.update(decode_circuit_states(int(reg1), int(reg2), int(reg3)))
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                "JKWF circuit state decode failed: reg1=%r reg2=%r reg3=%r err=%s",
+                reg1,
+                reg2,
+                reg3,
+                exc,
+            )
 
     return result

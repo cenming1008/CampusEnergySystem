@@ -42,7 +42,10 @@ class TestSchedulerJobs(unittest.TestCase):
         scheduler_jobs.expire_compensation_control_timeouts()
 
         mock_logger.info.assert_any_call("开始扫描补偿控制待定日志超时状态...")
-        mock_expire_pending.assert_called_once_with(mock_session)
+        mock_expire_pending.assert_called_once_with(
+            mock_session,
+            control_event_notifier=scheduler_jobs.CapacitorBankService.publish_control_log_update_event,
+        )
         mock_logger.info.assert_any_call("✅ 补偿控制超时收口完成：共更新 2 条控制日志")
 
     def test_scheduler_registry_only_registers_cleanup_job(self):

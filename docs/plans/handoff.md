@@ -120,15 +120,44 @@
     - `tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py tests/test_database_core.py tests/test_capacitor_bank_service.py`：`36 passed`
     - `DeviceMonitor + compensation viewMapping`：`21 passed`
     - `npm run typecheck`：通过
+- `2026-04-24` 已完成补偿器控制链路 UAT 打磨：
+  - 后端控制回执落库后会发布 `device_control_log_update` 实时事件，事件包含 `device_id / command_id / action / result / reason / updated_at`
+  - MQTT 回执消费、调度器超时收口均已接入同一控制日志事件 notifier；notifier 异常只打 warning，不影响回执落库或超时收敛
+  - 前端控制台已消费 `device_control_log_update`，仅当前设备事件会触发控制日志刷新；既有 2 秒 / 5 秒轮询仍保留为最终兜底
+  - 远程控制下发、参数写入下发、回执落库、pending 超时、参数写入拒绝等关键节点已补结构化日志
+  - JKWF 状态寄存器与投切寄存器非法值会输出 warning，并保持原始可用字段继续入库的 fallback 行为
+  - 控制回执超时已由 `COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS` 配置驱动，默认仍是 120 秒；能力接口继续返回 `receipt_timeout_seconds`
+  - 启动检查已补 SQLite + 补偿器参数写入能力启用时的 warning，明确生产环境应使用 PostgreSQL 行级锁语义
+  - 当前新鲜验证已通过：
+    - `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_capacitor_bank_ingestion.py tests/test_compensation_mqtt_boundary.py tests/test_jkwf_lcd_decoder.py tests/test_alarm_service.py tests/test_scheduler_jobs.py tests/test_startup_checks.py -q`：`75 passed, 1 warning`
+    - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts`：`8 files / 27 tests passed`
+    - `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck`：通过
+    - `git diff --check -- <本轮触碰文件>`：通过
+- `2026-04-24` 已完成补偿器真实网关适配系统侧收敛：
+  - 本轮只修改主系统，不修改 `/Users/todo/Downloads/common.py`、`mqtt_gateway.py`、`edge_collector.py`
+  - 能力接口新增 `remote_commands / writable_parameters`，前端按后端能力禁用动作与过滤写参入口
+  - `reset_alarm` 已默认禁用，禁用原因为“真实网关暂未提供报警复位寄存器/功能码”
+  - 可写参数收窄为 6 个 UAT 低风险字段：投入/切除功率因数、投入/切除延时、过压门限、温度上限
+  - 写参接口后端强制校验 allowlist，非 allowlist 参数不会创建控制日志，也不会下发 MQTT
+  - 控制回执已兼容真实网关拒绝语义：`unsupported / not_supported / refused / invalid / reject` 会归一为 `rejected`
+  - 控制日志终态保护已补齐：终态不被迟到的不同结果覆盖，重复相同终态回执幂等跳过
+  - 当前新鲜验证已通过：
+    - `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_compensation_mqtt_boundary.py tests/test_scheduler_jobs.py tests/test_startup_checks.py tests/test_compensation_device_nested_api.py -q`：`53 passed, 1 warning`
+    - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts`：`8 files / 30 tests passed`
+    - `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck`：通过
 
 ## 下一棒
 - 下一棒交给验收/设备联调角色：
   - 验收确认“补偿器1已达到 MVP+ 阶段完成，但未到正式完善”的阶段结论是否通过，并判断主区是否正式收口
-  - 验收确认“正式控制状态语义 + 仅管理员参数写入 + 二次确认 + 超时提示”的前端开放边界是否通过
+  - 验收确认“正式控制状态语义 + 控制回执实时事件 + 仅管理员参数写入 + 二次确认 + 超时提示 + 按真实网关能力禁用未确认动作”的前端开放边界是否通过
   - 设备/网关联调继续把当前模拟回执口径映射为真实设备/网关协议，确认：
     - 真实回执 topic / payload
     - 命令关联键是否继续复用 `command_id`
     - `running/timeout/rejected` 在真实设备侧是否仍保持当前口径，或需要进一步细化
+    - `COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS` 的 120 秒默认值是否符合现场执行时延，是否需要按动作分级
+    - 真实网关是否会出现多 API 实例并发写参；若会，需要新开 Redis/数据库级分布式锁方案
+    - 工控网关是否后续补齐 `reset_alarm`；若补齐，需要重新开放 `remote_commands.reset_alarm`
+    - `baud_rate`、容量编码、极性识别等高风险参数的真实编码规则是否可确认；确认前系统保持禁写
   - 若后续希望“未知新设备仅凭当前 Windows 模拟 payload 就自动注册成补偿器”，需新开一轮契约收敛：
     - 方案 A：Windows payload 显式补 `device_type/device_subtype`
     - 方案 B：补偿器模拟协议增加更稳定的专属特征字段

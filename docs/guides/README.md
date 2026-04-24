@@ -26,7 +26,7 @@
 - [文档体系规范.md](./文档体系规范.md)
 - [变更计划规范.md](./变更计划规范.md)
 - [AI 多角色协作 SOP](./ai-collaboration-sop.md)
-- [five-role-vibe-coding-framework.md](./five-role-vibe-coding-framework.md)
+- [five-role-vibe-coding-framework.md](./five-role-vibe-coding-framework.md)：本项目 Five Role 适配说明，通用方法见 `five-role-collaboration` skill
 - [product-positioning.md](./product-positioning.md)
 - [frontend-guidelines.md](./frontend-guidelines.md)
 - [backend-guidelines.md](./backend-guidelines.md)
@@ -41,7 +41,7 @@
 1. 先读 [文档体系规范.md](./文档体系规范.md)，判断文档应该落在哪
 2. 再读 [变更计划规范.md](./变更计划规范.md)，判断是否需要正式 `PLAN`
 3. 若涉及多角色协作，再读 [AI 多角色协作 SOP](./ai-collaboration-sop.md)
-4. 若涉及高频开发、角色切换或并行边界，再读 [five-role-vibe-coding-framework.md](./five-role-vibe-coding-framework.md)
+4. 若涉及高频开发、角色切换或并行边界，先按 `five-role-collaboration` skill 判断通用分流，再读 [five-role-vibe-coding-framework.md](./five-role-vibe-coding-framework.md) 确认本项目适配口径
 5. 若涉及仓库级执行约束，同时阅读 [AGENTS.md](../../AGENTS.md)
 
 ---

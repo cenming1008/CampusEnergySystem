@@ -129,8 +129,22 @@ class TestDecodeJkwfPayload(unittest.TestCase):
 
     def test_invalid_flags_value_ignored(self):
         payload = {"jkwf_status_flags": "not_a_number"}
-        result = decode_jkwf_payload(payload)
+        with self.assertLogs("app.integrations.jkwf_lcd.decoder", level="WARNING") as captured:
+            result = decode_jkwf_payload(payload)
         self.assertNotIn("leading_a", result)
+        self.assertTrue(any("JKWF status flags decode failed" in line for line in captured.output))
+
+    def test_invalid_circuit_register_value_ignored_with_warning(self):
+        payload = {
+            "circuit_state_reg_1": 0x0F05,
+            "circuit_state_reg_2": "bad-reg",
+            "circuit_state_reg_3": 0x0000,
+        }
+        with self.assertLogs("app.integrations.jkwf_lcd.decoder", level="WARNING") as captured:
+            result = decode_jkwf_payload(payload)
+
+        self.assertEqual(result, {})
+        self.assertTrue(any("JKWF circuit state decode failed" in line for line in captured.output))
 
     def test_does_not_overwrite_existing_decoded_fields(self):
         """如果 data 里已有解码后字段，decode_jkwf_payload 不覆盖"""

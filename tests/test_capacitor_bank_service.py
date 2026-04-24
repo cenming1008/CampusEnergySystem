@@ -42,6 +42,35 @@ class TestCapacitorBankService(unittest.TestCase):
 
         self.assertEqual(set(PARAMETER_WRITE_SPECS.keys()), expected_keys)
 
+    def test_control_capabilities_use_configured_receipt_timeout(self):
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.specs.settings.compensation_control_receipt_timeout_seconds",
+            45,
+        ):
+            capabilities = CapacitorBankService.get_control_capabilities()
+
+        self.assertEqual(capabilities["receipt_timeout_seconds"], 45)
+
+    def test_control_capabilities_expose_gateway_limited_commands_and_writable_parameters(self):
+        capabilities = CapacitorBankService.get_control_capabilities()
+
+        self.assertEqual(
+            capabilities["writable_parameters"],
+            [
+                "switch_on_power_factor",
+                "switch_off_power_factor",
+                "switch_on_delay_seconds",
+                "switch_off_delay_seconds",
+                "overvoltage_threshold",
+                "temperature_upper_limit",
+            ],
+        )
+        reset_alarm = next(item for item in capabilities["remote_commands"] if item["action"] == "reset_alarm")
+        self.assertFalse(reset_alarm["supported"])
+        self.assertIn("真实网关暂未提供报警复位寄存器/功能码", reset_alarm["disabled_reason"])
+        switch_mode = next(item for item in capabilities["remote_commands"] if item["action"] == "switch_control_mode")
+        self.assertTrue(switch_mode["supported"])
+
     def test_normalize_write_value_accepts_decimal_pf(self):
         result = CapacitorBankService.normalize_write_value("switch_on_power_factor", 0.95)
         self.assertEqual(result, 95)
@@ -156,43 +185,25 @@ class TestCapacitorBankService(unittest.TestCase):
                 )
 
     @patch("app.services.devices.compensation.capacitor_bank.service.publish_control_payload_async")
-    def test_submit_remote_control_command_records_log_and_publishes(self, mock_publish):
+    def test_submit_remote_control_command_rejects_unsupported_gateway_action(self, mock_publish):
         session = MagicMock()
         device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
         session.add = MagicMock()
         session.commit = MagicMock()
         session.refresh = MagicMock(side_effect=lambda obj: setattr(obj, "id", 66))
 
-        result = CapacitorBankService.submit_remote_control_command(
-            session,
-            device,
-            action="reset_alarm",
-            operator="operator",
-            reason="前端联调",
-        )
+        with self.assertRaises(ValueError) as ctx:
+            CapacitorBankService.submit_remote_control_command(
+                session,
+                device,
+                action="reset_alarm",
+                operator="operator",
+                reason="前端联调",
+            )
 
-        added_log = session.add.call_args[0][0]
-        self.assertIsInstance(added_log, DeviceControlLog)
-        self.assertEqual(added_log.action, "reset_alarm")
-        self.assertEqual(added_log.command_source, "remote-control-api")
-        self.assertEqual(added_log.result, "accepted")
-        mock_publish.assert_called_once_with(
-            16,
-            {
-                "message_type": "control_command",
-                "protocol_version": "campus-control.v1",
-                "timestamp": unittest.mock.ANY,
-                "command": "reset_alarm",
-                "command_id": "66",
-                "device_id": 16,
-                "device_code": "CAP-016",
-                "reason": "前端联调",
-            },
-            device_code="CAP-016",
-            worker_name="mqtt-remote-reset_alarm",
-        )
-        self.assertTrue(result["accepted"])
-        self.assertEqual(result["command_id"], "66")
+        self.assertIn("真实网关暂未提供报警复位寄存器/功能码", str(ctx.exception))
+        session.add.assert_not_called()
+        mock_publish.assert_not_called()
 
     def test_apply_control_receipt_updates_control_log_result(self):
         session = MagicMock()
@@ -227,6 +238,39 @@ class TestCapacitorBankService(unittest.TestCase):
         self.assertIn("模拟器已执行报警复位", updated.reason)
         session.add.assert_called_once_with(control_log)
         session.flush.assert_called_once()
+
+    def test_apply_control_receipt_forwards_control_log_event_notifier(self):
+        session = MagicMock()
+        control_log = DeviceControlLog(
+            id=91,
+            device_id=16,
+            action="reset_alarm",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="accepted",
+            reason="控制台报警复位",
+        )
+        notifier = MagicMock()
+        session.add = MagicMock()
+        session.flush = MagicMock()
+
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
+            CapacitorBankService.apply_control_receipt(
+                session,
+                device_id=16,
+                command_id="91",
+                result="success",
+                detail="模拟器已执行报警复位",
+                control_event_notifier=notifier,
+            )
+
+        notifier.assert_called_once()
+        self.assertEqual(notifier.call_args[0][0]["data"]["command_id"], "91")
 
     def test_expire_pending_control_logs_marks_timeout(self):
         session = MagicMock()
@@ -292,6 +336,109 @@ class TestCapacitorBankService(unittest.TestCase):
 
         self.assertEqual(updated_rejected.result, "rejected")
         self.assertIn("设备拒绝执行", updated_rejected.reason)
+
+    def test_apply_control_receipt_maps_gateway_refused_alias_to_rejected(self):
+        session = MagicMock()
+        control_log = DeviceControlLog(
+            id=96,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="accepted",
+            reason="控制台手动投切",
+        )
+        session.add = MagicMock()
+        session.flush = MagicMock()
+
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
+            updated = CapacitorBankService.apply_control_receipt(
+                session,
+                device_id=16,
+                command_id="96",
+                result="refused",
+                detail="设备处于就地模式",
+            )
+
+        self.assertEqual(updated.result, "rejected")
+        self.assertIn("设备拒绝执行", updated.reason)
+
+    def test_apply_control_receipt_keeps_terminal_result_when_late_different_receipt_arrives(self):
+        session = MagicMock()
+        control_log = DeviceControlLog(
+            id=97,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="timeout",
+            reason="设备回执超时：在约定等待时间内未收到回执",
+        )
+        session.add = MagicMock()
+        session.flush = MagicMock()
+
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
+            with self.assertLogs(
+                "app.services.devices.compensation.capacitor_bank.control_command_service",
+                level="WARNING",
+            ) as captured:
+                updated = CapacitorBankService.apply_control_receipt(
+                    session,
+                    device_id=16,
+                    command_id="97",
+                    result="success",
+                    detail="迟到成功回执",
+                )
+
+        self.assertEqual(updated.result, "timeout")
+        self.assertIn("迟到回执已忽略", updated.reason)
+        self.assertTrue(any("late terminal receipt ignored" in line for line in captured.output))
+
+    def test_apply_control_receipt_skips_duplicate_terminal_receipt(self):
+        session = MagicMock()
+        control_log = DeviceControlLog(
+            id=98,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="success",
+            reason="设备回执成功：已按协议手动投切",
+        )
+        session.add = MagicMock()
+        session.flush = MagicMock()
+        notifier = MagicMock()
+
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.service.DeviceRepository.get_control_log_by_id",
+            return_value=control_log,
+        ):
+            updated = CapacitorBankService.apply_control_receipt(
+                session,
+                device_id=16,
+                command_id="98",
+                result="success",
+                detail="重复成功回执",
+                control_event_notifier=notifier,
+            )
+
+        self.assertEqual(updated.result, "success")
+        self.assertNotIn("重复成功回执", updated.reason)
+        session.add.assert_not_called()
+        session.flush.assert_not_called()
+        notifier.assert_not_called()
 
     @patch("app.services.devices.compensation.capacitor_bank.service.publish_control_payload_async")
     def test_submit_manual_switch_command_publishes_native_jkwf_payload(self, mock_publish):

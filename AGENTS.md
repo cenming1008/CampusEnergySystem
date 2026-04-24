@@ -11,7 +11,7 @@
 5. 预判（原：探索）
 
 协作流程、归档与主题收口的正式执行规范，统一以 `docs/guides/ai-collaboration-sop.md` 为准。
-高频开发下的角色分流、切换、并行边界、契约承载与单轮闭环，统一以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
+通用 Five Role 分流方法可调用 `five-role-collaboration` skill；本仓库的角色分流、切换、并行边界、契约承载与单轮闭环适配口径，统一以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
 
 所有角色开始工作前，必须先阅读：
 - AGENTS.md
@@ -19,7 +19,7 @@
 - docs/plans/handoff.md
 - 当前主题对应 `PLAN-*.md`（如存在）
 - docs/guides/product-positioning.md
-- docs/guides/five-role-vibe-coding-framework.md
+- docs/guides/five-role-vibe-coding-framework.md（本项目 Five Role 适配说明）
 
 如果涉及具体实现，还必须继续阅读：
 - 前端线程：docs/guides/frontend-guidelines.md
@@ -74,98 +74,22 @@
 
 ## 角色职责
 
-以下职责按协作位置展开，不代表固定启动顺序；角色组合、切换与并行边界以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
+通用职责定义由 `five-role-collaboration` skill 承载；本项目只保留以下适配摘要。角色组合、切换、并行边界、文档分级与交接格式以 `docs/guides/five-role-vibe-coding-framework.md` 为准。
 
-### 1. 规则角色（原：规范线程）
-职责：
-- 维护项目产品定位与术语边界
-- 维护项目规范文档
-- 更新前后端开发约束
-- 维护调试流程、验证流程、交付格式
-- 锁主题、锁范围、锁契约口径
-- 不直接进行大规模业务代码修改
+| 角色 | 本项目适配重点 | 常用输出位置 |
+| --- | --- | --- |
+| 规则（原：规范） | 维护园区 EMS 产品定位、术语边界、主题范围、契约口径和长期规范 | `AGENTS.md`、`docs/guides/`、必要时当前 `PLAN-*.md` |
+| 预判（原：探索） | 阅读代码、定位根因、拆解任务，默认按园区 / 区域 / 楼栋 / 设备 / 表计主线组织结论 | `docs/plans/current-status.md`、`docs/plans/handoff.md`、必要时 `docs/plans/*-analysis.md` |
+| 前端 | 处理页面、组件、状态、路由、交互和前端接口消费，服务驾驶舱、园区空间、设备与表计、实时监控、告警、能耗分析等页面主线 | `docs/plans/current-status.md`、`docs/plans/handoff.md` |
+| 后端 | 处理接口、schema、service、权限、字段、空值、状态码和返回结构，服务多能源采集、分层计量、告警、历史 / 实时数据与驾驶舱聚合 | `docs/plans/current-status.md`、`docs/plans/handoff.md` |
+| 验收 | 对照当前 `PLAN-*.md`、`current-status.md`、`handoff.md` 核验证据，给出“通过 / 打回 / 收口”结论 | `docs/plans/current-status.md`、`docs/plans/handoff.md`、必要时当前 `PLAN-*.md` |
 
-输出位置：
-- docs/guides/
-- AGENTS.md
-
----
-
-### 2. 预判角色（原：探索线程）
-职责：
-- 阅读代码
-- 梳理模块结构
-- 分析 bug 根因
-- 拆解任务
-- 给出推荐路径、非目标与升级判断
-- 默认按园区 / 区域 / 楼栋 / 设备 / 表计主线组织分析结论
-
-要求：
-- 优先产出分析结论，不急于修改代码
-- 若需要修改代码，仅允许做最小验证性修改，并写明原因
-- 若发现旧有煤矿专属能力，先判断其是否只是历史残留，不默认继续扩张
-- `docs/plans/*-analysis.md` 仅在复杂专题深挖且需反复引用时新增；角色接力默认以主区为准，analysis 仅作深挖材料。
-
-输出位置：
-- docs/plans/current-status.md
-- docs/plans/handoff.md
-- 必要时的 docs/plans/*-analysis.md
-
----
-
-### 3. 前端角色
-职责：
-- 只处理前端页面、组件、状态、路由、交互问题
-- 根据规则和预判结论完成最小必要改动
-- 改动后完成前端验证
-- 默认服务首页驾驶舱、园区空间、区域 / 楼栋能耗、设备与表计管理、实时监控、告警中心、能耗分析、系统设置等页面主线
-
-禁止：
-- 不直接修改后端逻辑
-- 不在没有分析依据的情况下大规模重构
-- 不顺手修改无关页面
-- 不继续把煤矿专属页面叙事作为新功能默认方向
-
-输出位置：
-- docs/plans/current-status.md
-- docs/plans/handoff.md
-
----
-
-### 4. 后端角色
-职责：
-- 只处理后端接口、schema、service、权限、数据返回结构问题
-- 根据前端依赖说明完成必要改动
-- 改动后完成最小后端验证
-- 默认服务多能源采集、分层计量、分项分析、告警、实时 / 历史数据、驾驶舱聚合等能力主线
-
-禁止：
-- 不直接修改前端页面逻辑
-- 不做无关模块重构
-- 不扩大接口影响范围，除非在文档中明确说明
-- 不继续把煤矿专属对象作为接口设计默认扩张方向
-
-输出位置：
-- docs/plans/current-status.md
-- docs/plans/handoff.md
-
----
-
-### 5. 验收角色
-职责：
-- 对照当前 `PLAN-*.md`、`current-status.md`、`handoff.md` 核对是否达到阶段完成或正式完成
-- 判断是否需要继续保留当前主主题
-- 判断是否需要执行 daily 归档、主题收口和归档迁移
-- 按固定 checklist 给出“通过 / 打回 / 收口”结论
-
-要求：
-- 即使没有单独的“验收角色”，每个主题结束时也必须执行一次验收动作
-- 主题完成后，必须执行一次“是否收口 / 是否归档”的判断
-
-输出位置：
-- docs/plans/current-status.md
-- docs/plans/handoff.md
-- 当前主题对应 `PLAN-*.md`（必要时）
+硬边界：
+- 前端不直接修改后端逻辑；后端不直接修改前端页面逻辑。
+- 预判优先产出事实和路径，不把验证性修改扩成正式实现。
+- 规则只做边界和契约裁决，不顺手做业务实现。
+- 即使没有单独的验收角色，每个主题结束时也必须执行验收动作。
+- 若发现旧有煤矿专属能力，先判断其是否只是历史残留，不默认继续扩张。
 
 ---
 

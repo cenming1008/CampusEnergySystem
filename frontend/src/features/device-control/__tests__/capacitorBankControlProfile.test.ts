@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   capacitorBankEditableParameterMeta,
+  filterCapacitorBankWritableParameterMeta,
   formatCapacitorBankControlValue,
   getCapacitorBankControlEditableValue,
   getCapacitorBankControlParameterMeta,
@@ -33,6 +34,15 @@ const baseProfile = {
     receipt_topic: 'campus/telemetry',
     receipt_timeout_seconds: 120,
     supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
+    writable_parameters: [
+      'switch_on_power_factor',
+      'switch_off_power_factor',
+      'switch_on_delay_seconds',
+      'switch_off_delay_seconds',
+      'overvoltage_threshold',
+      'temperature_upper_limit',
+    ],
+    remote_commands: [],
   },
 }
 
@@ -68,6 +78,17 @@ describe('capacitorBankControlProfile helpers', () => {
       ...baseProfile,
       switch_on_power_factor: 95,
     }, meta!)).toBe(0.95)
+  })
+
+  it('filters writable parameter cards by backend gateway allowlist', () => {
+    expect(filterCapacitorBankWritableParameterMeta(baseProfile.capabilities).map((item) => item.key)).toEqual([
+      'switch_on_power_factor',
+      'switch_off_power_factor',
+      'switch_on_delay_seconds',
+      'switch_off_delay_seconds',
+      'overvoltage_threshold',
+      'temperature_upper_limit',
+    ])
   })
 
   it('formats boolean control values for read-only display', () => {

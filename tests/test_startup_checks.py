@@ -1,4 +1,5 @@
 import unittest
+import warnings
 from types import SimpleNamespace
 
 from app.core.startup_checks import validate_runtime_configuration
@@ -41,3 +42,19 @@ class StartupChecksTest(unittest.TestCase):
         )
 
         validate_runtime_configuration(settings)
+
+    def test_sqlite_warns_when_compensation_parameter_write_enabled(self):
+        settings = SimpleNamespace(
+            strict_startup_checks=True,
+            is_production=False,
+            database_url="sqlite:///tmp/campus.db",
+            compensation_capacitor_bank_parameter_write_enabled=True,
+        )
+
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            validate_runtime_configuration(settings)
+
+        self.assertTrue(
+            any("SQLite" in str(item.message) and "补偿器参数写入" in str(item.message) for item in captured)
+        )

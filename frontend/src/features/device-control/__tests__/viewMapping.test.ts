@@ -51,6 +51,27 @@ const baseProfile = {
     receipt_topic: 'campus/telemetry',
     receipt_timeout_seconds: 120,
     supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
+    writable_parameters: [
+      'switch_on_power_factor',
+      'switch_off_power_factor',
+      'switch_on_delay_seconds',
+      'switch_off_delay_seconds',
+      'overvoltage_threshold',
+      'temperature_upper_limit',
+    ],
+    remote_commands: [
+      {
+        action: 'reset_alarm',
+        label: '报警复位',
+        supported: false,
+        disabled_reason: '真实网关暂未提供报警复位寄存器/功能码',
+      },
+      {
+        action: 'switch_control_mode',
+        label: '控制模式切换',
+        supported: true,
+      },
+    ],
   },
 }
 
@@ -89,6 +110,7 @@ describe('device control view mapping', () => {
       canToggleRemotely: true,
       canRunRemoteAction: false,
       currentControlModeLabel: '手动',
+      remoteCommands: baseProfile.capabilities.remote_commands,
     })).toEqual([
       {
         key: 'toggle_device',
@@ -103,6 +125,7 @@ describe('device control view mapping', () => {
         iconKey: 'refresh',
         actionLabel: '立即复位',
         enabled: false,
+        disabledReason: '真实网关暂未提供报警复位寄存器/功能码',
       },
       {
         key: 'switch_control_mode',
@@ -168,7 +191,7 @@ describe('device control view mapping', () => {
       title: '参数修改',
       sectionLabel: '参数修改',
       tone: 'writable',
-      description: '当前已按协议范围开放全部可写参数，提交前仍需二次确认；设备端结果仍需等待回读或回执核对。',
+      description: '当前仅开放真实网关 UAT 已确认编码的低风险参数，提交前仍需二次确认；设备端结果仍需等待回读或回执核对。',
       tags: [
         { text: '当前禁止写入', tone: 'warning' },
         { text: '支持参数写入', tone: 'success' },

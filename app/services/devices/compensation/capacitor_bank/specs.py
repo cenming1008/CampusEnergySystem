@@ -11,8 +11,10 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Optional
 
+from app.core.settings import settings
+
 CONTROL_PROFILE_STALE_AFTER = timedelta(hours=1)
-CONTROL_RECEIPT_TIMEOUT = timedelta(minutes=2)
+CONTROL_RECEIPT_TIMEOUT = timedelta(seconds=120)
 CONTROL_PROTOCOL_VERSION = "campus-control.v1"
 CONTROL_COMMAND_MESSAGE_TYPE = "control_command"
 CONTROL_RECEIPT_MESSAGE_TYPE = "control_receipt"
@@ -31,6 +33,20 @@ SUPPORTED_CONTROL_RESULTS = (
     CONTROL_RESULT_TIMEOUT,
     CONTROL_RESULT_REJECTED,
 )
+TERMINAL_CONTROL_RESULTS = {CONTROL_RESULT_SUCCESS, CONTROL_RESULT_FAILED, CONTROL_RESULT_TIMEOUT, CONTROL_RESULT_REJECTED}
+GATEWAY_UAT_WRITABLE_PARAMETERS = (
+    "switch_on_power_factor",
+    "switch_off_power_factor",
+    "switch_on_delay_seconds",
+    "switch_off_delay_seconds",
+    "overvoltage_threshold",
+    "temperature_upper_limit",
+)
+
+
+def get_control_receipt_timeout() -> timedelta:
+    """返回当前配置的控制回执超时时间。"""
+    return timedelta(seconds=max(1, int(settings.compensation_control_receipt_timeout_seconds)))
 
 
 @dataclass(frozen=True)
@@ -78,22 +94,27 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
     ),
 }
 
-REMOTE_COMMAND_SPECS: dict[str, dict[str, str]] = {
+REMOTE_COMMAND_SPECS: dict[str, dict[str, Any]] = {
     "manual_switch": {
         "label": "手动投切",
         "command": "manual_switch",
+        "supported": True,
     },
     "manual_switch_test": {
         "label": "手动投切测试",
         "command": "manual_switch_test",
+        "supported": True,
     },
     "reset_alarm": {
         "label": "报警复位",
         "command": "reset_alarm",
+        "supported": False,
+        "disabled_reason": "真实网关暂未提供报警复位寄存器/功能码",
     },
     "switch_control_mode": {
         "label": "控制模式切换",
         "command": "switch_control_mode",
+        "supported": True,
     },
 }
 

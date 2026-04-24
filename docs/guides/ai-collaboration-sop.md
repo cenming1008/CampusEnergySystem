@@ -2,7 +2,7 @@
 
 > 适用于本仓库内的 Codex、Cursor 与人工协作者。用于统一多角色协作的启动、执行、归档、收口和主题切换动作。
 >
-> 本 SOP 负责治理层动作；若要在高频开发中判断角色分流、切换、并行边界与单轮闭环，请配合阅读 [Codex 五角色 Vibe Coding 框架](./five-role-vibe-coding-framework.md)。
+> 本 SOP 负责治理层动作；通用职责分流可调用 `five-role-collaboration` skill，高频开发中的项目适配口径请配合阅读 [CampusEnergySystem 五角色项目适配说明](./five-role-vibe-coding-framework.md)。
 >
 > 兼容口径：本文正式使用“角色”作为主名；若历史材料出现“线程”，默认按角色理解。
 
@@ -31,81 +31,19 @@
 
 ---
 
-## 2. 角色定义
+## 2. 角色口径
 
-### 2.1 规则角色（原：规范线程）
+通用 Five Role 职责定义由 `five-role-collaboration` skill 承载；本 SOP 只规定这些角色在本仓库内参与文档治理、主区维护、daily 归档和主题收口时的落点。
 
-职责：
+| 角色 | 治理职责 | 主要输出位置 |
+| --- | --- | --- |
+| 规则（原：规范） | 维护产品定位、术语边界、协作规则、计划规范和长期 guide | `AGENTS.md`、`docs/guides/*`、必要时当前 `PLAN-*.md` |
+| 预判（原：探索） | 给出影响范围、根因、边界和最小修复路径，为实现角色提供依据 | `docs/plans/current-status.md`、`docs/plans/handoff.md`、必要时专题分析文档 |
+| 前端 | 在当前主题与契约范围内完成前端改动、验证和必要回写 | `docs/plans/current-status.md`、`docs/plans/handoff.md` |
+| 后端 | 在当前主题与契约范围内完成后端改动、验证和必要回写 | `docs/plans/current-status.md`、`docs/plans/handoff.md` |
+| 验收 | 核对正式 PLAN、当前状态和交接信息，判断阶段完成、正式收口或打回 | `docs/plans/current-status.md`、`docs/plans/handoff.md`、必要时当前 `PLAN-*.md` |
 
-- 维护产品定位、术语边界和协作规则
-- 维护长期稳定的规范文档
-- 审核执行边界是否偏离当前主主题
-- 规定计划、归档、交接和验收的文档格式
-
-输出位置：
-
-- `AGENTS.md`
-- `docs/guides/*`
-
-### 2.2 预判角色（原：探索线程）
-
-职责：
-
-- 阅读代码、定位问题、拆解任务
-- 明确影响范围、根因、边界和最小修复路径
-- 为实现角色提供正式执行依据
-
-输出位置：
-
-- `docs/plans/PLAN-*.md`
-- `docs/plans/current-status.md`
-- `docs/plans/handoff.md`
-- 必要时的专题分析文档
-
-### 2.3 前端角色
-
-职责：
-
-- 执行前端页面、组件、状态、交互与路由改动
-- 严格按当前主主题和正式 PLAN 实施
-- 完成最小前端验证并回写结果
-
-输出位置：
-
-- `docs/plans/current-status.md`
-- `docs/plans/handoff.md`
-
-### 2.4 后端角色
-
-职责：
-
-- 执行接口、schema、service、权限和返回结构改动
-- 严格按当前主主题和正式 PLAN 实施
-- 完成最小后端验证并回写结果
-
-输出位置：
-
-- `docs/plans/current-status.md`
-- `docs/plans/handoff.md`
-
-### 2.5 验收角色
-
-职责：
-
-- 对照正式 PLAN、当前状态和交接信息做验收核对
-- 判断当前主题是否达到阶段完成或正式收口条件
-- 判断主区内容是否应归档、是否应切换下一个主题
-- 补齐最终验证结论、剩余风险和后续接手建议
-
-输出位置：
-
-- `docs/plans/current-status.md`
-- `docs/plans/handoff.md`
-- 必要时补充到当前 `PLAN-*.md`
-
-说明：
-
-- 即使未单独开设“验收角色”，每个主题结束时也必须执行验收动作。
+即使未单独开设“验收角色”，每个主题结束时也必须执行同等验收动作。
 
 ---
 
@@ -502,7 +440,7 @@
 
 - [AGENTS.md](../../AGENTS.md)
 - [规范指南 README](./README.md)
-- [Codex 五角色 Vibe Coding 框架](./five-role-vibe-coding-framework.md)
+- [CampusEnergySystem 五角色项目适配说明](./five-role-vibe-coding-framework.md)
 - [变更计划规范](./变更计划规范.md)
 - [计划目录 README](../plans/README.md)
 - [Current Status](../plans/current-status.md)

@@ -158,6 +158,13 @@ export interface CompensationCapacitorBankControlCapabilities {
   receipt_topic: string
   receipt_timeout_seconds: number
   supported_results: string[]
+  remote_commands?: Array<{
+    action: string
+    label: string
+    supported: boolean
+    disabled_reason?: string | null
+  }>
+  writable_parameters?: string[]
 }
 
 export interface CompensationCapacitorBankSplitCapacityExpansion {
