@@ -1,6 +1,7 @@
 import os
 import unittest
 from contextlib import contextmanager
+from importlib import import_module
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
@@ -21,6 +22,20 @@ class _FakeInspector:
 
 
 class DatabaseCoreTest(unittest.TestCase):
+    def test_capacitor_bank_monitor_migration_matches_required_columns(self):
+        migration = import_module(
+            "migrations.versions.20260424_0009_add_capacitor_bank_monitor_fields"
+        )
+
+        self.assertEqual(
+            set(migration.CAPACITOR_BANK_CONTROL_PROFILE_COLUMNS),
+            database.REQUIRED_COLUMNS["capacitor_bank_control_profile"],
+        )
+        self.assertEqual(
+            set(migration.CAPACITOR_BANK_TELEMETRY_COLUMNS),
+            database.REQUIRED_COLUMNS["capacitor_bank_telemetry"],
+        )
+
     def test_init_db_runs_runtime_sync_when_enabled(self):
         with patch.object(database.settings, "db_auto_create_tables", True):
             with patch.object(database.settings, "db_runtime_schema_sync", True):

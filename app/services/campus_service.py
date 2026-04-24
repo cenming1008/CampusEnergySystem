@@ -14,8 +14,8 @@ from typing import Iterable, Optional
 
 from sqlmodel import Session, select
 
+from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
-
 
 SITE_LOCATION_TYPES = {"park", "campus", "site"}
 AREA_LOCATION_TYPES = {"area", "zone"}
@@ -50,6 +50,16 @@ class CampusContext:
     devices: list[Device]
     device_by_id: dict[int, Device]
     relevant_location_ids: set[int]
+
+
+@dataclass
+class PeriodEnergySummary:
+    device_id: int
+    energy_type: str
+    total_consumption: float
+    load_sum: float
+    load_count: int
+    meter_reset_suspected: bool
 
 
 class CampusService:
@@ -103,6 +113,7 @@ class CampusService:
     ) -> dict:
         context = CampusService.build_context(session, allowed_device_ids)
         energy_rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        period_summaries = CampusService._build_period_energy_summaries(energy_rows)
         trend_rows = CampusService._list_energy_rows(
             session,
             end_time - timedelta(hours=24),
@@ -112,13 +123,13 @@ class CampusService:
         alarm_rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
 
         hierarchy_summary = CampusService._build_hierarchy_summary(context)
-        energy_category_summary = CampusService._build_energy_category_summary(energy_rows)
-        subitem_statistics = CampusService._build_subitem_statistics(energy_rows, context.device_by_id)
+        energy_category_summary = CampusService._build_energy_category_summary(period_summaries)
+        subitem_statistics = CampusService._build_subitem_statistics(period_summaries, context.device_by_id)
         area_rankings = CampusService._build_location_rankings(
-            energy_rows, context, AREA_LOCATION_TYPES, top_n=5
+            period_summaries, context, AREA_LOCATION_TYPES, top_n=5
         )
         building_rankings = CampusService._build_location_rankings(
-            energy_rows, context, BUILDING_LOCATION_TYPES, top_n=5
+            period_summaries, context, BUILDING_LOCATION_TYPES, top_n=5
         )
         realtime_load_trend = CampusService._build_realtime_load_trend(trend_rows)
         alarm_summary = CampusService._build_alarm_summary(alarm_rows, context)
@@ -164,7 +175,8 @@ class CampusService:
         context = CampusService.build_context(session, allowed_device_ids)
         target_types = AREA_LOCATION_TYPES if dimension == "area" else BUILDING_LOCATION_TYPES
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
-        rankings = CampusService._build_location_rankings(rows, context, target_types, top_n=20)
+        period_summaries = CampusService._build_period_energy_summaries(rows)
+        rankings = CampusService._build_location_rankings(period_summaries, context, target_types, top_n=20)
         return {
             "dimension": dimension,
             "time_window": {
@@ -182,9 +194,10 @@ class CampusService:
         allowed_device_ids: Optional[set[int]] = None,
     ) -> dict:
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        period_summaries = CampusService._build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
-            "items": CampusService._build_energy_category_summary(rows),
+            "items": CampusService._build_energy_category_summary(period_summaries),
         }
 
     @staticmethod
@@ -196,9 +209,10 @@ class CampusService:
     ) -> dict:
         context = CampusService.build_context(session, allowed_device_ids)
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
+        period_summaries = CampusService._build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
-            "items": CampusService._build_subitem_statistics(rows, context.device_by_id),
+            "items": CampusService._build_subitem_statistics(period_summaries, context.device_by_id),
         }
 
     @staticmethod
@@ -339,26 +353,49 @@ class CampusService:
         }
 
     @staticmethod
-    def _build_energy_category_summary(rows: list[EnergyData]) -> list[dict]:
-        totals: dict[str, dict[str, float]] = defaultdict(lambda: {"consumption": 0.0, "load": 0.0})
-        total_consumption = 0.0
-        row_count = max(len(rows), 1)
+    def _build_period_energy_summaries(rows: list[EnergyData]) -> list[PeriodEnergySummary]:
+        grouped_rows: dict[tuple[int, str], list[EnergyData]] = defaultdict(list)
         for row in rows:
-            item = totals[row.energy_type]
-            item["consumption"] += float(row.consumption or 0.0)
-            item["load"] += float(row.flow_rate or 0.0)
-            total_consumption += float(row.consumption or 0.0)
+            grouped_rows[(row.device_id, row.energy_type)].append(row)
+
+        summaries = []
+        for (device_id, energy_type), group_rows in grouped_rows.items():
+            flow_rates = [float(row.flow_rate) for row in group_rows if row.flow_rate is not None]
+            total_consumption, meter_reset_suspected = calculate_period_delta(group_rows)
+            summaries.append(
+                PeriodEnergySummary(
+                    device_id=device_id,
+                    energy_type=energy_type,
+                    total_consumption=total_consumption,
+                    load_sum=sum(flow_rates),
+                    load_count=len(flow_rates),
+                    meter_reset_suspected=meter_reset_suspected,
+                )
+            )
+        return summaries
+
+    @staticmethod
+    def _build_energy_category_summary(summaries: list[PeriodEnergySummary]) -> list[dict]:
+        totals: dict[str, dict[str, float]] = defaultdict(lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0.0})
+        total_consumption = 0.0
+        for summary in summaries:
+            item = totals[summary.energy_type]
+            item["consumption"] += float(summary.total_consumption or 0.0)
+            item["load"] += summary.load_sum
+            item["load_count"] += summary.load_count
+            total_consumption += float(summary.total_consumption or 0.0)
 
         items = []
         for energy_type, value in sorted(totals.items(), key=lambda item: item[1]["consumption"], reverse=True):
             consumption = round(value["consumption"], 3)
             ratio = round((consumption / total_consumption) if total_consumption else 0.0, 4)
+            load_count = max(int(value["load_count"]), 1)
             items.append(
                 {
                     "energy_category": energy_type,
                     "label": ENERGY_CATEGORY_LABELS.get(energy_type, energy_type),
                     "total_consumption": consumption,
-                    "avg_load": round(value["load"] / row_count, 3),
+                    "avg_load": round(value["load"] / load_count, 3),
                     "ratio": ratio,
                     "estimated_carbon": round(consumption * 0.785, 3) if energy_type == "electricity" else 0.0,
                 }
@@ -366,30 +403,30 @@ class CampusService:
         return items
 
     @staticmethod
-    def _build_subitem_statistics(rows: list[EnergyData], device_by_id: dict[int, Device]) -> list[dict]:
+    def _build_subitem_statistics(summaries: list[PeriodEnergySummary], device_by_id: dict[int, Device]) -> list[dict]:
         items: dict[str, dict] = defaultdict(
-            lambda: {"consumption": 0.0, "load": 0.0, "device_ids": set(), "energy_categories": set()}
+            lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0, "device_ids": set(), "energy_categories": set()}
         )
-        for row in rows:
-            device = device_by_id.get(row.device_id)
+        for summary in summaries:
+            device = device_by_id.get(summary.device_id)
             if not device:
                 continue
             sub_item = device.device_category or device.device_type or "device"
             item = items[sub_item]
-            item["consumption"] += float(row.consumption or 0.0)
-            item["load"] += float(row.flow_rate or 0.0)
+            item["consumption"] += float(summary.total_consumption or 0.0)
+            item["load"] += summary.load_sum
+            item["load_count"] += summary.load_count
             item["device_ids"].add(device.id)
-            item["energy_categories"].add(row.energy_type)
+            item["energy_categories"].add(summary.energy_type)
 
         result = []
         for sub_item, value in sorted(items.items(), key=lambda item: item[1]["consumption"], reverse=True):
-            device_count = max(len(value["device_ids"]), 1)
             result.append(
                 {
                     "sub_item": sub_item,
                     "label": SUB_ITEM_LABELS.get(sub_item, sub_item),
                     "total_consumption": round(float(value["consumption"]), 3),
-                    "avg_load": round(float(value["load"]) / device_count, 3),
+                    "avg_load": round(float(value["load"]) / max(int(value["load_count"]), 1), 3),
                     "device_count": len(value["device_ids"]),
                     "energy_categories": sorted(value["energy_categories"]),
                 }
@@ -398,18 +435,17 @@ class CampusService:
 
     @staticmethod
     def _build_location_rankings(
-        rows: list[EnergyData],
+        summaries: list[PeriodEnergySummary],
         context: CampusContext,
         target_types: set[str],
         top_n: int,
     ) -> list[dict]:
-        row_count = max(len(rows), 1)
         aggregates: dict[int, dict] = defaultdict(
-            lambda: {"consumption": 0.0, "load": 0.0, "energy_breakdown": defaultdict(float)}
+            lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0, "energy_breakdown": defaultdict(float)}
         )
 
-        for row in rows:
-            device = context.device_by_id.get(row.device_id)
+        for summary in summaries:
+            device = context.device_by_id.get(summary.device_id)
             if not device or device.location_id is None:
                 continue
             target = CampusService._find_ancestor_location(
@@ -420,11 +456,11 @@ class CampusService:
             if not target:
                 continue
             item = aggregates[target.id]
-            consumption = float(row.consumption or 0.0)
-            load = float(row.flow_rate or 0.0)
+            consumption = float(summary.total_consumption or 0.0)
             item["consumption"] += consumption
-            item["load"] += load
-            item["energy_breakdown"][row.energy_type] += consumption
+            item["load"] += summary.load_sum
+            item["load_count"] += summary.load_count
+            item["energy_breakdown"][summary.energy_type] += consumption
 
         ranked_items = []
         for location_id, value in aggregates.items():
@@ -438,7 +474,7 @@ class CampusService:
                     "location_type": location.location_type,
                     "full_path": location.full_path,
                     "total_consumption": round(float(value["consumption"]), 3),
-                    "avg_load": round(float(value["load"]) / row_count, 3),
+                    "avg_load": round(float(value["load"]) / max(int(value["load_count"]), 1), 3),
                     "energy_breakdown": {
                         energy_type: round(amount, 3)
                         for energy_type, amount in sorted(value["energy_breakdown"].items(), key=lambda item: item[1], reverse=True)
@@ -452,11 +488,20 @@ class CampusService:
     @staticmethod
     def _build_realtime_load_trend(rows: list[EnergyData]) -> list[dict]:
         buckets: dict[datetime, dict[str, float]] = defaultdict(lambda: {"load": 0.0, "consumption": 0.0})
+        grouped_rows: dict[tuple[int, str], list[EnergyData]] = defaultdict(list)
         for row in rows:
-            timestamp = row.timestamp
-            bucket = buckets[timestamp]
-            bucket["load"] += float(row.flow_rate or 0.0)
-            bucket["consumption"] += float(row.consumption or 0.0)
+            grouped_rows[(row.device_id, row.energy_type)].append(row)
+
+        for group_rows in grouped_rows.values():
+            ordered_rows = sorted(group_rows, key=lambda row: row.timestamp)
+            previous_consumption = None
+            for row in ordered_rows:
+                bucket = buckets[row.timestamp]
+                bucket["load"] += float(row.flow_rate or 0.0)
+                current_consumption = float(row.consumption or 0.0)
+                if previous_consumption is not None:
+                    bucket["consumption"] += max(0.0, current_consumption - previous_consumption)
+                previous_consumption = current_consumption
 
         return [
             {

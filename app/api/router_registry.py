@@ -27,7 +27,6 @@ from app.api.endpoints import (
     users,
 )
 
-
 PUBLIC_ROUTERS = (
     (health.router, "", ("系统健康",)),
     (auth.router, "/auth", ("认证",)),

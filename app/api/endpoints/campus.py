@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -150,7 +150,10 @@ def _resolve_window(
     end_time: Optional[datetime],
     default_hours: int,
 ) -> tuple[datetime, datetime]:
-    return CampusService.normalize_time_window(start_time, end_time, default_hours)
+    try:
+        return CampusService.normalize_time_window(start_time, end_time, default_hours)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/overview", response_model=CampusOverviewResponse)

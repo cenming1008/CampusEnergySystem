@@ -11,10 +11,96 @@ from __future__ import annotations
 from collections.abc import Generator
 
 from sqlalchemy import inspect
-from sqlmodel import SQLModel, create_engine, Session, text
+from sqlmodel import Session, SQLModel, create_engine, text
 
 from app.core.logger import logger
 from app.core.settings import settings
+
+CAPACITOR_BANK_CONTROL_PROFILE_REQUIRED_COLUMNS = {
+    "source",
+    "snapshot_timestamp",
+    "phase_a_circuit_total_count",
+    "phase_b_circuit_total_count",
+    "phase_c_circuit_total_count",
+    "common_1_circuit_total_count",
+    "common_2_circuit_total_count",
+    "common_3_circuit_total_count",
+    "phase_a_capacity_steps_kvar_json",
+    "phase_b_capacity_steps_kvar_json",
+    "phase_c_capacity_steps_kvar_json",
+    "common_1_capacity_steps_kvar_json",
+    "common_2_capacity_steps_kvar_json",
+    "common_3_capacity_steps_kvar_json",
+    "phase_a_circuit_running_count",
+    "phase_b_circuit_running_count",
+    "phase_c_circuit_running_count",
+    "common_group_1_running_count",
+    "common_group_2_running_count",
+    "common_group_3_running_count",
+    "split_circuit_running_count",
+    "common_circuit_running_count",
+    "running_circuit_count",
+    "control_mode",
+    "auto_on_elapsed_seconds",
+    "auto_off_elapsed_seconds",
+    "last_auto_action",
+}
+
+CAPACITOR_BANK_TELEMETRY_REQUIRED_COLUMNS = {
+    "phase_a_circuit_running_count",
+    "phase_b_circuit_running_count",
+    "phase_c_circuit_running_count",
+    "common_group_1_running_count",
+    "common_group_2_running_count",
+    "common_group_3_running_count",
+    "split_circuit_running_count",
+    "common_circuit_running_count",
+    "running_circuit_count",
+    "control_mode",
+    "auto_on_elapsed_seconds",
+    "auto_off_elapsed_seconds",
+    "last_auto_action",
+}
+
+REQUIRED_COLUMNS = {
+    "energydata": {"reactive_power"},
+    "device": {"device_subtype"},
+    "svg_asset_profile": {
+        "model_number",
+        "rated_voltage",
+        "rated_frequency",
+        "comm_address",
+        "software_version",
+        "hardware_version",
+        "protocol_version",
+        "module_count",
+        "single_module_capacity",
+    },
+    "capacitor_bank_control_profile": CAPACITOR_BANK_CONTROL_PROFILE_REQUIRED_COLUMNS,
+    "capacitor_bank_telemetry": CAPACITOR_BANK_TELEMETRY_REQUIRED_COLUMNS,
+    "alarm": {
+        "severity",
+        "category",
+        "source",
+        "instance_key",
+        "last_seen_at",
+        "recovered_at",
+        "resolved_at",
+        "resolved_by",
+        "handling_note",
+    },
+    "mqtt_ingestion_record": {"raw_payload", "retry_count", "next_retry_at", "replay_count", "last_replayed_at"},
+    "user": {
+        "role",
+        "location_scope",
+        "must_change_password",
+        "failed_login_attempts",
+        "locked_until",
+        "token_version",
+        "last_login_at",
+        "last_password_changed_at",
+    },
+}
 
 
 engine = create_engine(
@@ -286,89 +372,8 @@ def _assert_required_tables_exist() -> None:
 def _assert_required_columns_present() -> None:
     """生产模式下验证关键表字段已通过 migration 到位。"""
     inspector = inspect(engine)
-    required_columns = {
-        "energydata": {"reactive_power"},
-        "device": {"device_subtype"},
-        "svg_asset_profile": {
-            "model_number",
-            "rated_voltage",
-            "rated_frequency",
-            "comm_address",
-            "software_version",
-            "hardware_version",
-            "protocol_version",
-            "module_count",
-            "single_module_capacity",
-        },
-        "capacitor_bank_control_profile": {
-            "source",
-            "snapshot_timestamp",
-            "phase_a_circuit_total_count",
-            "phase_b_circuit_total_count",
-            "phase_c_circuit_total_count",
-            "common_1_circuit_total_count",
-            "common_2_circuit_total_count",
-            "common_3_circuit_total_count",
-            "phase_a_capacity_steps_kvar_json",
-            "phase_b_capacity_steps_kvar_json",
-            "phase_c_capacity_steps_kvar_json",
-            "common_1_capacity_steps_kvar_json",
-            "common_2_capacity_steps_kvar_json",
-            "common_3_capacity_steps_kvar_json",
-            "phase_a_circuit_running_count",
-            "phase_b_circuit_running_count",
-            "phase_c_circuit_running_count",
-            "common_group_1_running_count",
-            "common_group_2_running_count",
-            "common_group_3_running_count",
-            "split_circuit_running_count",
-            "common_circuit_running_count",
-            "running_circuit_count",
-            "control_mode",
-            "auto_on_elapsed_seconds",
-            "auto_off_elapsed_seconds",
-            "last_auto_action",
-        },
-        "capacitor_bank_telemetry": {
-            "phase_a_circuit_running_count",
-            "phase_b_circuit_running_count",
-            "phase_c_circuit_running_count",
-            "common_group_1_running_count",
-            "common_group_2_running_count",
-            "common_group_3_running_count",
-            "split_circuit_running_count",
-            "common_circuit_running_count",
-            "running_circuit_count",
-            "control_mode",
-            "auto_on_elapsed_seconds",
-            "auto_off_elapsed_seconds",
-            "last_auto_action",
-        },
-        "alarm": {
-            "severity",
-            "category",
-            "source",
-            "instance_key",
-            "last_seen_at",
-            "recovered_at",
-            "resolved_at",
-            "resolved_by",
-            "handling_note",
-        },
-        "mqtt_ingestion_record": {"raw_payload", "retry_count", "next_retry_at", "replay_count", "last_replayed_at"},
-        "user": {
-            "role",
-            "location_scope",
-            "must_change_password",
-            "failed_login_attempts",
-            "locked_until",
-            "token_version",
-            "last_login_at",
-            "last_password_changed_at",
-        },
-    }
     missing_fields: list[str] = []
-    for table_name, columns in required_columns.items():
+    for table_name, columns in REQUIRED_COLUMNS.items():
         existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
         missing = sorted(columns - existing_columns)
         missing_fields.extend(f"{table_name}.{column}" for column in missing)

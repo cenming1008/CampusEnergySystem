@@ -1,0 +1,30 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+exclude = [
+  "venv",
+  ".venv",
+  "frontend",
+  "docs/archive",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.9"
+files = ["app/api/router_registry.py", "app/services/device_monitor_service.py"]
+exclude = "(^frontend/|^tests/|^venv/|^\\.venv/)"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+pretty = true
+show_error_codes = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+no_implicit_optional = false

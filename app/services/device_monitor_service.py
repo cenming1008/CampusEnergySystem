@@ -9,15 +9,17 @@ from typing import Any, Optional
 
 from sqlmodel import Session
 
+from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
 from app.models.tables import Device, DeviceControlLog
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.energy_repository import EnergyRepository
 from app.services.alarm_service import AlarmService
-from app.services.devices.compensation.capacitor_bank.control_command_service import CapacitorBankControlCommandService
-from app.services.devices.compensation.monitor_service import CompensationMonitorService
 from app.services.device_service import DeviceService
+from app.services.devices.compensation.capacitor_bank.control_command_service import (
+    CapacitorBankControlCommandService,
+)
+from app.services.devices.compensation.monitor_service import CompensationMonitorService
 from app.services.ingestion_health_service import IngestionHealthService
-from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
 
 
 class DeviceMonitorService:
