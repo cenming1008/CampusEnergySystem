@@ -284,6 +284,7 @@ class DeviceMonitorService:
             "device_subtype": device.device_subtype,
             "device_category": device.device_category,
             "energy_type": device.energy_type,
+            "archive_status": device.archive_status,
             "location": device.location,
             "rated_capacity": device.rated_capacity,
             "unit": device.unit,

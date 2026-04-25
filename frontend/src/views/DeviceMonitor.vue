@@ -63,6 +63,7 @@ const REFRESH_INTERVAL_MS = 5000
 const archive = computed(() => overview.value?.archive)
 const runtimeStatus = computed(() => overview.value?.runtime_status)
 const realtime = computed(() => overview.value?.realtime)
+const isPendingArchiveDevice = computed(() => archive.value?.archive_status === 'pending')
 
 const {
   compensationSvgTelemetry,
@@ -149,16 +150,23 @@ const trendSummary = computed(() => {
 })
 
 const isDeviceActive = computed(() => runtimeStatus.value?.is_active ?? false)
-const toggleActionLabel = computed(() => (isDeviceActive.value ? '停止设备' : '启动设备'))
+const toggleActionLabel = computed(() => (isDeviceActive.value ? '停用设备' : '启用设备'))
 const toggleButtonType = computed(() => (isDeviceActive.value ? 'danger' : 'success'))
+const realtimeStaleTime = computed(() =>
+  runtimeStatus.value?.latest_timestamp
+  || runtimeStatus.value?.last_success_at
+  || runtimeStatus.value?.last_message_at
+  || realtime.value?.timestamp
+)
+const isRealtimeStale = computed(() => runtimeStatus.value?.is_online === false && Boolean(realtimeStaleTime.value))
 const timelineHours = computed(() => {
   const [start, end] = timeRange.value || defaultTimeRange()
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (60 * 60 * 1000)))
 })
 
 const genericStatusItems = computed(() => [
-  { label: '设备状态', value: runtimeStatus.value?.label || '状态未知' },
-  { label: '在线状态', value: runtimeStatus.value?.is_online ? '在线' : '离线' },
+  { label: '管理状态', value: runtimeStatus.value?.is_active ? '启用' : '停用' },
+  { label: '通讯状态', value: runtimeStatus.value?.is_online ? '在线采集' : '离线' },
   {
     label: '采集状态',
     value: formatIngestionStatus(runtimeStatus.value?.ingestion_status),
@@ -404,21 +412,21 @@ async function handleToggleDevice() {
   const nextActive = !isDeviceActive.value
   try {
     const { value } = await ElMessageBox.prompt(
-      `${nextActive ? '将设备切换为运行状态' : '将设备切换为停机状态'}，可填写本次操作备注。`,
-      nextActive ? '启动设备' : '停止设备',
+      `${nextActive ? '将设备管理状态切换为启用' : '将设备管理状态切换为停用'}，可填写本次操作备注。`,
+      nextActive ? '启用设备' : '停用设备',
       {
-        confirmButtonText: nextActive ? '确认启动' : '确认停止',
+        confirmButtonText: nextActive ? '确认启用' : '确认停用',
         cancelButtonText: '取消',
-        inputPlaceholder: '例如：例行巡检后恢复运行',
+        inputPlaceholder: '例如：例行巡检后恢复采集管理',
       },
     )
     toggleSubmitting.value = true
     await toggleDeviceStatus(deviceId.value, nextActive, value)
-    ElMessage.success(nextActive ? '设备已启动' : '设备已停止')
+    ElMessage.success(nextActive ? '设备已启用' : '设备已停用')
     await loadPage(false)
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(nextActive ? '设备启动失败' : '设备停止失败')
+    ElMessage.error(nextActive ? '设备启用失败' : '设备停用失败')
   } finally {
     toggleSubmitting.value = false
   }
@@ -539,14 +547,24 @@ function statusTagType(code?: string) {
     v-loading="loading"
     class="monitor-page"
   >
+    <el-alert
+      v-if="isPendingArchiveDevice"
+      class="pending-archive-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="请先补全设备档案"
+      description="该设备由 MQTT 首包自动登记，目前只有 sn/device_code。补全名称、类型、位置和容量后，系统才会写入业务遥测并开放监控/控制。"
+    />
+
     <template v-if="isCompensationDevice">
       <CompensationHeader
         :model="compensationHeaderModel"
         :toggle-action-label="toggleActionLabel"
         :toggle-button-type="toggleButtonType"
         :toggle-submitting="toggleSubmitting"
-        :can-control-devices="canControlDevices"
-        :show-console-entry="compensationSubtype === 'capacitor_bank_controller'"
+        :can-control-devices="canControlDevices && !isPendingArchiveDevice"
+        :show-console-entry="compensationSubtype === 'capacitor_bank_controller' && !isPendingArchiveDevice"
         @back="router.push('/devices')"
         @open-console="router.push(`/device-console/${deviceId}`)"
         @refresh="loadPage(true)"
@@ -651,7 +669,7 @@ function statusTagType(code?: string) {
             plain
             :icon="SwitchButton"
             :loading="toggleSubmitting"
-            :disabled="!canControlDevices"
+            :disabled="!canControlDevices || isPendingArchiveDevice"
             @click="handleToggleDevice"
           >
             {{ toggleActionLabel }}
@@ -677,6 +695,15 @@ function statusTagType(code?: string) {
               <strong>{{ item.value }}</strong>
               <small>{{ item.unit }}</small>
             </div>
+          </div>
+
+          <div
+            v-if="isRealtimeStale"
+            class="stale-data-notice"
+          >
+            <strong>数据已过期</strong>
+            <span>通讯状态：离线，当前指标为最后一次成功入库值。</span>
+            <span>最近成功入库：{{ formatDateTime(realtimeStaleTime) }}</span>
           </div>
 
           <MonitorSectionPanel
@@ -845,6 +872,25 @@ function statusTagType(code?: string) {
 
 .metric-card small {
   color: #8ea0bc;
+}
+
+.stale-data-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  background: rgba(248, 113, 113, 0.1);
+  color: #f8c7c7;
+}
+
+.stale-data-notice strong {
+  color: #fecaca;
+}
+
+.stale-data-notice span {
+  font-size: 13px;
 }
 
 .summary-inline {

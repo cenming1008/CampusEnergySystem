@@ -11,10 +11,8 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from app.core.database import engine
-from app.core.device_registry import device_registry
 from app.core.logger import logger
 from app.core.settings import settings
-from app.domain.device_payloads import normalize_device_type_alias, resolve_compensation_subtype
 from app.models.tables import Device
 from app.services.device_service import DeviceService
 
@@ -102,26 +100,13 @@ def ensure_device_for_code(device_code: str, data: dict[str, Any]) -> Optional[i
         if device_id is not None:
             return device_id
 
-        requested_type = normalize_device_type_alias(data.get("device_type"))
-        requested_subtype = resolve_compensation_subtype(
-            requested_type,
-            data.get("device_subtype"),
-        )
-        device_type = requested_subtype or requested_type or infer_device_type(data)
-        if not device_registry.get(device_type):
-            device_type = "load"
-
-        name = data.get("device_name") or data.get("name") or f"设备-{device_code}"
         try:
-            device = DeviceService.create_device_smart(
+            device = DeviceService.create_pending_device_for_code(
                 session=session,
-                name=name,
-                sn=device_code,
-                device_type=device_type,
-                device_subtype=requested_subtype,
+                device_code=device_code,
             )
             logger.info(
-                f"MQTT 自动创建设备: sn={device_code}, name={name}, type={device_type}, id={device.id}"
+                f"MQTT 自动创建待完善设备: sn={device_code}, id={device.id}"
             )
             return device.id
         except Exception as exc:

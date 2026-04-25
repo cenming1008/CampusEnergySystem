@@ -152,7 +152,7 @@ const focusRuntime = computed(() => focusCardOverview.value?.runtime_status)
 const focusIngestion = computed<Record<string, unknown>>(() => (focusCardOverview.value?.ingestion_health as Record<string, unknown>) || {})
 const focusStatusLabel = computed(() => {
   if (focusDevice.value?.is_active === false || focusRuntime.value?.is_active === false) {
-    return '离线待机'
+    return '停用'
   }
 
   if (focusRuntime.value?.code === 'alarm') {
@@ -163,7 +163,15 @@ const focusStatusLabel = computed(() => {
     return focusRuntime.value?.label || '运行波动'
   }
 
-  return '在线运行'
+  if (focusRuntime.value?.code === 'offline') {
+    return '离线'
+  }
+
+  if (focusRuntime.value?.is_online) {
+    return '在线采集'
+  }
+
+  return '启用'
 })
 
 const focusStatusTone = computed((): 'online' | 'offline' | 'alarm' => {

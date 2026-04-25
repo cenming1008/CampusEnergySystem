@@ -16,6 +16,7 @@ import {
 } from '@/features/device-control/capacitorBankControlProfile'
 import type {
   CompensationHeaderModel,
+  CompensationTag,
   CompensationMetric,
   CompensationProfileItem,
   CompensationStatusItem,
@@ -520,6 +521,11 @@ function runtimeStatusTone(deviceStatus?: string | null, isOnline?: boolean): Co
   return isOnline ? 'info' : 'neutral'
 }
 
+function shouldShowInternalRuntimeStatus(deviceStatus?: string | null) {
+  const normalized = `${deviceStatus || ''}`.trim()
+  return Boolean(normalized) && !normalized.includes('离线')
+}
+
 function isCapacitorBankCircuitRateSource(source: string) {
   return source.includes('回路') || source.includes('参数快照') || source.includes('配置总回路')
 }
@@ -550,23 +556,6 @@ export function buildCompensationBaseStatusItems(input: CompensationBaseStatusIt
       value: platformEnableStatusText(input.isActive),
       tone: input.isActive ? 'success' : 'warning',
       hint: '表示平台侧是否允许该设备参与监控与控制，不等于柜内回路已实际投入。',
-    },
-    {
-      label: '内部运行状态',
-      value: input.deviceStatus || '状态未知',
-      tone: runtimeStatusTone(input.deviceStatus, input.isOnline),
-      hint: '表示设备当前运行语义，综合在线状态、采集健康度、告警与停机状态判定。',
-    },
-    {
-      label: '在线状态',
-      value: input.isOnline ? '在线' : '离线',
-      tone: input.isOnline ? 'info' : 'neutral',
-    },
-    {
-      label: '采集状态',
-      value: input.ingestionStatus,
-      tone: input.ingestionTone,
-      hint: '来自 monitor/runtime-status 的接入健康判定',
     },
     {
       label: '当前模式',
@@ -603,6 +592,22 @@ export function buildCompensationBaseStatusItems(input: CompensationBaseStatusIt
     },
   ]
 
+  if (shouldShowInternalRuntimeStatus(input.deviceStatus)) {
+    items.splice(2, 0, {
+      label: '内部运行状态',
+      value: input.deviceStatus || '状态未知',
+      tone: runtimeStatusTone(input.deviceStatus, input.isOnline),
+      hint: '表示设备当前运行语义，综合在线状态、采集健康度、告警与停机状态判定。',
+    })
+  }
+
+  items.splice(shouldShowInternalRuntimeStatus(input.deviceStatus) ? 3 : 2, 0, {
+    label: '采集状态',
+    value: input.ingestionStatus,
+    tone: input.ingestionTone,
+    hint: '来自 monitor/runtime-status 的接入健康判定',
+  })
+
   if (input.profileSourceStatus) {
     items.push({
       label: '参数快照',
@@ -627,24 +632,28 @@ export function buildCompensationBaseStatusItems(input: CompensationBaseStatusIt
 }
 
 export function buildCompensationHeaderView(input: CompensationHeaderViewInput): CompensationHeaderModel {
+  const tags: CompensationTag[] = [
+    {
+      label: input.controlMode,
+      tone: input.controlModeState === 'live'
+        ? (input.controlMode === '自动' ? 'info' : 'warning')
+        : 'warning',
+    },
+  ]
+  if (input.compensationStatusText !== input.deviceStatus) {
+    tags.push({
+      label: input.compensationStatusText,
+      tone: input.compensationStatusTone,
+    })
+  }
+
   return {
     title: input.title,
     serial: input.serial,
     location: input.location,
     deviceStatus: input.deviceStatus,
     deviceStatusTone: input.isOnline ? 'info' : 'neutral',
-    tags: [
-      {
-        label: input.controlMode,
-        tone: input.controlModeState === 'live'
-          ? (input.controlMode === '自动' ? 'info' : 'warning')
-          : 'warning',
-      },
-      {
-        label: input.compensationStatusText,
-        tone: input.compensationStatusTone,
-      },
-    ],
+    tags,
   }
 }
 

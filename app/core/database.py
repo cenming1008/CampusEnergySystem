@@ -64,7 +64,7 @@ CAPACITOR_BANK_TELEMETRY_REQUIRED_COLUMNS = {
 
 REQUIRED_COLUMNS = {
     "energydata": {"reactive_power"},
-    "device": {"device_subtype"},
+    "device": {"device_subtype", "archive_status"},
     "svg_asset_profile": {
         "model_number",
         "rated_voltage",
@@ -202,6 +202,9 @@ def _sync_runtime_schema() -> None:
                         """
                     )
                 )
+            if "archive_status" not in existing_columns:
+                logger.info("Schema sync: adding device.archive_status")
+                session.exec(text("ALTER TABLE device ADD COLUMN archive_status VARCHAR(32) DEFAULT 'complete' NOT NULL"))
 
         if "svg_asset_profile" in table_names:
             existing_columns = {column["name"] for column in inspector.get_columns("svg_asset_profile")}

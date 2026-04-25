@@ -104,6 +104,163 @@ export interface EnergyOverview {
   cross_energy_mix_allowed?: boolean
   field_boundary_rule?: string
   energy_profiles?: Record<string, EnergyTypeInfo>
+  // 合并自原 /analysis/overview 的分析字段（include_analysis=false 时为空）
+  time_window?: AnalysisTimeWindow | null
+  scope?: AnalysisScope | null
+  summary?: AnalysisSummary | null
+  trend?: AnalysisTrend | null
+  comparison?: AnalysisComparison | null
+  ranking?: AnalysisRanking | null
+  anomaly?: AnalysisAnomaly | null
+  insights?: string[] | null
+}
+
+// ==================== 分析类型（合并自 analysis.ts） ====================
+
+export interface AnalysisTimeWindow {
+  start_time: string
+  end_time: string
+  granularity: string
+}
+
+export interface AnalysisScope {
+  location_id: number | null
+  location_type: string | null
+  location_counts: Record<string, number>
+  campus_entity_count: number
+  energy_categories: string[]
+  sub_items: string[]
+}
+
+export interface AnalysisSummary {
+  total_consumption: number
+  avg_load: number
+  device_count: number
+  active_device_count: number
+  covered_energy_type_count: number
+  covered_sub_item_count: number
+  anomaly_count: number
+  consumption_stat_basis: string
+}
+
+export interface AnalysisTrendItem {
+  timestamp: string
+  total_consumption: number
+  total_load: number
+  energy_breakdown?: Record<string, number>
+}
+
+export interface EnergyTrendPoint {
+  timestamp: string
+  value: number
+  load?: number | null
+}
+
+export interface AnalysisTrend {
+  granularity?: string
+  points?: EnergyTrendPoint[]
+  items: AnalysisTrendItem[]
+  peak_load: AnalysisTrendItem | null
+  peak_consumption: AnalysisTrendItem | null
+  consumption_stat_basis: string
+}
+
+export interface AnalysisComparisonPeriod {
+  current_total_consumption: number
+  previous_total_consumption: number
+  delta_consumption: number
+  change_rate: number | null
+  consumption_stat_basis: string
+}
+
+export interface AnalysisEnergyCategoryComparisonItem {
+  energy_category: string
+  label: string
+  total_consumption: number
+  avg_load: number
+  ratio: number
+}
+
+export interface AnalysisSubItemComparisonItem {
+  sub_item: string
+  label: string
+  total_consumption: number
+  avg_load: number
+  device_count: number
+  energy_categories: string[]
+}
+
+export interface AnalysisComparison {
+  current?: number
+  previous?: number
+  ratio?: number | null
+  mix?: Array<{ energy_type: string; share: number }>
+  period_over_period: AnalysisComparisonPeriod
+  energy_categories: AnalysisEnergyCategoryComparisonItem[]
+  sub_items: AnalysisSubItemComparisonItem[]
+}
+
+export interface AnalysisLocationRankingItem {
+  location_id: number
+  name: string
+  location_type: string
+  full_path: string | null
+  total_consumption: number
+  avg_load: number
+  energy_breakdown: Record<string, number>
+}
+
+export interface AnalysisDeviceRankingItem {
+  device_id: number
+  name: string
+  device_type: string
+  device_category: string
+  energy_type: string
+  location: string | null
+  total_consumption: number
+  avg_load: number
+}
+
+export interface AnalysisRanking {
+  regions?: AnalysisLocationRankingItem[]
+  areas: AnalysisLocationRankingItem[]
+  buildings: AnalysisLocationRankingItem[]
+  devices: AnalysisDeviceRankingItem[]
+}
+
+export interface AnalysisAnomalySummary {
+  total_count: number
+  data_gap_count: number
+  ingestion_failure_count: number
+  active_alarm_count: number
+}
+
+export interface AnalysisAnomalyItem {
+  kind: string
+  severity: string
+  device_id: number
+  device_name: string
+  device_type: string
+  energy_type: string
+  location: string | null
+  message: string
+  detected_at: string | null
+}
+
+export interface AnalysisAnomaly {
+  boundary: string
+  missing_data?: number
+  consecutive_failures?: number
+  unresolved_alarms?: number
+  summary: AnalysisAnomalySummary
+  items: AnalysisAnomalyItem[]
+}
+
+export interface AnalysisInsightItem {
+  title: string
+  detail: string
+  severity: string
+  dimension: string
 }
 
 // 能源类型信息
@@ -190,6 +347,11 @@ export function getEnergyOverview(params: {
   start_time: string
   end_time: string
   device_id?: number
+  location_id?: number
+  energy_type?: string
+  top_n?: number
+  granularity?: 'hour' | 'day'
+  include_analysis?: boolean
 }) {
   return request.get<never, EnergyOverview>('/energy/overview', { params })
 }

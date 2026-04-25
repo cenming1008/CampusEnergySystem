@@ -104,6 +104,12 @@ export function useControlConsoleData(input: {
     try {
       const overviewResponse = await getDeviceMonitorOverview(input.deviceId.value)
       overview.value = overviewResponse
+      if (overviewResponse.archive?.archive_status === 'pending') {
+        loadError.value = '请先补全设备档案后再进入监控或控制台。'
+        controlProfile.value = null
+        controlLogs.value = []
+        return
+      }
       const resolvedSubtype = resolveCompensationSubtype(
         overviewResponse.archive?.device_type,
         overviewResponse.archive?.device_subtype,

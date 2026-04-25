@@ -175,6 +175,7 @@ class Device(SQLModel, table=True):
     device_subtype: Optional[str] = Field(default=None, index=True, description="设备子类型（技术细分）")
     device_category: str = Field(default=DeviceCategory.LOAD, index=True, description="设备类别")
     energy_type: str = Field(default=EnergyType.ELECTRICITY, index=True, description="能源类型")
+    archive_status: str = Field(default="complete", index=True, description="设备档案状态：pending/complete")
     
     # 位置信息
     location_id: Optional[int] = Field(

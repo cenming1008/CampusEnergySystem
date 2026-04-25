@@ -323,19 +323,18 @@
       })
     }
     
-    // --- 4. 核心：远程启停控制 (Switch) ---
+    // --- 4. 核心：设备启用状态切换 (Switch) ---
     // 使用 before-change 钩子处理异步请求
     const handleStatusChange = (newVal: boolean, row: Device) => {
       return new Promise<boolean>((resolve, reject) => {
-        const actionName = newVal ? '启动' : '停机'
-        const color = newVal ? '#10b981' : '#ef4444'
+        const actionName = newVal ? '启用' : '停用'
         
         // 二次确认
         ElMessageBox.confirm(
-          `确定要对 ${row.name} 执行【${actionName}】指令吗？`,
-          '远程控制确认',
+          `确定要将 ${row.name} 标记为【${actionName}】吗？`,
+          '管理状态确认',
           {
-            confirmButtonText: `立即${actionName}`,
+            confirmButtonText: `确认${actionName}`,
             cancelButtonText: '取消',
             confirmButtonClass: newVal ? 'el-button--success' : 'el-button--danger',
             type: 'warning'
@@ -347,7 +346,7 @@
               await toggleDeviceStatus(row.id, newVal)
               notifyDevicesUpdated({ source: 'device-manager', action: 'toggle', deviceId: row.id, active: newVal })
               ElMessage({
-                message: `指令下发成功: 设备已${actionName}`,
+                message: `管理状态已更新：设备已${actionName}`,
                 type: 'success',
               })
               resolve(true) // 允许 Switch 切换状态
@@ -355,7 +354,7 @@
               reject()
             }
           } catch (e) {
-            ElMessage.error('指令发送失败或超时')
+            ElMessage.error('管理状态更新失败')
             reject(e) // 阻止 Switch 切换状态
           }
         }).catch(() => {
@@ -367,8 +366,24 @@
     const isCapacitorBankController = (row: Device) =>
       resolveCompensationSubtype(row.device_type, row.device_subtype) === 'capacitor_bank_controller'
 
+    const isPendingArchiveDevice = (row: Device) => row.archive_status === 'pending'
+    const pendingArchiveMessage = '请先补全设备档案后再进入监控或控制台'
+
+    const openDeviceMonitor = (row: Device) => {
+      if (!row.id) return
+      if (isPendingArchiveDevice(row)) {
+        ElMessage.warning(pendingArchiveMessage)
+        return
+      }
+      router.push(`/devices/${row.id}/monitor`)
+    }
+
     const openDeviceConsole = (row: Device) => {
       if (!row.id) return
+      if (isPendingArchiveDevice(row)) {
+        ElMessage.warning(pendingArchiveMessage)
+        return
+      }
       router.push(`/device-console/${row.id}`)
     }
     
@@ -450,6 +465,14 @@
           <div class="device-name-cell">
             <span class="name">{{ row.name }}</span>
             <el-tag
+              v-if="isPendingArchiveDevice(row)"
+              size="small"
+              type="warning"
+              effect="dark"
+            >
+              待完善
+            </el-tag>
+            <el-tag
               size="small"
               type="info"
               effect="dark"
@@ -487,17 +510,17 @@
       />
     
       <el-table-column
-        label="运行状态 (远程控制)"
+        label="管理状态"
         width="200"
       >
         <template #default="{ row }">
           <el-switch
             v-model="row.is_active"
             inline-prompt
-            active-text="运行中"
-            inactive-text="已停机"
+            active-text="启用"
+            inactive-text="停用"
             style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
-            :disabled="!canControlDevicesValue"
+            :disabled="!canControlDevicesValue || isPendingArchiveDevice(row)"
             :before-change="() => handleStatusChange(!row.is_active, row)"
           />
         </template>
@@ -513,7 +536,8 @@
             link
             type="success"
             :icon="Monitor"
-            @click="row.id && router.push(`/devices/${row.id}/monitor`)"
+            :disabled="isPendingArchiveDevice(row)"
+            @click="openDeviceMonitor(row)"
           >
             监控
           </el-button>
@@ -531,6 +555,7 @@
             link
             type="warning"
             :icon="Setting"
+            :disabled="isPendingArchiveDevice(row)"
             @click="openDeviceConsole(row)"
           >
             控制台

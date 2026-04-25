@@ -120,8 +120,8 @@ function mountView() {
         'el-select': true,
         'el-option': true,
         'el-switch': true,
-        'el-table': true,
-        'el-table-column': true,
+        'el-table': { template: '<div class="el-table-stub"><slot /></div>' },
+        'el-table-column': { props: ['label'], template: '<div class="el-table-column-stub">{{ label }}</div>' },
         'el-tag': true,
       },
       directives: {
@@ -301,6 +301,65 @@ describe('DeviceManager view', () => {
     expect(routerPushMock).toHaveBeenCalledWith('/device-console/16')
   })
 
+  it('labels the device switch as management state instead of runtime state', async () => {
+    getDeviceTypesMock.mockResolvedValue([])
+    getDevicesMock.mockResolvedValue([
+      { id: 2, name: '主负载', sn: 'L-1', device_type: 'load', location: '一区', is_active: true },
+    ])
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('管理状态')
+    expect(wrapper.text()).not.toContain('运行状态 (远程控制)')
+  })
+
+  it('marks pending archive devices and blocks monitor and console entry', async () => {
+    getDeviceTypesMock.mockResolvedValue([
+      {
+        device_type: 'capacitor_bank_controller',
+        category: 'compensation',
+        energy_type: 'electricity',
+        name_zh: '无功功率补偿设备',
+        subtype_name_zh: '电容补偿控制器',
+        name_en: 'Capacitor Bank Controller',
+        unit: 'kVAR',
+        default_capacity: 200,
+        required_fields: [],
+        optional_fields: [],
+        icon: '⚙️',
+        color: '#D97706',
+      },
+    ])
+    getDevicesMock.mockResolvedValue([
+      {
+        id: 31,
+        name: '待完善设备-CAP-NEW',
+        sn: 'CAP-NEW',
+        device_type: 'load',
+        archive_status: 'pending',
+        is_active: true,
+      },
+    ])
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    const vm = wrapper.vm as unknown as {
+      tableData: Array<{ id?: number; archive_status?: string }>
+      isPendingArchiveDevice: (row: { archive_status?: string }) => boolean
+      openDeviceMonitor: (row: { id?: number; archive_status?: string }) => void
+      openDeviceConsole: (row: { id?: number; archive_status?: string }) => void
+    }
+
+    expect(vm.isPendingArchiveDevice(vm.tableData[0])).toBe(true)
+    vm.openDeviceMonitor({ id: 31, archive_status: 'pending' })
+    vm.openDeviceConsole({ id: 31, archive_status: 'pending' })
+
+    expect(routerPushMock).not.toHaveBeenCalled()
+    expect(warningMock).toHaveBeenCalledWith('请先补全设备档案后再进入监控或控制台')
+  })
+
   it('creates a device after successful validation', async () => {
     getDeviceTypesMock.mockResolvedValue([])
     getDevicesMock.mockResolvedValue([])
@@ -424,5 +483,12 @@ describe('DeviceManager view', () => {
 
     await expect(vm.handleStatusChange(true, { id: 3, name: '主提升机', is_active: false })).resolves.toBe(true)
     expect(toggleDeviceStatusMock).toHaveBeenCalledWith(3, true)
+    expect(confirmMock).toHaveBeenCalledWith(
+      '确定要将 主提升机 标记为【启用】吗？',
+      '管理状态确认',
+      expect.objectContaining({
+        confirmButtonText: '确认启用',
+      }),
+    )
   })
 })

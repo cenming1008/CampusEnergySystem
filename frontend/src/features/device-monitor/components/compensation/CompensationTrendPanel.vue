@@ -76,12 +76,9 @@ async function renderChart() {
       textStyle: { color: '#dfe8f5' },
     },
     legend: {
-      top: 6,
-      right: 16,
-      textStyle: { color: '#8ea0bc' },
-      data: props.model.legend,
+      show: false,
     },
-    grid: { left: 56, right: 48, top: 48, bottom: 30 },
+    grid: { left: 56, right: 56, top: 30, bottom: 30 },
     xAxis: {
       type: props.model.xAxisType || 'category',
       data: props.model.xAxisType === 'time' ? undefined : props.model.labels,
@@ -102,7 +99,11 @@ async function renderChart() {
       position: axis.position || (index === 1 ? 'right' : 'left'),
       min: axis.min,
       max: axis.max,
-      nameTextStyle: { color: '#8ea0bc', padding: [0, 0, 0, 6] },
+      nameGap: 10,
+      nameTextStyle: {
+        color: '#8ea0bc',
+        padding: (axis.position || (index === 1 ? 'right' : 'left')) === 'right' ? [0, 0, 0, 0] : [0, 0, 0, 6],
+      },
       axisLabel: { color: '#8ea0bc', fontSize: 11 },
       splitLine: {
         lineStyle: {
@@ -187,7 +188,6 @@ watch(() => chart.chartRef.value, async () => {
               @change="$emit('update:activeTab', $event as CompensationTrendTab)"
             />
           </div>
-          <div class="trend-panel__tab-fade" />
         </div>
         <div class="trend-panel__range-picker">
           <el-date-picker
@@ -220,6 +220,20 @@ watch(() => chart.chartRef.value, async () => {
       >
         演示占位
       </el-tag>
+    </div>
+
+    <div
+      v-if="model.legend.length"
+      class="trend-panel__legend"
+    >
+      <span
+        v-for="(item, index) in model.legend"
+        :key="item"
+        class="trend-panel__legend-item"
+      >
+        <i :style="{ background: model.series[index]?.color || '#8ea0bc' }" />
+        {{ item }}
+      </span>
     </div>
 
     <div
@@ -273,7 +287,7 @@ watch(() => chart.chartRef.value, async () => {
 }
 
 .trend-panel__tab-wrapper {
-  flex: 1 1 560px;
+  flex: 0 1 auto;
   min-width: 0;
   position: relative;
 }
@@ -291,20 +305,28 @@ watch(() => chart.chartRef.value, async () => {
 .trend-panel__tab-switcher :deep(.el-segmented) {
   white-space: nowrap;
   min-width: max-content;
+  --el-segmented-bg-color: rgba(7, 15, 26, 0.7);
+  --el-segmented-item-selected-bg-color: rgba(59, 130, 246, 0.28);
+  --el-segmented-item-selected-color: #eaf4ff;
+  --el-segmented-item-hover-bg-color: rgba(96, 165, 250, 0.16);
+  --el-segmented-item-hover-color: #dbeafe;
+  border: 1px solid rgba(72, 96, 130, 0.72);
+  border-radius: 8px;
+  padding: 2px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .trend-panel__tab-switcher :deep(.el-segmented__group) {
   flex-wrap: nowrap;
 }
 
-.trend-panel__tab-fade {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 40px;
-  height: 100%;
-  background: linear-gradient(to right, transparent, rgba(13, 22, 35, 0.9));
-  pointer-events: none;
+.trend-panel__tab-switcher :deep(.el-segmented__item) {
+  color: #9fb1ca;
+  border-radius: 6px;
+}
+
+.trend-panel__tab-switcher :deep(.el-segmented__item-selected) {
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35);
 }
 
 .trend-panel__range-picker {
@@ -316,13 +338,53 @@ watch(() => chart.chartRef.value, async () => {
   width: 100%;
 }
 
+.trend-panel__range-picker :deep(.el-input__wrapper),
+.trend-panel__range-picker :deep(.el-date-editor.el-input__wrapper) {
+  background: rgba(7, 15, 26, 0.72);
+  border: 1px solid rgba(72, 96, 130, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.trend-panel__range-picker :deep(.el-range-input),
+.trend-panel__range-picker :deep(.el-range-separator) {
+  color: #dbeafe;
+}
+
+.trend-panel__range-picker :deep(.el-range__icon) {
+  color: #7f93b2;
+}
+
 .trend-panel__summary {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin: 14px 0 12px;
+  margin: 14px 0 8px;
   color: #cad6eb;
   font-size: 12px;
+}
+
+.trend-panel__legend {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 6px;
+  color: #9fb1ca;
+  font-size: 12px;
+}
+
+.trend-panel__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.trend-panel__legend-item i {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .trend-panel__chart {

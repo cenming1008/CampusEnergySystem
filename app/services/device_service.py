@@ -40,6 +40,9 @@ from app.services.location_service import LocationService
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
 
+    ARCHIVE_STATUS_PENDING = "pending"
+    ARCHIVE_STATUS_COMPLETE = "complete"
+
     @staticmethod
     def _effective_device_type(device: Any) -> Optional[str]:
         subtype = resolve_compensation_subtype(
@@ -113,6 +116,32 @@ class DeviceService:
         ):
             normalized_device.device_subtype = effective_subtype
         return normalized_device
+
+    @staticmethod
+    def _is_pending_archive(device: Any) -> bool:
+        return getattr(device, "archive_status", DeviceService.ARCHIVE_STATUS_COMPLETE) == DeviceService.ARCHIVE_STATUS_PENDING
+
+    @staticmethod
+    def _is_archive_complete(device: Any) -> bool:
+        if not getattr(device, "sn", None):
+            return False
+        if not str(getattr(device, "name", "") or "").strip():
+            return False
+        if str(getattr(device, "name", "")).startswith("待完善设备-"):
+            return False
+        if not getattr(device, "device_type", None):
+            return False
+        if not getattr(device, "device_category", None):
+            return False
+        if not getattr(device, "energy_type", None):
+            return False
+        if not str(getattr(device, "location", "") or "").strip():
+            return False
+        if getattr(device, "rated_capacity", None) is None:
+            return False
+        if getattr(device, "device_category", None) == DeviceCategory.COMPENSATION.value and not getattr(device, "device_subtype", None):
+            return False
+        return True
     
     # ==================== 设备管理 ====================
     
@@ -223,6 +252,7 @@ class DeviceService:
                 **extra_fields,
             )
         )
+        device.archive_status = DeviceService.ARCHIVE_STATUS_COMPLETE
         
         try:
             DeviceRepository.save(session, device)
@@ -236,6 +266,36 @@ class DeviceService:
         except Exception as e:
             session.rollback()
             raise DatabaseException(f"创建设备失败: {str(e)}")
+
+    @staticmethod
+    def create_pending_device_for_code(
+        session: Session,
+        device_code: str,
+    ) -> Device:
+        """为未知 MQTT device_code 创建只含通讯身份的待完善设备。"""
+        existing = DeviceService.get_device_by_sn(session, device_code)
+        if existing:
+            return existing
+
+        device = Device(
+            name=f"待完善设备-{device_code}",
+            sn=device_code,
+            device_type=DeviceCategory.LOAD.value,
+            device_category=DeviceCategory.LOAD.value,
+            energy_type=EnergyType.ELECTRICITY.value,
+            archive_status=DeviceService.ARCHIVE_STATUS_PENDING,
+            is_active=False,
+        )
+        try:
+            DeviceRepository.save(session, device)
+            logger.info(f"MQTT 自动创建待完善设备: sn={device_code}, id={device.id}")
+            return device
+        except Exception as e:
+            session.rollback()
+            existing = DeviceRepository.get_by_sn(session, device_code)
+            if existing:
+                return existing
+            raise DatabaseException(f"创建待完善设备失败: {str(e)}")
     
     @staticmethod
     def create_device(session: Session, device: Device) -> Device:
@@ -321,6 +381,9 @@ class DeviceService:
             device.description = description
         if rated_capacity is not None:
             device.rated_capacity = rated_capacity
+
+        if DeviceService._is_pending_archive(device) and DeviceService._is_archive_complete(device):
+            device.archive_status = DeviceService.ARCHIVE_STATUS_COMPLETE
         
         device.updated_at = datetime.now()
         

@@ -66,7 +66,6 @@
 - `test_jkwf_capacity.py`
 - `test_jkwf_lcd_aliases.py`
 - `test_jkwf_lcd_decoder.py`
-- `test_send_capacitor_bank_telemetry.py`
 
 ### 设备与表计
 - `test_device_domain.py`
@@ -75,10 +74,6 @@
 - `test_device_monitor_service.py`
 - `test_device_reporting_use_case.py`
 - `test_device_service_round2.py`
-- `test_windows_device_stack_collector.py`
-- `test_windows_device_stack_common.py`
-- `test_windows_device_stack_gateway.py`
-- `test_windows_device_stack_runtime.py`
 
 ### 实时与 WebSocket
 - `test_websocket_auth.py`

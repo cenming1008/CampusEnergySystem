@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { shallowMount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 
 const {
   getDeviceMonitorOverviewMock,
@@ -217,6 +218,7 @@ async function flushAsync() {
 describe('DeviceControlConsole view', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setActivePinia(createPinia())
 
     getDeviceMonitorOverviewMock.mockResolvedValue({
       archive: {

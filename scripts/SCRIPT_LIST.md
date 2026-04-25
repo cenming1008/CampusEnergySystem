@@ -47,30 +47,12 @@
 | `replay_mqtt_failures.py` | 重放 MQTT 失败/死信记录。 |
 | `generate_prod_secrets.py` | 生成生产环境密钥片段。 |
 
-### 演示脚本
+### 压测
 
 | 脚本 | 作用 |
 |------|------|
-
-### 模拟、网关与压测
-
-| 脚本 | 作用 |
-|------|------|
-| `simulator_unified.py` | 统一设备模拟器。 |
-| `device_gateway.py` | 真实设备网关采集器。 |
 | `stress_test.py` | 压力测试。 |
 
-### MQTT/协议调试
-
-| 脚本 | 作用 |
-|------|------|
-| `send_svg_telemetry.py` | 向 SVG 设备发送模拟 MQTT 遥测数据。 |
-| `send_capacitor_bank_telemetry.py` | 向电容补偿控制器发送可按场景和状态位控制的模拟 MQTT 遥测数据，并可监听 `start/stop/write_parameter` 控制指令回放最新快照。 |
-
-### 串口演示工具
-
-| 脚本 | 作用 |
-|------|------|
 ## 已归档脚本
 
 | 脚本 | 作用 |
@@ -82,22 +64,15 @@
 | `archive/python/demo_device_group.py` | 历史设备分组演示脚本。 |
 | `archive/python/demo_location.py` | 历史位置管理演示脚本。 |
 | `archive/python/demo_maintenance.py` | 历史维护管理演示脚本。 |
-| `archive/python/mqtt_subscriber_template.py` | 历史 MQTT 订阅模板。 |
-| `archive/python/test_http_device.py` | 历史 HTTP 设备联调脚本。 |
-| `archive/python/test_modbus_tcp.py` | 历史 Modbus TCP 联调脚本。 |
-| `archive/python/test_serial_port.py` | 历史串口联调脚本。 |
-| `archive/python/serial_device_sim.py` | 历史串口设备模拟脚本。 |
-| `archive/python/serial_gateway_demo.py` | 历史串口网关演示脚本。 |
-| `archive/python/serial_pair_demo.py` | 历史串口配对/联调演示脚本。 |
 
 ## 统计
 
 | 类型 | 数量 |
 |------|------|
-| Shell | 14 |
-| Python | 14 |
-| Archive | 14 |
-| 合计 | 42 |
+| Shell | 15 |
+| Python | 12 |
+| Archive | 7 |
+| 合计 | 34 |
 
 ## 与 bin 的关系
 
@@ -107,4 +82,3 @@
 |---------|----------|------|
 | `fast_start.sh` | `scripts/shell/start.sh` | 用途接近，但 `bin` 更偏快捷入口。 |
 | `fast_start_dev.sh` | `scripts/shell/start_dev_env.sh` | `bin` 会继续编排本地前后端启动。 |
-| `run_simulator.sh` | `scripts/python/simulator_unified.py` | `bin` 版在容器内运行模拟器。 |

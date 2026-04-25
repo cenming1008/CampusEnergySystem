@@ -12,6 +12,7 @@ from sqlmodel import Session
 
 from app.api.deps import MAINTAINER_OPERATOR_OR_ADMIN, get_current_user
 from app.api.endpoint_utils import bad_request_from_value_error, log_endpoint_exception
+from app.application.analysis import get_energy_analysis_overview_use_case
 from app.application.energy_management import (
     get_energy_statistics_use_case,
     save_energy_data_use_case,
@@ -32,6 +33,68 @@ from .shared import (
 )
 
 router = APIRouter()
+
+
+def _normalize_analysis_for_energy_overview(analysis: dict) -> dict:
+    """Expose the merged energy overview contract while keeping legacy analysis fields."""
+    time_window = analysis.get("time_window") or {}
+    trend = dict(analysis.get("trend") or {})
+    trend_items = trend.get("items") or []
+    trend["granularity"] = trend.get("granularity") or time_window.get("granularity")
+    trend["points"] = trend.get("points") or [
+        {
+            "timestamp": item.get("timestamp"),
+            "value": item.get("value", item.get("total_consumption", 0)),
+            "load": item.get("load", item.get("total_load")),
+        }
+        for item in trend_items
+    ]
+
+    comparison = dict(analysis.get("comparison") or {})
+    period = comparison.get("period_over_period") or {}
+    energy_mix = comparison.get("energy_categories") or []
+    comparison.setdefault("current", period.get("current_total_consumption", 0))
+    comparison.setdefault("previous", period.get("previous_total_consumption", 0))
+    comparison.setdefault("ratio", period.get("change_rate"))
+    comparison.setdefault(
+        "mix",
+        [
+            {
+                "energy_type": item.get("energy_type", item.get("energy_category")),
+                "share": item.get("share", item.get("ratio", 0)),
+            }
+            for item in energy_mix
+        ],
+    )
+
+    ranking = dict(analysis.get("ranking") or {})
+    ranking.setdefault("regions", ranking.get("regions", ranking.get("areas", [])))
+
+    anomaly = dict(analysis.get("anomaly") or {})
+    anomaly_summary = anomaly.get("summary") or {}
+    anomaly.setdefault("missing_data", anomaly_summary.get("data_gap_count", 0))
+    anomaly.setdefault("consecutive_failures", anomaly_summary.get("ingestion_failure_count", 0))
+    anomaly.setdefault("unresolved_alarms", anomaly_summary.get("active_alarm_count", 0))
+
+    insights = []
+    for item in analysis.get("insights") or []:
+        if isinstance(item, str):
+            insights.append(item)
+        else:
+            title = item.get("title", "")
+            detail = item.get("detail", "")
+            insights.append(f"{title}：{detail}" if title and detail else title or detail)
+
+    return {
+        "time_window": time_window,
+        "scope": analysis.get("scope"),
+        "summary": analysis.get("summary"),
+        "trend": trend,
+        "comparison": comparison,
+        "ranking": ranking,
+        "anomaly": anomaly,
+        "insights": insights,
+    }
 
 
 @router.post("/data", response_model=EnergyData)
@@ -115,6 +178,11 @@ def get_energy_overview(
     start_time: datetime = Query(..., description="开始时间"),
     end_time: datetime = Query(..., description="结束时间"),
     device_id: Optional[int] = Query(None, description="设备ID，不传则系统级统计"),
+    location_id: Optional[int] = Query(None, description="按园区/区域/楼栋位置收敛（仅分析字段生效）"),
+    energy_type: Optional[str] = Query(None, description="按能源介质过滤（仅分析字段生效）"),
+    top_n: int = Query(5, ge=3, le=20, description="排行返回数量"),
+    granularity: str = Query("day", pattern="^(hour|day)$", description="趋势粒度: hour/day"),
+    include_analysis: bool = Query(True, description="是否附带趋势/排行/异常/洞察分析字段"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -122,7 +190,7 @@ def get_energy_overview(
         ensure_device_access(session, current_user, device_id)
     allowed_device_ids = get_allowed_device_ids(session, current_user)
     energy_types = [item["value"] for item in ENERGY_TYPE_OPTIONS]
-    return {
+    response: dict = {
         "statistics": EnergyService.get_statistics_by_type(
             session=session,
             start_time=start_time,
@@ -136,8 +204,8 @@ def get_energy_overview(
         "cross_energy_mix_allowed": False,
         "field_boundary_rule": "consumption/flow_rate 属于公共层；其余 nullable 字段属于专属扩展层，不保证所有能源对象都适用。",
         "energy_profiles": {
-            energy_type: EnergyService.get_energy_type_profile(energy_type)
-            for energy_type in energy_types
+            energy_type_value: EnergyService.get_energy_type_profile(energy_type_value)
+            for energy_type_value in energy_types
         },
         "carbon_summary": EnergyService.get_carbon_summary(
             session=session,
@@ -147,6 +215,24 @@ def get_energy_overview(
             allowed_device_ids=allowed_device_ids,
         ),
     }
+
+    if include_analysis:
+        try:
+            analysis = get_energy_analysis_overview_use_case(
+                session=session,
+                current_user=current_user,
+                start_time=start_time,
+                end_time=end_time,
+                device_id=device_id,
+                location_id=location_id,
+                energy_type=energy_type,
+                top_n=top_n,
+                granularity=granularity,
+            )
+        except ValueError as exc:
+            raise bad_request_from_value_error(exc) from exc
+        response.update(_normalize_analysis_for_energy_overview(analysis))
+    return response
 
 
 @router.get("/types", response_model=dict)

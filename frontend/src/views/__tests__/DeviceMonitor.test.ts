@@ -439,6 +439,51 @@ describe('DeviceMonitor view', () => {
     expect(wrapper.find('.realtime-overview-probe').text()).toBe('6/12')
   })
 
+  it('marks stale realtime values when ingestion is offline', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValueOnce({
+      archive: {
+        id: 2,
+        name: '2号水表',
+        sn: 'WT-002',
+        device_type: 'water_meter',
+        device_category: 'water_meter',
+        energy_type: 'water',
+        unit: 'm³/h',
+      },
+      runtime_status: {
+        device_id: 2,
+        code: 'offline',
+        label: '离线',
+        is_active: true,
+        is_online: false,
+        ingestion_status: 'offline',
+        unresolved_alarm_count: 0,
+        last_message_at: '2026-04-21T17:00:00',
+        last_success_at: '2026-04-21T17:00:00',
+        latest_timestamp: '2026-04-21T17:00:00',
+      },
+      realtime: {
+        device_id: 2,
+        timestamp: '2026-04-21T17:00:00',
+        flow_rate: 2.1,
+        consumption: 40,
+      },
+      ingestion_health: {},
+      recent_alarms: [],
+      recent_control_logs: [],
+      compensation_monitor: null,
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('通讯状态')
+    expect(wrapper.text()).toContain('离线')
+    expect(wrapper.text()).toContain('数据已过期')
+    expect(wrapper.text()).toContain('最近成功入库')
+    expect(wrapper.text()).toContain('2026-04-21 17:00:00')
+  })
+
   it('refreshes compensation summary semantics during realtime polling', async () => {
     vi.useFakeTimers()
 

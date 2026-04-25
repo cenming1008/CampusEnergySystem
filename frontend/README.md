@@ -46,11 +46,11 @@ frontend/
 │   │   └── mine/           # 历史 3D 场景生成器（兼容目录）
 │   │
 │   ├── utils/request.ts    # Axios 封装与 Token 注入
-│   ├── views/              # 页面（20 个，含异常页与管理页）
+│   ├── views/              # 页面（19 个，含异常页与管理页）
 │   │   ├── Login.vue, Dashboard.vue, AlarmCenter.vue
 │   │   ├── DeviceManager.vue, DeviceMonitor.vue, DeviceControlConsole.vue
 │   │   ├── LocationManager.vue, DeviceGroups.vue, EnergyManagement.vue
-│   │   ├── EnergyAnalysis.vue, FDD.vue, Maintenance.vue
+│   │   ├── FDD.vue, Maintenance.vue
 │   │   ├── Inspection.vue, Report.vue, SystemSettings.vue
 │   │   └── AuditCenter.vue, UserManagement.vue, AccountSecurity.vue, Forbidden.vue, NotFound.vue
 │   │

@@ -58,33 +58,87 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
         self.assertEqual(result["device_id"], 7)
         mock_use_case.assert_called_once_with(session, current_user, 7)
 
-    @patch("app.api.endpoints.analysis.get_energy_analysis_overview_use_case")
-    def test_analysis_overview_endpoint_delegates_to_application(self, mock_use_case):
+    @patch("app.api.endpoints.energy.data.get_energy_analysis_overview_use_case")
+    @patch("app.api.endpoints.energy.data.EnergyService")
+    @patch("app.api.endpoints.energy.data.get_allowed_device_ids")
+    def test_energy_overview_endpoint_includes_analysis_block(
+        self,
+        mock_allowed,
+        mock_energy_service,
+        mock_analysis_use_case,
+    ):
+        from app.api.endpoints.energy import data as energy_data
+
         session = object()
         current_user = SimpleNamespace(username="viewer", role="viewer")
         start_time = datetime(2026, 4, 1, 0, 0, 0)
         end_time = datetime(2026, 4, 8, 0, 0, 0)
-        mock_use_case.return_value = {"summary": {"device_count": 4}}
+        mock_allowed.return_value = None
+        mock_energy_service.get_statistics_by_type.return_value = {}
+        mock_energy_service.get_carbon_summary.return_value = {"total_carbon": 0, "by_energy_type": {}}
+        mock_energy_service.get_energy_type_profile.return_value = {}
+        mock_analysis_use_case.return_value = {
+            "time_window": {"granularity": "day"},
+            "summary": {"device_count": 4},
+            "trend": {
+                "items": [
+                    {
+                        "timestamp": "2026-04-01T00:00:00",
+                        "total_consumption": 12.5,
+                        "total_load": 3.2,
+                    }
+                ]
+            },
+            "comparison": {
+                "period_over_period": {
+                    "current_total_consumption": 12.5,
+                    "previous_total_consumption": 10,
+                    "change_rate": 0.25,
+                },
+                "energy_categories": [{"energy_category": "water", "ratio": 1}],
+            },
+            "ranking": {"areas": [{"name": "一区"}], "buildings": [], "devices": []},
+            "anomaly": {"summary": {"data_gap_count": 1, "ingestion_failure_count": 2, "active_alarm_count": 3}, "items": []},
+            "insights": [{"title": "水务占比最高", "detail": "当前周期水务为主导能源"}],
+            "scope": {},
+        }
 
-        result = analysis.get_energy_analysis_overview(
+        result = energy_data.get_energy_overview(
             start_time=start_time,
             end_time=end_time,
+            device_id=None,
             location_id=8,
             energy_type="water",
             top_n=7,
+            granularity="hour",
+            include_analysis=True,
             session=session,
             current_user=current_user,
         )
 
         self.assertEqual(result["summary"]["device_count"], 4)
-        mock_use_case.assert_called_once_with(
+        self.assertEqual(result["trend"]["granularity"], "day")
+        self.assertEqual(result["trend"]["points"][0]["value"], 12.5)
+        self.assertEqual(result["trend"]["points"][0]["load"], 3.2)
+        self.assertEqual(result["comparison"]["current"], 12.5)
+        self.assertEqual(result["comparison"]["previous"], 10)
+        self.assertEqual(result["comparison"]["ratio"], 0.25)
+        self.assertEqual(result["comparison"]["mix"][0]["energy_type"], "water")
+        self.assertEqual(result["ranking"]["regions"][0]["name"], "一区")
+        self.assertEqual(result["anomaly"]["missing_data"], 1)
+        self.assertEqual(result["anomaly"]["consecutive_failures"], 2)
+        self.assertEqual(result["anomaly"]["unresolved_alarms"], 3)
+        self.assertEqual(result["insights"], ["水务占比最高：当前周期水务为主导能源"])
+        mock_analysis_use_case.assert_called_once_with(
             session=session,
             current_user=current_user,
             start_time=start_time,
             end_time=end_time,
+            device_id=None,
             location_id=8,
             energy_type="water",
             top_n=7,
+            granularity="hour",
         )
 
     @patch("app.api.endpoints.inspection.create_inspection_task_use_case")

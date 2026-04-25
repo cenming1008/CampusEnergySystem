@@ -142,7 +142,7 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
                     device_id=16,
                     command_id="91",
                     result="success",
-                    detail="模拟器已执行报警复位",
+                    detail="网关已执行报警复位",
                     control_event_notifier=notifier,
                 )
 

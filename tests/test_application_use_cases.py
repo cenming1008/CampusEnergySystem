@@ -217,7 +217,7 @@ class TestApplicationUseCases(unittest.TestCase):
         mock_ensure_access.assert_called_once_with(session, current_user, 7)
         mock_analyze_device.assert_called_once_with(session, 7)
 
-    @patch("app.application.analysis.AnalysisService.get_energy_analysis_overview")
+    @patch("app.application.analysis.EnergyService.get_analysis_overview")
     @patch("app.application.analysis.get_allowed_device_ids")
     @patch("app.application.analysis.ensure_location_access")
     def test_energy_analysis_overview_use_case_checks_scope_and_delegates(
@@ -238,9 +238,11 @@ class TestApplicationUseCases(unittest.TestCase):
             current_user=current_user,
             start_time=start_time,
             end_time=end_time,
+            device_id=2,
             location_id=9,
             energy_type="electricity",
             top_n=6,
+            granularity="hour",
         )
 
         self.assertEqual(result["summary"]["device_count"], 3)
@@ -251,9 +253,11 @@ class TestApplicationUseCases(unittest.TestCase):
             start_time=start_time,
             end_time=end_time,
             allowed_device_ids={1, 2, 3},
+            device_id=2,
             location_id=9,
             energy_type="electricity",
             top_n=6,
+            granularity="hour",
         )
 
     @patch("app.application.reporting.ReportService.list_energy_report_rows")

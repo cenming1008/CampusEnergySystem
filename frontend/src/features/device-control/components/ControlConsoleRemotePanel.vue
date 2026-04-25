@@ -87,7 +87,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
               :type="currentControlModeLabel === '手动' ? 'warning' : 'info'"
               effect="dark"
             >
-              {{ currentControlModeLabel }}模式
+              {{ currentControlModeLabel }}
             </el-tag>
           </div>
         </div>
@@ -124,15 +124,16 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
             />
           </el-select>
         </div>
-        <el-button
-          type="warning"
-          :loading="toggleSubmitting"
+        <button
+          type="button"
+          class="manual-switch-submit"
+          :class="{ 'is-loading': toggleSubmitting }"
           :disabled="!canRunManualSwitch || manualSwitchAction === 'none'"
           :title="manualSwitchDisabledReason"
           @click="emit('manualSwitch')"
         >
-          发送手动投切指令
-        </el-button>
+          {{ toggleSubmitting ? '指令发送中...' : '发送手动投切指令' }}
+        </button>
       </div>
     </div>
   </MonitorSectionPanel>
@@ -278,23 +279,63 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 
 .manual-switch-select { width: 100%; }
 
+.manual-switch-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  background: rgba(120, 53, 15, 0.18);
+  color: #fde68a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
 
+.manual-switch-submit:hover:not(:disabled) {
+  background: rgba(120, 53, 15, 0.3);
+  border-color: rgba(245, 158, 11, 0.62);
+}
+
+.manual-switch-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+
+.manual-switch-box :deep(.el-select__wrapper),
 .manual-switch-box :deep(.el-select .el-input__wrapper) {
   background: rgba(9, 18, 29, 0.84);
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   border-radius: 10px;
 }
 
+.manual-switch-box :deep(.el-select__wrapper.is-hovering),
 .manual-switch-box :deep(.el-select .el-input__wrapper:hover) {
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.28);
+  border-color: rgba(251, 191, 36, 0.32);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.08);
 }
 
+.manual-switch-box :deep(.el-select__wrapper.is-focused),
 .manual-switch-box :deep(.el-select .el-input__wrapper.is-focus) {
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.16);
 }
 
+.manual-switch-box :deep(.el-select__selected-item),
+.manual-switch-box :deep(.el-select__placeholder),
 .manual-switch-box :deep(.el-input__inner) {
   color: #eef4fd;
+}
+
+.manual-switch-box :deep(.el-select__caret) {
+  color: #8ea0bc;
 }
 
 @media (max-width: 1200px) {

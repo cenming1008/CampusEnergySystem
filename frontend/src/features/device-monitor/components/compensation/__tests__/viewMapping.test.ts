@@ -120,9 +120,40 @@ describe('compensation view mapping', () => {
 
     expect(items.some((item) => item.label === '平台启用状态' && item.value === '已启用')).toBe(true)
     expect(items.some((item) => item.label === '内部运行状态' && item.value === '运行中')).toBe(true)
+    expect(items.some((item) => item.label === '在线状态')).toBe(false)
     expect(items.some((item) => item.label === '回路投入率来源' && item.value === '按投切回路回读换算')).toBe(true)
     expect(items.some((item) => item.label === '参数快照' && item.value === '最新参数')).toBe(true)
     expect(items.some((item) => item.label === '回路状态' && item.value === '6 / 24 回路投入')).toBe(true)
+  })
+
+  it('deduplicates offline status rows in capacitor bank base status items', () => {
+    const items = buildCompensationBaseStatusItems({
+      isSvgDevice: false,
+      subtypeLabel: '电容补偿控制器',
+      deviceStatus: '离线',
+      isActive: true,
+      isOnline: false,
+      ingestionStatus: '离线',
+      ingestionTone: 'danger',
+      controlMode: '自动',
+      controlModeSource: '参数回读',
+      controlSource: 'EMS 自动策略',
+      capacityUsageSource: '按投切回路回读换算',
+      capacityUsageState: 'live',
+      cabinetTemperature: 38.2,
+      cabinetTemperatureSource: '实时采集',
+      latestSampleText: '2026-04-22 17:30:00',
+      canControlDevices: true,
+      switchPermission: false,
+      profileSourceStatus: 'fresh',
+      runningModuleCount: 0,
+      totalModuleCount: 24,
+    })
+
+    expect(items.some((item) => item.label === '内部运行状态')).toBe(false)
+    expect(items.some((item) => item.label === '在线状态')).toBe(false)
+    expect(items.filter((item) => item.value === '离线')).toHaveLength(1)
+    expect(items.some((item) => item.label === '采集状态' && item.value === '离线')).toBe(true)
   })
 
   it('builds header tags from control mode and compensation status', () => {
@@ -141,6 +172,25 @@ describe('compensation view mapping', () => {
     expect(header.tags).toEqual([
       { label: '自动', tone: 'info' },
       { label: '正常补偿', tone: 'success' },
+    ])
+  })
+
+  it('deduplicates compensation header status when it matches device status', () => {
+    const header = buildCompensationHeaderView({
+      title: '补偿器1',
+      serial: 'CAP-001',
+      location: '配电房',
+      deviceStatus: '离线',
+      isOnline: false,
+      controlMode: '自动',
+      controlModeState: 'live',
+      compensationStatusText: '离线',
+      compensationStatusTone: 'neutral',
+    })
+
+    expect(header.deviceStatus).toBe('离线')
+    expect(header.tags).toEqual([
+      { label: '自动', tone: 'info' },
     ])
   })
 

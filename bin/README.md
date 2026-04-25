@@ -8,7 +8,7 @@
 
 - `bin/`：给人直接敲的快捷脚本，命令短、上手快
 - `scripts/shell/`：完整 shell 工具集，检查更全、场景更细
-- `scripts/python/`：Python 工具和模拟器的真实实现
+- `scripts/python/`：Python 工具和真实设备接入脚本
 
 ## 当前脚本
 
@@ -16,7 +16,6 @@
 |------|------|------|
 | `fast_start.sh` | 快速启动整套 Docker 服务 | 快捷启动入口 |
 | `fast_start_dev.sh` | 启动开发模式 | 快捷编排入口 |
-| `run_simulator.sh` | 运行设备模拟器 | 对 Python 模拟器的容器包装 |
 
 ## 推荐理解
 
@@ -33,8 +32,6 @@
 # 开发模式：中间件 Docker，前后端本地
 ./bin/fast_start_dev.sh
 
-# 运行模拟器
-./bin/run_simulator.sh
 ```
 
 ## 与 scripts 的关系
@@ -43,7 +40,6 @@
 |---------|---------------|
 | `fast_start.sh` | 与 [`scripts/shell/start.sh`](../scripts/shell/start.sh) 用途接近，但更偏“快” |
 | `fast_start_dev.sh` | 复用 [`scripts/shell/start_dev_env.sh`](../scripts/shell/start_dev_env.sh) 的中间件启动能力，再补本地前后端启动 |
-| `run_simulator.sh` | 包装 [`scripts/python/simulator_unified.py`](../scripts/python/simulator_unified.py) |
 
 ## 什么时候不该用 bin
 
@@ -118,13 +114,12 @@ docker compose up -d --build
 
 ```
 CampusEnergySystem/
-├── bin/                    # 🚀 常用快捷脚本（本目录，3 个）
+├── bin/                    # 🚀 常用快捷脚本
 │   ├── fast_start.sh      # 日常快速启动（包装正式实现，偏快捷）
 │   ├── fast_start_dev.sh  # 开发模式快捷启动
-│   └── run_simulator.sh   # 在容器内运行 scripts/python/simulator_unified.py
 ├── scripts/               # 🔧 正式实现层与完整工具集（见 scripts/SCRIPT_LIST.md）
 │   ├── shell/            # Shell 脚本（启动、停止、测试等）
-│   └── python/           # Python 脚本（模拟器、工具等）
+│   └── python/           # Python 脚本（工具、网关等）
 └── docs/                  # 📚 文档中心
     ├── 01-新手入门/      # 快速开始
     ├── 02-功能使用/      # 功能指南

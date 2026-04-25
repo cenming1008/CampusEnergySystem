@@ -13,6 +13,7 @@ from app.services.energy_service import (
     _collect_energy_fields,
 )
 from app.services.mqtt_device_resolver import extract_device_code, infer_device_type
+from app.services.mqtt_device_resolver import ensure_device_for_code
 from app.services.mqtt_processor import (
     apply_field_aliases,
     build_data_dict,
@@ -107,6 +108,43 @@ class TestMqttProcessorReliability(unittest.TestCase):
         self.assertIsNone(result)
         mock_persist_device_data.assert_not_called()
 
+    @patch("app.integrations.mqtt.processor.Session")
+    @patch("app.integrations.mqtt.processor.MqttReliabilityService.mark_failure")
+    @patch("app.integrations.mqtt.processor.MqttReliabilityService.claim_message")
+    @patch("app.integrations.mqtt.processor.IngestionHealthService.mark_ingestion_failure")
+    @patch("app.integrations.mqtt.processor.IngestionHealthService.mark_message_received")
+    @patch("app.integrations.mqtt.processor.resolve_device_id")
+    @patch("app.integrations.mqtt.processor.persist_device_data")
+    def test_integrated_processor_skips_business_ingest_for_pending_archive_device(
+        self,
+        mock_persist_device_data,
+        mock_resolve_device_id,
+        _mock_mark_message_received,
+        _mock_mark_ingestion_failure,
+        mock_claim_message,
+        mock_mark_failure,
+        mock_session_cls,
+    ):
+        mock_resolve_device_id.return_value = 7
+        mock_claim_message.return_value = (SimpleNamespace(), False)
+        mock_session = MagicMock()
+        mock_session.get.return_value = SimpleNamespace(id=7, archive_status="pending")
+        context = MagicMock()
+        context.__enter__.return_value = mock_session
+        context.__exit__.return_value = None
+        mock_session_cls.return_value = context
+
+        result = process_integrated_payload_dict(
+            {"device_code": "CAP-PENDING", "power": 4.56, "timestamp": "2026-03-25T10:00:00"},
+            topic="campus/telemetry",
+        )
+
+        self.assertIsNone(result)
+        mock_persist_device_data.assert_not_called()
+        mock_mark_failure.assert_called_once()
+        failure_reason = mock_mark_failure.call_args.args[2]
+        self.assertIn("设备档案待完善", failure_reason)
+
 
 class TestMqttDeviceResolverReliability(unittest.TestCase):
     def test_extract_device_code_strips_whitespace(self):
@@ -141,6 +179,39 @@ class TestMqttDeviceResolverReliability(unittest.TestCase):
             ),
             "water_meter",
         )
+
+    @patch("app.services.mqtt_device_resolver.settings.mqtt_auto_create_device", True)
+    @patch("app.services.mqtt_device_resolver.get_device_id_by_code", return_value=None)
+    @patch("app.services.mqtt_device_resolver.DeviceService.create_pending_device_for_code")
+    @patch("app.services.mqtt_device_resolver.Session")
+    def test_ensure_device_for_code_creates_pending_archive_without_payload_type_inference(
+        self,
+        mock_session_cls,
+        mock_create_pending,
+        _mock_get_device_id,
+    ):
+        pending_device = SimpleNamespace(id=31, sn="CAP-NEW", archive_status="pending")
+        mock_create_pending.return_value = pending_device
+        context = MagicMock()
+        context.__enter__.return_value = MagicMock()
+        context.__exit__.return_value = None
+        mock_session_cls.return_value = context
+
+        device_id = ensure_device_for_code(
+            "CAP-NEW",
+            {
+                "device_code": "CAP-NEW",
+                "device_name": "网关侧名称不应写入主档",
+                "device_type": "capacitor_bank_controller",
+                "device_subtype": "capacitor_bank_controller",
+                "power_factor_a": 0.98,
+            },
+        )
+
+        self.assertEqual(device_id, 31)
+        mock_create_pending.assert_called_once()
+        _, kwargs = mock_create_pending.call_args
+        self.assertEqual(kwargs["device_code"], "CAP-NEW")
 
 
 class TestEnergyServiceReliability(unittest.TestCase):

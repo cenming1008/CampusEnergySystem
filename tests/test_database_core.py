@@ -75,6 +75,7 @@ class DatabaseCoreTest(unittest.TestCase):
         inspector = _FakeInspector(
             tables=[
                 "alarm",
+                "device",
                 "capacitor_bank_control_profile",
                 "capacitor_bank_telemetry",
                 "mqtt_ingestion_record",
@@ -82,6 +83,7 @@ class DatabaseCoreTest(unittest.TestCase):
             ],
             columns={
                 "alarm": ["severity"],
+                "device": ["device_subtype"],
                 "capacitor_bank_control_profile": ["source"],
                 "capacitor_bank_telemetry": ["phase_a_circuit_running_count"],
                 "mqtt_ingestion_record": ["raw_payload"],

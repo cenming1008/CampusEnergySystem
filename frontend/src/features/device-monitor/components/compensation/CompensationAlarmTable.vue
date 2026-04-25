@@ -153,6 +153,7 @@ function resetPage() {
         <template #default="{ row }">
           <el-button
             v-if="!row.is_resolved"
+            class="alarm-action-button"
             type="warning"
             link
             :icon="Warning"
@@ -234,6 +235,37 @@ function resetPage() {
   gap: 8px;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+.alarm-filters :deep(.el-select__wrapper) {
+  min-height: 30px;
+  background: rgba(7, 15, 26, 0.72);
+  border: 1px solid rgba(72, 96, 130, 0.72);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.alarm-filters :deep(.el-select__wrapper.is-hovering),
+.alarm-filters :deep(.el-select__wrapper.is-focused) {
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.18);
+}
+
+.alarm-filters :deep(.el-select__placeholder),
+.alarm-filters :deep(.el-select__selected-item) {
+  color: #dbeafe;
+}
+
+.alarm-filters :deep(.el-select__caret) {
+  color: #7f93b2;
+}
+
+.alarm-action-button {
+  color: #fbbf24;
+}
+
+.alarm-action-button:hover {
+  color: #fde68a;
 }
 
 .muted-text {

@@ -36,6 +36,10 @@ class TestEnergyEndpointSemantics(unittest.TestCase):
             start_time=datetime(2026, 3, 1),
             end_time=datetime(2026, 3, 2),
             device_id=None,
+            location_id=None,
+            energy_type=None,
+            top_n=5,
+            include_analysis=False,
             session=object(),
             current_user=SimpleNamespace(role="admin", username="admin"),
         )
@@ -43,6 +47,7 @@ class TestEnergyEndpointSemantics(unittest.TestCase):
         self.assertEqual(result["overview_boundary"], "multi_energy_first_batch")
         self.assertFalse(result["cross_energy_mix_allowed"])
         self.assertIn("field_boundary_rule", result)
+        self.assertNotIn("summary", result)
 
     def test_get_carbon_factors_marks_display_boundary(self):
         result = carbon.get_carbon_factors()

@@ -170,3 +170,33 @@ class TestAnalysisService(unittest.TestCase):
         self.assertEqual(result["ranking"]["areas"][0]["name"], "南区")
         self.assertEqual(result["ranking"]["buildings"][0]["name"], "2号楼")
         self.assertEqual(result["ranking"]["devices"][0]["name"], "南区燃气表")
+
+    def test_get_energy_analysis_overview_supports_explicit_granularity(self):
+        with Session(self.engine) as session:
+            result = AnalysisService.get_energy_analysis_overview(
+                session=session,
+                start_time=datetime(2026, 4, 1, 0, 0),
+                end_time=datetime(2026, 4, 8, 0, 0),
+                allowed_device_ids={1, 2, 3},
+                top_n=5,
+                granularity="hour",
+            )
+
+        self.assertEqual(result["time_window"]["granularity"], "hour")
+
+    def test_get_energy_analysis_overview_intersects_device_and_location_scope(self):
+        with Session(self.engine) as session:
+            result = AnalysisService.get_energy_analysis_overview(
+                session=session,
+                start_time=datetime(2026, 4, 1, 0, 0),
+                end_time=datetime(2026, 4, 8, 0, 0),
+                allowed_device_ids={1, 2, 3},
+                location_id=4,
+                device_id=1,
+                top_n=5,
+            )
+
+        self.assertEqual(result["summary"]["total_consumption"], 0.0)
+        self.assertEqual(result["ranking"]["areas"], [])
+        self.assertEqual(result["ranking"]["buildings"], [])
+        self.assertEqual(result["ranking"]["devices"], [])

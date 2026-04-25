@@ -11,7 +11,7 @@ defineProps<{
   <section class="glass-card gauge-card">
     <div class="card-head">
       <span class="card-eyebrow">Campus Device Pulse</span>
-      <span class="card-title">设备在线总览</span>
+      <span class="card-title">设备启用总览</span>
     </div>
 
     <div class="gauge-body">
@@ -23,7 +23,7 @@ defineProps<{
         <div class="gauge-stat">
           <div class="gauge-stat__label">
             <span class="gauge-stat__dot gauge-stat__dot--online" />
-            <span>在线设备</span>
+            <span>启用设备</span>
           </div>
           <div class="gauge-stat__value">
             <strong>{{ onlineCount }}</strong>
@@ -34,7 +34,7 @@ defineProps<{
         <div class="gauge-stat" :class="{ 'gauge-stat--warn': offlineCount > 0 }">
           <div class="gauge-stat__label">
             <span class="gauge-stat__dot gauge-stat__dot--offline" />
-            <span>离线设备</span>
+            <span>停用设备</span>
           </div>
           <div class="gauge-stat__value">
             <strong>{{ offlineCount }}</strong>

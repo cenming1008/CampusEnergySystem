@@ -39,6 +39,8 @@ from app.models.tables import CapacitorBankTelemetry, Device, MqttIngestionRecor
 # CapacitorBankService imported lazily inside functions to avoid circular import
 # (services.__init__ → capacitor_bank_service → integrations.__init__ → mqtt/processor)
 
+PENDING_ARCHIVE_INGESTION_REASON = "设备档案待完善，已跳过业务入库"
+
 
 FIELD_ALIASES = {
     "device_sn": "device_code",
@@ -339,7 +341,28 @@ def process_payload_dict(
                 topic=topic,
                 telemetry_timestamp=timestamp,
             )
-            session.commit()
+            if should_skip:
+                session.commit()
+            else:
+                device = session.get(Device, device_id)
+                if getattr(device, "archive_status", "complete") == "pending":
+                    MqttReliabilityService.mark_failure(session, record, PENDING_ARCHIVE_INGESTION_REASON)
+                    IngestionHealthService.mark_message_received(session, device_id=device_id)
+                    IngestionHealthService.mark_ingestion_failure(
+                        session,
+                        device_id=device_id,
+                        reason=PENDING_ARCHIVE_INGESTION_REASON,
+                    )
+                    session.commit()
+                    runtime_state.increment("mqtt_ingestion_failure_total")
+                    observe_mqtt_message("pending_archive", perf_counter() - started_at)
+                    logger.warning(
+                        "MQTT payload skipped for pending device archive: device_id=%s topic=%s",
+                        device_id,
+                        topic,
+                    )
+                    return None
+                session.commit()
         if should_skip:
             runtime_state.increment("mqtt_duplicates_total")
             logger.info(f"MQTT duplicate skipped: device_id={device_id}, fingerprint={fingerprint[:12]}")

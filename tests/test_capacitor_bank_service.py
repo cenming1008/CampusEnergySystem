@@ -230,12 +230,12 @@ class TestCapacitorBankService(unittest.TestCase):
                 device_id=16,
                 command_id="91",
                 result="success",
-                detail="模拟器已执行报警复位",
+                detail="网关已执行报警复位",
             )
 
         self.assertEqual(updated.result, "success")
         self.assertIn("设备回执成功", updated.reason)
-        self.assertIn("模拟器已执行报警复位", updated.reason)
+        self.assertIn("网关已执行报警复位", updated.reason)
         session.add.assert_called_once_with(control_log)
         session.flush.assert_called_once()
 
@@ -265,7 +265,7 @@ class TestCapacitorBankService(unittest.TestCase):
                 device_id=16,
                 command_id="91",
                 result="success",
-                detail="模拟器已执行报警复位",
+                detail="网关已执行报警复位",
                 control_event_notifier=notifier,
             )
 

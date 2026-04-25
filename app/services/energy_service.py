@@ -472,6 +472,33 @@ class EnergyService:
         summary = summarize_carbon_by_energy_type(rows)
         summary["summary_basis"] = "energy_period_delta"
         return summary
+
+    @staticmethod
+    def get_analysis_overview(
+        session: Session,
+        start_time: datetime,
+        end_time: datetime,
+        allowed_device_ids: Optional[set[int]] = None,
+        device_id: Optional[int] = None,
+        location_id: Optional[int] = None,
+        energy_type: Optional[str] = None,
+        top_n: int = 5,
+        granularity: Optional[str] = None,
+    ) -> Dict:
+        """能源总览页分析字段聚合入口，复用原 analysis service 计算逻辑。"""
+        from app.services.analysis_service import AnalysisService
+
+        return AnalysisService.get_energy_analysis_overview(
+            session=session,
+            start_time=start_time,
+            end_time=end_time,
+            allowed_device_ids=allowed_device_ids,
+            device_id=device_id,
+            location_id=location_id,
+            energy_type=energy_type,
+            top_n=top_n,
+            granularity=granularity,
+        )
     
     @staticmethod
     def save_statistics(

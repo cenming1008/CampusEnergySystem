@@ -43,7 +43,7 @@ function onSelect(id: number | undefined) {
         <span class="card-eyebrow">SCADA Device Board</span>
         <span class="card-title">SCADA 设备导航</span>
       </div>
-      <span class="scada-board__summary">{{ onlineCount }}/{{ totalCount }} 在线</span>
+      <span class="scada-board__summary">{{ onlineCount }}/{{ totalCount }} 启用</span>
     </div>
 
     <ElScrollbar class="scada-scroll" always>

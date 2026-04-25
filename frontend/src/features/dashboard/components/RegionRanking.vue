@@ -39,7 +39,7 @@ const rankColors = ['#38bdf8', '#34d399', '#a78bfa', '#fb923c', '#f87171']
                 background: rankColors[index]
               }"
             />
-            <span class="ranking-row__sub">{{ item.online }}/{{ item.total }} 台在线</span>
+            <span class="ranking-row__sub">{{ item.online }}/{{ item.total }} 台启用</span>
           </div>
         </div>
       </article>

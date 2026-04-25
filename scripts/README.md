@@ -5,7 +5,7 @@
 ## 目录职责
 
 - `shell/`：启动、停止、检查、备份、恢复、清理、部署
-- `python/`：系统初始化、演示数据、模拟器、网关、协议调试、压力测试
+- `python/`：系统初始化、演示数据、协议调试、压力测试
 - `archive/`：已从正式入口降级的历史脚本
 - `SCRIPT_LIST.md`：完整脚本清单
 
@@ -43,8 +43,6 @@
 
 - [init_complete_system.py](./python/init_complete_system.py)：初始化整套演示/开发数据
 - [create_admin.py](./python/create_admin.py)：创建管理员
-- [simulator_unified.py](./python/simulator_unified.py)：统一设备模拟器
-- [device_gateway.py](./python/device_gateway.py)：真实设备网关采集器
 - [check_config.py](./python/check_config.py)：配置检查
 - [send_test_alert.py](./python/send_test_alert.py)：验证告警通知通道
 
@@ -82,13 +80,6 @@
 - `archive/python/demo_device_group.py`
 - `archive/python/demo_location.py`
 - `archive/python/demo_maintenance.py`
-- `archive/python/mqtt_subscriber_template.py`
-- `archive/python/test_http_device.py`
-- `archive/python/test_modbus_tcp.py`
-- `archive/python/test_serial_port.py`
-- `archive/python/serial_device_sim.py`
-- `archive/python/serial_gateway_demo.py`
-- `archive/python/serial_pair_demo.py`
 - `archive/shell/start_frontend.sh`
 - `archive/shell/uninstall_local_services.sh`
 
@@ -101,24 +92,12 @@
 
 ### 设备接入与协议调试
 
-- `device_gateway.py`
 - `send_test_alert.py`
-- `send_svg_telemetry.py`
-- `send_capacitor_bank_telemetry.py`
 
-低频协议模板、串口演示和一次性联调脚本已归档到 `scripts/archive/python/`。
+本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台接入记录为准。
 
-`send_capacitor_bank_telemetry.py` 常用联调模板：
-- 正常实时联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile normal --loop 30 --interval 5`
-- 24 小时历史补数：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile normal --backfill 288 --backfill-step 300`
-- 谐波告警联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile harmonic --loop 10 --interval 3`
-- 过温 + 投切状态联调：`python scripts/python/send_capacitor_bank_telemetry.py --id 1 --profile overtemp --phase-a-groups 6 --phase-b-groups 5 --phase-c-groups 7 --common-1-groups 4`
-- 控制台联调：脚本运行时会默认监听 `campus/control/{device_code}`，响应 `start` / `stop` / `write_parameter`，并自动补发一条最新参数/遥测快照
+### 压测
 
-### 模拟、网关与压测
-
-- `simulator_unified.py`
-- `device_gateway.py`
 - `stress_test.py`
 
 ## 与 bin 的关系
@@ -128,7 +107,6 @@
 例如：
 
 - [bin/fast_start.sh](../bin/fast_start.sh) 对应 [scripts/shell/start.sh](./shell/start.sh)
-- [bin/run_simulator.sh](../bin/run_simulator.sh) 对应 [scripts/python/simulator_unified.py](./python/simulator_unified.py)
 
 ## 整理原则
 

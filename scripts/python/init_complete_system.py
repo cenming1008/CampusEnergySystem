@@ -347,8 +347,8 @@ def main():
         logger.info("=" * 60)
         logger.info("\n下一步:")
         logger.info("  1. 启动后端: python run.py")
-        logger.info("  2. 启动模拟器: python scripts/python/simulator_unified.py")
-        logger.info("  3. 启动前端: cd frontend && npm run dev")
+        logger.info("  2. 启动前端: cd frontend && npm run dev")
+        logger.info("  3. 接入工控机 MQTT 网关")
         logger.info("  4. 登录系统: admin / <ADMIN_PASSWORD 环境变量值>")
         logger.info("")
         

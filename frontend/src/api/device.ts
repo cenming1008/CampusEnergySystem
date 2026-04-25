@@ -12,6 +12,7 @@ export interface Device {
   device_subtype?: string
   device_category?: string
   energy_type?: string
+  archive_status?: 'pending' | 'complete'
   unit?: string
   rated_capacity?: number
   location_id?: number

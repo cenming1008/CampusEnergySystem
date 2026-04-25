@@ -24,15 +24,18 @@ describe('CompensationTrendPanel', () => {
   })
 
   it('uses a real time axis when the model requests a fixed time range', async () => {
-    mount(CompensationTrendPanel, {
+    const wrapper = mount(CompensationTrendPanel, {
       props: {
         tabs: [{ label: '补偿效果', value: 'effect' }],
         activeTab: 'effect',
         model: {
           labels: [],
-          legend: ['无功功率 Q'],
-          axes: [{ name: 'kVar' }],
-          series: [{ name: '无功功率 Q', data: [['2026-04-17T00:00:00', 10]], color: '#38bdf8' }],
+          legend: ['无功功率 Q', '功率因数 PF'],
+          axes: [{ name: 'kVar' }, { name: 'PF', position: 'right' }],
+          series: [
+            { name: '无功功率 Q', data: [['2026-04-17T00:00:00', 10]], color: '#38bdf8' },
+            { name: '功率因数 PF', data: [['2026-04-17T00:00:00', 0.96]], color: '#4ade80', yAxisIndex: 1 },
+          ],
           summary: [],
           empty: false,
           emptyText: '',
@@ -61,5 +64,8 @@ describe('CompensationTrendPanel', () => {
     expect(option?.xAxis?.type).toBe('time')
     expect(option?.xAxis?.min).toBe('2026-04-17T00:00:00')
     expect(option?.xAxis?.max).toBe('2026-04-24T00:00:00')
+    expect(option?.legend?.show).toBe(false)
+    expect(wrapper.find('.trend-panel__legend').text()).toContain('无功功率 Q')
+    expect(wrapper.find('.trend-panel__legend').text()).toContain('功率因数 PF')
   })
 })

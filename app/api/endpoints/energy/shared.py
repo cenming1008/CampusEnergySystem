@@ -73,6 +73,15 @@ class EnergyOverviewResponse(BaseModel):
     cross_energy_mix_allowed: Optional[bool] = None
     field_boundary_rule: Optional[str] = None
     energy_profiles: Optional[dict] = None
+    # 合并自原 /analysis/overview 的分析字段；当 include_analysis=False 时为 None
+    time_window: Optional[dict] = None
+    scope: Optional[dict] = None
+    summary: Optional[dict] = None
+    trend: Optional[dict] = None
+    comparison: Optional[dict] = None
+    ranking: Optional[dict] = None
+    anomaly: Optional[dict] = None
+    insights: Optional[list] = None
 
 
 ENERGY_TYPE_OPTIONS = [

@@ -133,15 +133,19 @@ class AnalysisService:
         start_time: datetime,
         end_time: datetime,
         allowed_device_ids: Optional[set[int]] = None,
+        device_id: Optional[int] = None,
         location_id: Optional[int] = None,
         energy_type: Optional[str] = None,
         top_n: int = 5,
+        granularity: Optional[str] = None,
     ) -> Dict[str, Any]:
         """返回能耗分析主页面第一批聚合数据。"""
         base_context = CampusService.build_context(session, allowed_device_ids)
         scoped_device_ids = AnalysisService._resolve_scope_device_ids(base_context, location_id)
         if allowed_device_ids is not None:
             scoped_device_ids &= allowed_device_ids
+        if device_id is not None:
+            scoped_device_ids &= {device_id}
         if energy_type:
             scoped_device_ids = {
                 device.id
@@ -169,7 +173,7 @@ class AnalysisService:
         previous_device_stats = AnalysisService._build_device_statistics(previous_rows)
         unresolved_alarm_rows = AnalysisService._list_unresolved_alarm_rows(session, scoped_device_ids)
         health_rows = AnalysisService._list_health_rows(session, scoped_device_ids)
-        granularity = AnalysisService._resolve_trend_granularity(start_time, end_time)
+        trend_granularity = granularity or AnalysisService._resolve_trend_granularity(start_time, end_time)
 
         comparison = AnalysisService._build_comparison(
             current_device_stats=current_device_stats,
@@ -211,14 +215,14 @@ class AnalysisService:
         trend_items = AnalysisService._build_trend_items(
             current_rows=current_rows,
             device_by_id=context.device_by_id,
-            granularity=granularity,
+            granularity=trend_granularity,
         )
 
         return {
             "time_window": {
                 "start_time": start_time,
                 "end_time": end_time,
-                "granularity": granularity,
+                "granularity": trend_granularity,
             },
             "scope": AnalysisService._build_scope_summary(
                 context=context,

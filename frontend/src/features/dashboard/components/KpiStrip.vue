@@ -26,12 +26,12 @@ function fmt(v: number, d = 1) {
     </div>
 
     <div class="kpi-tile kpi-tile--device">
-      <span class="kpi-tile__label">在线设备</span>
+      <span class="kpi-tile__label">启用设备</span>
       <div class="kpi-tile__value">
         <strong>{{ onlineCount }}</strong>
         <span class="kpi-tile__unit">/ {{ totalCount }}</span>
       </div>
-      <span class="kpi-tile__sub">在线率 {{ totalCount > 0 ? Math.round((onlineCount / totalCount) * 100) : 0 }}%</span>
+      <span class="kpi-tile__sub">启用率 {{ totalCount > 0 ? Math.round((onlineCount / totalCount) * 100) : 0 }}%</span>
     </div>
 
     <div class="kpi-tile" :class="alarmCount > 0 ? 'kpi-tile--alarm' : 'kpi-tile--safe'">

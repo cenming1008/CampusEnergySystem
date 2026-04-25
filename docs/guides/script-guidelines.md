@@ -40,7 +40,7 @@
 规则：
 
 - 前端构建、校验、测试命令优先保留在 `frontend/package.json`
-- 不要把仓库级运维、数据库、部署、模拟器命令塞进前端 `package.json`
+- 不要把仓库级运维、数据库、部署或设备接入命令塞进前端 `package.json`
 
 ### 2.2 `bin/`
 
@@ -48,7 +48,6 @@
 
 - `bin/fast_start.sh`
 - `bin/fast_start_dev.sh`
-- `bin/run_simulator.sh`
 
 规则：
 
@@ -83,7 +82,6 @@
 这是仓库级 Python 工具实现层，当前承载：
 
 - 初始化脚本
-- 模拟器
 - 网关
 - 配置检查
 - 压测与验收辅助
@@ -95,8 +93,6 @@
 - `init_complete_system.py`
 - `check_config.py`
 - `check_production_readiness.py`
-- `simulator_unified.py`
-- `device_gateway.py`
 - `evaluate_capacity_baseline.py`
 
 ---
@@ -126,8 +122,6 @@
 - `scripts/python/check_config.py`
 - `scripts/python/check_production_readiness.py`
 - `scripts/python/init_complete_system.py`
-- `scripts/python/simulator_unified.py`
-- `scripts/python/device_gateway.py`
 
 ### 3.2 调试 / 演示脚本
 
@@ -140,11 +134,6 @@
 当前仓库中的典型调试 / 演示脚本：
 
 - `demo_*.py`
-- `test_http_device.py`
-- `test_modbus_tcp.py`
-- `test_serial_port.py`
-- `mqtt_subscriber_template.py`
-- `serial_*`
 - `stress_test.py`
 
 规则：
@@ -218,7 +207,7 @@
 - Python 初始化与管理工具
 - 协议联调与设备接入工具
 - 发布、验收、回滚、备份、恢复工具
-- 模拟器、网关、压测和验证工具
+- 网关、压测和验证工具
 
 ---
 
@@ -271,7 +260,6 @@
 
 - `create_admin.py`
 - `init_complete_system.py`
-- `device_gateway.py`
 
 建议：
 
@@ -350,7 +338,6 @@
 - `frontend/package.json` 中现有开发、构建、校验、测试命令
 - `bin/fast_start.sh`
 - `bin/fast_start_dev.sh`
-- `bin/run_simulator.sh`
 - `scripts/shell/start.sh`
 - `scripts/shell/start_dev_env.sh`
 - `scripts/shell/status.sh`
@@ -363,15 +350,11 @@
 - `scripts/python/check_config.py`
 - `scripts/python/check_production_readiness.py`
 - `scripts/python/init_complete_system.py`
-- `scripts/python/simulator_unified.py`
-- `scripts/python/device_gateway.py`
 
 ### 9.2 保留但降级为调试/演示
 
 - `scripts/python/demo_*.py`
 - `scripts/python/test_*.py`
-- `scripts/python/mqtt_subscriber_template.py`
-- `scripts/python/serial_*`
 - `scripts/python/stress_test.py`
 - `scripts/archive/shell/start_frontend.sh`
 

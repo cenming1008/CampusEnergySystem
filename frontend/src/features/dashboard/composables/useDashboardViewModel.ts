@@ -119,9 +119,9 @@ export function useDashboardViewModel(options: {
       tone: 'cyan' as StatTone
     },
     {
-      label: '在线率',
+      label: '启用率',
       value: `${onlineRate.value}%`,
-      caption: `${overview.value.onlineDevices} 台在线`,
+      caption: `${overview.value.onlineDevices} 台启用`,
       tone: 'green' as StatTone
     },
     {
@@ -131,9 +131,9 @@ export function useDashboardViewModel(options: {
       tone: 'blue' as StatTone
     },
     {
-      label: '离线设备',
+      label: '停用设备',
       value: offlineDevices.value,
-      caption: offlineDevices.value ? '建议优先排查通讯状态' : '当前设备全部在线',
+      caption: offlineDevices.value ? '部分设备已停用' : '当前设备全部启用',
       tone: (offlineDevices.value ? 'red' : 'green') as StatTone
     }
   ])
@@ -168,7 +168,7 @@ export function useDashboardViewModel(options: {
     name: options.currentDevice.value?.name || '暂无设备',
     type: options.currentDevice.value?.device_type || '未选择',
     energyType: options.currentDevice.value?.energy_type || '未知',
-    status: options.currentDevice.value?.is_active ? '在线运行' : '离线待机'
+    status: options.currentDevice.value?.is_active ? '启用' : '停用'
   }))
 
   const selectedDeviceLabel = computed(() => {

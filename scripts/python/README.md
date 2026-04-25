@@ -4,7 +4,7 @@
 
 ## 使用优先级
 
-- 正式入口：初始化、配置检查、模拟器、网关、生产检查
+- 正式入口：初始化、配置检查、生产检查
 - 辅助入口：演示脚本、协议调试脚本、串口联调脚本
 - 历史脚本：进入 `scripts/archive/python/`
 
@@ -31,33 +31,13 @@
 
 这些脚本已归档，不再作为当前目录第一层入口。
 
-### 模拟、网关与压测
+### 压测
 
-- [simulator_unified.py](/Users/todo/MineEnergySystem/scripts/python/simulator_unified.py)：统一设备模拟器
-- [device_gateway.py](/Users/todo/MineEnergySystem/scripts/python/device_gateway.py)：真实设备网关
 - [stress_test.py](/Users/todo/MineEnergySystem/scripts/python/stress_test.py)：压力测试
 
 ### MQTT/协议调试
 
-- [send_svg_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_svg_telemetry.py)：向 SVG 设备发送模拟 MQTT 遥测数据
-- [send_capacitor_bank_telemetry.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_telemetry.py)：向电容补偿控制器发送模拟 MQTT 遥测数据
-
-低频协议模板和一次性联调脚本已归档：
-
-- [mqtt_subscriber_template.py](/Users/todo/CampusEnergySystem/scripts/archive/python/mqtt_subscriber_template.py)
-- [test_http_device.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_http_device.py)
-- [test_modbus_tcp.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_modbus_tcp.py)
-- [test_serial_port.py](/Users/todo/CampusEnergySystem/scripts/archive/python/test_serial_port.py)
-
-这些脚本优先视为联调/验证工具，而不是长期正式入口。
-
-### 已归档串口演示
-
-- [serial_device_sim.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_device_sim.py)：串口设备模拟
-- [serial_gateway_demo.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_gateway_demo.py)：串口网关演示
-- [serial_pair_demo.py](/Users/todo/CampusEnergySystem/scripts/archive/python/serial_pair_demo.py)：串口联调演示
-
-这些脚本已归档，保留给专项演示和接入排查使用。
+本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台 MQTT 接入记录为准。
 
 ## 最常用组合
 
@@ -67,12 +47,6 @@ python scripts/python/init_complete_system.py
 
 # 创建管理员
 python scripts/python/create_admin.py
-
-# 模拟数据
-python scripts/python/simulator_unified.py
-
-# 真实设备接入
-python scripts/python/device_gateway.py
 
 # 容量基线判定
 python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/health_live.json --min-rps 20 --max-p95-ms 200 --min-success-rate 99 --expect-status-code 200

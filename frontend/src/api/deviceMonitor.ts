@@ -10,6 +10,7 @@ export interface DeviceArchive {
   device_subtype?: string
   device_category?: string
   energy_type?: string
+  archive_status?: 'pending' | 'complete'
   location?: string
   rated_capacity?: number
   unit?: string

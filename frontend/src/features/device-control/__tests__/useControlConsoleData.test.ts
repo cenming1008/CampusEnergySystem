@@ -65,6 +65,36 @@ describe('useControlConsoleData', () => {
     scope.stop()
   })
 
+  it('sets load error and skips control profile for pending archive devices', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValue({
+      archive: {
+        id: 31,
+        name: '待完善设备-CAP-NEW',
+        device_type: 'capacitor_bank_controller',
+        device_subtype: 'capacitor_bank_controller',
+        archive_status: 'pending',
+      },
+      runtime_status: {
+        device_id: 31,
+        is_online: false,
+      },
+    })
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => 31),
+      enableLifecycle: false,
+    }))
+
+    expect(state).toBeTruthy()
+    await state!.loadPage()
+
+    expect(state!.loadError.value).toBe('请先补全设备档案后再进入监控或控制台。')
+    expect(getDeviceMonitorControlLogsMock).not.toHaveBeenCalled()
+    expect(getCompensationCapBankControlProfileMock).not.toHaveBeenCalled()
+    scope.stop()
+  })
+
   it('degrades gracefully when control profile request fails', async () => {
     getDeviceMonitorOverviewMock.mockResolvedValue({
       archive: {

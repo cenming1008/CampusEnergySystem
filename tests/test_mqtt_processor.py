@@ -92,7 +92,7 @@ class TestMqttProcessor(unittest.TestCase):
                 "command_id": "88",
                 "command": "write_parameter",
                 "result": "success",
-                "detail": "模拟器已写入参数",
+                "detail": "网关已写入参数",
             },
             topic="campus/telemetry",
         )

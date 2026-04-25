@@ -86,7 +86,7 @@ const handleSettingsClick = async () => {
         </el-menu-item>
         <el-menu-item index="/energy">
           <el-icon><Lightning /></el-icon>
-          <span>区域/楼栋能耗</span>
+          <span>能源管理</span>
         </el-menu-item>
         <el-menu-item index="/devices">
           <el-icon><Cpu /></el-icon>
@@ -96,11 +96,6 @@ const handleSettingsClick = async () => {
           <el-icon><Bell /></el-icon>
           <span>告警中心</span>
         </el-menu-item>
-        <el-menu-item index="/forecast">
-          <el-icon><TrendCharts /></el-icon>
-          <span>能耗分析</span>
-        </el-menu-item>
-
         <div class="menu-header">运行与运维</div>
         <el-menu-item index="/spaces">
           <el-icon><Location /></el-icon>

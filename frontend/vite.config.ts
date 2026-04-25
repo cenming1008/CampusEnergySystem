@@ -50,7 +50,6 @@ export default defineConfig({
       '/fdd': spaAwareProxy(true),
       '/reports': spaAwareProxy(false),
       '/energy/': spaAwareProxy(false),
-      '/forecast': spaAwareProxy(false),
       '/maintenance': spaAwareProxy(true),
       '/inspection': spaAwareProxy(true),
       '/locations': spaAwareProxy(false),

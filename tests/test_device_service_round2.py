@@ -154,6 +154,44 @@ class DeviceServiceRound2Test(unittest.TestCase):
         self.assertIsInstance(device.updated_at, datetime)
         mock_save.assert_called_once_with(session, device)
 
+    def test_update_device_marks_pending_archive_complete_when_required_fields_are_filled(self):
+        session = MagicMock()
+        device = SimpleNamespace(
+            id=31,
+            name="待完善设备-CAP-NEW",
+            sn="CAP-NEW",
+            device_type="load",
+            device_subtype=None,
+            device_category="load",
+            energy_type="electricity",
+            location=None,
+            description=None,
+            rated_capacity=None,
+            unit=None,
+            archive_status="pending",
+            updated_at=None,
+        )
+
+        with patch.object(DeviceService, "get_device_by_id", return_value=device):
+            with patch.object(
+                DeviceService,
+                "_resolve_location_fields",
+                return_value={"location": "配电房A", "location_id": 8},
+            ):
+                with patch("app.services.device_service.DeviceRepository.save", return_value=device):
+                    result = DeviceService.update_device(
+                        session=session,
+                        device_id=31,
+                        name="1号电容补偿控制器",
+                        device_type="compensation",
+                        device_subtype="capacitor_bank_controller",
+                        location="配电房A",
+                        rated_capacity=300.0,
+                    )
+
+        self.assertIs(result, device)
+        self.assertEqual(device.archive_status, "complete")
+
     def test_get_device_data_delegates_energy_type(self):
         device = SimpleNamespace(id=4, energy_type="water")
 

@@ -125,7 +125,7 @@ frontend/
 | **DeviceManager.vue** | /devices | 设备台账 |
 | **LocationManager.vue** | /locations | 位置管理 |
 | **DeviceGroups.vue** | /groups | 设备分组 |
-| **EnergyManagement.vue** | /energy | 多能源管理 |
+| **EnergyManagement.vue** | /energy | 能源管理 |
 | **FDD.vue** | /fdd | 故障诊断 |
 | **Maintenance.vue** | /maintenance | 设备维护 |
 | **Inspection.vue** | /inspection | 巡检运维 |
@@ -150,7 +150,7 @@ frontend/
 | 设备台账 | DeviceManager.vue | device |
 | 位置管理 | LocationManager.vue | location |
 | 设备分组 | DeviceGroups.vue | deviceGroup、device |
-| 多能源管理 | EnergyManagement.vue | energy |
+| 能源管理 | EnergyManagement.vue | energy |
 | 故障诊断 | FDD.vue | fdd |
 | 设备维护 | Maintenance.vue | maintenance |
 | 巡检运维 | Inspection.vue | inspection |

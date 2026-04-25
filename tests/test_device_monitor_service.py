@@ -94,6 +94,7 @@ class TestDeviceMonitorService(unittest.TestCase):
             overview = DeviceMonitorService.get_monitor_overview(session, device.id)
 
             self.assertEqual(overview["archive"]["name"], "2号水表")
+            self.assertEqual(overview["archive"]["archive_status"], "complete")
             self.assertIsNone(overview["archive"]["device_subtype"])
             self.assertEqual(overview["runtime_status"]["code"], "alarm")
             self.assertEqual(overview["realtime"]["flow_rate"], 2.2)

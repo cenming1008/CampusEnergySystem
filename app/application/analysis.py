@@ -10,6 +10,7 @@ from sqlmodel import Session
 
 from app.core.access_control import ensure_device_access, ensure_location_access, get_allowed_device_ids
 from app.services.analysis_service import AnalysisService
+from app.services.energy_service import EnergyService
 
 
 def analyze_device_use_case(session: Session, current_user, device_id: int):
@@ -57,11 +58,15 @@ def get_energy_analysis_overview_use_case(
     current_user,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    device_id: int | None = None,
     location_id: int | None = None,
     energy_type: str | None = None,
     top_n: int = 5,
+    granularity: str | None = None,
 ):
     """统一能耗分析主页面聚合入口。"""
+    if device_id is not None:
+        ensure_device_access(session, current_user, device_id)
     if location_id is not None:
         ensure_location_access(session, current_user, location_id)
 
@@ -69,13 +74,17 @@ def get_energy_analysis_overview_use_case(
     window_start = start_time or (window_end - timedelta(days=7))
     if window_start > window_end:
         raise ValueError("start_time 不能晚于 end_time")
+    if granularity not in (None, "hour", "day"):
+        raise ValueError("granularity 仅支持 hour/day")
 
-    return AnalysisService.get_energy_analysis_overview(
+    return EnergyService.get_analysis_overview(
         session=session,
         start_time=window_start,
         end_time=window_end,
         allowed_device_ids=get_allowed_device_ids(session, current_user),
+        device_id=device_id,
         location_id=location_id,
         energy_type=energy_type,
         top_n=top_n,
+        granularity=granularity,
     )

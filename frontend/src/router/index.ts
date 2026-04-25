@@ -69,13 +69,7 @@ const router = createRouter({
           path: 'energy',
           name: 'Energy',
           component: () => import('@/views/EnergyManagement.vue'),
-          meta: { title: '区域/楼栋能耗' }
-        },
-        {
-          path: 'forecast',
-          name: 'EnergyAnalysis',
-          component: () => import('@/views/EnergyAnalysis.vue'),
-          meta: { title: '能耗分析' }
+          meta: { title: '能源管理' }
         },
         {
           path: 'fdd',

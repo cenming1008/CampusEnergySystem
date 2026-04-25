@@ -1,169 +1,40 @@
 # Handoff
 
 ## 当前主题
-- 当前主主题：`设备监控页实时数据语义收敛专题`
+- 当前主主题：`能源管理与能耗分析合并`
 - 当前执行依据：
-  - /Users/todo/CampusEnergySystem/docs/plans/PLAN-20260413-device-monitor-realtime-semantic-convergence.md
+  - /Users/todo/CampusEnergySystem/docs/plans/PLAN-20260424-energy-management-analysis-convergence.md
 
 ---
 
 ## 阶段结论
-- 当前建议将本主题按“`MVP+` 阶段完成，待真实联调决定是否进入正式完善”进行收口，而不是继续作为实现中主题悬挂。
-- 主题已从“阶段收口候选”重开到“补偿器专属详情页 UI 优化”轮次。
-- 前端已完成补偿器专属工业监控页实现，验收已通过。
-- `reactive_power_compensator -> svg` 代码口径统一已完成，补偿类接口已统一收敛到设备主线下的 `/devices/{id}/compensation/*`。
-- 旧顶层 `/svg`、`/capacitor-bank` endpoint 与前端兼容 API 文件已删除，新嵌套路由只依赖共享 schema 层。
-- 演示占位已明确标注，若需接真实字段需新开联调/后端轮次。
-- 补偿类设备公共层 `energydata.reactive_power` 已补齐：
-  - 根因是 `app/domain/device_payloads.py` 的 `OPTIONAL_REPORT_FIELDS` 之前未包含 `reactive_power`
-  - 修复后需重启本地 `mqtt_ingest_worker` 才会生效
-  - 当前已用真实 MQTT 联调确认设备 `16` / `21` 的最新公共层无功功率均可入库
-- 前端已不再只消费电容控制器 `latest`：
-  - `latest` 用于三相电气量、投切状态、状态摘要、采样时间等当前快照
-  - `history` 已接入专属趋势区，覆盖三相功率、三相电压、三相电流、谐波、投切回放
-- 本轮已新增电容补偿控制器控制台最小闭环：
-  - 台账页对 `capacitor_bank_controller` 显示 `控制台` 入口
-  - 新增 `/devices/{id}/console` 控制台页，承载设备概览、远程控制区、参数管理只读清单、真实控制日志
-  - 新增后端参数档案接口 `/devices/{id}/compensation/capacitor-bank/control-profile`
-  - 监控页侧栏新增“控制参数摘要”，并提供跳转控制台入口
-  - MQTT 参数快照可更新 `capacitor_bank_control_profile`，控制台不再是纯空壳
-  - 控制台“启用/停用控制器”已接到现有设备 toggle 主链，并复用 `DeviceControlLog`
-  - 参数写入接口已从纯占位升级为后端受控链路：支持参数键校验、真实回读前置检查、控制日志留痕与 MQTT 结构化下发
-  - 前端控制台现已开放受控参数写入入口：
-    - 仅 `admin` 可见并允许提交
-    - 仅开放 6 个低风险字段：投入/切除功率因数、投入/切除延时、过压门限、温度上限门限
-    - 提交前必须二次确认，并明确提示“accepted 入队”不等于设备端执行成功
-    - 控制日志区域已能识别 `write:*` 参数写入记录
-  - 本轮进一步开放了其余 3 个演示控制动作：
-    - `manual_switch_test`
-    - `reset_alarm`
-    - `switch_control_mode`
-  - 新增后端接口 `/devices/{id}/compensation/capacitor-bank/remote-command`，前端控制台 4 张远程控制卡片现已全部可点
-  - `send_capacitor_bank_telemetry.py` 已支持监听上述控制命令并补发最新遥测/参数快照，供前端演示交互
-  - 本轮已补齐模拟控制回执闭环：
-    - 参数写入与演示控制命令下发时，后端 payload 会附带 `command_id`
-    - 模拟器执行后会额外发送 `message_type=control_receipt` 回执消息
-    - MQTT ingest 会消费回执并按 `device_id + command_id` 更新 `DeviceControlLog.result`
-    - 当前控制日志不再永久停留在 `accepted`，可升级为 `running` / `success` / `failed` / `timeout` / `rejected`
-- 本轮进一步完成了“补偿器1正式语义收敛”：
-  - 后端已统一控制状态模型：`accepted / running / success / failed / timeout / rejected`
-  - 监控页 `status-history` 不再把所有控制动作都映射成“设备启动/设备停止”，而是按 `action` 输出精确标题
-  - 超过约定阈值未收到回执的待定控制日志会自动转为 `timeout`
-  - 控制能力返回已显式包含正式协议元信息：`protocol_version`、命令/回执消息类型、控制 topic 模板、回执 topic、回执超时阈值、支持状态集
-  - 前端控制台“最近结果”、右侧日志、监视页事件时间线已统一状态文案与颜色语义
-  - 监视页已去掉伪造的示例运行事件；当当前时间范围内没有真实事件时，会明确展示“暂无真实运行事件”
-  - 监视页中的“控制模式 / 补偿容量利用率 / 柜内温度”已显式标注来源，不再把估算/占位值与真实采集值同权展示
-- 控制台当前能力边界明确：
-  - `supports_read=true`
-  - `supports_write=true`
-  - `supports_remote_control=true`
-  - 当前前端开放“启用/停用控制器”、3 个远程动作，以及少数字段受控写入
-  - 当前写入请求与远程控制请求都先进入 `accepted`，后续需等待设备/网关回执或超时转态，不能直接视为执行成功
-- 本轮已补充完备性复核结论：
-  - `补偿器1`（设备 `16`）当前本地真实数据存在：公共层遥测、专属遥测、参数快照、最近控制日志均可查到
-  - 最新本地核验样本包括：
-    - 公共层：`reactive_power=-20.5`、`power_factor=0.9759`
-    - 专属层：`temperature=35.1`、`circuit_state_common_1=1`
-    - 参数快照：`source=telemetry`、`switch_on_power_factor=95.0`
-    - 最近成功控制：`reset_alarm`、`manual_switch_test`、`switch_control_mode`
-  - 当前可确认“监视 + 控制最小闭环”已成立，可按 `MVP+` 阶段完成口径验收
-  - 当前不可确认“真实设备正式完善 / 协议冻结”：
-    - 部分监视指标仍含参数回读 / 估算 / 占位混合来源
-    - 高风险动作（如单回路精细投切、批量参数下发）尚未开放
-    - 控制回执闭环当前仍主要依赖模拟器约定，不等于真实网关协议已经冻结
-    - 历史日志仍存在停留在 `accepted` 的旧记录，不能外推为所有控制都天然闭环到最终态
-- 已补充一轮 Windows 设备模拟链路纠偏：
-  - 根因已确认：`normalize_compensation_measurements` 会把 `power` 兼容映射到 `flow_rate`，而旧版 `infer_device_type` 仅凭 `flow_rate` 就可能把未知设备自动注册成 `water_meter`
-  - 当前已在 `app/services/mqtt_device_resolver.py` 收敛推断规则：只要 payload 已带明显电气测点（`voltage/current/power/reactive_power/power_factor`），就不再走水表分支
-  - 已补回归测试，覆盖“电气 payload 不得误判为 `water_meter`”和“真实水表 payload 仍保持 `water_meter`”
-  - 本地已把现网模拟设备 `CAP-001`（设备 `22`）修正为：
-    - `device_type/device_subtype=capacitor_bank_controller`
-    - `device_category=compensation`
-    - `energy_type=electricity`
-  - 该设备既有 `energydata` 的 `energy_type` 也已批量从 `water` 修正为 `electricity`，避免监控页继续按水表语义取数
-- 当前规则侧补口已完成：
-  - 正式 PLAN 已写明补偿类接口冻结口径，只保留 `/devices/{id}/compensation/svg/*` 与 `/devices/{id}/compensation/capacitor-bank/*`
-  - 正式 PLAN 已补齐“正式完善门槛”，可直接作为后续真实联调的验收清单
-- 当前 Daily 归档已补齐：
-  - `2026-04-16-status.md`
-  - `2026-04-16-handoff.md`
-- `2026-04-23` 已补做一轮文档同步与前端测试收敛：
-  - 已修复 `frontend/src/views/__tests__/DeviceControlConsole.test.ts` 的测试桩件接口漂移
-  - 根因是控制台页面已经拆分为“远程控制面板”和“日志面板”两个独立子组件，但旧测试桩件仍把 `logView` 当作远程控制面板必需 props
-  - 当前控制台页面目标单测已重新通过，可继续作为补偿控制台视图层回归基线
-  - 已补跑补偿相关前后端回归：
-    - `DeviceMonitor.test.ts`、`useControlConsoleData.test.ts` 通过
-    - `test_compensation_device_contract.py`、`test_compensation_monitor_service_boundary.py`、`test_capacitor_bank_service.py` 通过
-- `2026-04-23` 已继续完成 `P1` 第一轮字段真实化收口：
-  - 根因已确认：MQTT 其实已能提取 `running_circuit_count / control_mode / auto_*` 等参数快照字段，但 `CapacitorBankControlProfile` 模型未定义这些列，导致快照写入时被 `hasattr` 过滤掉，监控页只能继续退回 `configured_fallback / estimated`
-  - 当前已补齐 `CapacitorBankControlProfile` 模型、runtime schema sync、必需列断言与控制档案响应 schema
-  - 监控页电容补偿控制器语义已改为：优先 `telemetry`，次选 `profile`，最后才退回 `configured_fallback / placeholder`
-  - 已实际压缩的字段：
-    - `control_mode`
-    - `circuit_summary.running_count`
-    - `capacity_utilization`
-  - 前端来源文案已补齐 `profile` 显示：`参数回读 / 参数快照回读 / 按参数快照回读换算`
-  - 当前新鲜验证已通过：
-    - `tests/test_database_core.py` + `tests/test_device_monitor_service.py`：`21 passed`
-    - 补偿后端回归：`37 passed`
-    - 补偿前端回归：`25 passed`
-    - `npm run typecheck`：通过
-- `2026-04-23` 已继续完成 `P1` 温度健康度收口：
-  - 当前后端已新增 `temperature_health` 语义，不再只返回原始柜内温度值
-  - 语义优先级为：
-    - `temp_alarm=True` -> `温度告警`
-    - 有 `temperature_upper_limit` + 实时温度 -> `正常 / 接近上限 / 超过上限`
-    - 无足够真实依据 -> `待判断`
-  - 前端概览卡片已消费该语义，柜内温度的 hint / tone 不再只靠固定温度阈值猜测
-  - 当前新鲜验证已通过：
-    - `tests/test_device_monitor_service.py`：`16 passed`
-    - `tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py tests/test_database_core.py tests/test_capacitor_bank_service.py`：`36 passed`
-    - `DeviceMonitor + compensation viewMapping`：`21 passed`
-    - `npm run typecheck`：通过
-- `2026-04-24` 已完成补偿器控制链路 UAT 打磨：
-  - 后端控制回执落库后会发布 `device_control_log_update` 实时事件，事件包含 `device_id / command_id / action / result / reason / updated_at`
-  - MQTT 回执消费、调度器超时收口均已接入同一控制日志事件 notifier；notifier 异常只打 warning，不影响回执落库或超时收敛
-  - 前端控制台已消费 `device_control_log_update`，仅当前设备事件会触发控制日志刷新；既有 2 秒 / 5 秒轮询仍保留为最终兜底
-  - 远程控制下发、参数写入下发、回执落库、pending 超时、参数写入拒绝等关键节点已补结构化日志
-  - JKWF 状态寄存器与投切寄存器非法值会输出 warning，并保持原始可用字段继续入库的 fallback 行为
-  - 控制回执超时已由 `COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS` 配置驱动，默认仍是 120 秒；能力接口继续返回 `receipt_timeout_seconds`
-  - 启动检查已补 SQLite + 补偿器参数写入能力启用时的 warning，明确生产环境应使用 PostgreSQL 行级锁语义
-  - 当前新鲜验证已通过：
-    - `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_capacitor_bank_ingestion.py tests/test_compensation_mqtt_boundary.py tests/test_jkwf_lcd_decoder.py tests/test_alarm_service.py tests/test_scheduler_jobs.py tests/test_startup_checks.py -q`：`75 passed, 1 warning`
-    - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts`：`8 files / 27 tests passed`
-    - `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck`：通过
-    - `git diff --check -- <本轮触碰文件>`：通过
-- `2026-04-24` 已完成补偿器真实网关适配系统侧收敛：
-  - 本轮只修改主系统，不修改 `/Users/todo/Downloads/common.py`、`mqtt_gateway.py`、`edge_collector.py`
-  - 能力接口新增 `remote_commands / writable_parameters`，前端按后端能力禁用动作与过滤写参入口
-  - `reset_alarm` 已默认禁用，禁用原因为“真实网关暂未提供报警复位寄存器/功能码”
-  - 可写参数收窄为 6 个 UAT 低风险字段：投入/切除功率因数、投入/切除延时、过压门限、温度上限
-  - 写参接口后端强制校验 allowlist，非 allowlist 参数不会创建控制日志，也不会下发 MQTT
-  - 控制回执已兼容真实网关拒绝语义：`unsupported / not_supported / refused / invalid / reject` 会归一为 `rejected`
-  - 控制日志终态保护已补齐：终态不被迟到的不同结果覆盖，重复相同终态回执幂等跳过
-  - 当前新鲜验证已通过：
-    - `env PYTHONPATH=/Users/todo/CampusEnergySystem ./venv/bin/pytest tests/test_capacitor_bank_service.py tests/test_capacitor_bank_control_command_service_boundary.py tests/test_capacitor_bank_parameter_write_service_boundary.py tests/test_compensation_mqtt_boundary.py tests/test_scheduler_jobs.py tests/test_startup_checks.py tests/test_compensation_device_nested_api.py -q`：`53 passed, 1 warning`
-    - `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- --run src/features/device-control/__tests__ src/stores/__tests__/useSocketStore.test.ts`：`8 files / 30 tests passed`
-    - `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck`：通过
+- 本轮已将能源主题主入口收敛到 `/energy`「能源管理」。
+- `/forecast` 前端路由和菜单项已移除，旧 `EnergyAnalysis.vue` 与 `api/analysis.ts` 已删除。
+- `/analysis/{device_id}` 单设备分析接口仍保留；本轮不删除整个 analysis 域。
+- `/energy/overview` 已成为能源管理页面的统一读取入口：
+  - 继续返回原有 `statistics`、`carbon_summary`、`energy_profiles` 等字段。
+  - 合并返回趋势、周期对比、排行、异常与洞察字段。
+  - `top_n` 支持 `3-20`。
+  - `granularity` 支持 `hour/day`。
+  - `device_id` 与 `location_id` 同时传入时，分析范围取交集。
+- `EnergyService.get_analysis_overview()` 已作为能源域聚合入口，内部复用 `AnalysisService.get_energy_analysis_overview()`。
+- 合并字段已做兼容：
+  - 新契约：`trend.points`、`comparison.current/previous/ratio/mix`、`ranking.regions`、`anomaly.missing_data/consecutive_failures/unresolved_alarms`、字符串数组 `insights`。
+  - 旧 analysis 形态：`trend.items`、`comparison.period_over_period`、`ranking.areas`、`anomaly.summary/items` 仍保留，降低前端和潜在消费者切换风险。
 
 ## 下一棒
-- 下一棒交给验收/设备联调角色：
-  - 验收确认“补偿器1已达到 MVP+ 阶段完成，但未到正式完善”的阶段结论是否通过，并判断主区是否正式收口
-  - 验收确认“正式控制状态语义 + 控制回执实时事件 + 仅管理员参数写入 + 二次确认 + 超时提示 + 按真实网关能力禁用未确认动作”的前端开放边界是否通过
-  - 设备/网关联调继续把当前模拟回执口径映射为真实设备/网关协议，确认：
-    - 真实回执 topic / payload
-    - 命令关联键是否继续复用 `command_id`
-    - `running/timeout/rejected` 在真实设备侧是否仍保持当前口径，或需要进一步细化
-    - `COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS` 的 120 秒默认值是否符合现场执行时延，是否需要按动作分级
-    - 真实网关是否会出现多 API 实例并发写参；若会，需要新开 Redis/数据库级分布式锁方案
-    - 工控网关是否后续补齐 `reset_alarm`；若补齐，需要重新开放 `remote_commands.reset_alarm`
-    - `baud_rate`、容量编码、极性识别等高风险参数的真实编码规则是否可确认；确认前系统保持禁写
-  - 若后续希望“未知新设备仅凭当前 Windows 模拟 payload 就自动注册成补偿器”，需新开一轮契约收敛：
-    - 方案 A：Windows payload 显式补 `device_type/device_subtype`
-    - 方案 B：补偿器模拟协议增加更稳定的专属特征字段
-    - 当前这轮只修到“避免误判成水表 + 修正现有 `CAP-001`”
-  - 建议按以下顺序推进正式交付缺口：
-    - 第一步：真实设备/网关回执闭环
-    - 第二步：继续完成关键监控指标真实化，当前已收口 `control_mode / circuit_summary / capacity_utilization / temperature_health`
-    - 第三步：高风险控制动作边界定版
-    - 第四步：最终验收决定是否正式收口
+- 下一棒交给验收角色：
+  - 若认可当前验证证据，按“阶段完成，后续如需组件拆分另开主题”的口径收口。
+  - `/analysis/overview` 兼容代理已明确不做：当前仍处开发阶段且无已知外部消费者，统一收敛到 `/energy/overview`。
+
+## 已验证
+- `./venv/bin/python -m pytest tests/test_analysis_service.py tests/test_endpoint_application_convergence.py tests/test_application_use_cases.py -q` 通过：`27 passed, 1 warning`。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- src/views/__tests__/EnergyManagement.test.ts` 通过：`1 file / 2 tests passed`。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 通过。
+- `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过；仅保留 Vite 大 chunk 提示。
+- `git diff --check -- <本轮触碰文件>` 通过。
+- 旧入口残留搜索已确认：生产代码中无 `EnergyAnalysis`、`/forecast` 路由/菜单、`getAnalysisOverview` 或 `@/api/analysis` 调用残留；仅测试断言和文档/注释保留历史说明。
+
+## 剩余风险
+- `EnergyManagement.vue` 仍偏大，本轮只完成合并，不做页面组件化拆分。
+- 当前工作区存在非本主题既有改动，验收时不要将其混入本主题判断。
