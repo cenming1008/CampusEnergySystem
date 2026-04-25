@@ -34,7 +34,7 @@ cd frontend && npm install
 2. 启动基础服务
 
 ```bash
-docker compose up -d db redis mqtt
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 3. 启动后端
@@ -51,10 +51,30 @@ cd frontend
 npm run dev
 ```
 
-### 方式 2：Docker 一体启动
+### 方式 2：开发快捷启动
 
 ```bash
+./bin/fast_start_dev.sh
+```
+
+停止开发环境：
+
+```bash
+./bin/stop_dev.sh
+```
+
+### 方式 3：生产快速启动
+
+```bash
+cp env.prod.example .env.prod
+# 修改 .env.prod 中的密码、密钥和域名配置
 ./bin/fast_start.sh
+```
+
+停止生产服务：
+
+```bash
+./bin/stop_prod.sh
 ```
 
 ### 默认访问地址
@@ -98,10 +118,10 @@ npm run dev
 | --- | --- |
 | `app/` | 后端主应用，包含 API、应用编排、领域规则、服务、仓储、核心基础设施和数据库表模型。 |
 | `frontend/` | 前端应用，包含页面、组件、路由、状态管理和前端构建配置。 |
-| `scripts/` | 仓库级脚本入口，放启动、演练、备份、初始化、调试和辅助工具。 |
+| `scripts/` | 仓库级脚本入口，放检查、演练、备份、初始化、调试和辅助工具。 |
 | `docs/` | 文档中心，包含新手指南、开发部署、协作规范、计划与归档。 |
 | `tests/` | 后端测试与验证脚本。 |
-| `config/` | 运行配置，如告警阈值、设备网关或业务配置。 |
+| `config/` | 系统侧运行配置，如告警阈值等业务配置。 |
 | `migrations/` | Alembic 数据库迁移目录，管理正式 schema 变更。 |
 | `monitoring/` | Prometheus、Grafana、Alertmanager、Loki、Promtail 等观测配置。 |
 | `mosquitto/` | MQTT Broker 配置与本地挂载目录，含配置、运行数据和日志。 |
@@ -125,8 +145,7 @@ npm run dev
 | `README.md` | 根目录导航，说明项目定位、启动方式和目录职责。 |
 | `AGENTS.md` | AI 协作入口，定义线程职责、阅读顺序、修改原则和交接格式。 |
 | `Dockerfile` | 后端镜像构建文件。 |
-| `docker-compose.yml` | 默认 Compose 编排，包含数据库、Redis、MQTT、后端和 MQTT worker。 |
-| `docker-compose.dev.yml` | 开发环境 Compose 配置。 |
+| `docker-compose.dev.yml` | 开发环境 Compose 配置，只启动数据库、Redis 和 MQTT。 |
 | `docker-compose.prod.yml` | 生产部署 Compose 配置，含观测与代理相关服务。 |
 | `requirements.txt` | 后端 Python 依赖。 |
 | `run.py` | 本地运行入口之一。 |
@@ -217,10 +236,10 @@ npm run lint
 ### Compose
 
 ```bash
-docker compose up -d db redis mqtt
-docker compose up -d
-docker compose ps
-docker compose logs -f backend
+docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml logs -f
+docker compose -f docker-compose.prod.yml --env-file .env.prod config
 ```
 
 ### 备份与演练

@@ -1,89 +1,59 @@
 #!/bin/bash
-# 快速启动脚本 - 使用缓存的镜像，不重新构建
-# 适合日常开发使用
-# 启动：Docker 服务（db/redis/mqtt/backend），可选顺带启动前端开发服务器
+# 生产环境快捷启动入口。
+# Compose 已收敛为 docker-compose.dev.yml / docker-compose.prod.yml 两套；
+# 本脚本只负责用 docker-compose.prod.yml 启动生产服务。
 
 set -e
 
-# 切换到项目根目录（脚本在 bin/ 下）
 PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 cd "$PROJECT_DIR"
 
-# 颜色定义
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🚀 园区综合能源管理系统快速启动（使用缓存）${NC}"
+echo -e "${BLUE}  园区综合能源管理系统生产快速启动${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# 检查 Docker
-if ! docker info &> /dev/null; then
-    echo -e "${YELLOW}⚠️  Docker 未运行，正在启动...${NC}"
-    open /Applications/Docker.app
-    echo "等待 Docker 启动..."
-    sleep 10
+if ! command -v docker >/dev/null 2>&1; then
+    echo -e "${RED}Docker 未安装，请先安装 Docker Desktop 或 Docker Engine${NC}"
+    exit 1
 fi
 
-echo -e "${GREEN}✅ Docker 运行中${NC}"
-echo ""
-
-# 检查是否有镜像
-IMAGES_COUNT=$(docker images | grep -c -E "python|timescale|redis|mosquitto|mine" || echo "0")
-
-if [ "$IMAGES_COUNT" -lt 4 ]; then
-    echo -e "${YELLOW}⚠️  检测到镜像缺失，将执行完整构建...${NC}"
-    docker compose up -d --build
-else
-    echo -e "${GREEN}✅ 使用缓存的镜像快速启动${NC}"
-    echo ""
-    # 不使用 --build，直接启动
-    docker compose up -d
+if ! docker info >/dev/null 2>&1; then
+    echo -e "${RED}Docker 未运行，请先启动 Docker${NC}"
+    exit 1
 fi
 
-echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✅ Docker 服务已启动（数据库 + Redis + MQTT + 后端）${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-# 等待服务就绪
-echo "⏳ 等待服务就绪..."
-sleep 3
-
-# 检查服务状态
-echo ""
-echo "📊 服务状态："
-docker compose ps
-
-echo ""
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}📚 访问地址：${NC}"
-echo -e "   ${GREEN}后端 API 文档:${NC} http://localhost:8088/docs"
-echo -e "   ${GREEN}前端界面:${NC}     http://localhost:3000 (默认，若占用会顺延)"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-# 仅在有交互式终端时询问是否启动前端
-if [ -t 0 ]; then
-    echo -e "${YELLOW}是否同时启动前端开发服务器？(y/N):${NC} "
-    read -r -n 1 REPLY
-    echo ""
-else
-    REPLY="n"
+if [ ! -f ".env.prod" ]; then
+    echo -e "${RED}未找到 .env.prod${NC}"
+    echo -e "${YELLOW}请先执行: cp env.prod.example .env.prod，并修改其中的密码、密钥和域名配置${NC}"
+    exit 1
 fi
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    mkdir -p logs
-    echo -e "${GREEN}正在启动前端...${NC}"
-    echo -e "${YELLOW}（统一复用 frontend/package.json#dev，日志: logs/frontend_fast_start.log）${NC}"
-    echo ""
-    (cd frontend && npm run dev) > logs/frontend_fast_start.log 2>&1 &
-    sleep 2
-    echo ""
-    echo -e "${GREEN}✅ 前端已启动，默认访问 http://localhost:3000${NC}"
-else
-    echo -e "${YELLOW}如需启动前端，请在新终端执行: cd frontend && npm run dev${NC}"
+
+mkdir -p logs backups pg_data mosquitto/config mosquitto/data mosquitto/log nginx/ssl nginx/log
+
+if [ ! -f "mosquitto/config/passwd" ]; then
+    echo -e "${YELLOW}未发现 Mosquitto 密码文件，正在根据 .env.prod 生成...${NC}"
+    MQTT_USERNAME_FROM_ENV=$(grep -E '^MQTT_USERNAME=' .env.prod | tail -1 | cut -d '=' -f2- || true)
+    MQTT_PASSWORD_FROM_ENV=$(grep -E '^MQTT_PASSWORD=' .env.prod | tail -1 | cut -d '=' -f2- || true)
+    MQTT_USERNAME_FROM_ENV="${MQTT_USERNAME_FROM_ENV:-campus_mqtt}"
+    if [ -z "$MQTT_PASSWORD_FROM_ENV" ]; then
+        echo -e "${RED}.env.prod 中缺少 MQTT_PASSWORD，无法生成 Mosquitto 密码文件${NC}"
+        exit 1
+    fi
+    bash ./scripts/shell/setup_mqtt_auth.sh "$MQTT_USERNAME_FROM_ENV" "$MQTT_PASSWORD_FROM_ENV" --force
 fi
+
+echo -e "${YELLOW}启动生产服务...${NC}"
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+
+echo ""
+echo -e "${GREEN}生产服务启动命令已执行${NC}"
+echo ""
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 echo ""

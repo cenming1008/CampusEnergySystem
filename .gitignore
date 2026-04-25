@@ -199,21 +199,6 @@ temp/
 tmp/
 test_*.py.bak
 
-# ============================================
-# 机器学习模型和训练产物
-# ============================================
-# LSTM 模型文件（训练产物，不应提交）
-models/lstm/*.h5
-models/lstm/*.keras
-models/scalers/*.pkl
-models/versions/*.json
-models/versions_metadata.json
-
-# 保留目录结构
-!models/lstm/.gitkeep
-!models/scalers/.gitkeep
-!models/versions/.gitkeep
-!models/README.md
 !mosquitto/README.md
 
 # ============================================

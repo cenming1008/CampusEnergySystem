@@ -4,7 +4,7 @@
 
 ## 用途
 
-- [docker-compose.dev.yml](/Users/todo/MineEnergySystem/docker-compose.dev.yml)
+- [docker-compose.dev.yml](/Users/todo/CampusEnergySystem/docker-compose.dev.yml)
 
 会把这个目录挂载到开发数据库容器的 `/var/lib/postgresql/data`。
 
@@ -16,4 +16,4 @@
 - 不建议手动改内部文件
 
 更详细说明见：
-- [DATABASE_STORAGE.md](/Users/todo/MineEnergySystem/docs/03-开发与部署/DATABASE_STORAGE.md)
+- [DATABASE_STORAGE.md](/Users/todo/CampusEnergySystem/docs/03-开发与部署/DATABASE_STORAGE.md)

@@ -23,7 +23,7 @@ if curl -s --connect-timeout 2 "$BACKEND_URL/docs" > /dev/null 2>&1; then
 else
     echo -e "${RED}❌ 后端服务未运行，请先启动：${NC}"
     echo "   cd <项目根目录>"
-    echo "   docker compose up -d"
+    echo "   ./bin/fast_start_dev.sh"
     exit 1
 fi
 
@@ -73,14 +73,14 @@ fi
 
 echo ""
 echo "5️⃣  测试 Docker 健康检查..."
-CONTAINER_HEALTH=$(docker inspect campus_backend --format='{{.State.Health.Status}}' 2>/dev/null)
+CONTAINER_HEALTH=$(docker inspect campus_backend_prod --format='{{.State.Health.Status}}' 2>/dev/null)
 
 if [ "$CONTAINER_HEALTH" = "healthy" ]; then
     echo -e "${GREEN}✅ Docker 容器健康检查: healthy${NC}"
 elif [ "$CONTAINER_HEALTH" = "starting" ]; then
     echo -e "${YELLOW}⚠️  Docker 容器健康检查: starting (启动中)${NC}"
 elif [ "$CONTAINER_HEALTH" = "" ]; then
-    echo -e "${YELLOW}⚠️  Docker 容器未运行或未配置健康检查${NC}"
+    echo -e "${YELLOW}⚠️  未检测到生产后端 Docker 容器；如果是本地 run.py 启动，可忽略此项${NC}"
 else
     echo -e "${RED}❌ Docker 容器健康检查: $CONTAINER_HEALTH${NC}"
 fi

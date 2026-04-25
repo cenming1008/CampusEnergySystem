@@ -11,14 +11,14 @@
 1. `bin/`、`scripts/`、`frontend/package.json` 同时承载命令入口，边界容易混淆
 2. `scripts/python/` 与 `scripts/shell/` 中混有正式脚本、调试脚本、演示脚本和一次性验证脚本
 3. 文档中大量直接引用脚本，如果随意移动路径，容易打断现有使用方式
-4. 当前仓库已经存在 `scripts/archive/`，但归档口径还需要继续统一
+4. 历史脚本已从当前 `scripts/` 主区清出，后续如需恢复历史参考，应先明确归档口径
 
 治理目标是：
 
 - 正式入口少而稳定
 - 真实实现集中到 `scripts/`
 - 调试与演示脚本有清晰标识
-- 一次性历史脚本有统一归档去向
+- 一次性历史脚本有明确下架、归档或删除判断
 
 ---
 
@@ -48,18 +48,19 @@
 
 - `bin/fast_start.sh`
 - `bin/fast_start_dev.sh`
+- `bin/stop_prod.sh`
+- `bin/stop_dev.sh`
 
 规则：
 
-- `bin/` 只放高频快捷壳，不承载复杂业务逻辑
-- `bin/` 脚本应尽量包装 `scripts/` 中的正式实现
+- `bin/` 只放高频快捷入口，不承载低频工具
+- 启停类快捷入口统一放在 `bin/`
 - 若一个命令不是高频入口，不应新增到 `bin/`
 
 ### 2.3 `scripts/shell/`
 
 这是仓库级 Shell 正式实现层，当前承载：
 
-- 服务启停
 - 健康检查
 - 备份恢复
 - 部署发布
@@ -67,9 +68,6 @@
 
 适合保留为正式脚本的示例：
 
-- `start.sh`
-- `start_dev_env.sh`
-- `stop.sh`
 - `status.sh`
 - `test_health.sh`
 - `backup.sh`
@@ -111,8 +109,6 @@
 
 当前仓库中的典型正式脚本：
 
-- `scripts/shell/start.sh`
-- `scripts/shell/start_dev_env.sh`
 - `scripts/shell/status.sh`
 - `scripts/shell/test_health.sh`
 - `scripts/shell/backup.sh`
@@ -158,7 +154,7 @@
 规则：
 
 - 不删除正在使用的历史脚本
-- 一旦确认不再作为当前入口，应迁入归档区
+- 一旦确认不再作为当前入口，应先从入口文档下架，再决定归档或删除
 
 ---
 
@@ -243,14 +239,12 @@
 
 使用小写蛇形或动宾短语，统一放在 `scripts/shell/`：
 
-- `start.sh`
-- `start_dev_env.sh`
 - `backup.sh`
 - `release_readiness.sh`
 
 建议：
 
-- 启停类：`start_*`、`stop_*`、`restart_*`
+- 启停类：高频入口优先放 `bin/`，低频维护类才放 `scripts/shell/`
 - 检查类：`check_*`、`test_*`、`*_readiness`
 - 发布维护类：`deploy_*`、`rollback_*`、`cleanup_*`
 
@@ -307,12 +301,7 @@
 
 ## 8. 归档规则
 
-当前仓库已经存在：
-
-- `scripts/archive/python/`
-- `scripts/archive/shell/`
-
-后续若继续执行脚本收敛，统一沿用这两个目录。
+当前仓库的 `scripts/` 主区只保留仍有当前价值的正式脚本、调试工具和运行维护工具。历史脚本是否保留为归档，按具体用途单独判断。
 
 归档触发条件：
 
@@ -324,8 +313,8 @@
 删除候选脚本的处理顺序：
 
 1. 先从 README、guide、流程文档中下架
-2. 再迁入 `scripts/archive/`
-3. 观察一个维护周期后，再决定是否永久删除
+2. 若仍有参考价值，再迁入明确的归档目录
+3. 若无当前价值且无稳定引用，可以直接删除
 
 在真正完成文档入口下架前，不要随意删除仍在文档中出现的脚本。
 
@@ -338,8 +327,8 @@
 - `frontend/package.json` 中现有开发、构建、校验、测试命令
 - `bin/fast_start.sh`
 - `bin/fast_start_dev.sh`
-- `scripts/shell/start.sh`
-- `scripts/shell/start_dev_env.sh`
+- `bin/stop_prod.sh`
+- `bin/stop_dev.sh`
 - `scripts/shell/status.sh`
 - `scripts/shell/test_health.sh`
 - `scripts/shell/backup.sh`
@@ -353,15 +342,14 @@
 
 ### 9.2 保留但降级为调试/演示
 
-- `scripts/python/demo_*.py`
-- `scripts/python/test_*.py`
 - `scripts/python/stress_test.py`
-- `scripts/archive/shell/start_frontend.sh`
+- `scripts/python/send_test_alert.py`
+- `scripts/python/replay_mqtt_failures.py`
 
 ### 9.3 后续优先人工确认
 
 - `scripts/SCRIPT_LIST.md` 作为唯一总览是否仍足够清晰
-- 是否需要为历史性脚本单独建立 `scripts/archive/`
+- 是否需要为历史性脚本重新建立明确归档区
 - 是否存在文档仍引用但脚本文件已不存在的情况，应先校正文档再决定脚本治理动作
 
 ---

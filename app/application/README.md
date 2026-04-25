@@ -385,9 +385,9 @@ MQTT 消息
 
 ## 10. 相关文件
 
-- [app/README.md](/Users/todo/MineEnergySystem/app/README.md)
-- [app/application/__init__.py](/Users/todo/MineEnergySystem/app/application/__init__.py)
-- [docs/guides/backend-guidelines.md](/Users/todo/MineEnergySystem/docs/guides/backend-guidelines.md)
-- [docs/plans/PLAN-20260327-application-layer-convergence.md](/Users/todo/MineEnergySystem/docs/plans/PLAN-20260327-application-layer-convergence.md)
-- [docs/plans/current-status.md](/Users/todo/MineEnergySystem/docs/plans/current-status.md)
-- [docs/plans/handoff.md](/Users/todo/MineEnergySystem/docs/plans/handoff.md)
+- [app/README.md](/Users/todo/CampusEnergySystem/app/README.md)
+- [app/application/__init__.py](/Users/todo/CampusEnergySystem/app/application/__init__.py)
+- [docs/guides/backend-guidelines.md](/Users/todo/CampusEnergySystem/docs/guides/backend-guidelines.md)
+- [docs/plans/PLAN-20260327-application-layer-convergence.md](/Users/todo/CampusEnergySystem/docs/plans/PLAN-20260327-application-layer-convergence.md)
+- [docs/plans/current-status.md](/Users/todo/CampusEnergySystem/docs/plans/current-status.md)
+- [docs/plans/handoff.md](/Users/todo/CampusEnergySystem/docs/plans/handoff.md)

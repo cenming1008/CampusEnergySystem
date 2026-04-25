@@ -1,147 +1,70 @@
 # bin 目录说明
 
-`bin/` 是这个项目的“快捷入口层”。
+`bin/` 是仓库的高频快捷入口层，只保留少量适合人工直接执行的短命令。
 
-它的用途不是承载完整实现，而是把最常用的几个动作收成短命令，方便日常启动和演示。真正的正式实现统一放在 [`scripts/`](../scripts/README.md)。
+它不作为完整脚本实现目录。状态检查、备份、恢复、部署、发布检查和调试工具统一放在 [scripts/](../scripts/README.md)。
 
-## 目录职责
+## 和 scripts 的区别
 
-- `bin/`：给人直接敲的快捷脚本，命令短、上手快
-- `scripts/shell/`：完整 shell 工具集，检查更全、场景更细
-- `scripts/python/`：Python 工具和真实设备接入脚本
+| 目录 | 定位 | 适合场景 |
+|------|------|----------|
+| `bin/` | 快捷入口层 | 日常把系统快速跑起来 |
+| `scripts/shell/` | Shell 正式实现层 | 检查、备份、恢复、部署、发布检查 |
+| `scripts/python/` | Python 工具层 | 初始化、配置检查、压测、告警通道验证等 |
 
-## 当前脚本
+判断规则：
 
-| 脚本 | 用途 | 本质 |
-|------|------|------|
-| `fast_start.sh` | 快速启动整套 Docker 服务 | 快捷启动入口 |
-| `fast_start_dev.sh` | 启动开发模式 | 快捷编排入口 |
+- 高频、面向人工、命令值得缩短：可以放 `bin/`
+- 需要完整参数、检查、恢复、部署或长期维护：放 `scripts/`
+- 前端原生命令：放 `frontend/package.json`
 
-## 推荐理解
+## 当前入口
 
-- `bin/` 适合“我现在就想把系统跑起来”
-- `scripts/` 适合“我需要正式执行某项能力、做排查或单独执行某一部分”
-- 当 `bin/` 与 `scripts/` 同时能完成某件事时，以 `scripts/` 中的实现为事实来源，以 `bin/` 为快捷壳
+| 脚本 | 用途 | 对应能力 |
+|------|------|----------|
+| `fast_start.sh` | 生产快速启动 | 使用 `docker-compose.prod.yml` 和 `.env.prod` 启动生产服务 |
+| `stop_prod.sh` | 生产快速停止 | 停止 `docker-compose.prod.yml` 中的生产服务，不删除挂载数据 |
+| `fast_start_dev.sh` | 开发快速启动 | 启动开发中间件，并编排本地后端、worker 和前端 |
+| `stop_dev.sh` | 开发快速停止 | 停止本地后端、worker、前端和开发中间件 |
 
-## 常用命令
+## 推荐使用
+
+开发模式：
 
 ```bash
-# 日常快速启动
-./bin/fast_start.sh
-
-# 开发模式：中间件 Docker，前后端本地
 ./bin/fast_start_dev.sh
-
 ```
 
-## 与 scripts 的关系
-
-| bin 脚本 | 对应实现/能力 |
-|---------|---------------|
-| `fast_start.sh` | 与 [`scripts/shell/start.sh`](../scripts/shell/start.sh) 用途接近，但更偏“快” |
-| `fast_start_dev.sh` | 复用 [`scripts/shell/start_dev_env.sh`](../scripts/shell/start_dev_env.sh) 的中间件启动能力，再补本地前后端启动 |
-
-## 什么时候不该用 bin
-
-- 你要做细粒度运维时
-- 你要单独启动某个服务时
-- 你要排查环境或做恢复、备份、清理时
-
-这类场景请直接看 [`scripts/README.md`](../scripts/README.md)。
-
-### Q: 脚本提示 "permission denied"
+停止开发环境：
 
 ```bash
-# 解决：添加执行权限
-chmod +x bin/*.sh
-chmod +x scripts/shell/*.sh
+./bin/stop_dev.sh
 ```
 
-### Q: Docker 未运行
+生产快速启动：
 
 ```bash
-# macOS: 启动 Docker Desktop
-open /Applications/Docker.app
-
-# 等待 Docker 启动完成（菜单栏图标不再闪烁）
-```
-
-### Q: 端口被占用
-
-```bash
-# 检查占用
-lsof -i :8088
-
-# 停止旧服务
-docker compose down
-
-# 清理并重启
-docker compose down -v
 ./bin/fast_start.sh
 ```
 
-### Q: 镜像构建失败
+生产快速停止：
 
 ```bash
-# 清理旧镜像
-docker compose down -v
-docker system prune -a
-
-# 重新构建
-docker compose up -d --build
+./bin/stop_prod.sh
 ```
 
-### Q: 需要完整重建
+需要细粒度运维或排查时，改用 `scripts/`：
 
 ```bash
-# 方案1：使用 scripts 中的完整启动脚本
-./scripts/shell/start.sh
-
-# 方案2：手动构建
-docker compose down -v
-docker compose up -d --build
+./scripts/shell/status.sh
+./scripts/shell/test_health.sh
+./scripts/shell/backup.sh
+./scripts/shell/release_readiness.sh
 ```
 
-## 📚 相关文档
+## 维护原则
 
-- [项目主文档](../README.md) - 完整项目说明
-- [快速启动指南](../docs/01-新手入门/快速启动指南.md) - 新手入门
-- [安装配置指南](../docs/01-新手入门/安装配置完整指南.md) - 详细配置
-- [脚本使用指南](../scripts/README.md) - Scripts 目录完整说明
-- [Docker脚本指南](../docs/03-开发与部署/DOCKER_SCRIPTS.md) - Docker 详细指南
-
-## 📂 目录结构说明
-
-```
-CampusEnergySystem/
-├── bin/                    # 🚀 常用快捷脚本
-│   ├── fast_start.sh      # 日常快速启动（包装正式实现，偏快捷）
-│   ├── fast_start_dev.sh  # 开发模式快捷启动
-├── scripts/               # 🔧 正式实现层与完整工具集（见 scripts/SCRIPT_LIST.md）
-│   ├── shell/            # Shell 脚本（启动、停止、测试等）
-│   └── python/           # Python 脚本（工具、网关等）
-└── docs/                  # 📚 文档中心
-    ├── 01-新手入门/      # 快速开始
-    ├── 02-功能使用/      # 功能指南
-    ├── 03-开发与部署/    # 开发部署
-    └── 04-故障排查/      # 故障诊断
-```
-
-## 🎯 设计理念
-
-**bin/ 目录定位**：
-- ✅ **精简**：只保留最常用的脚本
-- ✅ **快速**：优化启动速度
-- ✅ **易用**：简单明了，开箱即用
-
-**scripts/ 目录定位**：
-- ✅ **正式**：作为仓库级脚本的事实来源
-- ✅ **完整**：包含正式脚本、调试脚本与已归档脚本
-- ✅ **专业**：详细的检查和提示
-- ✅ **灵活**：各种场景的工具
-
----
-
-**💡 提示**：日常使用推荐 `./bin/fast_start.sh`，它会智能判断是否需要重新构建，大大节省启动时间！
-
-**📞 技术支持**：如有问题请查看主文档或相关文档链接
+- `bin/` 不新增低频脚本
+- `bin/` 只承载高频启停编排，不放低频运维工具
+- `bin/` 不替代 `scripts/README.md` 和 `scripts/SCRIPT_LIST.md`
+- 如果快捷入口开始承载低频运维能力，优先拆回 `scripts/`

@@ -5,19 +5,17 @@
 这里的配置和 `.env` 不一样：
 
 - `.env` 负责环境变量，比如数据库地址、端口、密钥
-- `config/` 负责结构化 JSON 配置，比如报警阈值、网关设备清单
+- `config/` 负责系统侧运行时会读取的结构化 JSON 配置，比如报警阈值
 
 ## 当前文件
 
 | 文件 | 用途 | 读取方 |
 |------|------|--------|
 | `settings.json` | 报警阈值配置 | `AlarmService.load_thresholds()` |
-| `gateway_devices.json` | 网关采集设备清单 | `scripts/python/device_gateway.py` |
-| `README_gateway_devices.md` | 网关设备配置说明 | 人工查看 |
 
 ## 推荐理解
 
-### 1. `settings.json`
+### `settings.json`
 
 这是“业务阈值配置”。
 
@@ -27,32 +25,24 @@
 - 某些设备的单独阈值覆盖
 
 对应代码位置：
-- [app/services/alarm_service.py](/Users/todo/MineEnergySystem/app/services/alarm_service.py)
+- [app/services/alarm_service.py](/Users/todo/CampusEnergySystem/app/services/alarm_service.py)
 
-### 2. `gateway_devices.json`
+## 设备侧网关配置边界
 
-这是“外部设备接入配置”。
-
-当前主要给设备网关采集脚本使用，例如：
-- Modbus TCP 设备地址
-- HTTP 设备接口地址
-- 串口设备参数
-- 字段映射、寄存器配置
-
-对应代码位置：
-- [scripts/python/device_gateway.py](/Users/todo/MineEnergySystem/scripts/python/device_gateway.py)
+当前系统侧以 MQTT 入站消息作为设备接入边界，不再维护本地设备采集网关清单。
+Modbus、串口、HTTP 轮询等设备侧网关配置应由设备侧网关或现场工控机工程维护，不放在本系统侧 `config/` 目录中。
 
 ## 使用建议
 
 - 改报警阈值：编辑 `settings.json`
-- 改真实设备接入：编辑 `gateway_devices.json`
+- 改真实设备接入：调整设备侧网关或工控机工程，并确保 MQTT topic / payload 与系统侧约定一致
 - 改数据库、端口、JWT、MQTT 地址：编辑 `.env`，不是这里
 
 ## 后续整理原则
 
 这个目录建议继续保持“小而清楚”：
 
-- 只放运行时 JSON 配置
+- 只放系统侧运行时实际读取的 JSON 配置
 - 每个 JSON 最好只负责一类事情
 - 配套说明文档放在同目录或 docs 中
 - 不把脚本、日志、备份文件混进来

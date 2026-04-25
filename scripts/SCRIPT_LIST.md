@@ -4,15 +4,6 @@
 
 ## Shell 脚本
 
-### 服务启停
-
-| 脚本 | 作用 |
-|------|------|
-| `start.sh` | 启动整套 Docker 服务，适合默认/完整环境。 |
-| `start_dev_env.sh` | 启动开发环境中间件，不启动本地后端和前端。 |
-| `stop.sh` | 停止整套 Docker 服务。 |
-| `stop_dev_env.sh` | 停止开发环境中间件。 |
-
 ### 状态检查
 
 | 脚本 | 作用 |
@@ -29,6 +20,7 @@
 | `install_dependencies.sh` | 安装本地依赖。 |
 | `deploy_prod.sh` | 执行生产部署流程。 |
 | `release_readiness.sh` | 发布前总检查。 |
+| `run_backend_coverage.sh` | 运行后端覆盖率检查。 |
 | `render_alertmanager_config.sh` | 渲染 Alertmanager 配置。 |
 | `setup_mqtt_auth.sh` | 配置 MQTT 认证用户与密码文件。 |
 
@@ -45,6 +37,7 @@
 | `send_test_alert.py` | 发送测试告警验证通知通道。 |
 | `evaluate_capacity_baseline.py` | 校验压测结果是否达到试点阈值。 |
 | `replay_mqtt_failures.py` | 重放 MQTT 失败/死信记录。 |
+| `run_mqtt_ingest_worker.py` | MQTT 入站采集 worker 入口。 |
 | `generate_prod_secrets.py` | 生成生产环境密钥片段。 |
 
 ### 压测
@@ -53,26 +46,13 @@
 |------|------|
 | `stress_test.py` | 压力测试。 |
 
-## 已归档脚本
-
-| 脚本 | 作用 |
-|------|------|
-| `archive/shell/start_frontend.sh` | 旧前端启动包装脚本，已从正式入口降级，统一改用 `cd frontend && npm run dev`。 |
-| `archive/shell/uninstall_local_services.sh` | 历史本机服务卸载脚本，当前默认使用 Docker 中间件，不再作为主入口。 |
-| `archive/python/rebuild_database.py` | 历史数据库重建脚本，已从正式入口降级，当前应优先使用 Alembic 迁移与初始化脚本。 |
-| `archive/python/demo_unified_system.py` | 历史整套系统演示脚本。 |
-| `archive/python/demo_device_group.py` | 历史设备分组演示脚本。 |
-| `archive/python/demo_location.py` | 历史位置管理演示脚本。 |
-| `archive/python/demo_maintenance.py` | 历史维护管理演示脚本。 |
-
 ## 统计
 
 | 类型 | 数量 |
 |------|------|
-| Shell | 15 |
-| Python | 12 |
-| Archive | 7 |
-| 合计 | 34 |
+| Shell | 10 |
+| Python | 10 |
+| 合计 | 20 |
 
 ## 与 bin 的关系
 
@@ -80,5 +60,7 @@
 
 | bin 脚本 | 对应脚本 | 说明 |
 |---------|----------|------|
-| `fast_start.sh` | `scripts/shell/start.sh` | 用途接近，但 `bin` 更偏快捷入口。 |
-| `fast_start_dev.sh` | `scripts/shell/start_dev_env.sh` | `bin` 会继续编排本地前后端启动。 |
+| `fast_start.sh` | `docker-compose.prod.yml` | 生产快速启动入口。 |
+| `stop_prod.sh` | `docker-compose.prod.yml` | 生产快速停止入口，不删除挂载数据。 |
+| `fast_start_dev.sh` | `docker-compose.dev.yml` | 开发快速启动入口。 |
+| `stop_dev.sh` | `docker-compose.dev.yml` | 开发快速停止入口。 |

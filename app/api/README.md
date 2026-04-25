@@ -44,7 +44,7 @@ app/api/
 
 ## 3. 路由注册方式
 
-HTTP 路由统一由 [router_registry.py](/Users/todo/MineEnergySystem/app/api/router_registry.py) 注册。
+HTTP 路由统一由 [router_registry.py](/Users/todo/CampusEnergySystem/app/api/router_registry.py) 注册。
 
 ### 3.1 公开路由
 
@@ -79,7 +79,7 @@ HTTP 路由统一由 [router_registry.py](/Users/todo/MineEnergySystem/app/api/r
 
 ## 4. 鉴权与权限控制
 
-核心依赖位于 [deps.py](/Users/todo/MineEnergySystem/app/api/deps.py)。
+核心依赖位于 [deps.py](/Users/todo/CampusEnergySystem/app/api/deps.py)。
 
 ### 4.1 Token 机制
 
@@ -122,7 +122,7 @@ HTTP 路由统一由 [router_registry.py](/Users/todo/MineEnergySystem/app/api/r
 
 ## 5. WebSocket
 
-WebSocket 入口位于 [websocket.py](/Users/todo/MineEnergySystem/app/api/websocket.py)，路径为 `/ws`。
+WebSocket 入口位于 [websocket.py](/Users/todo/CampusEnergySystem/app/api/websocket.py)，路径为 `/ws`。
 
 当前特性：
 
@@ -138,13 +138,13 @@ WebSocket 入口位于 [websocket.py](/Users/todo/MineEnergySystem/app/api/webso
 当前项目存在两类返回风格，并行使用：
 
 - 直接返回 Pydantic / dict / list
-- 使用 [response.py](/Users/todo/MineEnergySystem/app/core/response.py) 中的 `success_response()`
+- 使用 [response.py](/Users/todo/CampusEnergySystem/app/core/response.py) 中的 `success_response()`
 
 这属于当前代码现实，不建议文档假设“所有接口都统一包裹”。
 
 ### 6.2 限流
 
-限流能力在 [rate_limit.py](/Users/todo/MineEnergySystem/app/core/rate_limit.py)。
+限流能力在 [rate_limit.py](/Users/todo/CampusEnergySystem/app/core/rate_limit.py)。
 
 当前已覆盖的典型场景包括：
 
@@ -164,7 +164,7 @@ WebSocket 入口位于 [websocket.py](/Users/todo/MineEnergySystem/app/api/webso
 - 用户创建、改密、强制下线
 - 关键管理操作
 
-审计查询入口位于 [audit.py](/Users/todo/MineEnergySystem/app/api/endpoints/audit.py)。
+审计查询入口位于 [audit.py](/Users/todo/CampusEnergySystem/app/api/endpoints/audit.py)。
 
 ## 7. 当前业务路由分组
 

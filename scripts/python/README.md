@@ -1,39 +1,31 @@
 # python 脚本说明
 
-`scripts/python/` 主要放仓库级 Python 工具。当前目录以正式工具和仍在使用的联调脚本为主，低频演示/一次性联调脚本已迁入 `scripts/archive/python/`。
+`scripts/python/` 主要放仓库级 Python 工具。当前目录以正式工具和仍在使用的联调脚本为主。
 
 ## 使用优先级
 
 - 正式入口：初始化、配置检查、生产检查
-- 辅助入口：演示脚本、协议调试脚本、串口联调脚本
-- 历史脚本：进入 `scripts/archive/python/`
+- 辅助入口：告警联调、MQTT 重放、压力测试
 
 ## 当前脚本
 
 ### 初始化与管理
 
-- [init_complete_system.py](/Users/todo/MineEnergySystem/scripts/python/init_complete_system.py)：初始化完整系统数据
-- [create_admin.py](/Users/todo/MineEnergySystem/scripts/python/create_admin.py)：创建管理员
-- [check_config.py](/Users/todo/MineEnergySystem/scripts/python/check_config.py)：检查配置
-- [evaluate_capacity_baseline.py](/Users/todo/MineEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
-- [replay_mqtt_failures.py](/Users/todo/MineEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
-- [generate_prod_secrets.py](/Users/todo/MineEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
-- [send_test_alert.py](/Users/todo/MineEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
+- [init_complete_system.py](/Users/todo/CampusEnergySystem/scripts/python/init_complete_system.py)：初始化完整系统数据
+- [create_admin.py](/Users/todo/CampusEnergySystem/scripts/python/create_admin.py)：创建管理员
+- [check_config.py](/Users/todo/CampusEnergySystem/scripts/python/check_config.py)：检查配置
+- [check_production_readiness.py](/Users/todo/CampusEnergySystem/scripts/python/check_production_readiness.py)：检查生产环境配置是否满足上线要求
+- [evaluate_capacity_baseline.py](/Users/todo/CampusEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
+- [replay_mqtt_failures.py](/Users/todo/CampusEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
+- [run_mqtt_ingest_worker.py](/Users/todo/CampusEnergySystem/scripts/python/run_mqtt_ingest_worker.py)：MQTT 入站采集 worker 入口
+- [generate_prod_secrets.py](/Users/todo/CampusEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
+- [send_test_alert.py](/Users/todo/CampusEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 
 这些脚本优先视为正式入口。
 
-### 已归档演示脚本
-
-- [demo_unified_system.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_unified_system.py)：整套系统演示
-- [demo_device_group.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_device_group.py)：设备分组演示
-- [demo_location.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_location.py)：位置管理演示
-- [demo_maintenance.py](/Users/todo/CampusEnergySystem/scripts/archive/python/demo_maintenance.py)：维护管理演示
-
-这些脚本已归档，不再作为当前目录第一层入口。
-
 ### 压测
 
-- [stress_test.py](/Users/todo/MineEnergySystem/scripts/python/stress_test.py)：压力测试
+- [stress_test.py](/Users/todo/CampusEnergySystem/scripts/python/stress_test.py)：压力测试
 
 ### MQTT/协议调试
 
@@ -54,8 +46,7 @@ python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/heal
 
 ## 使用建议
 
-- 改真实设备接入时，优先配 [config/gateway_devices.json](/Users/todo/MineEnergySystem/config/gateway_devices.json)
+- 改真实设备接入时，优先调整设备侧网关或现场工控机工程；系统侧只约定 MQTT topic / payload、字段归一和入库规则
 - 当前数据库结构应优先通过 `python -m alembic upgrade head` 维护，不再把重建数据库当正式流程
-- 历史脚本 [archive/python/rebuild_database.py](/Users/todo/CampusEnergySystem/scripts/archive/python/rebuild_database.py) 已降级归档，仅供历史排查参考
 - 详细总览见 [scripts/README.md](/Users/todo/CampusEnergySystem/scripts/README.md)
 - 完整清单见 [scripts/SCRIPT_LIST.md](/Users/todo/CampusEnergySystem/scripts/SCRIPT_LIST.md)

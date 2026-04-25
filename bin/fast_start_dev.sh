@@ -1,8 +1,8 @@
 #!/bin/bash
 # 开发模式快捷入口
 # 说明：
-# - 中间件启动逻辑复用 scripts/shell/start_dev_env.sh
-# - 这里只额外负责本地后端、MQTT ingest worker 和前端的后台启动
+# - 启动开发中间件 Docker 服务
+# - 启动本地后端、MQTT ingest worker 和前端
 
 set -e
 
@@ -30,6 +30,7 @@ PID_DIR="logs/pids"
 BACKEND_PID_FILE="$PID_DIR/backend_dev.pid"
 WORKER_PID_FILE="$PID_DIR/mqtt_ingest_worker_dev.pid"
 FRONTEND_PID_FILE="$PID_DIR/frontend_dev.pid"
+DEV_COMPOSE_CMD=(docker compose -f docker-compose.dev.yml)
 
 mkdir -p "$PID_DIR"
 
@@ -72,9 +73,23 @@ wait_http_ready() {
     return 1
 }
 
-# 1. 启动中间件（复用完整脚本）
+# 1. 启动中间件
 echo -e "${YELLOW}➜ 启动中间件环境...${NC}"
-./scripts/shell/start_dev_env.sh
+if ! docker info >/dev/null 2>&1; then
+    echo -e "${RED}❌ Docker 未运行，请先启动 Docker${NC}"
+    exit 1
+fi
+if [ ! -f "docker-compose.dev.yml" ]; then
+    echo -e "${RED}❌ 找不到 docker-compose.dev.yml 文件${NC}"
+    exit 1
+fi
+if [ ! -f "mosquitto/config/passwd" ]; then
+    echo -e "${YELLOW}   未发现 Mosquitto 密码文件，正在生成开发默认凭据...${NC}"
+    bash ./scripts/shell/setup_mqtt_auth.sh campus_mqtt campus_mqtt_secret_2026 --force
+fi
+"${DEV_COMPOSE_CMD[@]}" up -d
+sleep 5
+"${DEV_COMPOSE_CMD[@]}" ps
 echo ""
 
 # 2. 启动后端（本地）
@@ -161,8 +176,7 @@ echo -e "   ${GREEN}后端 API:${NC} http://localhost:8088/docs"
 echo ""
 echo -e "${BLUE}📝 说明：${NC}"
 echo -e "   • 前端支持热重载；后端当前以稳定常驻模式运行"
-echo -e "   • 停止: ${YELLOW}./scripts/shell/stop_dev_env.sh${NC} (停止 Docker)"
-echo -e "   • 停止本地进程: ${YELLOW}kill $BACKEND_PID $WORKER_PID $FRONTEND_PID${NC}"
+echo -e "   • 停止开发环境: ${YELLOW}./bin/stop_dev.sh${NC}"
 echo -e "   • 查看后端日志: ${YELLOW}tail -f logs/backend_dev.log${NC}"
 echo -e "   • 查看 worker 日志: ${YELLOW}tail -f logs/mqtt_ingest_worker_dev.log${NC}"
 echo -e "   • 查看前端日志: ${YELLOW}tail -f logs/frontend_dev.log${NC}"

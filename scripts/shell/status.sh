@@ -14,12 +14,12 @@ NC='\033[0m'
 
 TARGET_ENV="${1:-auto}"
 COMPOSE_LABEL=""
-COMPOSE_CMD=(docker compose)
-STOP_HINT="./scripts/shell/stop.sh"
-START_HINT="./scripts/shell/start.sh"
-LOG_HINT="docker compose logs -f [服务名]"
-RESTART_HINT="docker compose restart [服务名]"
-PS_HINT="docker compose ps"
+COMPOSE_CMD=(docker compose -f docker-compose.dev.yml)
+STOP_HINT="./bin/stop_dev.sh"
+START_HINT="./bin/fast_start_dev.sh"
+LOG_HINT="docker compose -f docker-compose.dev.yml logs -f [服务名]"
+RESTART_HINT="docker compose -f docker-compose.dev.yml restart [服务名]"
+PS_HINT="docker compose -f docker-compose.dev.yml ps"
 declare -a CONTAINERS=()
 declare -a SERVICE_SPECS=()
 
@@ -41,10 +41,8 @@ detect_env() {
       || [ -n "$(compose_service_container docker-compose.dev.yml mqtt)" ] \
       || [ -n "$(compose_service_container docker-compose.dev.yml redis)" ]; then
         echo "dev"
-    elif contains_running_container '^campus_backend$|^campus_energy_db$|^campus_mqtt$|^campus_redis$'; then
-        echo "default"
     else
-        echo "default"
+        echo "dev"
     fi
 }
 
@@ -134,23 +132,11 @@ check_compose_service() {
 configure_env() {
     local selected="$1"
     case "$selected" in
-        default)
-            COMPOSE_LABEL="default"
-            CONTAINERS=(campus_backend campus_mqtt_ingest_worker campus_energy_db campus_redis campus_mqtt)
-            SERVICE_SPECS=(
-                "后端API|container|campus_backend"
-                "MQTT ingest worker|container|campus_mqtt_ingest_worker"
-                "数据库|container|campus_energy_db"
-                "Redis|container|campus_redis"
-                "MQTT|container|campus_mqtt"
-                "后端健康检查|http|http://localhost:8088/health/live"
-            )
-            ;;
         dev)
             COMPOSE_LABEL="dev"
             COMPOSE_CMD=(docker compose -f docker-compose.dev.yml)
-            STOP_HINT="./scripts/shell/stop_dev_env.sh"
-            START_HINT="./scripts/shell/start_dev_env.sh"
+            STOP_HINT="./bin/stop_dev.sh"
+            START_HINT="./bin/fast_start_dev.sh"
             LOG_HINT="docker compose -f docker-compose.dev.yml logs -f [服务名]"
             RESTART_HINT="docker compose -f docker-compose.dev.yml restart [服务名]"
             PS_HINT="docker compose -f docker-compose.dev.yml ps"
@@ -164,10 +150,12 @@ configure_env() {
             ;;
         prod)
             COMPOSE_LABEL="prod"
-            COMPOSE_CMD=(docker compose -f docker-compose.prod.yml)
-            LOG_HINT="docker compose -f docker-compose.prod.yml logs -f [服务名]"
-            RESTART_HINT="docker compose -f docker-compose.prod.yml restart [服务名]"
-            PS_HINT="docker compose -f docker-compose.prod.yml ps"
+            COMPOSE_CMD=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
+            STOP_HINT="./bin/stop_prod.sh"
+            START_HINT="./bin/fast_start.sh"
+            LOG_HINT="docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f [服务名]"
+            RESTART_HINT="docker compose -f docker-compose.prod.yml --env-file .env.prod restart [服务名]"
+            PS_HINT="docker compose -f docker-compose.prod.yml --env-file .env.prod ps"
             CONTAINERS=(campus_backend_prod campus_mqtt_ingest_worker_prod campus_energy_db_prod campus_redis_prod campus_mqtt_prod campus_nginx_prod campus_prometheus_prod campus_alertmanager_prod)
             SERVICE_SPECS=(
                 "生产后端|container|campus_backend_prod"
@@ -182,7 +170,7 @@ configure_env() {
             ;;
         *)
             echo -e "${RED}❌ 不支持的环境: ${selected}${NC}"
-            echo "用法: ./scripts/shell/status.sh [auto|default|dev|prod]"
+            echo "用法: ./scripts/shell/status.sh [auto|dev|prod]"
             exit 1
             ;;
     esac
@@ -203,7 +191,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${BLUE}  园区综合能源管理系统服务状态 (${COMPOSE_LABEL})${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "提示：开发环境优先使用 docker compose + 服务名；生产环境仍可能看到固定容器名。"
+echo "提示：Compose 已收敛为 dev/prod 两套；开发环境只包含 db/redis/mqtt。"
 echo ""
 
 echo "🐳 容器状态："

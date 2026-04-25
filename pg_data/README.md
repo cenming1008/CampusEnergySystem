@@ -4,10 +4,9 @@
 
 ## 用途
 
-- [docker-compose.yml](/Users/todo/MineEnergySystem/docker-compose.yml)
-- [docker-compose.prod.yml](/Users/todo/MineEnergySystem/docker-compose.prod.yml)
+- [docker-compose.prod.yml](/Users/todo/CampusEnergySystem/docker-compose.prod.yml)
 
-都会把这个目录挂载到数据库容器的 `/var/lib/postgresql/data`。
+会把这个目录挂载到生产数据库容器的 `/var/lib/postgresql/data`。
 
 ## 注意事项
 
@@ -17,4 +16,4 @@
 - 如需清理或重建，请先确认是否需要备份
 
 更详细说明见：
-- [DATABASE_STORAGE.md](/Users/todo/MineEnergySystem/docs/03-开发与部署/DATABASE_STORAGE.md)
+- [DATABASE_STORAGE.md](/Users/todo/CampusEnergySystem/docs/03-开发与部署/DATABASE_STORAGE.md)
