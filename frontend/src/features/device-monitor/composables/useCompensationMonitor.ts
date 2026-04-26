@@ -80,6 +80,12 @@ function displayValueWithState(value: number | string | null | undefined, emptyT
   return String(value)
 }
 
+function normalizePowerFactorTarget(value?: number | null) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null
+  const numeric = Number(value)
+  return numeric > 2 ? numeric / 100 : numeric
+}
+
 function formatIngestionStatus(status?: string | null) {
   if (status === 'online') return '在线采集'
   if (status === 'degraded') return '采集波动'
@@ -197,6 +203,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     buildCompensationSemanticView({
       subtype: isSvgDevice.value ? 'svg' : compensationSubtype.value === 'capacitor_bank_controller' ? 'capacitor_bank_controller' : 'unknown',
       monitor: compensationMonitor.value,
+      targetPowerFactor: normalizePowerFactorTarget(compensationCapacitorBankControlProfile.value?.switch_on_power_factor),
       svgProfileModuleCount: compensationSvgProfile.value?.module_count,
       svgTelemetryAutoMode: compensationSvgTelemetry.value?.auto_mode,
       svgCabinetTemperature: compensationSvgTelemetry.value?.cabinet_temp,
@@ -256,7 +263,11 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
       reactivePowerHint: compensationReactiveHint.value,
       reactivePowerMissing: realtime.value?.reactive_power === null || realtime.value?.reactive_power === undefined,
       powerFactorValue: displayValueWithState(realtime.value?.power_factor, '暂无数据', 2),
-      powerFactorHint: realtime.value?.power_factor == null ? '实时值缺失' : `目标 PF ${fallbackCompensation.value.targetPowerFactor.toFixed(2)}`,
+      powerFactorHint: realtime.value?.power_factor == null
+        ? '实时值缺失'
+        : fallbackCompensation.value.targetPowerFactor == null
+          ? '目标 PF 暂无参数'
+          : `目标 PF ${fallbackCompensation.value.targetPowerFactor.toFixed(2)}`,
       powerFactorMissing: realtime.value?.power_factor == null,
       voltageValue: displayValueWithState(realtime.value?.voltage, '通讯中断'),
       voltageMissing: realtime.value?.voltage == null,

@@ -26,6 +26,18 @@ const service = axios.create({
 export { TIMEOUT_LONG }
 
 let refreshPromise: Promise<string | null> | null = null
+let authFailureHandled = false
+
+function resolveAuthErrorHint(message: string) {
+  const normalized = message.toLowerCase()
+  if (normalized.includes('not authenticated')) {
+    return '请先登录'
+  }
+  if (message.includes('账户已锁定') || message.includes('账户已被锁定')) {
+    return message
+  }
+  return '登录已过期或无效，请重新登录'
+}
 
 async function refreshAccessToken() {
   const authStore = useAuthStore()
@@ -76,6 +88,7 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response: AxiosResponse) => {
     // 只要 HTTP 状态码是 2xx，就认为成功，直接返回数据部分
+    authFailureHandled = false
     return response.data
   },
   async (error: AxiosError<{ detail?: string; message?: string }>) => {
@@ -90,6 +103,7 @@ service.interceptors.response.use(
     if (status === 401) {
       const authStore = useAuthStore()
       const requestConfig = error.config as SilentAxiosConfig | undefined
+      const isLoginRequest = requestConfig?.url === '/auth/login'
 
       if (authStore.refreshToken && requestConfig && !requestConfig.skipAuthRefresh && !requestConfig._retry) {
         requestConfig._retry = true
@@ -100,10 +114,12 @@ service.interceptors.response.use(
         }
       }
 
-      const hint = typeof msg === 'string' && msg.toLowerCase().includes('not authenticated')
-        ? '请先登录'
-        : '登录已过期或无效，请重新登录'
-      ElMessage.error(hint)
+      const hint = resolveAuthErrorHint(String(msg))
+      const shouldAlwaysShow = isLoginRequest || hint === msg
+      if (shouldAlwaysShow || !authFailureHandled) {
+        authFailureHandled = true
+        ElMessage.error(hint)
+      }
       useSocketStore().disconnect()
       authStore.logout()
       if (router.currentRoute.value.name !== 'Login') {

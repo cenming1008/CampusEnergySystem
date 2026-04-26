@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Delete } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -101,6 +101,28 @@ const cleanupHours = ref(1)
 const cleanupLoading = ref(false)
 const cleanupAllLoading = ref(false)
 const cleanupStats = ref<CleanupStats | null>(null)
+
+const healthyServiceCount = computed(() => {
+  if (!systemStatus.value) return 0
+  return serviceEntries.filter((svc) => svc.getValue(systemStatus.value as SystemStatus) === 'healthy').length
+})
+
+const cleanupTotalCount = computed(() => {
+  if (!cleanupStats.value) return 0
+  return cleanupStatRows.reduce((sum, row) => {
+    const stat = cleanupStats.value?.[row.key]
+    if (!stat || typeof stat !== 'object' || !('total' in stat)) return sum
+    return sum + Number(stat.total || 0)
+  }, 0)
+})
+
+const ingestionIssueCount = computed(() => (
+  ingestionRecords.value.filter((item) => ['failed', 'dead_letter'].includes(String(item.status))).length
+))
+
+const metricsLineCount = computed(() => (
+  metricsText.value.split('\n').filter((line) => line.trim() && !line.startsWith('#')).length
+))
 
 // --- API 调用 ---
 const loadSystemStatus = async () => {
@@ -258,14 +280,66 @@ onMounted(async () => {
 
 <template>
   <div class="settings-page">
-    <!-- 页头 -->
-    <div class="page-title-row">
-      <h2>系统设置</h2>
-      <el-tag size="small" type="warning" effect="plain">管理员</el-tag>
+    <div class="settings-noise" />
+
+    <header class="settings-header glass-panel">
+      <div class="settings-brand-block">
+        <div class="settings-brand-mark">
+          <span class="settings-brand-mark__dot" />
+        </div>
+        <div class="settings-brand-text">
+          <p class="settings-eyebrow">System Console</p>
+          <h1>系统设置</h1>
+          <p class="settings-subtitle">查看运行状态、接入流水、指标输出，并执行受控的数据维护操作。</p>
+          <div class="settings-tags">
+            <span class="settings-tag">管理员</span>
+            <span class="settings-tag settings-tag--cyan">{{ healthyServiceCount }}/{{ serviceEntries.length }} 服务健康</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-header-actions">
+        <el-button type="primary" :icon="Refresh" @click="loadSystemStatus">刷新状态</el-button>
+        <el-button :icon="Refresh" @click="loadMetrics">刷新指标</el-button>
+      </div>
+    </header>
+
+    <div class="settings-kpi-strip">
+      <div class="settings-kpi settings-kpi--health">
+        <span class="settings-kpi__label">服务健康</span>
+        <div class="settings-kpi__value">
+          <strong>{{ healthyServiceCount }}</strong>
+          <span>/ {{ serviceEntries.length }}</span>
+        </div>
+        <span class="settings-kpi__sub">Health checks</span>
+      </div>
+      <div class="settings-kpi settings-kpi--data">
+        <span class="settings-kpi__label">可维护数据</span>
+        <div class="settings-kpi__value">
+          <strong>{{ cleanupTotalCount.toLocaleString() }}</strong>
+          <span>条</span>
+        </div>
+        <span class="settings-kpi__sub">Cleanup scope</span>
+      </div>
+      <div class="settings-kpi" :class="ingestionIssueCount > 0 ? 'settings-kpi--warn' : 'settings-kpi--safe'">
+        <span class="settings-kpi__label">接入异常</span>
+        <div class="settings-kpi__value">
+          <strong>{{ ingestionIssueCount }}</strong>
+          <span>条</span>
+        </div>
+        <span class="settings-kpi__sub">MQTT replay queue</span>
+      </div>
+      <div class="settings-kpi settings-kpi--metrics">
+        <span class="settings-kpi__label">指标序列</span>
+        <div class="settings-kpi__value">
+          <strong>{{ metricsLineCount }}</strong>
+          <span>项</span>
+        </div>
+        <span class="settings-kpi__sub">Prometheus output</span>
+      </div>
     </div>
 
     <!-- 数据管理 -->
-    <div class="admin-section">
+    <div class="admin-section glass-panel danger-panel">
       <div class="section-label">数据管理</div>
       <div class="data-grid">
         <!-- 清理操作 -->
@@ -320,7 +394,7 @@ onMounted(async () => {
     </div>
 
     <!-- 系统状态 -->
-    <div class="admin-section">
+    <div class="admin-section glass-panel">
       <div class="section-label">
         系统状态
         <el-button text size="small" @click="loadSystemStatus">
@@ -365,7 +439,7 @@ onMounted(async () => {
     </div>
 
     <!-- MQTT 接入记录 -->
-    <div class="admin-section">
+    <div class="admin-section glass-panel">
       <div class="section-label">
         MQTT 接入记录
         <el-button text size="small" @click="loadIngestionRecords">
@@ -375,6 +449,7 @@ onMounted(async () => {
       <el-table
         v-loading="ingestionLoading"
         :data="ingestionRecords"
+        empty-text="暂无接入记录"
         size="small"
       >
         <el-table-column prop="device_id" label="设备" width="80" />
@@ -405,7 +480,7 @@ onMounted(async () => {
     </div>
 
     <!-- Prometheus Metrics -->
-    <div class="admin-section">
+    <div class="admin-section glass-panel metrics-panel">
       <div class="section-label">
         Prometheus Metrics
         <el-button text size="small" @click="loadMetrics">
@@ -416,7 +491,7 @@ onMounted(async () => {
     </div>
 
     <!-- 关于系统 -->
-    <div class="admin-section">
+    <div class="admin-section glass-panel">
       <div class="section-label">关于系统</div>
       <div class="about-strip">
         <span class="app-name">Park Energy Management System</span>
@@ -438,108 +513,246 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* ── 基础（14" Mac：内容区约 1050–1200px） ── */
 .settings-page {
-  padding: 20px 24px;
-  max-width: 1200px;
-  width: 100%;
-  box-sizing: border-box;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
+  width: 100%;
+  min-height: 100%;
+  height: auto;
+  padding: 16px;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  color: #f5f7fa;
+  background:
+    radial-gradient(circle at top left, rgba(107, 184, 255, 0.08), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(52, 211, 153, 0.05), transparent 26%),
+    #090e17;
 }
 
-.page-title-row {
+.settings-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent 20%, transparent 80%, rgba(255,255,255,0.012));
+  opacity: 0.3;
+}
+
+.glass-panel {
+  position: relative;
+  z-index: 1;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.settings-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 108px;
+  padding: 22px;
+  box-sizing: border-box;
+}
+
+.settings-brand-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-brand-mark {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-top: 2px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: rgba(96, 165, 250, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.settings-brand-mark__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #60a5fa;
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.58);
+}
+
+.settings-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.46);
+}
+
+.settings-brand-text h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.settings-subtitle {
+  margin: 0;
+  max-width: 560px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(255,255,255,0.44);
+}
+
+.settings-tags,
+.settings-header-actions,
+.cleanup-actions,
+.about-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-tags {
+  margin-top: 8px;
+}
+
+.settings-header-actions {
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.settings-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.62);
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.settings-tag--cyan {
+  color: #67e8f9;
+  border-color: rgba(103, 232, 249, 0.28);
+  background: rgba(103, 232, 249, 0.08);
+}
+
+.settings-kpi-strip {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
-.page-title-row h2 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--text-primary);
+.settings-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 2px solid var(--kpi-accent, rgba(255,255,255,0.1));
+  transition: background 0.18s ease;
+}
+
+.settings-kpi:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-kpi--health { --kpi-accent: #60a5fa; }
+.settings-kpi--data { --kpi-accent: #38bdf8; }
+.settings-kpi--safe { --kpi-accent: #34d399; }
+.settings-kpi--warn { --kpi-accent: #fb923c; }
+.settings-kpi--metrics { --kpi-accent: #a78bfa; }
+
+.settings-kpi__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.46);
+}
+
+.settings-kpi__value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  line-height: 1;
+}
+
+.settings-kpi__value strong {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #f0f6ff;
+}
+
+.settings-kpi__value span,
+.settings-kpi__sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.42);
 }
 
 .admin-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.danger-panel {
+  border: 1px solid rgba(248, 113, 113, 0.14);
 }
 
 .section-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
 }
 
 .data-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) 1fr;
-  gap: 14px;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
   align-items: start;
 }
 
-/* 窄屏单列（≤860px） */
-@media (max-width: 860px) {
-  .settings-page {
-    padding: 14px 16px;
-    gap: 18px;
-  }
-  .data-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── 27" 显示器（内容区 ≥1600px，含侧边栏后约 ≥1400px） ── */
-@media (min-width: 1600px) {
-  .settings-page {
-    max-width: 1680px;
-    padding: 28px 40px;
-    gap: 32px;
-  }
-  .page-title-row h2 {
-    font-size: 22px;
-  }
-  .data-grid {
-    grid-template-columns: minmax(280px, 360px) 1fr;
-    gap: 20px;
-  }
-  .admin-section {
-    gap: 14px;
-  }
-  .inner-panel {
-    padding: 18px 20px;
-  }
-  .stat-row {
-    padding: 9px 0;
-    font-size: 14px;
-  }
-  .status-strip {
-    gap: 32px;
-  }
-  .info-strip {
-    gap: 32px;
-    padding-top: 14px;
-  }
-  .metrics-pre {
-    max-height: 400px;
-    font-size: 12px;
-  }
-}
-
 .inner-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
   padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .cleanup-select-row {
@@ -550,48 +763,53 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.cleanup-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .stat-table {
   display: flex;
   flex-direction: column;
 }
 
-.stat-row {
+.stat-row,
+.info-entry,
+.status-entry {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border-color);
+  gap: 6px;
   font-size: 13px;
+}
+
+.stat-row {
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 .stat-row:last-child {
   border-bottom: none;
 }
 
-.stat-count {
-  font-weight: 500;
-  color: var(--text-primary);
+.stat-count,
+.app-name {
+  font-weight: 600;
+  color: #f0f6ff;
+}
+
+.status-strip,
+.info-strip,
+.about-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .status-strip {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  align-items: center;
+  gap: 22px;
   margin-bottom: 12px;
 }
 
-.status-entry {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.info-strip {
+  gap: 24px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
   font-size: 13px;
 }
 
@@ -603,90 +821,210 @@ onMounted(async () => {
 }
 
 .dot--ok {
-  background: var(--success-color);
+  background: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.5);
 }
 
 .dot--err {
-  background: var(--danger-color);
-}
-
-.info-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  align-items: center;
-  font-size: 13px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-color);
-}
-
-.info-entry {
-  display: flex;
-  gap: 6px;
+  background: #f87171;
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
 }
 
 .dim {
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.46);
 }
 
 .metrics-pre {
   margin: 0;
-  padding: 12px 14px;
+  max-height: 300px;
+  padding: 14px 16px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(5, 10, 18, 0.58);
+  color: rgba(226, 232, 240, 0.66);
   font-family: 'JetBrains Mono', 'Menlo', monospace;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--text-secondary);
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-  overflow-x: auto;
   white-space: pre;
 }
 
 .about-strip {
-  display: flex;
-  align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
   font-size: 13px;
-  padding: 12px 16px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-}
-
-.app-name {
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 .about-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   margin-left: auto;
 }
 
+:deep(.el-button) {
+  min-height: 34px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+:deep(.el-button--primary) {
+  border-color: rgba(96, 165, 250, 0.34);
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(103, 232, 249, 0.72));
+  color: #06111f;
+}
+
+:deep(.el-button--danger) {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.92), rgba(251, 146, 60, 0.78));
+  color: #fff7ed;
+}
+
+:deep(.el-button--danger.is-plain) {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+:deep(.el-button:not(.el-button--primary):not(.el-button--danger)) {
+  border-color: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.045);
+  color: rgba(255,255,255,0.72);
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper) {
+  min-height: 34px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+:deep(.el-input__inner),
+:deep(.el-select__selected-item),
+:deep(.el-select__placeholder) {
+  color: rgba(255,255,255,0.82);
+}
+
+:deep(.el-select__placeholder.is-transparent),
+:deep(.el-input__inner::placeholder) {
+  color: rgba(255,255,255,0.3);
+}
+
+:deep(.el-tag) {
+  border-radius: 7px;
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(226,232,240,0.76);
+}
+
+:deep(.el-tag.el-tag--primary) {
+  border-color: rgba(96, 165, 250, 0.26);
+  background: rgba(96, 165, 250, 0.1);
+  color: #93c5fd;
+}
+
+:deep(.el-tag.el-tag--info) {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(148, 163, 184, 0.08);
+  color: rgba(226,232,240,0.64);
+}
+
+:deep(.el-tag.el-tag--warning) {
+  border-color: rgba(251, 146, 60, 0.3);
+  background: rgba(251, 146, 60, 0.1);
+  color: #fdba74;
+}
+
+:deep(.el-tag.el-tag--danger) {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.11);
+  color: #fca5a5;
+}
+
 :deep(.el-table) {
-  background: var(--bg-panel);
-  color: var(--text-primary);
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255,255,255,0.035);
+  --el-table-row-hover-bg-color: rgba(255,255,255,0.055);
+  --el-table-border-color: rgba(255,255,255,0.06);
+  --el-table-text-color: rgba(255,255,255,0.78);
+  --el-table-header-text-color: rgba(255,255,255,0.46);
+  --el-bg-color: transparent;
+  overflow: hidden;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255,255,255,0.78);
+}
+
+:deep(.el-table__inner-wrapper),
+:deep(.el-table__body-wrapper),
+:deep(.el-table__header-wrapper),
+:deep(.el-scrollbar),
+:deep(.el-scrollbar__view) {
+  background: transparent;
+}
+
+:deep(.el-table__inner-wrapper::before),
+:deep(.el-table::before) {
+  display: none;
 }
 
 :deep(.el-table th.el-table__cell),
 :deep(.el-table tr),
 :deep(.el-table td.el-table__cell) {
-  background: transparent;
-  border-bottom-color: var(--border-color);
-  color: var(--text-primary);
-}
-
-:deep(.el-table__empty-block) {
-  background: var(--bg-panel);
+  background: transparent !important;
+  border-bottom-color: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.78);
 }
 
 :deep(.el-table__header-wrapper th) {
-  color: var(--text-secondary);
+  background: rgba(255,255,255,0.035) !important;
+  color: rgba(255,255,255,0.42);
+  font-size: 11px;
+}
+
+:deep(.el-table__body tr:hover > td.el-table__cell) {
+  background: rgba(255,255,255,0.055) !important;
+}
+
+:deep(.el-table__empty-block) {
+  background: transparent;
+}
+
+@media (max-width: 1100px) {
+  .settings-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .settings-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 16px;
+  }
+
+  .settings-brand-text h1 {
+    font-size: 22px;
+  }
+
+  .settings-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .settings-kpi-strip {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,44 +1,52 @@
 # Current Status
 
 ## 当前总目标
-- 当前主主题：`能源管理与能耗分析合并`
-- 当前总目标：合并 `/energy` 与 `/forecast` 两个能源主页面，统一为 `/energy`「能源管理」，并把原 `/analysis/overview` 分析字段整合进 `/energy/overview`。
+- 当前主主题：`MQTT 网关通讯协议`
+- 当前总目标：为平台与现场工控机网关之间的 MQTT 应用层通讯建立当前联调契约，先对齐已跑通的 `CAP-001` 既有报文，支撑设备接入、控制下发与回执闭环。
 - 当前执行依据：
-  - /Users/todo/CampusEnergySystem/docs/plans/PLAN-20260424-energy-management-analysis-convergence.md
+  - /Users/todo/CampusEnergySystem/docs/plans/PLAN-20260425-mqtt-gateway-protocol.md
 
 ---
 
 ## 当前阶段
-- [x] 规则角色已确认本主题符合园区 EMS 主线：多能源接入、分层计量、分项分析、告警联动与驾驶舱展示。
-- [x] 后端已完成 `/energy/overview` 扩参：`device_id`、`location_id`、`energy_type`、`top_n`、`granularity`、`include_analysis`。
-- [x] 后端已完成 `device_id` 与 `location_id` 同时生效时取交集的分析范围过滤。
-- [x] 后端已通过 `EnergyService.get_analysis_overview()` 复用 `AnalysisService.get_energy_analysis_overview()`，避免复制趋势、排行、异常、洞察计算逻辑。
-- [x] `/energy/overview` 已输出合并后的新字段：`trend.points`、`comparison.current/previous/ratio/mix`、`ranking.regions`、`anomaly.missing_data/consecutive_failures/unresolved_alarms`、字符串数组 `insights`，同时保留旧 analysis 形态兼容字段。
-- [x] 前端已移除 `/forecast` 路由与菜单项，`/energy` 菜单文案已统一为「能源管理」。
-- [x] 前端已删除旧 `EnergyAnalysis.vue` 与 `api/analysis.ts`。
-- [x] `EnergyManagement.vue` 已作为 4 Tab 容器消费合并后的 `/energy/overview`，并增加趋势粒度与 Top N 控制。
-- [x] 已补前后端回归测试。
+- [x] 规则角色已确认本主题符合园区 EMS 主线：多能源接入、设备与表计监控、告警联动和实时监控。
+- [x] 预判角色已确认平台边界：本系统消费 MQTT 应用层报文，不维护现场 Modbus、串口、RS-485 或 HTTP 轮询采集配置。
+- [x] 已建立正式计划：`PLAN-20260425-mqtt-gateway-protocol.md`。
+- [x] 已新增长期规范：`docs/guides/mqtt-gateway-protocol.md`。
+- [x] 已在 `docs/guides/README.md` 挂载规范入口。
+- [x] 执行文档差异检查、占位符检查和 MQTT 契约单测。
+- [x] 将本轮状态与交接归档到 `docs/plans/daily/2026-04/`。
+- [x] 已回查 2026-04-24 数据库 MQTT 接入流水：`3792` 条 `campus/telemetry` 成功记录，均为 `CAP-001` 电容补偿控制器遥测。
+- [x] 已按用户决策调整协议口径：当前先对齐既有报文，`protocol_version/message_id/gateway_id` 后续需要时再添加。
 
 ## 当前阻塞
 - 当前无代码阻塞。
 
 ## 当前待办
-- [x] 执行最终构建与差异检查。
-- [x] 根据验证结果执行本主题阶段验收与 daily 快照归档。
+- [ ] 等待真实工控机网关控制回执样例，或发起一次控制联调生成 `control_receipt` payload。
+- [ ] 决定是否进入控制回执联调、专用回执 topic 或新设备子型接入实现轮。
 
 ## 当前验证结论
-- `./venv/bin/python -m pytest tests/test_analysis_service.py tests/test_endpoint_application_convergence.py tests/test_application_use_cases.py -q` 通过：`27 passed, 1 warning`。
-- `cd /Users/todo/CampusEnergySystem/frontend && npm run test:unit -- src/views/__tests__/EnergyManagement.test.ts` 通过：`1 file / 2 tests passed`。
-- `cd /Users/todo/CampusEnergySystem/frontend && npm run typecheck` 通过。
-- `cd /Users/todo/CampusEnergySystem/frontend && npm run build` 通过；仅保留 Vite 大 chunk 提示。
-- `git diff --check -- <本轮触碰文件>` 通过。
-- 旧入口残留搜索已确认：生产代码中无 `EnergyAnalysis`、`/forecast` 路由/菜单、`getAnalysisOverview` 或 `@/api/analysis` 调用残留；仅测试断言和文档/注释保留历史说明。
+- `git diff --check -- docs/plans/PLAN-20260425-mqtt-gateway-protocol.md docs/guides/mqtt-gateway-protocol.md docs/guides/README.md docs/plans/current-status.md docs/plans/handoff.md` 通过。
+- `! rg -n "TB[D]|TO[D]O|待[定]" docs/plans/PLAN-20260425-mqtt-gateway-protocol.md docs/guides/mqtt-gateway-protocol.md docs/plans/current-status.md docs/plans/handoff.md` 通过，无占位符命中。
+- `./venv/bin/python -m pytest tests/test_mqtt_contracts.py -q` 通过：`2 passed, 2 warnings`。
+- Daily 快照已归档：
+  - `docs/plans/daily/2026-04/2026-04-25-mqtt-gateway-protocol-status.md`
+  - `docs/plans/daily/2026-04/2026-04-25-mqtt-gateway-protocol-handoff.md`
+- 数据库回查结果：
+  - 2026-04-24 `mqtt_ingestion_record` 共 `3792` 条记录。
+  - 全部记录 topic 为 `campus/telemetry`，status 为 `success`。
+  - 设备为 `device_id=12 / CAP-001 / capacitor_bank_controller / compensation / electricity`。
+  - 代表性 payload 已写入 `docs/guides/mqtt-gateway-protocol.md` 的“既有联调报文基线”。
+  - 未发现 `control_receipt` payload。
 
 ## 当前验收判断
-- 当前可判定：后端合并接口、前端路由菜单精简、能源管理 Tab 消费合并接口已达到本轮目标。
-- `/analysis/overview` 兼容代理已明确不做：当前仍处开发阶段且无已知外部消费者，统一收敛到 `/energy/overview`。
-- 建议本主题按“阶段完成；后续如需组件拆分另开主题”收口。
+- 当前可判定：本主题文档阶段完成。
+- `mqtt-gateway-protocol.md` 可作为真实网关联调基线，近期不强制 envelope。
+- 本主题暂不进入代码实现；后续控制回执联调、专用回执 topic 或新设备子型接入需另开实现轮。
 
 ## 当前剩余风险
-- `EnergyManagement.vue` 仍是较大的页面文件，本轮只做合并与最小交互补齐，不扩张为组件化重构。
-- 当前工作区存在大量非本主题既有改动，本轮验收只覆盖能源合并相关文件。
+- 当前协议为联调口径，还不能替代真实设备/真实网关 UAT。
+- 现有后端 parser 仍保留历史字段别名兼容；若后续需要引入 `protocol_version/message_id/gateway_id`，必须另开后端实现轮。
+- 当前控制回执继续复用遥测入站 topic；若现场网关要求独立回执 topic，需要新增 worker 订阅和测试。
+- 2026-04-24 既有遥测 payload 未包含 `protocol_version/message_type/message_id/gateway_id`，当前阶段按既有 payload 对齐，不要求网关立即补齐 envelope。

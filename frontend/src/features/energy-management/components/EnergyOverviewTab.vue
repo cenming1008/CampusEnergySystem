@@ -38,13 +38,9 @@ const props = defineProps<{
   focusHighlights: Array<{ label: string; value: string }>
   detailDeviceId?: number
   detailDeviceName: string
-  secondaryPanelActive: string[]
-  secondaryOverviewItems: Array<{ label: string; value: string }>
-  carbonMetaItems: Array<{ label: string; value: string }>
 }>()
 
 const emit = defineEmits<{
-  (event: 'update:secondaryPanelActive', value: string[]): void
   (event: 'refresh-detail'): void
   (event: 'clear-device'): void
 }>()
@@ -252,6 +248,10 @@ watch(
         </div>
       </section>
 
+      <div class="em-center">
+        <slot name="center" />
+      </div>
+
       <aside class="em-side">
         <div class="glass-card em-card focus-card">
           <div class="card-head">
@@ -300,40 +300,5 @@ watch(
       </aside>
     </div>
 
-    <el-collapse
-      :model-value="secondaryPanelActive"
-      class="em-collapse"
-      @update:model-value="emit('update:secondaryPanelActive', $event)"
-    >
-      <el-collapse-item name="summary-rules" title="统计口径与边界">
-        <div class="glass-card collapse-panel">
-          <div class="info-list">
-            <div
-              v-for="item in secondaryOverviewItems"
-              :key="item.label"
-              class="info-item"
-            >
-              <span class="info-label">{{ item.label }}</span>
-              <span class="info-value">{{ item.value }}</span>
-            </div>
-          </div>
-        </div>
-      </el-collapse-item>
-
-      <el-collapse-item name="carbon-rules" title="碳排放说明">
-        <div class="glass-card collapse-panel">
-          <div class="info-list">
-            <div
-              v-for="item in carbonMetaItems"
-              :key="item.label"
-              class="info-item"
-            >
-              <span class="info-label">{{ item.label }}</span>
-              <span class="info-value">{{ item.value }}</span>
-            </div>
-          </div>
-        </div>
-      </el-collapse-item>
-    </el-collapse>
   </div>
 </template>

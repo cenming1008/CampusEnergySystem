@@ -67,6 +67,29 @@ describe('compensation view mapping', () => {
     expect(view.runningModuleCount).toBe(6)
   })
 
+  it('does not default target power factor when no profile value is available', () => {
+    const view = buildCompensationSemanticView({
+      subtype: 'capacitor_bank_controller',
+      monitor: null,
+      canControlDevices: true,
+      isOnline: true,
+    })
+
+    expect(view.targetPowerFactor).toBeNull()
+  })
+
+  it('uses control profile target power factor when provided', () => {
+    const view = buildCompensationSemanticView({
+      subtype: 'capacitor_bank_controller',
+      monitor: null,
+      targetPowerFactor: 95,
+      canControlDevices: true,
+      isOnline: true,
+    })
+
+    expect(view.targetPowerFactor).toBe(0.95)
+  })
+
   it('renders configured fallback source text for capacitor bank circuit summary', () => {
     expect(describeCompensationSource('circuit_summary', 'configured_fallback', 'capacitor_bank_controller'))
       .toBe('当前无回路回读，按配置总回路展示')

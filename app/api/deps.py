@@ -11,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2Pas
 from jose import JWTError, jwt
 from sqlmodel import Session, select
 
+from app.core.auth_lock import build_account_lock_message
 from app.core.database import get_session
 from app.core.exceptions import AuthenticationException, PermissionDeniedException
 from app.core.settings import settings
@@ -54,7 +55,7 @@ def get_user_from_token_payload(session: Session, payload: dict, request: Option
     if not user.is_active:
         raise AuthenticationException("用户已停用")
     if user.locked_until and user.locked_until > datetime.now():
-        raise AuthenticationException("账户已被锁定，请稍后再试")
+        raise AuthenticationException(build_account_lock_message(user.locked_until))
 
     token_version = payload.get("ver")
     if token_version is not None and token_version != user.token_version:

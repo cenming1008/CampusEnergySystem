@@ -46,7 +46,6 @@ import {
 
 // ==================== 状态定义 ====================
 
-const activeTab = ref<'overview' | 'trend' | 'ranking' | 'entry'>('overview')
 const trendGranularity = ref<'hour' | 'day'>('day')
 const rankingTopN = ref(5)
 
@@ -218,6 +217,12 @@ const overviewMetrics = computed(() => [
     value: String(visibleDeviceCount.value),
     unit: '台',
     accent: 'kpi-tile--device',
+  },
+  {
+    label: '焦点占比',
+    value: `${selectedEnergyShare.value.toFixed(1)}%`,
+    unit: '',
+    accent: 'kpi-tile--focus',
   },
 ])
 
@@ -491,17 +496,22 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
 
 <template>
   <div class="em-page">
-    <div class="em-glow em-glow--tl" />
-    <div class="em-glow em-glow--br" />
+    <div class="em-noise" />
 
     <header class="em-header glass-card">
-      <div class="em-header__brand">
-        <p class="eyebrow">Campus Energy Center</p>
-        <h2>能源管理中心</h2>
-        <div class="em-header__tags">
-          <span class="hdr-tag">{{ currentRangeLabel }}</span>
-          <span class="hdr-tag hdr-tag--cyan">{{ activeEnergyCount }} 类活跃</span>
-          <span v-if="hasScopedAccess" class="hdr-tag hdr-tag--amber">{{ locationScopeHint || '范围受限' }}</span>
+      <div class="em-brand-block">
+        <div class="em-brand-mark">
+          <span class="em-brand-mark__dot" />
+        </div>
+        <div class="em-header__brand">
+          <p class="eyebrow">Campus Energy Center</p>
+          <h1>能源管理中心</h1>
+          <p class="em-header__subtitle">按能源介质、设备和统计窗口查看能耗、碳排与运营信号。</p>
+          <div class="em-header__tags">
+            <span class="hdr-tag">{{ currentRangeLabel }}</span>
+            <span class="hdr-tag hdr-tag--cyan">{{ activeEnergyCount }} 类活跃</span>
+            <span v-if="hasScopedAccess" class="hdr-tag hdr-tag--amber">{{ locationScopeHint || '范围受限' }}</span>
+          </div>
         </div>
       </div>
       <EnergyHeaderControls
@@ -544,30 +554,23 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
       </button>
     </div>
 
-    <el-tabs v-model="activeTab" class="em-tabs">
-      <el-tab-pane label="总览" name="overview">
-        <EnergyOverviewTab
-          v-model:secondary-panel-active="secondaryPanelActive"
-          :overview-metrics="overviewMetrics"
-          :total-energy-consumption="totalEnergyConsumption"
-          :energy-mix-items="energyMixItems"
-          :visible-energy-types="visibleEnergyTypes"
-          :statistics="statistics"
-          :carbon-summary="carbonSummary"
-          :has-steam-runtime-presence="hasSteamRuntimePresence"
-          :current-energy-info="currentEnergyInfo"
-          :current-stats="currentStats"
-          :focus-highlights="focusHighlights"
-          :detail-device-id="detailDeviceId"
-          :detail-device-name="detailDeviceName"
-          :secondary-overview-items="secondaryOverviewItems"
-          :carbon-meta-items="carbonMetaItems"
-          @refresh-detail="loadDetailData"
-          @clear-device="detailDeviceId = undefined"
-        />
-      </el-tab-pane>
-
-      <el-tab-pane label="趋势与对比" name="trend">
+    <EnergyOverviewTab
+      :overview-metrics="overviewMetrics"
+      :total-energy-consumption="totalEnergyConsumption"
+      :energy-mix-items="energyMixItems"
+      :visible-energy-types="visibleEnergyTypes"
+      :statistics="statistics"
+      :carbon-summary="carbonSummary"
+      :has-steam-runtime-presence="hasSteamRuntimePresence"
+      :current-energy-info="currentEnergyInfo"
+      :current-stats="currentStats"
+      :focus-highlights="focusHighlights"
+      :detail-device-id="detailDeviceId"
+      :detail-device-name="detailDeviceName"
+      @refresh-detail="loadDetailData"
+      @clear-device="detailDeviceId = undefined"
+    >
+      <template #center>
         <EnergyTrendComparisonTab
           :granularity="analysisTimeWindow?.granularity || trendGranularity"
           :trend-items="trendItems"
@@ -576,9 +579,11 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
           :sub-item-comparison="subItemComparison"
           :stat-basis-text="statBasisText"
         />
-      </el-tab-pane>
+      </template>
+    </EnergyOverviewTab>
 
-      <el-tab-pane label="排行与异常" name="ranking">
+    <el-collapse v-model="secondaryPanelActive" class="em-collapse em-secondary-accordion">
+      <el-collapse-item name="ranking" title="排行与异常">
         <EnergyRankingAnomalyTab
           v-model:ranking-top-n="rankingTopN"
           :area-ranking="areaRanking"
@@ -588,9 +593,9 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
           :anomaly-items="anomalyItems"
           :insight-items="insightItems"
         />
-      </el-tab-pane>
+      </el-collapse-item>
 
-      <el-tab-pane label="数据录入" name="entry">
+      <el-collapse-item name="entry" title="数据录入">
         <EnergyDataEntryTab
           :visible-energy-types="visibleEnergyTypes"
           :carbon-factors="carbonFactors"
@@ -603,8 +608,30 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
           @open-entry="openEntryDialog"
           @calculate-carbon="handleCalculateCarbon"
         />
-      </el-tab-pane>
-    </el-tabs>
+      </el-collapse-item>
+
+      <el-collapse-item name="summary-rules" title="统计口径与边界">
+        <div class="glass-card collapse-panel">
+          <div class="info-list">
+            <div v-for="item in secondaryOverviewItems" :key="item.label" class="info-item">
+              <span class="info-label">{{ item.label }}</span>
+              <span class="info-value">{{ item.value }}</span>
+            </div>
+          </div>
+        </div>
+      </el-collapse-item>
+
+      <el-collapse-item name="carbon-rules" title="碳排放说明">
+        <div class="glass-card collapse-panel">
+          <div class="info-list">
+            <div v-for="item in carbonMetaItems" :key="item.label" class="info-item">
+              <span class="info-label">{{ item.label }}</span>
+              <span class="info-value">{{ item.value }}</span>
+            </div>
+          </div>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
 
     <EnergyEntryDialog
       v-model:visible="entryDialogVisible"

@@ -38,6 +38,7 @@ export type CompensationSemanticSubtype = 'svg' | 'capacitor_bank_controller' | 
 export interface CompensationSemanticViewInput {
   subtype: CompensationSemanticSubtype
   monitor: CompensationMonitor | null | undefined
+  targetPowerFactor?: number | null
   svgProfileModuleCount?: number | null
   svgTelemetryAutoMode?: boolean | null
   svgCabinetTemperature?: number | null
@@ -63,7 +64,7 @@ export interface CompensationSemanticView {
   cabinetTemperatureHealthText: string
   cabinetTemperatureHealthHint: string
   cabinetTemperatureHealthTone: CompensationTone
-  targetPowerFactor: number
+  targetPowerFactor: number | null
   dailySwitchCount: number
   hourlySwitchCount: number
   thd: number
@@ -227,6 +228,12 @@ function displayValue(value: number | string | null | undefined, emptyText: stri
   if (value === null || value === undefined || value === '') return emptyText
   if (typeof value === 'number') return Number(value).toFixed(digits)
   return String(value)
+}
+
+function normalizePowerFactorTarget(value?: number | null) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null
+  const numeric = Number(value)
+  return numeric > 2 ? numeric / 100 : numeric
 }
 
 function booleanStatus(
@@ -484,7 +491,7 @@ export function buildCompensationSemanticView(input: CompensationSemanticViewInp
     cabinetTemperatureHealthText,
     cabinetTemperatureHealthHint,
     cabinetTemperatureHealthTone,
-    targetPowerFactor: 0.98,
+    targetPowerFactor: normalizePowerFactorTarget(input.targetPowerFactor),
     dailySwitchCount: 12,
     hourlySwitchCount: 2,
     thd: 3.2,
@@ -1098,7 +1105,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
       summary: [
         { label: '当前 Q', value: displayValueWithUnit(input.realtime?.reactive_power, '暂无数据', 'kVar') },
         { label: '当前 PF', value: displayValue(input.realtime?.power_factor, '暂无数据', 2) },
-        { label: '目标 PF', value: input.archive?.rated_capacity ? input.fallbackCompensation.targetPowerFactor.toFixed(2) : '暂无数据' },
+        { label: '目标 PF', value: displayValue(input.fallbackCompensation.targetPowerFactor, '暂无数据', 2) },
       ],
       empty: !hasHistory,
       emptyText: '暂无补偿效果趋势数据',

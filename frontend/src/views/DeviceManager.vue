@@ -102,6 +102,23 @@
       display_name: ''
     })
     const isSvgDeviceType = computed(() => selectedSubtypeKey.value === 'svg')
+
+    const typeSummary = computed(() => {
+      const summary = new Map<string, { key: string; label: string; count: number }>()
+      for (const device of tableData.value) {
+        const key = device.device_category || device.device_type || 'unknown'
+        const current = summary.get(key) || {
+          key,
+          label: getCategoryLabel(key),
+          count: 0,
+        }
+        current.count += 1
+        summary.set(key, current)
+      }
+      return Array.from(summary.values())
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 5)
+    })
     
     // 表单校验规则
     const rules = {
@@ -411,26 +428,35 @@
     
 <template>
   <div class="device-container">
-    <div class="toolbar">
-      <div class="left">
-        <h2 class="page-title">
-          设备全生命周期台账
-        </h2>
-        <el-tag
-          v-if="hasScopedAccess"
-          size="small"
-          effect="dark"
-          type="warning"
-        >
-          当前列表已按位置范围过滤
-        </el-tag>
+    <div class="device-noise" />
+
+    <header class="device-header glass-panel">
+      <div class="device-brand-block">
+        <div class="device-brand-mark">
+          <span class="device-brand-mark__dot" />
+        </div>
+        <div class="device-brand-text">
+          <p class="device-eyebrow">Device Registry</p>
+          <h1>设备与表计</h1>
+          <p class="device-subtitle">维护园区设备、表计和补偿装置台账，进入实时监控与控制台。</p>
+          <div class="device-tags">
+            <span class="device-tag">全生命周期台账</span>
+            <span
+              v-if="hasScopedAccess"
+              class="device-tag device-tag--warn"
+            >
+              位置范围过滤中
+            </span>
+          </div>
+        </div>
       </div>
-      <div class="right">
+      <div class="device-header-actions">
         <el-button
           :icon="Refresh"
-          circle
           @click="fetchData"
-        />
+        >
+          刷新列表
+        </el-button>
         <el-button
           v-if="canManageDevicesValue"
           type="primary"
@@ -440,156 +466,176 @@
           新增设备
         </el-button>
       </div>
-    </div>
-    
-    <el-table 
-      v-loading="loading" 
-      :data="tableData" 
-      style="width: 100%" 
-      class="custom-table"
-      :header-cell-style="{ background: '#1e293b', color: '#94a3b8', borderBottom: '1px solid #334155' }"
-      :cell-style="{ background: '#1e293b', color: '#cbd5e1', borderBottom: '1px solid #334155' }"
-    >
-      <el-table-column
-        prop="id"
-        label="ID"
-        width="80"
-        align="center"
-      />
-          
-      <el-table-column
-        label="设备名称"
-        min-width="180"
+    </header>
+
+    <section class="device-table-panel glass-panel">
+      <div class="table-panel-head">
+        <div>
+          <p class="section-label">设备台账</p>
+          <h2>资产列表</h2>
+        </div>
+        <div
+          v-if="typeSummary.length"
+          class="type-summary"
+        >
+          <span class="type-summary__label">类型覆盖</span>
+          <span
+            v-for="item in typeSummary"
+            :key="item.key"
+            class="type-chip"
+          >
+            {{ item.label }} · {{ item.count }}
+          </span>
+        </div>
+      </div>
+
+      <el-table
+        v-loading="loading"
+        :data="tableData"
+        style="width: 100%"
+        class="custom-table"
+        empty-text="暂无设备数据"
       >
-        <template #default="{ row }">
-          <div class="device-name-cell">
-            <span class="name">{{ row.name }}</span>
-            <el-tag
-              v-if="isPendingArchiveDevice(row)"
-              size="small"
+        <el-table-column
+          prop="id"
+          label="ID"
+          width="80"
+          align="center"
+        />
+
+        <el-table-column
+          label="设备名称"
+          min-width="200"
+        >
+          <template #default="{ row }">
+            <div class="device-name-cell">
+              <span class="name">{{ row.name }}</span>
+              <div class="device-meta-row">
+                <el-tag
+                  v-if="isPendingArchiveDevice(row)"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                >
+                  待完善
+                </el-tag>
+                <el-tag
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  class="sn-tag"
+                >
+                  {{ row.sn }}
+                </el-tag>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          prop="device_type"
+          label="设备类型"
+          width="160"
+        >
+          <template #default="{ row }">
+            <span>{{ getCategoryLabel(row.device_category) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="设备子类型"
+          width="160"
+        >
+          <template #default="{ row }">
+            <span>{{ row.device_subtype ? getSubtypeLabel(row.device_subtype) : '--' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          prop="location"
+          label="安装位置"
+          width="150"
+        />
+
+        <el-table-column
+          label="管理状态"
+          width="180"
+        >
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.is_active"
+              inline-prompt
+              active-text="启用"
+              inactive-text="停用"
+              style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
+              :disabled="!canControlDevicesValue || isPendingArchiveDevice(row)"
+              :before-change="() => handleStatusChange(!row.is_active, row)"
+            />
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="监控"
+          width="90"
+        >
+          <template #default="{ row }">
+            <el-button
+              link
+              type="success"
+              :icon="Monitor"
+              :disabled="isPendingArchiveDevice(row)"
+              @click="openDeviceMonitor(row)"
+            >
+              监控
+            </el-button>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="控制台"
+          width="96"
+        >
+          <template #default="{ row }">
+            <el-button
+              v-if="isCapacitorBankController(row)"
+              link
               type="warning"
-              effect="dark"
+              :icon="Setting"
+              :disabled="isPendingArchiveDevice(row)"
+              @click="openDeviceConsole(row)"
             >
-              待完善
-            </el-tag>
-            <el-tag
-              size="small"
-              type="info"
-              effect="dark"
-              class="sn-tag"
+              控制台
+            </el-button>
+            <span v-else class="empty-dash">--</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          v-if="canManageDevicesValue"
+          label="操作"
+          width="180"
+        >
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              :icon="Edit"
+              @click="openDialog(row)"
             >
-              {{ row.sn }}
-            </el-tag>
-          </div>
-        </template>
-      </el-table-column>
-    
-      <el-table-column
-        prop="device_type"
-        label="设备类型"
-        width="160"
-      >
-        <template #default="{ row }">
-          <span>{{ getCategoryLabel(row.device_category) }}</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        label="设备子类型"
-        width="160"
-      >
-        <template #default="{ row }">
-          <span>{{ row.device_subtype ? getSubtypeLabel(row.device_subtype) : '--' }}</span>
-        </template>
-      </el-table-column>
-    
-      <el-table-column
-        prop="location"
-        label="安装位置"
-        width="150"
-      />
-    
-      <el-table-column
-        label="管理状态"
-        width="200"
-      >
-        <template #default="{ row }">
-          <el-switch
-            v-model="row.is_active"
-            inline-prompt
-            active-text="启用"
-            inactive-text="停用"
-            style="--el-switch-on-color: #10b981; --el-switch-off-color: #ef4444"
-            :disabled="!canControlDevicesValue || isPendingArchiveDevice(row)"
-            :before-change="() => handleStatusChange(!row.is_active, row)"
-          />
-        </template>
-      </el-table-column>
-    
-      <el-table-column
-        label="监控"
-        width="90"
-        fixed="right"
-      >
-        <template #default="{ row }">
-          <el-button
-            link
-            type="success"
-            :icon="Monitor"
-            :disabled="isPendingArchiveDevice(row)"
-            @click="openDeviceMonitor(row)"
-          >
-            监控
-          </el-button>
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        label="控制台"
-        width="96"
-        fixed="right"
-      >
-        <template #default="{ row }">
-          <el-button
-            v-if="isCapacitorBankController(row)"
-            link
-            type="warning"
-            :icon="Setting"
-            :disabled="isPendingArchiveDevice(row)"
-            @click="openDeviceConsole(row)"
-          >
-            控制台
-          </el-button>
-          <span v-else>--</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        v-if="canManageDevicesValue"
-        label="操作"
-        width="180"
-        fixed="right"
-      >
-        <template #default="{ row }">
-          <el-button
-            link
-            type="primary"
-            :icon="Edit"
-            @click="openDialog(row)"
-          >
-            编辑
-          </el-button>
-          <el-button
-            link
-            type="danger"
-            :icon="Delete"
-            @click="handleDelete(row)"
-          >
-            删除
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+              编辑
+            </el-button>
+            <el-button
+              link
+              type="danger"
+              :icon="Delete"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
     
     <el-dialog
       v-model="dialogVisible"
@@ -760,61 +806,491 @@
     
     <style scoped>
     .device-container {
-      background: var(--bg-sidebar);
-      padding: 20px;
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      min-height: 85vh;
-      width: 100%;
-      box-sizing: border-box;
       position: relative;
-      overflow: visible;
-    }
-    
-    .toolbar {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      position: relative;
-      z-index: 20;
-      pointer-events: auto;
-    }
-    .left,
-    .right {
-      position: relative;
-      z-index: 21;
-    }
-    .right {
-      display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 12px;
-      pointer-events: auto;
+      width: 100%;
+      min-height: 100%;
+      height: auto;
+      padding: 16px;
+      overflow-x: hidden;
+      box-sizing: border-box;
+      color: #f5f7fa;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.08), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(52, 211, 153, 0.05), transparent 26%),
+        #090e17;
     }
-    .page-title { margin: 0; font-size: 18px; border-left: 4px solid var(--brand-color); padding-left: 10px; color: #fff; }
-    .custom-table {
+
+    .device-noise {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent 20%, transparent 80%, rgba(255,255,255,0.012));
+      opacity: 0.3;
+    }
+
+    .glass-panel {
       position: relative;
       z-index: 1;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(18px) saturate(145%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.18);
+      overflow: hidden;
     }
-    
-    /* 表格内样式微调 */
+
+    .device-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 112px;
+      padding: 22px;
+      box-sizing: border-box;
+    }
+
+    .device-brand-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .device-brand-mark {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      margin-top: 2px;
+      border-radius: 14px;
+      flex-shrink: 0;
+      background: rgba(52, 211, 153, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    }
+
+    .device-brand-mark__dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 12px rgba(52, 211, 153, 0.58);
+    }
+
+    .device-brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .device-eyebrow {
+      margin: 0;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.46);
+    }
+
+    .device-brand-text h1 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.02;
+      letter-spacing: 0;
+      color: #f5f7fa;
+    }
+
+    .device-subtitle {
+      margin: 0;
+      max-width: 560px;
+      font-size: 12px;
+      line-height: 1.3;
+      color: rgba(255,255,255,0.44);
+    }
+
+    .device-tags,
+    .device-header-actions,
+    .type-summary,
+    .device-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .device-tags {
+      margin-top: 8px;
+    }
+
+    .device-header-actions {
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .device-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.62);
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .device-tag--warn {
+      color: #fdba74;
+      border-color: rgba(251, 146, 60, 0.28);
+      background: rgba(251, 146, 60, 0.08);
+    }
+
+    .device-table-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px 20px 20px;
+    }
+
+    .table-panel-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .section-label {
+      margin: 0 0 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+    }
+
+    .table-panel-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0;
+      color: #f0f6ff;
+    }
+
+    .type-summary {
+      justify-content: flex-end;
+      max-width: 760px;
+    }
+
+    .type-summary__label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.38);
+    }
+
+    .type-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: rgba(226,232,240,0.66);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .custom-table {
+      --el-table-bg-color: transparent;
+      --el-table-tr-bg-color: transparent;
+      --el-table-header-bg-color: rgba(255,255,255,0.035);
+      --el-table-row-hover-bg-color: rgba(255,255,255,0.055);
+      --el-table-border-color: rgba(255,255,255,0.06);
+      --el-table-text-color: rgba(255,255,255,0.8);
+      --el-table-header-text-color: rgba(255,255,255,0.46);
+      --el-bg-color: transparent;
+      --el-fill-color-lighter: rgba(255,255,255,0.04);
+      position: relative;
+      z-index: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: transparent;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .custom-table :deep(.el-table),
+    .custom-table :deep(.el-table__inner-wrapper),
+    .custom-table :deep(.el-scrollbar),
+    .custom-table :deep(.el-scrollbar__view),
+    .custom-table :deep(.el-table__body-wrapper),
+    .custom-table :deep(.el-table__header-wrapper) {
+      background: transparent;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .custom-table :deep(.el-table__inner-wrapper::before),
+    .custom-table :deep(.el-table::before),
+    .custom-table :deep(.el-table__border-left-patch) {
+      display: none;
+    }
+
+    .custom-table :deep(th.el-table__cell) {
+      background: rgba(255,255,255,0.03) !important;
+      color: rgba(255,255,255,0.46);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-bottom-color: rgba(255,255,255,0.06);
+    }
+
+    .custom-table :deep(td.el-table__cell) {
+      background: transparent !important;
+      border-bottom-color: rgba(255,255,255,0.045);
+      color: rgba(255,255,255,0.78);
+      font-size: 13px;
+    }
+
+    .custom-table :deep(.el-table__row:hover > td.el-table__cell),
+    .custom-table :deep(.el-table__body tr.hover-row > td.el-table__cell),
+    .custom-table :deep(.el-table__body tr:hover > td.el-table__cell) {
+      background: rgba(255,255,255,0.055) !important;
+    }
+
+    .custom-table :deep(.el-table-fixed-column--right),
+    .custom-table :deep(.el-table-fixed-column--left) {
+      background: #101827 !important;
+    }
+
+    .custom-table :deep(.el-table__empty-block) {
+      background: transparent;
+    }
+
+    .custom-table :deep(.el-loading-mask) {
+      background: rgba(9, 14, 23, 0.72);
+    }
+
     .device-name-cell {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
+      min-width: 0;
     }
-    .name { font-weight: 600; color: #fff; }
-    .sn-tag { width: fit-content; font-size: 10px; height: 20px; line-height: 18px; }
-    
-    /* 覆盖 Element Dialog 样式以适配暗黑主题 (通常建议在全局 css 中做，这里为了单文件演示) */
-    :deep(.el-table__inner-wrapper::before) {
-      background-color: #334155;
+
+    .name {
+      font-weight: 700;
+      color: #f8fafc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    :deep(.el-table--enable-row-hover .el-table__body tr:hover > td) {
-      background-color: rgba(255, 255, 255, 0.05) !important;
+
+    .sn-tag {
+      width: fit-content;
+      max-width: 100%;
+      font-size: 10px;
+      height: 20px;
+      line-height: 18px;
     }
-    :deep(.el-table__fixed),
-    :deep(.el-table__fixed-right) {
-      z-index: 2;
+
+    .empty-dash {
+      color: rgba(255,255,255,0.34);
+    }
+
+    :deep(.el-button) {
+      min-height: 34px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    :deep(.el-button--primary) {
+      border-color: rgba(96, 165, 250, 0.34);
+      background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(103, 232, 249, 0.72));
+      color: #06111f;
+    }
+
+    :deep(.el-button:not(.el-button--primary):not(.el-button--danger):not(.is-link)) {
+      border-color: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.045);
+      color: rgba(255,255,255,0.72);
+    }
+
+    :deep(.el-button.is-link) {
+      min-height: 28px;
+      padding: 0 4px;
+      border-radius: 6px;
+      border-color: transparent !important;
+      background: transparent !important;
+      box-shadow: none;
+    }
+
+    :deep(.el-button.is-link.el-button--primary) {
+      color: #60a5fa;
+    }
+
+    :deep(.el-button.is-link.el-button--success) {
+      color: #7ddc50;
+    }
+
+    :deep(.el-button.is-link.el-button--warning) {
+      color: #fbbf24;
+    }
+
+    :deep(.el-button.is-link.el-button--danger) {
+      color: #f87171;
+    }
+
+    :deep(.el-tag) {
+      border-radius: 7px;
+      border-color: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(226,232,240,0.76);
+    }
+
+    :deep(.el-tag.el-tag--info) {
+      border-color: rgba(148, 163, 184, 0.18);
+      background: rgba(148, 163, 184, 0.08);
+      color: rgba(226,232,240,0.64);
+    }
+
+    :deep(.el-tag.el-tag--warning) {
+      border-color: rgba(251, 146, 60, 0.3);
+      background: rgba(251, 146, 60, 0.1);
+      color: #fdba74;
+    }
+
+    :deep(.el-switch__core) {
+      border-color: rgba(255,255,255,0.14);
+    }
+
+    :deep(.el-switch__action) {
+      background: #dbeafe;
+    }
+
+    :global(.custom-dialog) {
+      border-radius: 16px;
+      overflow: hidden;
+      background: #111827;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.08);
+    }
+
+    :global(.custom-dialog .el-dialog__header) {
+      margin: 0;
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.035);
+    }
+
+    :global(.custom-dialog .el-dialog__title) {
+      color: #f8fafc;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    :global(.custom-dialog .el-dialog__body) {
+      max-height: min(68vh, 680px);
+      overflow: auto;
+      padding: 20px 22px;
+      background: #111827;
+      color: rgba(226,232,240,0.76);
+    }
+
+    :global(.custom-dialog .el-dialog__footer) {
+      padding: 14px 22px 18px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      background: #111827;
+    }
+
+    :global(.custom-dialog .el-form-item__label) {
+      color: rgba(226,232,240,0.62);
+      font-weight: 500;
+    }
+
+    :global(.custom-dialog .el-input__wrapper),
+    :global(.custom-dialog .el-select__wrapper),
+    :global(.custom-dialog .el-textarea__inner),
+    :global(.custom-dialog .el-input-number .el-input__wrapper),
+    :global(.custom-dialog .el-date-editor.el-input__wrapper) {
+      min-height: 34px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.055);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    }
+
+    :global(.custom-dialog .el-input__inner),
+    :global(.custom-dialog .el-select__selected-item),
+    :global(.custom-dialog .el-textarea__inner) {
+      color: rgba(255,255,255,0.84);
+    }
+
+    :global(.custom-dialog .el-input__inner::placeholder),
+    :global(.custom-dialog .el-textarea__inner::placeholder) {
+      color: rgba(255,255,255,0.3);
+    }
+
+    :global(.custom-dialog .el-input-number__decrease),
+    :global(.custom-dialog .el-input-number__increase) {
+      border-color: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.055);
+      color: rgba(255,255,255,0.58);
+    }
+
+    :global(.custom-dialog .el-divider__text) {
+      background: #111827;
+      color: rgba(255,255,255,0.62);
+    }
+
+    :global(.custom-dialog .el-dialog__headerbtn .el-dialog__close) {
+      color: rgba(255,255,255,0.58);
+    }
+
+    .dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    @media (max-width: 1280px) {
+      .table-panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .type-summary {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .device-container {
+        padding: 12px;
+        gap: 10px;
+      }
+
+      .device-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 14px 16px;
+      }
+
+      .device-brand-text h1 {
+        font-size: 22px;
+      }
+
+      .device-header-actions {
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      .device-table-panel {
+        padding: 14px 16px;
+      }
     }
     </style>

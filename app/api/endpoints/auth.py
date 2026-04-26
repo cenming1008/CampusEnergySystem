@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 from app.api.deps import get_current_user
 from app.core.database import get_session
 from app.core.audit import audit_log
+from app.core.auth_lock import build_account_lock_message
 from app.core.rate_limit import limit_requests
 from app.core.settings import settings
 from app.core.security import verify_password, create_access_token, create_refresh_token
@@ -29,17 +30,19 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., min_length=1)
 
 
+def _enforce_auth_login_rate_limit(request: Request) -> None:
+    limit_requests(
+        bucket="auth-login",
+        max_calls=settings.auth_rate_limit_count,
+        window_seconds=settings.auth_rate_limit_window_seconds,
+    )(request)
+
+
 @router.post("/login")
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
-    _: None = Depends(
-        limit_requests(
-            bucket="auth-login",
-            max_calls=settings.auth_rate_limit_count,
-            window_seconds=settings.auth_rate_limit_window_seconds,
-        )
-    ),
 ):
     """用户登录"""
     # 查询用户
@@ -48,12 +51,17 @@ def login(
 
     if user and user.locked_until and user.locked_until > datetime.now():
         audit_log("auth.login", user.username, "auth", outcome="failed", reason="locked")
-        raise AuthenticationException("账户已被锁定，请稍后再试")
+        raise AuthenticationException(build_account_lock_message(user.locked_until))
+
+    _enforce_auth_login_rate_limit(request)
     
     # 验证密码
     if not user or not verify_password(form_data.password, user.hashed_password):
         logger.warning(f"登录失败: username={form_data.username}")
-        UserService.register_login_failure(session, form_data.username)
+        failed_user = UserService.register_login_failure(session, form_data.username)
+        if failed_user and failed_user.locked_until and failed_user.locked_until > datetime.now():
+            audit_log("auth.login", form_data.username, "auth", outcome="failed", reason="locked")
+            raise AuthenticationException(build_account_lock_message(failed_user.locked_until))
         audit_log("auth.login", form_data.username, "auth", outcome="failed")
         raise AuthenticationException("用户名或密码错误")
 
@@ -107,7 +115,7 @@ def refresh_access_token(
         raise AuthenticationException("用户不存在或已停用")
     if user.locked_until and user.locked_until > datetime.now():
         audit_log("auth.refresh", user.username, "auth", outcome="failed", reason="locked")
-        raise AuthenticationException("账户已被锁定，请稍后再试")
+        raise AuthenticationException(build_account_lock_message(user.locked_until))
     if payload.get("ver") != user.token_version:
         audit_log("auth.refresh", user.username, "auth", outcome="failed", reason="token_revoked")
         raise AuthenticationException("刷新令牌已失效，请重新登录")

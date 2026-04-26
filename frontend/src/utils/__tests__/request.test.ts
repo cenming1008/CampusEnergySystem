@@ -184,6 +184,79 @@ describe('request interceptors', () => {
     }))
   })
 
+  it('shows only one auth-expired message for concurrent 401 responses', async () => {
+    const { useAuthStore } = await import('@/stores/useAuthStore')
+    const store = useAuthStore()
+    store.token = 'expired-token'
+    store.refreshToken = null
+
+    const handlers = await loadRequestModule()
+    const firstError = {
+      response: { status: 401, data: { detail: 'session expired' } },
+      message: 'Unauthorized',
+      config: {
+        method: 'get',
+        url: '/users/me',
+        headers: {},
+      },
+    }
+    const secondError = {
+      response: { status: 401, data: { detail: 'session expired' } },
+      message: 'Unauthorized',
+      config: {
+        method: 'get',
+        url: '/devices/',
+        headers: {},
+      },
+    }
+
+    await expect(handlers.responseRejected?.(firstError)).rejects.toBe(firstError)
+    await expect(handlers.responseRejected?.(secondError)).rejects.toBe(secondError)
+
+    expect(mockState.errorMessageMock).toHaveBeenCalledTimes(1)
+    expect(mockState.errorMessageMock).toHaveBeenCalledWith('登录已过期或无效，请重新登录')
+  })
+
+  it('still shows account lock message for login after another auth failure was handled', async () => {
+    const { useAuthStore } = await import('@/stores/useAuthStore')
+    const store = useAuthStore()
+    store.token = 'expired-token'
+    store.refreshToken = null
+
+    const handlers = await loadRequestModule()
+    const expiredError = {
+      response: { status: 401, data: { detail: 'Token验证失败' } },
+      message: 'Unauthorized',
+      config: {
+        method: 'get',
+        url: '/users/me',
+        headers: {},
+      },
+    }
+    const lockedError = {
+      response: {
+        status: 401,
+        data: { message: '连续登录失败 5 次，账户已锁定，请于 2026-04-25 22:43:11 后再试（服务器时间）' },
+      },
+      message: 'Unauthorized',
+      config: {
+        method: 'post',
+        url: '/auth/login',
+        headers: {},
+        skipAuthRefresh: true,
+        skipAuthHeader: true,
+      },
+    }
+
+    await expect(handlers.responseRejected?.(expiredError)).rejects.toBe(expiredError)
+    await expect(handlers.responseRejected?.(lockedError)).rejects.toBe(lockedError)
+
+    expect(mockState.errorMessageMock).toHaveBeenCalledWith('登录已过期或无效，请重新登录')
+    expect(mockState.errorMessageMock).toHaveBeenCalledWith(
+      '连续登录失败 5 次，账户已锁定，请于 2026-04-25 22:43:11 后再试（服务器时间）'
+    )
+  })
+
   it('redirects to account security when backend requires password change', async () => {
     const { useAuthStore } = await import('@/stores/useAuthStore')
     const store = useAuthStore()

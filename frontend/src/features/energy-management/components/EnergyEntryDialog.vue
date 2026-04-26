@@ -28,6 +28,7 @@ const emit = defineEmits<{
     :model-value="visible"
     title="手工补录能源数据"
     width="520px"
+    class="em-entry-dialog"
     @update:model-value="emit('update:visible', $event)"
   >
     <el-form label-position="top">
