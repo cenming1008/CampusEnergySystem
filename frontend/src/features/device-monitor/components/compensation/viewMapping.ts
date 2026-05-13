@@ -388,11 +388,18 @@ function decodeSwitchingCount(value: number | null | undefined) {
 
 function buildTimedCapBankSwitchingSeries(
   history: CompensationCapacitorBankTelemetry[],
-  key: keyof CompensationCapacitorBankTelemetry,
+  key: keyof CompensationCapacitorBankTelemetry | Array<keyof CompensationCapacitorBankTelemetry>,
 ): Array<[string, number | null]> {
+  const keys = Array.isArray(key) ? key : [key]
   return history.map((point) => {
-    const rawValue = point[key]
-    return [point.timestamp, typeof rawValue === 'number' ? decodeSwitchingCount(rawValue) : null]
+    let total: number | null = null
+    for (const k of keys) {
+      const rawValue = point[k]
+      if (typeof rawValue === 'number') {
+        total = (total ?? 0) + decodeSwitchingCount(rawValue)
+      }
+    }
+    return [point.timestamp, total]
   })
 }
 
@@ -1335,7 +1342,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
         { name: 'A相投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_phase_a'), color: '#38bdf8' },
         { name: 'B相投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_phase_b'), color: '#60a5fa' },
         { name: 'C相投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_phase_c'), color: '#93c5fd' },
-        { name: '公补投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_common_1'), color: '#f59e0b' },
+        { name: '公补投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, ['circuit_state_common_1', 'circuit_state_common_2', 'circuit_state_common_3']), color: '#f59e0b' },
       ],
       xAxisType: 'time',
       xAxisMin,
