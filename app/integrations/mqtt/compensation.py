@@ -128,6 +128,7 @@ COMPENSATION_FIELD_ALIASES = {
 }
 
 CONTROL_RECEIPT_MESSAGE_TYPE = "control_receipt"
+COMMAND_RESULT_MESSAGE_TYPE = "command_result"
 
 
 def apply_compensation_field_aliases(data: dict[str, Any]) -> dict[str, Any]:
@@ -330,7 +331,10 @@ def extract_capacitor_bank_control_profile(data: dict[str, Any]) -> Optional[dic
 
 
 def is_control_receipt_payload(data: dict[str, Any]) -> bool:
-    return str(data.get("message_type") or "").strip().lower() == CONTROL_RECEIPT_MESSAGE_TYPE
+    return str(data.get("message_type") or "").strip().lower() in {
+        CONTROL_RECEIPT_MESSAGE_TYPE,
+        COMMAND_RESULT_MESSAGE_TYPE,
+    }
 
 
 def process_control_receipt(session: Session, data: dict[str, Any], device_id: int) -> None:

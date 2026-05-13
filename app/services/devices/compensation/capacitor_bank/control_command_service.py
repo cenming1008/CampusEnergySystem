@@ -36,6 +36,11 @@ from app.services.mqtt_publisher import publish_control_payload_async
 logger = logging.getLogger(__name__)
 ControlEventNotifier = Callable[[dict[str, Any]], None]
 CONTROL_RECEIPT_RESULT_ALIASES = {
+    "queued": CONTROL_RESULT_RUNNING,
+    "queue": CONTROL_RESULT_RUNNING,
+    "pending": CONTROL_RESULT_RUNNING,
+    "in_queue": CONTROL_RESULT_RUNNING,
+    "in-queue": CONTROL_RESULT_RUNNING,
     "unsupported": CONTROL_RESULT_REJECTED,
     "not_supported": CONTROL_RESULT_REJECTED,
     "not-supported": CONTROL_RESULT_REJECTED,

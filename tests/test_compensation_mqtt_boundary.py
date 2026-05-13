@@ -5,8 +5,12 @@ from app.integrations.mqtt.compensation import (
     apply_compensation_field_aliases,
     extract_capacitor_bank_control_profile,
     extract_capacitor_bank_telemetry,
+    is_control_receipt_payload,
     normalize_compensation_measurements,
     process_control_receipt,
+)
+from app.services.devices.compensation.capacitor_bank.control_command_service import (
+    CapacitorBankControlCommandService,
 )
 
 
@@ -52,6 +56,31 @@ class TestCompensationMqttBoundary(unittest.TestCase):
         self.assertEqual(mock_apply.call_args.kwargs["device_id"], 16)
         self.assertEqual(mock_apply.call_args.kwargs["command_id"], "88")
         self.assertEqual(mock_apply.call_args.kwargs["result"], "rejected")
+
+    def test_gateway_queued_receipt_is_pending_not_failed(self):
+        self.assertEqual(CapacitorBankControlCommandService.normalize_control_result("queued"), "running")
+
+    def test_gateway_command_result_is_treated_as_control_receipt(self):
+        self.assertTrue(is_control_receipt_payload({"message_type": "command_result"}))
+
+        session = MagicMock()
+        with patch(
+            "app.services.devices.compensation.capacitor_bank.control_command_service.CapacitorBankControlCommandService.apply_control_receipt",
+        ) as mock_apply:
+            process_control_receipt(
+                session,
+                {
+                    "message_type": "command_result",
+                    "device_code": "CAP-016",
+                    "command_id": "88",
+                    "result": "success",
+                    "detail": "已按协议手动投切：COMMON 相 保持",
+                },
+                device_id=16,
+            )
+
+        mock_apply.assert_called_once()
+        self.assertEqual(mock_apply.call_args.kwargs["result"], "success")
 
 
 if __name__ == "__main__":
