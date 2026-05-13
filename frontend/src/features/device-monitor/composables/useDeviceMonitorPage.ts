@@ -43,6 +43,7 @@ const fallbackChartMetricOptions = [
 ]
 
 const REFRESH_INTERVAL_MS = 5000
+const LIVE_RANGE_TOLERANCE_MS = REFRESH_INTERVAL_MS * 2
 
 export function useDeviceMonitorPage() {
   const route = useRoute()
@@ -67,6 +68,7 @@ export function useDeviceMonitorPage() {
   const storageTrendTab = ref<'soc' | 'power' | 'temperature' | 'energy'>('soc')
   const svgProfileEditVisible = ref(false)
   let refreshTimer: ReturnType<typeof setInterval> | null = null
+  let suppressTimeRangeWatcher = false
 
   const archive = computed(() => overview.value?.archive)
   const runtimeStatus = computed(() => overview.value?.runtime_status)
@@ -203,6 +205,7 @@ export function useDeviceMonitorPage() {
   watch(
     () => timeRange.value?.map((value) => value?.getTime()) ?? null,
     async (next, previous) => {
+      if (suppressTimeRangeWatcher) return
       if (!overview.value || !next || !previous) return
       if (next[0] === previous[0] && next[1] === previous[1]) return
       await handleRangeChange()
@@ -337,6 +340,7 @@ export function useDeviceMonitorPage() {
   async function refreshRealtime() {
     if (!deviceId.value || !overview.value) return
     try {
+      syncLiveTimeRange()
       const shouldRefreshCompensationOverview = compensation.isCompensationDevice.value
       const [overviewRes, realtimeRes, trendRes] = await Promise.all([
         shouldRefreshCompensationOverview ? getDeviceMonitorOverview(deviceId.value) : Promise.resolve(null),
@@ -457,6 +461,21 @@ export function useDeviceMonitorPage() {
       end_time: toApiDate(end),
       limit,
     }
+  }
+
+  function syncLiveTimeRange() {
+    if (!timeRange.value) return
+    const [start, end] = timeRange.value
+    const now = new Date()
+    const distanceFromNow = Math.abs(now.getTime() - end.getTime())
+    if (distanceFromNow > LIVE_RANGE_TOLERANCE_MS) return
+
+    const durationMs = Math.max(1, end.getTime() - start.getTime())
+    suppressTimeRangeWatcher = true
+    timeRange.value = [new Date(now.getTime() - durationMs), now]
+    void Promise.resolve().then(() => {
+      suppressTimeRangeWatcher = false
+    })
   }
 
   function getTrendMetricValue(point: TrendPoint, metric: SupportedTrendMetric) {

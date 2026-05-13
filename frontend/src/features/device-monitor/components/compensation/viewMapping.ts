@@ -1155,6 +1155,90 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     }
   }
 
+  if (input.subtype === 'capacitor_bank_controller' && input.activeTab === 'phase_active_power') {
+    const hasHistory = hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'active_power_a')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'active_power_b')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'active_power_c')
+    return {
+      labels: [],
+      legend: ['A相有功', 'B相有功', 'C相有功'],
+      axes: [{ name: 'kW' }],
+      series: [
+        { name: 'A相有功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'active_power_a'), color: '#38bdf8' },
+        { name: 'B相有功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'active_power_b'), color: '#60a5fa' },
+        { name: 'C相有功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'active_power_c'), color: '#93c5fd' },
+      ],
+      xAxisType: 'time',
+      xAxisMin,
+      xAxisMax,
+      summary: [
+        { label: 'A相有功', value: displayValueWithUnit(input.capacitorBankTelemetry?.active_power_a, '暂无数据', 'kW') },
+        { label: 'B相有功', value: displayValueWithUnit(input.capacitorBankTelemetry?.active_power_b, '暂无数据', 'kW') },
+        { label: 'C相有功', value: displayValueWithUnit(input.capacitorBankTelemetry?.active_power_c, '暂无数据', 'kW') },
+      ],
+      empty: !hasHistory,
+      emptyText: '暂无三相有功历史数据',
+      hint: hasHistory ? '展示电容控制器 A/B/C 三相有功功率历史走势。' : '当前时间范围内没有三相有功历史数据。',
+      isMock: false,
+    }
+  }
+
+  if (input.subtype === 'capacitor_bank_controller' && input.activeTab === 'phase_reactive_power') {
+    const hasHistory = hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'reactive_power_a')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'reactive_power_b')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'reactive_power_c')
+    return {
+      labels: [],
+      legend: ['A相无功', 'B相无功', 'C相无功'],
+      axes: [{ name: 'kvar' }],
+      series: [
+        { name: 'A相无功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'reactive_power_a'), color: '#22c55e' },
+        { name: 'B相无功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'reactive_power_b'), color: '#4ade80' },
+        { name: 'C相无功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'reactive_power_c'), color: '#86efac' },
+      ],
+      xAxisType: 'time',
+      xAxisMin,
+      xAxisMax,
+      summary: [
+        { label: 'A相无功', value: displayValueWithUnit(input.capacitorBankTelemetry?.reactive_power_a, '暂无数据', 'kvar') },
+        { label: 'B相无功', value: displayValueWithUnit(input.capacitorBankTelemetry?.reactive_power_b, '暂无数据', 'kvar') },
+        { label: 'C相无功', value: displayValueWithUnit(input.capacitorBankTelemetry?.reactive_power_c, '暂无数据', 'kvar') },
+      ],
+      empty: !hasHistory,
+      emptyText: '暂无三相无功历史数据',
+      hint: hasHistory ? '展示电容控制器 A/B/C 三相无功功率历史走势。' : '当前时间范围内没有三相无功历史数据。',
+      isMock: false,
+    }
+  }
+
+  if (input.subtype === 'capacitor_bank_controller' && input.activeTab === 'phase_power_factor') {
+    const hasHistory = hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'power_factor_a')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'power_factor_b')
+      || hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'power_factor_c')
+    return {
+      labels: [],
+      legend: ['A相PF', 'B相PF', 'C相PF'],
+      axes: [{ name: 'PF', min: 0.8, max: 1 }],
+      series: [
+        { name: 'A相PF', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'power_factor_a'), color: '#f59e0b' },
+        { name: 'B相PF', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'power_factor_b'), color: '#fbbf24' },
+        { name: 'C相PF', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'power_factor_c'), color: '#fcd34d' },
+      ],
+      xAxisType: 'time',
+      xAxisMin,
+      xAxisMax,
+      summary: [
+        { label: 'A相PF', value: displayValue(input.capacitorBankTelemetry?.power_factor_a, '暂无数据', 3) },
+        { label: 'B相PF', value: displayValue(input.capacitorBankTelemetry?.power_factor_b, '暂无数据', 3) },
+        { label: 'C相PF', value: displayValue(input.capacitorBankTelemetry?.power_factor_c, '暂无数据', 3) },
+      ],
+      empty: !hasHistory,
+      emptyText: '暂无三相功率因数历史数据',
+      hint: hasHistory ? '展示电容控制器 A/B/C 三相功率因数历史走势。' : '当前时间范围内没有三相功率因数历史数据。',
+      isMock: false,
+    }
+  }
+
   if (input.subtype === 'capacitor_bank_controller' && input.activeTab === 'phase_voltage') {
     const hasHistory = hasCapBankHistoryValue(input.capacitorBankTelemetryHistory, 'voltage_a')
     return {
@@ -1333,7 +1417,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     legend: !input.isSvgDevice && healthFrequency.length ? ['柜内温度', '频率'] : ['柜内温度'],
     axes: [
       { name: '°C' },
-      { name: !input.isSvgDevice && healthFrequency.length ? 'Hz' : '', min: !input.isSvgDevice && healthFrequency.length ? 49 : 0, max: !input.isSvgDevice && healthFrequency.length ? 100 : 100, position: 'right' },
+      { name: !input.isSvgDevice && healthFrequency.length ? 'Hz' : '', min: !input.isSvgDevice && healthFrequency.length ? 45 : 0, max: !input.isSvgDevice && healthFrequency.length ? 55 : 100, position: 'right' },
     ],
     series: [
       {

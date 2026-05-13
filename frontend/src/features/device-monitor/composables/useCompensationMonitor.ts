@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 import type { DeviceStatusEvent, DeviceTrendResponse } from '@/api/deviceMonitor'
 import {
@@ -45,8 +45,6 @@ import type {
   CompensationTrendTab,
   ModuleStatusModel,
 } from '@/features/device-monitor/components/compensation/types'
-
-const REFRESH_INTERVAL_MS = 5000
 
 export interface UseCompensationMonitorInput {
   deviceId: ComputedRef<number>
@@ -148,7 +146,6 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
   const compensationCapacitorBankControlProfile = ref<CompensationCapacitorBankControlProfile | null>(null)
 
   let requestToken = 0
-  let refreshTimer: ReturnType<typeof setInterval> | null = null
 
   const archive = computed(() => input.overview.value?.archive)
   const runtimeStatus = computed(() => input.overview.value?.runtime_status)
@@ -170,7 +167,9 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     if (compensationSubtype.value === 'capacitor_bank_controller') {
       return [
         { label: '补偿效果', value: 'effect' },
-        { label: '三相功率', value: 'phase_power' },
+        { label: '三相有功', value: 'phase_active_power' },
+        { label: '三相无功', value: 'phase_reactive_power' },
+        { label: '三相PF', value: 'phase_power_factor' },
         { label: '三相电压', value: 'phase_voltage' },
         { label: '三相电流', value: 'phase_current' },
         { label: '谐波', value: 'harmonic' },
@@ -484,13 +483,8 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     }
   }
 
-  onMounted(() => {
-    refreshTimer = setInterval(() => void refreshCompensationData(), REFRESH_INTERVAL_MS)
-  })
-
   onBeforeUnmount(() => {
     requestToken++
-    if (refreshTimer) clearInterval(refreshTimer)
   })
 
   return {

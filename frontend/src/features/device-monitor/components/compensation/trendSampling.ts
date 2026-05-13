@@ -40,7 +40,13 @@ export function getTrendMaxPoints(
           : 240
 
   if (tab === 'switching') return Math.min(900, Math.round(base * 1.25))
-  if (tab === 'phase_power' || tab === 'harmonic') return Math.min(780, Math.round(base * 1.1))
+  if (
+    tab === 'phase_power'
+    || tab === 'phase_active_power'
+    || tab === 'phase_reactive_power'
+    || tab === 'phase_power_factor'
+    || tab === 'harmonic'
+  ) return Math.min(780, Math.round(base * 1.1))
   if (tab === 'health') return Math.max(180, Math.round(base * 0.75))
   return base
 }

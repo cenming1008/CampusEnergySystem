@@ -158,7 +158,7 @@ function formatTimeAxisLabel(value: number, min?: string, max?: string) {
 
 watch(() => props.model, () => {
   void renderChart()
-}, { deep: true })
+})
 
 watch(() => props.activeTab, () => {
   void renderChart()

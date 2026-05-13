@@ -1028,4 +1028,25 @@ describe('DeviceMonitor view', () => {
     expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(2)
     expect(wrapper.find('.realtime-overview-probe').text()).toBe('20/20')
   })
+
+  it('keeps the default recent trend window live during realtime polling', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-21T17:10:52'))
+
+    mountView()
+    await flushAsync()
+
+    expect(getDeviceMonitorTrendMock).toHaveBeenCalledWith(2, expect.objectContaining({
+      start_time: '2026-04-21T16:10:52',
+      end_time: '2026-04-21T17:10:52',
+    }))
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushAsync()
+
+    expect(getDeviceMonitorTrendMock).toHaveBeenLastCalledWith(2, expect.objectContaining({
+      start_time: '2026-04-21T16:10:57',
+      end_time: '2026-04-21T17:10:57',
+    }))
+  })
 })

@@ -561,6 +561,73 @@ describe('compensation view mapping', () => {
     expect(model.empty).toBe(false)
   })
 
+  it('splits capacitor-bank phase power trends into active, reactive, and power-factor views', () => {
+    const baseInput = {
+      subtype: 'capacitor_bank_controller' as const,
+      isSvgDevice: false,
+      timeRange: [new Date('2026-04-22T20:00:00'), new Date('2026-04-22T21:00:00')] as [Date, Date],
+      trendPoints: [],
+      realtime: {
+        device_id: 16,
+      },
+      archive: {
+        id: 16,
+        name: '补偿器1',
+        sn: 'CAP-001',
+        device_type: 'capacitor_bank_controller',
+      },
+      fallbackCompensation: {
+        targetPowerFactor: 0.98,
+      },
+      svgTelemetryHistory: [],
+      capacitorBankTelemetryHistory: [
+        {
+          device_id: 16,
+          timestamp: '2026-04-22T20:10:00',
+          active_power_a: 11,
+          active_power_b: 12,
+          active_power_c: 13,
+          reactive_power_a: 3,
+          reactive_power_b: 4,
+          reactive_power_c: 5,
+          power_factor_a: 0.90,
+          power_factor_b: 0.93,
+          power_factor_c: 0.96,
+        },
+      ],
+      svgTelemetry: null,
+      capacitorBankTelemetry: {
+        device_id: 16,
+        timestamp: '2026-04-22T20:10:00',
+        active_power_a: 11,
+        active_power_b: 12,
+        active_power_c: 13,
+        reactive_power_a: 3,
+        reactive_power_b: 4,
+        reactive_power_c: 5,
+        power_factor_a: 0.90,
+        power_factor_b: 0.93,
+        power_factor_c: 0.96,
+      },
+    }
+
+    const active = buildCompensationTrendView({ ...baseInput, activeTab: 'phase_active_power' })
+    const reactive = buildCompensationTrendView({ ...baseInput, activeTab: 'phase_reactive_power' })
+    const pf = buildCompensationTrendView({ ...baseInput, activeTab: 'phase_power_factor' })
+
+    expect(active.legend).toEqual(['A相有功', 'B相有功', 'C相有功'])
+    expect(active.axes).toEqual([{ name: 'kW' }])
+    expect(active.series[0]?.data).toEqual([['2026-04-22T20:10:00', 11]])
+
+    expect(reactive.legend).toEqual(['A相无功', 'B相无功', 'C相无功'])
+    expect(reactive.axes).toEqual([{ name: 'kvar' }])
+    expect(reactive.series[2]?.data).toEqual([['2026-04-22T20:10:00', 5]])
+
+    expect(pf.legend).toEqual(['A相PF', 'B相PF', 'C相PF'])
+    expect(pf.axes).toEqual([{ name: 'PF', min: 0.8, max: 1 }])
+    expect(pf.series[1]?.data).toEqual([['2026-04-22T20:10:00', 0.93]])
+  })
+
   it('builds capacitor-bank switching trend with decoded bit counts', () => {
     const model = buildCompensationTrendView({
       subtype: 'capacitor_bank_controller',
@@ -602,5 +669,44 @@ describe('compensation view mapping', () => {
     expect(model.series[0]?.data).toEqual([['2026-04-22T17:10:00', 2]])
     expect(model.series[3]?.data).toEqual([['2026-04-22T17:10:00', 3]])
     expect(model.empty).toBe(false)
+  })
+
+  it('uses a 45-55 Hz axis for capacitor-bank frequency trend', () => {
+    const model = buildCompensationTrendView({
+      subtype: 'capacitor_bank_controller',
+      isSvgDevice: false,
+      activeTab: 'health',
+      timeRange: [new Date('2026-04-22T17:00:00'), new Date('2026-04-22T18:00:00')],
+      trendPoints: [],
+      realtime: {
+        device_id: 16,
+      },
+      archive: {
+        id: 16,
+        name: '补偿器1',
+        sn: 'CAP-001',
+        device_type: 'capacitor_bank_controller',
+      },
+      fallbackCompensation: {
+        targetPowerFactor: 0.98,
+      },
+      svgTelemetryHistory: [],
+      capacitorBankTelemetryHistory: [
+        {
+          device_id: 16,
+          timestamp: '2026-04-22T17:10:00',
+          temperature: 35,
+          frequency: 49.98,
+        },
+      ],
+      svgTelemetry: null,
+      capacitorBankTelemetry: {
+        device_id: 16,
+        timestamp: '2026-04-22T17:10:00',
+        frequency: 49.98,
+      },
+    })
+
+    expect(model.axes[1]).toMatchObject({ name: 'Hz', min: 45, max: 55, position: 'right' })
   })
 })
