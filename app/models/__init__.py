@@ -36,6 +36,7 @@ from app.models.tables import (
     AuditOutcome,
     MqttIngestionStatus,
 )
+from app.models.storage import StorageTelemetry
 
 __all__ = [
     "User",
@@ -71,4 +72,5 @@ __all__ = [
     "UserRole",
     "AuditOutcome",
     "MqttIngestionStatus",
+    "StorageTelemetry",
 ]

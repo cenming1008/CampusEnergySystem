@@ -10,7 +10,6 @@ import {
   resolvedConfiguredCounts,
   toBits,
 } from './circuitStateUtils'
-import type { CircuitGroup, FlagGroup, SlotState } from './circuitStateUtils'
 
 const props = defineProps({
   capacitorBankTelemetry: {
@@ -52,6 +51,14 @@ const props = defineProps({
 })
 
 const legendVisible = ref(false)
+const placeholderCircuitGroups = [
+  { label: 'A相分补', alarmFlag: false, mask: 0 },
+  { label: 'B相分补', alarmFlag: false, mask: 0 },
+  { label: 'C相分补', alarmFlag: false, mask: 0 },
+  { label: '公补 1-8', alarmFlag: false, mask: 0 },
+  { label: '公补 9-16', alarmFlag: false, mask: 0 },
+  { label: '公补 17-24', alarmFlag: false, mask: 0 },
+]
 
 function stepLabel(groupIdx: number, bitIdx: number): string {
   const base = groupIdx >= 3 ? (groupIdx - 3) * 8 + 1 : 1
@@ -59,6 +66,9 @@ function stepLabel(groupIdx: number, bitIdx: number): string {
 }
 
 const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
+const renderedCircuitGroups = computed(() =>
+  props.capacitorBankTelemetry ? getCircuitGroups(props.capacitorBankTelemetry) : placeholderCircuitGroups,
+)
 </script>
 
 <template>
@@ -92,91 +102,86 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
       </div>
     </transition>
 
-    <template v-if="capacitorBankTelemetry">
-      <div class="groups-grid">
-        <div
-          v-for="(group, gi) in getCircuitGroups(capacitorBankTelemetry)"
-          :key="group.label"
-          class="group-card"
-          :class="{ 'group-card--alarm': group.alarmFlag }"
-        >
-          <div class="group-card__header">
-            <div class="group-card__label">
-              {{ group.label }}
-              <span
-                v-if="group.alarmFlag"
-                class="alarm-badge"
-              >过压</span>
-            </div>
-            <span class="group-card__count">
-              <template v-if="groupConfiguredCounts[gi] !== null">
-                {{ countOnSlots(group.mask, groupConfiguredCounts[gi]) }}/{{ groupConfiguredCounts[gi] }} 投入
-              </template>
-              <template v-else>等待 MQTT 回读</template>
-            </span>
-          </div>
-          <div class="group-card__progress">
-            <div
-              class="group-card__progress-fill"
-              :style="{
-                width: groupConfiguredCounts[gi]
-                  ? `${(countOnSlots(group.mask, groupConfiguredCounts[gi]) / groupConfiguredCounts[gi]!) * 100}%`
-                  : '0%',
-                background: group.alarmFlag ? '#f87171' : '#22c55e',
-              }"
-            />
-          </div>
-          <div class="steps-grid">
-            <div
-              v-for="(on, bi) in toBits(group.mask, groupConfiguredCounts[gi])"
-              :key="bi"
-              class="step-badge"
-              :class="on === 'unconfigured' ? 'step-badge--unconfigured' : on === null ? 'step-badge--na' : on ? 'step-badge--on' : 'step-badge--off'"
-              :title="on === 'unconfigured' ? `第 ${stepLabel(gi, bi)} 路 — 未配置` : on === null ? '等待 MQTT 回读回路配置' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`"
-            >
-              {{ stepLabel(gi, bi) }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 分组告警标志 -->
-      <div class="flags-section">
-        <div
-          v-for="group in getFlagGroups(capacitorBankTelemetry)"
-          :key="group.label"
-          class="flag-group"
-          :title="group.title"
-        >
-          <span
-            class="flag-group__label"
-            :class="{ 'flag-group__label--active': group.flags.some(f => f.active) }"
-          >{{ group.label }}</span>
-          <div class="flag-group__chips">
+    <div class="groups-grid">
+      <div
+        v-for="(group, gi) in renderedCircuitGroups"
+        :key="group.label"
+        class="group-card"
+        :class="{ 'group-card--alarm': group.alarmFlag, 'group-card--placeholder': !capacitorBankTelemetry }"
+      >
+        <div class="group-card__header">
+          <div class="group-card__label">
+            {{ group.label }}
             <span
-              v-for="flag in group.flags"
-              :key="flag.key || group.label"
-              class="flag-chip"
-              :class="flag.active ? 'flag-chip--active' : 'flag-chip--ok'"
-            >
-              {{ flag.key || '！' }}
-            </span>
+              v-if="group.alarmFlag"
+              class="alarm-badge"
+            >过压</span>
+          </div>
+          <span class="group-card__count">
+            <template v-if="capacitorBankTelemetry && groupConfiguredCounts[gi] !== null">
+              {{ countOnSlots(group.mask, groupConfiguredCounts[gi]) }}/{{ groupConfiguredCounts[gi] }} 投入
+            </template>
+            <template v-else-if="capacitorBankTelemetry">等待 MQTT 回读</template>
+            <template v-else>-/- 投入</template>
+          </span>
+        </div>
+        <div class="group-card__progress">
+          <div
+            class="group-card__progress-fill"
+            :style="{
+              width: capacitorBankTelemetry && groupConfiguredCounts[gi]
+                ? `${(countOnSlots(group.mask, groupConfiguredCounts[gi]) / groupConfiguredCounts[gi]!) * 100}%`
+                : '0%',
+              background: group.alarmFlag ? '#f87171' : '#22c55e',
+            }"
+          />
+        </div>
+        <div class="steps-grid">
+          <div
+            v-for="(on, bi) in capacitorBankTelemetry ? toBits(group.mask, groupConfiguredCounts[gi]) : Array.from({ length: 8 }, () => null)"
+            :key="bi"
+            class="step-badge"
+            :class="on === 'unconfigured' ? 'step-badge--unconfigured' : on === null ? 'step-badge--na' : on ? 'step-badge--on' : 'step-badge--off'"
+            :title="capacitorBankTelemetry ? (on === 'unconfigured' ? `第 ${stepLabel(gi, bi)} 路 — 未配置` : on === null ? '等待 MQTT 回读回路配置' : on ? `第 ${stepLabel(gi, bi)} 路 — 已投入` : `第 ${stepLabel(gi, bi)} 路 — 已切除`) : '暂无投切数据'"
+          >
+            {{ capacitorBankTelemetry ? stepLabel(gi, bi) : '-' }}
           </div>
         </div>
-        <div
-          v-if="!hasAnyActiveFlag(getFlagGroups(capacitorBankTelemetry))"
-          class="flags-all-ok"
-        >
-          所有标志正常
+      </div>
+    </div>
+
+    <!-- 分组告警标志 -->
+    <div
+      v-if="capacitorBankTelemetry"
+      class="flags-section"
+    >
+      <div
+        v-for="group in getFlagGroups(capacitorBankTelemetry)"
+        :key="group.label"
+        class="flag-group"
+        :title="group.title"
+      >
+        <span
+          class="flag-group__label"
+          :class="{ 'flag-group__label--active': group.flags.some(f => f.active) }"
+        >{{ group.label }}</span>
+        <div class="flag-group__chips">
+          <span
+            v-for="flag in group.flags"
+            :key="flag.key || group.label"
+            class="flag-chip"
+            :class="flag.active ? 'flag-chip--active' : 'flag-chip--ok'"
+          >
+            {{ flag.key || '！' }}
+          </span>
         </div>
       </div>
-    </template>
-
-    <div
-      v-else
-      class="empty-hint"
-    >
-      暂无投切状态数据，请确认 JKWF-LCD 设备已上报遥测记录。
+      <div
+        v-if="!hasAnyActiveFlag(getFlagGroups(capacitorBankTelemetry))"
+        class="flags-all-ok"
+      >
+        所有标志正常
+      </div>
     </div>
   </section>
 </template>
@@ -301,6 +306,11 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
 .group-card--alarm {
   border-color: rgba(220, 80, 80, 0.5);
   background: rgba(60, 22, 22, 0.4);
+}
+
+.group-card--placeholder {
+  background: rgba(22, 36, 55, 0.46);
+  border-color: rgba(53, 72, 97, 0.42);
 }
 
 .group-card__header {
@@ -458,10 +468,4 @@ const groupConfiguredCounts = computed(() => resolvedConfiguredCounts(props))
   opacity: 0.7;
 }
 
-.empty-hint {
-  padding: 20px 0;
-  text-align: center;
-  font-size: 13px;
-  color: #5d7699;
-}
 </style>

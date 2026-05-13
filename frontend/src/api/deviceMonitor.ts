@@ -44,6 +44,10 @@ export interface DeviceRealtime {
   reactive_power?: number | null
   pressure?: number | null
   temperature?: number | null
+  supply_temp?: number | null
+  return_temp?: number | null
+  heat_flow?: number | null
+  temperature_delta?: number | null
 }
 
 export interface DeviceAlarmRecord {
@@ -94,8 +98,8 @@ export interface CompensationMonitorControlMode {
 }
 
 export interface CompensationMonitorCircuitSummary {
-  running_count: number
-  total_count: number
+  running_count: number | null
+  total_count: number | null
   has_realtime_state: boolean
   source: string
   state: string
@@ -122,6 +126,67 @@ export interface CompensationMonitor {
   status_tags?: string[]
 }
 
+export interface MonitorTemplate {
+  template_key: string
+  category?: string | null
+  subtype?: string | null
+  display_name?: string
+  specific_panels: string[]
+}
+
+export interface MonitorMetricCard {
+  key: string
+  label: string
+  value?: string | number | null
+  unit?: string | null
+  precision?: number
+  source?: string
+  state?: string
+}
+
+export interface MonitorTrendField {
+  key: string
+  label: string
+  unit?: string | null
+  precision?: number
+}
+
+export interface MonitorControlSummary {
+  supports_remote_control: boolean
+  receipt_required: boolean
+  supported_commands: string[]
+}
+
+export interface MonitorDiagnosticsSummary {
+  ingestion_status?: string | null
+  is_online?: boolean
+  last_message_at?: string | null
+  last_success_at?: string | null
+}
+
+export interface MonitorTemplateDiagnostics {
+  template_key: string
+  display_name?: string | null
+  category?: string | null
+  subtype?: string | null
+  metric_coverage: {
+    total: number
+    live: number
+    missing: number
+    missing_keys: string[]
+  }
+  trend_coverage: {
+    declared_keys: string[]
+    drawable_keys: string[]
+    unsupported_keys: string[]
+  }
+  panel_coverage: {
+    specific_panels: string[]
+  }
+  ingestion_health: MonitorDiagnosticsSummary
+  overall_status: 'passed' | 'partial' | 'missing' | 'offline'
+}
+
 export interface MonitorOverview {
   archive: DeviceArchive
   runtime_status: RuntimeStatus
@@ -130,11 +195,19 @@ export interface MonitorOverview {
   recent_alarms: DeviceAlarmRecord[]
   recent_control_logs: DeviceControlLog[]
   compensation_monitor?: CompensationMonitor | null
+  storage_monitor?: import('@/api/storage').StorageMonitor | null
+  monitor_template?: MonitorTemplate
+  metric_cards?: MonitorMetricCard[]
+  trend_fields?: MonitorTrendField[]
+  control_summary?: MonitorControlSummary
+  diagnostics_summary?: MonitorDiagnosticsSummary
+  template_diagnostics?: MonitorTemplateDiagnostics
 }
 
 export interface TrendPoint {
   timestamp: string
   value?: number | null
+  flow_rate?: number | null
   consumption?: number | null
   voltage?: number | null
   current?: number | null

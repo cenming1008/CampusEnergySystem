@@ -3,6 +3,22 @@ import { mount } from '@vue/test-utils'
 import CompensationCircuitStatePanel from '../CompensationCircuitStatePanel.vue'
 
 describe('CompensationCircuitStatePanel', () => {
+  it('keeps the circuit grid visible with dash placeholders before telemetry arrives', () => {
+    const wrapper = mount(CompensationCircuitStatePanel)
+
+    expect(wrapper.findAll('.group-card')).toHaveLength(6)
+    expect(wrapper.findAll('.group-card__count').map((node) => node.text())).toEqual([
+      '-/- 投入',
+      '-/- 投入',
+      '-/- 投入',
+      '-/- 投入',
+      '-/- 投入',
+      '-/- 投入',
+    ])
+    expect(wrapper.findAll('.step-badge--na')).toHaveLength(48)
+    expect(wrapper.text()).not.toContain('等待 JKWF-LCD 遥测记录')
+  })
+
   it('marks protocol slots beyond configured circuits as unconfigured', () => {
     const wrapper = mount(CompensationCircuitStatePanel, {
       props: {

@@ -15,6 +15,8 @@ const {
   getCompensationSvgLatestMock,
   getCompensationSvgHistoryMock,
   getCompensationSvgProfileMock,
+  getStorageTelemetryLatestMock,
+  getStorageTelemetryHistoryMock,
   initChartMock,
 } = vi.hoisted(() => ({
   getDeviceMonitorOverviewMock: vi.fn(),
@@ -29,6 +31,8 @@ const {
   getCompensationSvgLatestMock: vi.fn(),
   getCompensationSvgHistoryMock: vi.fn(),
   getCompensationSvgProfileMock: vi.fn(),
+  getStorageTelemetryLatestMock: vi.fn(),
+  getStorageTelemetryHistoryMock: vi.fn(),
   initChartMock: vi.fn(),
 }))
 
@@ -78,6 +82,11 @@ vi.mock('@/api/compensation', () => ({
   getCompensationSvgTelemetryLatest: getCompensationSvgLatestMock,
 }))
 
+vi.mock('@/api/storage', () => ({
+  getStorageTelemetryLatest: getStorageTelemetryLatestMock,
+  getStorageTelemetryHistory: getStorageTelemetryHistoryMock,
+}))
+
 vi.mock('@/api/alarm', () => ({
   resolveAlarm: vi.fn(),
 }))
@@ -108,17 +117,29 @@ function mountView() {
     global: {
       stubs: {
         CompensationHeader: true,
+        CompensationMonitorView: false,
         CompensationRealtimeOverview: true,
         CompensationTrendPanel: true,
         CompensationEventTimeline: true,
         CompensationStatusSummary: true,
         CompensationDeviceProfile: true,
         CompensationControlSummaryPanel: true,
+        DeviceMetricGrid: DeviceMetricGridProbe,
+        DeviceTrendPanel: DeviceTrendPanelProbe,
+        DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
+        DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        StorageHeader: true,
+        StorageRealtimeOverview: true,
+        StorageTrendPanel: true,
+        StorageStatusPanel: true,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
+        GenericMonitorView: false,
+        StorageMonitorView: false,
         'el-button': true,
         'el-card': true,
         'el-date-picker': true,
@@ -169,22 +190,115 @@ const MonitorPageHeaderProbe = defineComponent({
   `,
 })
 
+const DeviceMetricGridProbe = defineComponent({
+  props: {
+    metrics: {
+      type: Array,
+      required: true,
+    },
+  },
+  template: `
+    <div class="device-metric-grid-probe">
+      <span
+        v-for="item in metrics"
+        :key="item.key"
+      >
+        {{ item.label }}{{ item.value ?? '--' }}{{ item.unit || '' }}
+      </span>
+    </div>
+  `,
+})
+
+const DeviceTrendPanelProbe = defineComponent({
+  props: {
+    fields: {
+      type: Array,
+      required: true,
+    },
+  },
+  computed: {
+    supportedFields() {
+      const supported = ['flow_rate', 'voltage', 'current', 'reactive_power', 'power_factor', 'consumption']
+      return (this.fields as Array<{ key: string; label: string }>).filter((item) => supported.includes(item.key))
+    },
+  },
+  template: `
+    <div class="device-trend-panel-probe">
+      <span
+        v-for="item in supportedFields"
+        :key="item.key"
+      >
+        {{ item.label }}
+      </span>
+    </div>
+  `,
+})
+
+const DeviceDiagnosticsSummaryProbe = defineComponent({
+  props: {
+    runtimeStatus: {
+      type: Object,
+      required: false,
+    },
+    diagnosticsSummary: {
+      type: Object,
+      required: false,
+    },
+  },
+  template: `
+    <div class="device-diagnostics-summary-probe">
+      通讯状态
+      {{ (diagnosticsSummary?.is_online ?? runtimeStatus?.is_online) ? '在线采集' : '离线' }}
+      {{ runtimeStatus?.unresolved_alarm_count ?? 0 }} 条
+      {{ diagnosticsSummary?.last_success_at || runtimeStatus?.last_success_at || '' }}
+    </div>
+  `,
+})
+
+const DeviceTemplateDiagnosticsPanelProbe = defineComponent({
+  props: {
+    diagnostics: {
+      type: Object,
+      required: false,
+    },
+  },
+  template: `
+    <div class="device-template-diagnostics-panel-probe">
+      接入诊断
+      {{ diagnostics?.template_key || '--' }}
+      {{ diagnostics?.overall_status || '--' }}
+    </div>
+  `,
+})
+
 function mountViewWithRealtimeProbe() {
   return shallowMount(DeviceMonitor, {
     global: {
       stubs: {
         CompensationHeader: true,
+        CompensationMonitorView: false,
         CompensationRealtimeOverview: RealtimeOverviewProbe,
         CompensationTrendPanel: true,
         CompensationEventTimeline: true,
         CompensationStatusSummary: true,
         CompensationDeviceProfile: true,
         CompensationControlSummaryPanel: true,
+        DeviceMetricGrid: DeviceMetricGridProbe,
+        DeviceTrendPanel: DeviceTrendPanelProbe,
+        DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
+        DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        StorageHeader: true,
+        StorageRealtimeOverview: true,
+        StorageTrendPanel: true,
+        StorageStatusPanel: true,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
+        GenericMonitorView: false,
+        StorageMonitorView: false,
         'el-button': true,
         'el-card': true,
         'el-date-picker': true,
@@ -288,6 +402,31 @@ describe('DeviceMonitor view', () => {
           supports_remote_control: true,
         },
       },
+      template_diagnostics: {
+        template_key: 'capacitor_bank_controller',
+        display_name: '电容补偿控制器',
+        category: 'compensation',
+        subtype: 'capacitor_bank_controller',
+        metric_coverage: {
+          total: 6,
+          live: 6,
+          missing: 0,
+          missing_keys: [],
+        },
+        trend_coverage: {
+          declared_keys: ['reactive_power', 'power_factor', 'voltage', 'current'],
+          drawable_keys: ['reactive_power', 'power_factor', 'voltage', 'current'],
+          unsupported_keys: [],
+        },
+        panel_coverage: {
+          specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+        },
+        ingestion_health: {
+          ingestion_status: 'online',
+          is_online: true,
+        },
+        overall_status: 'passed',
+      },
     })
     getDeviceMonitorTrendMock.mockResolvedValue({
       device_id: 2,
@@ -348,6 +487,8 @@ describe('DeviceMonitor view', () => {
       device_id: 2,
       module_count: 8,
     })
+    getStorageTelemetryLatestMock.mockResolvedValue(null)
+    getStorageTelemetryHistoryMock.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -362,6 +503,111 @@ describe('DeviceMonitor view', () => {
     expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(1)
     expect(getCompensationCapBankHistoryMock).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps compensation devices on the dedicated path instead of generic metric fallback', async () => {
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.find('.device-metric-grid-probe').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'CompensationMonitorView' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'GenericMonitorView' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'CompensationHeader' }).exists()).toBe(true)
+    expect(wrapper.find('.device-template-diagnostics-panel-probe').exists()).toBe(true)
+  })
+
+  it.each(['offline', 'missing', 'partial'] as const)(
+    'keeps capacitor bank diagnostics on the dedicated path when template status is %s',
+    async (overallStatus) => {
+      getDeviceMonitorOverviewMock.mockResolvedValueOnce({
+        archive: {
+          id: 2,
+          name: '无功补偿器',
+          sn: 'SN001',
+          device_type: 'capacitor_bank_controller',
+          device_subtype: 'capacitor_bank_controller',
+          device_category: 'compensation',
+          energy_type: 'electricity',
+          unit: 'kVar',
+        },
+        runtime_status: {
+          device_id: 2,
+          code: overallStatus === 'offline' ? 'offline' : 'unknown',
+          label: overallStatus === 'offline' ? '离线' : '状态未知',
+          is_active: true,
+          is_online: overallStatus !== 'offline',
+          ingestion_status: overallStatus === 'offline' ? 'offline' : 'online',
+          unresolved_alarm_count: 0,
+        },
+        realtime: {
+          device_id: 2,
+          timestamp: null,
+        },
+        ingestion_health: {},
+        recent_alarms: [],
+        recent_control_logs: [],
+        compensation_monitor: {
+          subtype: 'capacitor_bank_controller',
+          control_mode: {
+            value: '自动',
+            source: 'configured_fallback',
+            state: 'mock',
+          },
+          circuit_summary: {
+            running_count: 0,
+            total_count: 24,
+            has_realtime_state: false,
+            source: 'missing',
+            state: 'missing',
+          },
+          profile_status: {
+            source_status: 'empty',
+            is_stale: true,
+          },
+          key_metrics: {},
+          capabilities_summary: {
+            supports_read: true,
+            supports_write: true,
+            supports_remote_control: true,
+          },
+        },
+        template_diagnostics: {
+          template_key: 'capacitor_bank_controller',
+          display_name: '电容补偿控制器',
+          category: 'compensation',
+          subtype: 'capacitor_bank_controller',
+          metric_coverage: {
+            total: 6,
+            live: overallStatus === 'partial' ? 1 : 0,
+            missing: overallStatus === 'partial' ? 5 : 6,
+            missing_keys: ['reactive_power', 'power_factor', 'voltage', 'current', 'running_circuit_count', 'capacity_utilization'],
+          },
+          trend_coverage: {
+            declared_keys: ['reactive_power', 'power_factor', 'voltage', 'current'],
+            drawable_keys: ['reactive_power', 'power_factor', 'voltage', 'current'],
+            unsupported_keys: [],
+          },
+          panel_coverage: {
+            specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+          },
+          ingestion_health: {
+            ingestion_status: overallStatus === 'offline' ? 'offline' : 'online',
+            is_online: overallStatus !== 'offline',
+          },
+          overall_status: overallStatus,
+        },
+      })
+      getCompensationCapBankLatestMock.mockResolvedValueOnce(null)
+      getCompensationCapBankHistoryMock.mockResolvedValueOnce([])
+
+      const wrapper = mountView()
+      await flushAsync()
+
+      expect(wrapper.findComponent({ name: 'CompensationMonitorView' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'GenericMonitorView' }).exists()).toBe(false)
+      expect(wrapper.find('.device-template-diagnostics-panel-probe').text()).toContain('capacitor_bank_controller')
+      expect(wrapper.find('.device-template-diagnostics-panel-probe').text()).toContain(overallStatus)
+    },
+  )
 
   it('prefers backend compensation semantics for svg module counts', async () => {
     getDeviceMonitorOverviewMock.mockResolvedValueOnce({
@@ -479,9 +725,207 @@ describe('DeviceMonitor view', () => {
 
     expect(wrapper.text()).toContain('通讯状态')
     expect(wrapper.text()).toContain('离线')
+    expect(wrapper.text()).toContain('实时功率/流量')
     expect(wrapper.text()).toContain('数据已过期')
     expect(wrapper.text()).toContain('最近成功入库')
     expect(wrapper.text()).toContain('2026-04-21 17:00:00')
+  })
+
+  it('renders generic monitor metrics and trend options from backend template fields', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValueOnce({
+      archive: {
+        id: 2,
+        name: '2号水表',
+        sn: 'WT-002',
+        device_type: 'water_meter',
+        device_category: 'water_meter',
+        energy_type: 'water',
+        unit: 'm³/h',
+      },
+      runtime_status: {
+        device_id: 2,
+        code: 'running',
+        label: '运行中',
+        is_active: true,
+        is_online: true,
+        ingestion_status: 'online',
+        unresolved_alarm_count: 0,
+      },
+      realtime: {
+        device_id: 2,
+        timestamp: '2026-04-21T17:00:00',
+        flow_rate: 2.1,
+        consumption: 40,
+        pressure: 0.33,
+        temperature: 21.5,
+      },
+      ingestion_health: {},
+      recent_alarms: [],
+      recent_control_logs: [],
+      compensation_monitor: null,
+      monitor_template: {
+        template_key: 'generic_device',
+        category: 'water_meter',
+        subtype: null,
+        display_name: '通用设备',
+        specific_panels: [],
+      },
+      metric_cards: [
+        { key: 'pressure', label: '压力', value: 0.33, unit: 'MPa', precision: 2, source: 'realtime', state: 'live' },
+        { key: 'temperature', label: '温度', value: 21.5, unit: '°C', precision: 1, source: 'realtime', state: 'live' },
+        { key: 'voltage', label: '电压', value: null, unit: 'V', precision: 1, source: 'missing', state: 'missing' },
+      ],
+      trend_fields: [
+        { key: 'consumption', label: '累计读数', unit: 'm³', precision: 1 },
+        { key: 'voltage', label: '电压', unit: 'V', precision: 1 },
+        { key: 'pressure', label: '不支持趋势', unit: 'MPa', precision: 2 },
+      ],
+      diagnostics_summary: {
+        ingestion_status: 'online',
+        is_online: true,
+        last_message_at: '2026-04-21T17:00:00',
+        last_success_at: '2026-04-21T17:00:00',
+      },
+      template_diagnostics: {
+        template_key: 'water_meter',
+        display_name: '水表',
+        category: 'water_meter',
+        subtype: null,
+        metric_coverage: {
+          total: 3,
+          live: 2,
+          missing: 1,
+          missing_keys: ['voltage'],
+        },
+        trend_coverage: {
+          declared_keys: ['consumption', 'voltage', 'pressure'],
+          drawable_keys: ['consumption', 'voltage'],
+          unsupported_keys: ['pressure'],
+        },
+        panel_coverage: {
+          specific_panels: [],
+        },
+        ingestion_health: {
+          ingestion_status: 'online',
+          is_online: true,
+          last_message_at: '2026-04-21T17:00:00',
+          last_success_at: '2026-04-21T17:00:00',
+        },
+        overall_status: 'partial',
+      },
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.findComponent({ name: 'GenericMonitorView' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'CompensationMonitorView' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'StorageMonitorView' }).exists()).toBe(false)
+    expect(wrapper.text()).toContain('压力')
+    expect(wrapper.text()).toContain('0.33')
+    expect(wrapper.text()).toContain('MPa')
+    expect(wrapper.text()).toContain('温度')
+    expect(wrapper.text()).toContain('21.5')
+    expect(wrapper.text()).toContain('电压')
+    expect(wrapper.text()).toContain('--')
+
+    const trendOptions = (wrapper.vm as unknown as { page: { chartMetricOptions: Array<{ label: string }> } }).page.chartMetricOptions
+    expect(trendOptions.map((item) => item.label)).toContain('累计读数')
+    expect(trendOptions.map((item) => item.label)).toContain('电压')
+    expect(wrapper.text()).not.toContain('不支持趋势')
+    expect(wrapper.find('.device-template-diagnostics-panel-probe').text()).toContain('water_meter')
+  })
+
+  it('keeps storage devices on the dedicated path instead of generic metric fallback', async () => {
+    getDeviceMonitorOverviewMock.mockResolvedValueOnce({
+      archive: {
+        id: 2,
+        name: '储能柜',
+        sn: 'ESS-001',
+        device_type: 'storage',
+        device_category: 'storage',
+        energy_type: 'electricity',
+        unit: 'kW',
+      },
+      runtime_status: {
+        device_id: 2,
+        code: 'running',
+        label: '运行中',
+        is_active: true,
+        is_online: true,
+        unresolved_alarm_count: 0,
+      },
+      realtime: {
+        device_id: 2,
+        timestamp: '2026-04-21T17:00:00',
+        flow_rate: 12,
+        voltage: 380,
+        current: 21,
+      },
+      ingestion_health: {},
+      recent_alarms: [],
+      recent_control_logs: [],
+      compensation_monitor: null,
+      storage_monitor: {
+        key_metrics: {
+          soc: { value: 76, source: 'telemetry', state: 'live' },
+        },
+      },
+      monitor_template: {
+        template_key: 'storage',
+        category: 'storage',
+        subtype: null,
+        display_name: '储能设备',
+        specific_panels: ['storage_realtime', 'storage_trend', 'storage_status'],
+      },
+      metric_cards: [
+        { key: 'soc', label: 'SOC', value: 76, unit: '%', precision: 1, source: 'telemetry', state: 'live' },
+      ],
+      trend_fields: [
+        { key: 'flow_rate', label: '功率', unit: 'kW', precision: 2 },
+      ],
+      template_diagnostics: {
+        template_key: 'storage',
+        display_name: '储能设备',
+        category: 'storage',
+        subtype: null,
+        metric_coverage: {
+          total: 1,
+          live: 1,
+          missing: 0,
+          missing_keys: [],
+        },
+        trend_coverage: {
+          declared_keys: ['flow_rate'],
+          drawable_keys: ['flow_rate'],
+          unsupported_keys: [],
+        },
+        panel_coverage: {
+          specific_panels: ['storage_realtime', 'storage_trend', 'storage_status'],
+        },
+        ingestion_health: {
+          ingestion_status: 'online',
+          is_online: true,
+        },
+        overall_status: 'passed',
+      },
+    })
+    getStorageTelemetryLatestMock.mockResolvedValueOnce({
+      device_id: 2,
+      timestamp: '2026-04-21T17:00:00',
+      soc: 76,
+      active_power: 12,
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.find('.device-metric-grid-probe').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'StorageMonitorView' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'GenericMonitorView' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'StorageHeader' }).exists()).toBe(true)
+    expect(wrapper.find('.device-template-diagnostics-panel-probe').exists()).toBe(true)
+    expect(getStorageTelemetryLatestMock).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes compensation summary semantics during realtime polling', async () => {

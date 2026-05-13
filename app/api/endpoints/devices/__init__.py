@@ -13,7 +13,7 @@
 
 from fastapi import APIRouter
 
-from . import compensation_capacitor_bank, compensation_svg, data, ingestion_health, management, monitoring
+from . import compensation_capacitor_bank, compensation_svg, data, ingestion_health, management, monitoring, storage
 
 router = APIRouter()
 router.include_router(ingestion_health.router)
@@ -22,6 +22,7 @@ router.include_router(data.router)
 router.include_router(monitoring.router)
 router.include_router(compensation_svg.router)
 router.include_router(compensation_capacitor_bank.router)
+router.include_router(storage.router)
 
 __all__ = [
     "router",
@@ -31,4 +32,5 @@ __all__ = [
     "monitoring",
     "compensation_svg",
     "compensation_capacitor_bank",
+    "storage",
 ]

@@ -14,10 +14,15 @@ const props = defineProps({
     type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
     default: null,
   },
+  isCapacitorBank: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 // 优先展示 JKWF-LCD 数据，回退到 SVG 数据
 const activeData = computed(() => props.capacitorBankTelemetry ?? props.svgTelemetry)
+const showCapacitorBankTables = computed(() => props.isCapacitorBank || !!props.capacitorBankTelemetry)
 
 function fmt(value: number | null | undefined, digits = 1): string {
   if (value === null || value === undefined) return '--'
@@ -42,14 +47,6 @@ function panelTitle(): string {
   return '三相电气快照'
 }
 
-function emptyTitle(): string {
-  return '暂无实时数据'
-}
-
-function emptyDescription(): string {
-  return '设备上报后将自动显示。'
-}
-
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) return '--'
   return value.replace('T', ' ').slice(0, 19)
@@ -63,140 +60,130 @@ function formatTimestamp(value: string | null | undefined): string {
       <span>{{ subtitle() }}</span>
     </div>
 
-    <template v-if="activeData">
-      <!-- 三相电压 -->
-      <div class="group-label">三相电压</div>
-      <div class="phase-grid">
-        <div class="phase-card" style="--phase-accent: #60a5fa;">
-          <span class="phase-card__phase phase-card__phase--colored">A 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.voltage_a) }}</strong>
-          <small class="phase-card__unit">V</small>
+    <!-- 三相电压 -->
+    <div class="group-label">三相电压</div>
+    <div class="phase-grid">
+      <div class="phase-card" style="--phase-accent: #60a5fa;">
+        <span class="phase-card__phase phase-card__phase--colored">A 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.voltage_a) }}</strong>
+        <small class="phase-card__unit">V</small>
+      </div>
+      <div class="phase-card" style="--phase-accent: #fbbf24;">
+        <span class="phase-card__phase phase-card__phase--colored">B 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.voltage_b) }}</strong>
+        <small class="phase-card__unit">V</small>
+      </div>
+      <div class="phase-card" style="--phase-accent: #f87171;">
+        <span class="phase-card__phase phase-card__phase--colored">C 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.voltage_c) }}</strong>
+        <small class="phase-card__unit">V</small>
+      </div>
+    </div>
+
+    <!-- 三相电流 -->
+    <div class="group-label">三相电流</div>
+    <div class="phase-grid">
+      <div class="phase-card" style="--phase-accent: #60a5fa;">
+        <span class="phase-card__phase phase-card__phase--colored">A 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.current_a) }}</strong>
+        <small class="phase-card__unit">A</small>
+      </div>
+      <div class="phase-card" style="--phase-accent: #fbbf24;">
+        <span class="phase-card__phase phase-card__phase--colored">B 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.current_b) }}</strong>
+        <small class="phase-card__unit">A</small>
+      </div>
+      <div class="phase-card" style="--phase-accent: #f87171;">
+        <span class="phase-card__phase phase-card__phase--colored">C 相</span>
+        <strong class="phase-card__val">{{ fmt(activeData?.current_c) }}</strong>
+        <small class="phase-card__unit">A</small>
+      </div>
+    </div>
+
+    <!-- JKWF-LCD 专有：三相功率 -->
+    <template v-if="showCapacitorBankTables">
+      <div class="group-label">三相功率</div>
+      <div class="power-table">
+        <div class="power-table__head">
+          <span></span>
+          <span>有功 (kW)</span>
+          <span>无功 (kvar)</span>
+          <span>视在 (kVA)</span>
+          <span>功率因数</span>
         </div>
-        <div class="phase-card" style="--phase-accent: #fbbf24;">
-          <span class="phase-card__phase phase-card__phase--colored">B 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.voltage_b) }}</strong>
-          <small class="phase-card__unit">V</small>
-        </div>
-        <div class="phase-card" style="--phase-accent: #f87171;">
-          <span class="phase-card__phase phase-card__phase--colored">C 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.voltage_c) }}</strong>
-          <small class="phase-card__unit">V</small>
+        <div
+          v-for="(phase, i) in ['A', 'B', 'C']"
+          :key="phase"
+          class="power-table__row"
+          :style="{ '--phase-accent': i === 0 ? '#60a5fa' : i === 1 ? '#fbbf24' : '#f87171' }"
+        >
+          <span class="power-table__phase power-table__phase--colored">{{ phase }} 相</span>
+          <span>{{ fmt(i === 0 ? capacitorBankTelemetry?.active_power_a : i === 1 ? capacitorBankTelemetry?.active_power_b : capacitorBankTelemetry?.active_power_c) }}</span>
+          <span>{{ fmt(i === 0 ? capacitorBankTelemetry?.reactive_power_a : i === 1 ? capacitorBankTelemetry?.reactive_power_b : capacitorBankTelemetry?.reactive_power_c) }}</span>
+          <span>{{ fmt(i === 0 ? capacitorBankTelemetry?.apparent_power_a : i === 1 ? capacitorBankTelemetry?.apparent_power_b : capacitorBankTelemetry?.apparent_power_c) }}</span>
+          <span>{{ fmt(i === 0 ? capacitorBankTelemetry?.power_factor_a : i === 1 ? capacitorBankTelemetry?.power_factor_b : capacitorBankTelemetry?.power_factor_c, 3) }}</span>
         </div>
       </div>
 
-      <!-- 三相电流 -->
-      <div class="group-label">三相电流</div>
-      <div class="phase-grid">
-        <div class="phase-card" style="--phase-accent: #60a5fa;">
-          <span class="phase-card__phase phase-card__phase--colored">A 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.current_a) }}</strong>
-          <small class="phase-card__unit">A</small>
+      <!-- 谐波 -->
+      <div class="group-label">谐波分析（THD）</div>
+      <div class="harmonic-grid">
+        <div class="harmonic-row harmonic-row--head">
+          <span></span>
+          <span style="color: #60a5fa;">A 相</span>
+          <span style="color: #fbbf24;">B 相</span>
+          <span style="color: #f87171;">C 相</span>
         </div>
-        <div class="phase-card" style="--phase-accent: #fbbf24;">
-          <span class="phase-card__phase phase-card__phase--colored">B 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.current_b) }}</strong>
-          <small class="phase-card__unit">A</small>
+        <div class="harmonic-row">
+          <span class="harmonic-label">电压 THD</span>
+          <span>{{ fmt(capacitorBankTelemetry?.voltage_thd_a, 1) }} %</span>
+          <span>{{ fmt(capacitorBankTelemetry?.voltage_thd_b, 1) }} %</span>
+          <span>{{ fmt(capacitorBankTelemetry?.voltage_thd_c, 1) }} %</span>
         </div>
-        <div class="phase-card" style="--phase-accent: #f87171;">
-          <span class="phase-card__phase phase-card__phase--colored">C 相</span>
-          <strong class="phase-card__val">{{ fmt(activeData?.current_c) }}</strong>
-          <small class="phase-card__unit">A</small>
+        <div class="harmonic-row">
+          <span class="harmonic-label">谐波电流幅值</span>
+          <span>{{ fmt(capacitorBankTelemetry?.current_harmonic_a, 1) }} A</span>
+          <span>{{ fmt(capacitorBankTelemetry?.current_harmonic_b, 1) }} A</span>
+          <span>{{ fmt(capacitorBankTelemetry?.current_harmonic_c, 1) }} A</span>
         </div>
-      </div>
-
-      <!-- JKWF-LCD 专有：三相功率 -->
-      <template v-if="capacitorBankTelemetry">
-        <div class="group-label">三相功率</div>
-        <div class="power-table">
-          <div class="power-table__head">
-            <span></span>
-            <span>有功 (kW)</span>
-            <span>无功 (kvar)</span>
-            <span>视在 (kVA)</span>
-            <span>功率因数</span>
-          </div>
-          <div
-            v-for="(phase, i) in ['A', 'B', 'C']"
-            :key="phase"
-            class="power-table__row"
-            :style="{ '--phase-accent': i === 0 ? '#60a5fa' : i === 1 ? '#fbbf24' : '#f87171' }"
-          >
-            <span class="power-table__phase power-table__phase--colored">{{ phase }} 相</span>
-            <span>{{ fmt(i === 0 ? capacitorBankTelemetry.active_power_a : i === 1 ? capacitorBankTelemetry.active_power_b : capacitorBankTelemetry.active_power_c) }}</span>
-            <span>{{ fmt(i === 0 ? capacitorBankTelemetry.reactive_power_a : i === 1 ? capacitorBankTelemetry.reactive_power_b : capacitorBankTelemetry.reactive_power_c) }}</span>
-            <span>{{ fmt(i === 0 ? capacitorBankTelemetry.apparent_power_a : i === 1 ? capacitorBankTelemetry.apparent_power_b : capacitorBankTelemetry.apparent_power_c) }}</span>
-            <span>{{ fmt(i === 0 ? capacitorBankTelemetry.power_factor_a : i === 1 ? capacitorBankTelemetry.power_factor_b : capacitorBankTelemetry.power_factor_c, 3) }}</span>
-          </div>
-        </div>
-
-        <!-- 谐波 -->
-        <div class="group-label">谐波分析（THD）</div>
-        <div class="harmonic-grid">
-          <div class="harmonic-row harmonic-row--head">
-            <span></span>
-            <span style="color: #60a5fa;">A 相</span>
-            <span style="color: #fbbf24;">B 相</span>
-            <span style="color: #f87171;">C 相</span>
-          </div>
-          <div class="harmonic-row">
-            <span class="harmonic-label">电压 THD</span>
-            <span>{{ fmt(capacitorBankTelemetry.voltage_thd_a, 1) }} %</span>
-            <span>{{ fmt(capacitorBankTelemetry.voltage_thd_b, 1) }} %</span>
-            <span>{{ fmt(capacitorBankTelemetry.voltage_thd_c, 1) }} %</span>
-          </div>
-          <div class="harmonic-row">
-            <span class="harmonic-label">谐波电流幅值</span>
-            <span>{{ fmt(capacitorBankTelemetry.current_harmonic_a, 1) }} A</span>
-            <span>{{ fmt(capacitorBankTelemetry.current_harmonic_b, 1) }} A</span>
-            <span>{{ fmt(capacitorBankTelemetry.current_harmonic_c, 1) }} A</span>
-          </div>
-        </div>
-      </template>
-
-      <!-- 其他扩展量 -->
-      <div class="group-label">其他量测</div>
-      <div class="extra-grid">
-        <div class="extra-row">
-          <span>电网频率</span>
-          <strong>{{ fmt(activeData?.frequency, 2) }} <small>Hz</small></strong>
-        </div>
-        <div class="extra-row">
-          <span>采样时间</span>
-          <strong>{{ formatTimestamp(activeData?.timestamp) }}</strong>
-        </div>
-        <template v-if="!capacitorBankTelemetry && svgTelemetry">
-          <div class="extra-row">
-            <span>SVG 无功输出</span>
-            <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).svg_reactive_output) }} <small>kVAR</small></strong>
-          </div>
-          <div class="extra-row">
-            <span>补偿容量利用率</span>
-            <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).capacity_utilization) }} <small>%</small></strong>
-          </div>
-          <div class="extra-row">
-            <span>直流母线电压</span>
-            <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).dc_bus_voltage) }} <small>V</small></strong>
-          </div>
-          <div class="extra-row">
-            <span>输出方向</span>
-            <strong>{{ directionLabel((svgTelemetry as CompensationSvgTelemetry).output_direction) }}</strong>
-          </div>
-        </template>
-        <template v-if="capacitorBankTelemetry">
-          <div class="extra-row">
-            <span>柜内温度</span>
-            <strong>{{ fmt(capacitorBankTelemetry.temperature, 1) }} <small>°C</small></strong>
-          </div>
-        </template>
       </div>
     </template>
 
-    <div
-      v-else
-      class="empty-hint"
-    >
-      <strong>{{ emptyTitle() }}</strong>
-      <p>{{ emptyDescription() }}</p>
+    <!-- 其他扩展量 -->
+    <div class="group-label">其他量测</div>
+    <div class="extra-grid">
+      <div class="extra-row">
+        <span>电网频率</span>
+        <strong>{{ fmt(activeData?.frequency, 2) }} <small>Hz</small></strong>
+      </div>
+      <div class="extra-row">
+        <span>采样时间</span>
+        <strong>{{ formatTimestamp(activeData?.timestamp) }}</strong>
+      </div>
+      <template v-if="!showCapacitorBankTables && svgTelemetry">
+        <div class="extra-row">
+          <span>SVG 无功输出</span>
+          <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).svg_reactive_output) }} <small>kVAR</small></strong>
+        </div>
+        <div class="extra-row">
+          <span>补偿容量利用率</span>
+          <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).capacity_utilization) }} <small>%</small></strong>
+        </div>
+        <div class="extra-row">
+          <span>直流母线电压</span>
+          <strong>{{ fmt((svgTelemetry as CompensationSvgTelemetry).dc_bus_voltage) }} <small>V</small></strong>
+        </div>
+        <div class="extra-row">
+          <span>输出方向</span>
+          <strong>{{ directionLabel((svgTelemetry as CompensationSvgTelemetry).output_direction) }}</strong>
+        </div>
+      </template>
+      <template v-if="showCapacitorBankTables">
+        <div class="extra-row">
+          <span>柜内温度</span>
+          <strong>{{ fmt(capacitorBankTelemetry?.temperature, 1) }} <small>°C</small></strong>
+        </div>
+      </template>
     </div>
   </section>
 </template>

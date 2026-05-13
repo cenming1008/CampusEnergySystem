@@ -68,19 +68,49 @@ const capacityUsageLabel = computed(() => {
   const found = props.metrics.find(m => m.key === 'capacityUsage')
   return found?.label || '容量利用率'
 })
+
+function isUnavailableState(state: CompensationMetric['state']) {
+  return state === 'missing' || state === 'offline'
+}
+
+function displayMetricValue(item: CompensationMetric) {
+  if (isUnavailableState(item.state)) return '--'
+  if (item.value === '暂无数据' || item.value === '通讯中断') return '--'
+  return item.value
+}
+
+const isWaitingForTelemetry = computed(() => {
+  const telemetryMetrics = [
+    props.coreMetric,
+    props.pfMetric,
+    ...props.metrics.filter((item) => item.key !== 'controlMode'),
+  ]
+  return telemetryMetrics.length > 0 && telemetryMetrics.every((item) => item.state !== 'live')
+})
 </script>
 
 <template>
   <section class="bento-overview">
+    <div
+      v-if="isWaitingForTelemetry"
+      class="telemetry-waiting"
+    >
+      <strong>等待设备上报实时遥测</strong>
+      <span>当前仅展示档案、模板诊断和可接入字段，收到首包数据后将自动显示补偿效果、三相快照、回路状态和趋势。</span>
+    </div>
+
     <!-- TOP: PF 仪表盘 | 无功功率 Hero -->
     <div class="bento-top">
-      <div class="bento-pf">
+      <div
+        class="bento-pf"
+        :class="{ 'bento-pf--waiting': isWaitingForTelemetry }"
+      >
         <div class="metric-label-row">
           <el-tooltip :content="pfMetric.hint" placement="top" :disabled="!pfMetric.hint">
             <span class="bento-pf__label">{{ pfMetric.label }}</span>
           </el-tooltip>
           <el-tag
-            v-if="pfMetric.state && pfMetric.state !== 'live'"
+            v-if="pfMetric.state && pfMetric.state !== 'live' && !isWaitingForTelemetry"
             size="small"
             effect="plain"
             :type="stateTagType(pfMetric.state)"
@@ -98,7 +128,7 @@ const capacityUsageLabel = computed(() => {
           >
             <template #default>
               <div class="bento-pf__inner">
-                <strong>{{ pfMetric.value }}</strong>
+                <strong>{{ displayMetricValue(pfMetric) }}</strong>
                 <small>PF</small>
               </div>
             </template>
@@ -106,14 +136,17 @@ const capacityUsageLabel = computed(() => {
         </div>
       </div>
 
-      <div class="bento-hero">
+      <div
+        class="bento-hero"
+        :class="{ 'bento-hero--waiting': isWaitingForTelemetry }"
+      >
         <div class="bento-hero__top">
           <div class="metric-label-row">
             <el-tooltip :content="coreMetric.hint" placement="top" :disabled="!coreMetric.hint">
               <span class="bento-hero__label">{{ coreMetric.label }}</span>
             </el-tooltip>
             <el-tag
-              v-if="coreMetric.state && coreMetric.state !== 'live'"
+              v-if="coreMetric.state && coreMetric.state !== 'live' && !isWaitingForTelemetry"
               size="small"
               effect="plain"
               :type="stateTagType(coreMetric.state)"
@@ -123,8 +156,8 @@ const capacityUsageLabel = computed(() => {
           </div>
         </div>
         <div class="bento-hero__value">
-          <strong>{{ coreMetric.value }}</strong>
-          <small>{{ coreMetric.unit }}</small>
+          <strong>{{ isWaitingForTelemetry ? '等待采集' : displayMetricValue(coreMetric) }}</strong>
+          <small v-if="!isWaitingForTelemetry">{{ coreMetric.unit }}</small>
         </div>
         <div class="bento-hero__bar-row">
           <span class="bento-hero__bar-label">{{ capacityUsageLabel }}</span>
@@ -153,13 +186,14 @@ const capacityUsageLabel = computed(() => {
         v-for="item in metrics"
         :key="item.key"
         class="strip-cell"
+        :class="{ 'strip-cell--waiting': isUnavailableState(item.state) }"
       >
         <div class="metric-label-row metric-label-row--compact">
           <el-tooltip :content="item.hint" placement="top" :disabled="!item.hint">
             <span class="strip-cell__label">{{ item.label }}</span>
           </el-tooltip>
           <el-tag
-            v-if="item.state && item.state !== 'live'"
+            v-if="item.state && item.state !== 'live' && !isWaitingForTelemetry"
             size="small"
             effect="plain"
             :type="stateTagType(item.state)"
@@ -171,8 +205,8 @@ const capacityUsageLabel = computed(() => {
           class="strip-cell__value"
           :class="item.tone ? `tone-${item.tone}` : ''"
         >
-          <strong>{{ item.value }}</strong>
-          <small v-if="item.unit">{{ item.unit }}</small>
+          <strong>{{ displayMetricValue(item) }}</strong>
+          <small v-if="item.unit && !isUnavailableState(item.state)">{{ item.unit }}</small>
         </div>
       </div>
     </div>
@@ -192,6 +226,27 @@ const capacityUsageLabel = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.telemetry-waiting {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  color: #c8d7ec;
+  background: rgba(30, 48, 70, 0.46);
+  border: 1px solid rgba(72, 96, 130, 0.58);
+  border-radius: 12px;
+}
+
+.telemetry-waiting strong {
+  color: #e5eefb;
+  font-size: 14px;
+}
+
+.telemetry-waiting span {
+  color: #8ea0bc;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 /* ── Top zone: PF gauge | Hero ───────────────────────────────── */
@@ -263,6 +318,10 @@ const capacityUsageLabel = computed(() => {
   color: #8ea0bc;
 }
 
+.bento-pf--waiting :deep(.el-progress-circle__path) {
+  stroke: rgba(100, 116, 139, 0.55);
+}
+
 /* Hero panel */
 .bento-hero {
   padding: 22px 24px;
@@ -300,6 +359,12 @@ const capacityUsageLabel = computed(() => {
 .bento-hero__value small {
   font-size: 16px;
   color: #8ea0bc;
+}
+
+.bento-hero--waiting .bento-hero__value strong {
+  color: #d8e4f4;
+  font-size: 34px;
+  letter-spacing: 0;
 }
 
 /* Capacity bar */
@@ -387,6 +452,10 @@ const capacityUsageLabel = computed(() => {
   min-height: 88px;
 }
 
+.strip-cell--waiting {
+  border-top-color: rgba(100, 116, 139, 0.22);
+}
+
 .strip-cell__label {
   font-size: 11px;
   color: #8ea0bc;
@@ -409,6 +478,10 @@ const capacityUsageLabel = computed(() => {
 .strip-cell__value small {
   font-size: 10px;
   color: #7f93b2;
+}
+
+.strip-cell--waiting .strip-cell__value strong {
+  color: #a8b6ca;
 }
 
 

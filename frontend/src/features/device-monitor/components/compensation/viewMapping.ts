@@ -1103,12 +1103,12 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
       xAxisMin,
       xAxisMax,
       summary: [
-        { label: '当前 Q', value: displayValueWithUnit(input.realtime?.reactive_power, '暂无数据', 'kVar') },
-        { label: '当前 PF', value: displayValue(input.realtime?.power_factor, '暂无数据', 2) },
-        { label: '目标 PF', value: displayValue(input.fallbackCompensation.targetPowerFactor, '暂无数据', 2) },
+        { label: '当前 Q', value: displayValueWithUnit(input.realtime?.reactive_power, '-', 'kVar') },
+        { label: '当前 PF', value: displayValue(input.realtime?.power_factor, '-', 2) },
+        { label: '目标 PF', value: displayValue(input.fallbackCompensation.targetPowerFactor, '-', 2) },
       ],
       empty: !hasHistory,
-      emptyText: '暂无补偿效果趋势数据',
+      emptyText: '',
       hint: hasHistory
         ? (useCapBankHistory
             ? '展示电容控制器专属历史中的三相无功合计与功率因数均值走势。'

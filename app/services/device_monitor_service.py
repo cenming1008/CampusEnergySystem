@@ -18,7 +18,8 @@ from app.services.device_service import DeviceService
 from app.services.devices.compensation.capacitor_bank.control_command_service import (
     CapacitorBankControlCommandService,
 )
-from app.services.devices.compensation.monitor_service import CompensationMonitorService
+from app.services.devices.monitor_plugin_registry import DeviceMonitorContext, DeviceMonitorPluginRegistry
+from app.services.devices.monitor_template_service import MonitorTemplateService
 from app.services.ingestion_health_service import IngestionHealthService
 
 
@@ -56,6 +57,10 @@ class DeviceMonitorService:
             "power_factor": None,
             "pressure": None,
             "temperature": None,
+            "supply_temp": None,
+            "return_temp": None,
+            "heat_flow": None,
+            "temperature_delta": None,
         }
         if resolve_compensation_subtype(getattr(device, "device_type", None), getattr(device, "device_subtype", None)):
             payload["reactive_power"] = None
@@ -74,10 +79,23 @@ class DeviceMonitorService:
             "power_factor": latest.power_factor,
             "pressure": latest.pressure,
             "temperature": latest.temperature,
+            "supply_temp": latest.supply_temp,
+            "return_temp": latest.return_temp,
+            "heat_flow": latest.heat_flow,
+            "temperature_delta": DeviceMonitorService._temperature_delta(
+                latest.supply_temp,
+                latest.return_temp,
+            ),
         }
         if resolve_compensation_subtype(getattr(device, "device_type", None), getattr(device, "device_subtype", None)):
             payload["reactive_power"] = latest.reactive_power
         return payload
+
+    @staticmethod
+    def _temperature_delta(supply_temp: Optional[float], return_temp: Optional[float]) -> Optional[float]:
+        if supply_temp is None or return_temp is None:
+            return None
+        return round(abs(float(supply_temp) - float(return_temp)), 2)
 
     @staticmethod
     def record_control_action(
@@ -276,6 +294,23 @@ class DeviceMonitorService:
     def get_monitor_overview(session: Session, device_id: int) -> dict[str, Any]:
         device = DeviceService.get_device_by_id(session, device_id)
         realtime = DeviceMonitorService.get_latest_realtime(session, device_id)
+        runtime_status = DeviceMonitorService.get_runtime_status(session, device_id)
+        ingestion_health = IngestionHealthService.get_device_health(session, device_id)
+        monitor_context = DeviceMonitorContext(
+            session=session,
+            device=device,
+            realtime=realtime,
+            runtime_status=runtime_status,
+            ingestion_health=ingestion_health,
+        )
+        monitor_plugin = DeviceMonitorPluginRegistry.resolve(device)
+        specific_monitor = monitor_plugin.build_monitor_payload(monitor_context)
+        compensation_monitor = (
+            specific_monitor
+            if monitor_plugin.plugin_key in {"capacitor_bank_controller", "svg"}
+            else None
+        )
+        storage_monitor = specific_monitor if monitor_plugin.plugin_key == "storage" else None
         archive = {
             "id": device.id,
             "name": device.name,
@@ -293,11 +328,11 @@ class DeviceMonitorService:
             "updated_at": device.updated_at,
         }
 
-        return {
+        overview = {
             "archive": archive,
-            "runtime_status": DeviceMonitorService.get_runtime_status(session, device_id),
+            "runtime_status": runtime_status,
             "realtime": realtime,
-            "ingestion_health": IngestionHealthService.get_device_health(session, device_id),
+            "ingestion_health": ingestion_health,
             "recent_alarms": [
                 {
                     "id": alarm.id,
@@ -323,12 +358,22 @@ class DeviceMonitorService:
                 }
                 for log in DeviceMonitorService.get_control_logs(session, device_id, limit=10)
             ],
-            "compensation_monitor": CompensationMonitorService.build_monitor(
-                session,
-                device,
-                realtime,
-            ),
+            "compensation_monitor": compensation_monitor,
+            "storage_monitor": storage_monitor,
         }
+        overview.update(
+            MonitorTemplateService.build_overview_template(
+                device=device,
+                realtime=realtime,
+                runtime_status=runtime_status,
+                ingestion_health=ingestion_health,
+                compensation_monitor=compensation_monitor,
+                storage_monitor=storage_monitor,
+                monitor_plugin=monitor_plugin,
+                specific_monitor=specific_monitor,
+            )
+        )
+        return overview
 
     @staticmethod
     def _control_event_status(record: DeviceControlLog) -> str:

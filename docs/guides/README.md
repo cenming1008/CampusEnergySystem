@@ -31,6 +31,7 @@
 - [frontend-guidelines.md](./frontend-guidelines.md)
 - [backend-guidelines.md](./backend-guidelines.md)
 - [device-data-classification.md](./device-data-classification.md)
+- [device-monitor-template.md](./device-monitor-template.md)
 - [compensation-device-classification.md](./compensation-device-classification.md)
 - [mqtt-gateway-protocol.md](./mqtt-gateway-protocol.md)
 - [script-guidelines.md](./script-guidelines.md)

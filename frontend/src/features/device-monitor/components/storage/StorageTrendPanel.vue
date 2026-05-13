@@ -1,64 +1,119 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
-import type { PropType } from 'vue'
-import type {
-  CompensationTrendModel,
-  CompensationTrendOption,
-  CompensationTrendTab,
-} from './types'
+import type { StorageTelemetry } from '@/api/storage'
 
-const props = defineProps({
-  tabs: {
-    type: Array as PropType<CompensationTrendOption[]>,
-    default: () => [],
-  },
-  activeTab: {
-    type: String as PropType<CompensationTrendTab>,
-    required: true,
-  },
-  model: {
-    type: Object as PropType<CompensationTrendModel>,
-    required: true,
-  },
-  timeRange: {
-    type: Array as unknown as PropType<[Date, Date] | null>,
-    default: null,
-  },
-  shortcuts: {
-    type: Array as PropType<Array<{ text: string; value: () => [Date, Date] }>>,
-    default: () => [],
-  },
-  loading: {
-    type: Boolean,
-    default: false,
-  },
-})
+type TrendTab = 'soc' | 'power' | 'temperature' | 'energy'
+
+const props = defineProps<{
+  history: StorageTelemetry[]
+  loading: boolean
+  timeRange: [Date, Date] | null
+}>()
 
 const emit = defineEmits<{
-  'update:activeTab': [value: CompensationTrendTab]
   'update:timeRange': [value: [Date, Date] | null]
   'range-change': []
 }>()
 
 const chart = useECharts()
 
-const segmentedOptions = computed(() =>
-  props.tabs.map((tab) => ({ label: tab.label, value: tab.value })),
-)
+const tabs = [
+  { label: 'SOC', value: 'soc' as TrendTab },
+  { label: '充放电功率', value: 'power' as TrendTab },
+  { label: '温度', value: 'temperature' as TrendTab },
+  { label: '今日能量', value: 'energy' as TrendTab },
+]
+
+const activeTab = defineModel<TrendTab>('activeTab', { default: 'soc' })
+
+const timeShortcuts = [
+  { text: '近 1 小时', value: () => buildRange(1) },
+  { text: '近 6 小时', value: () => buildRange(6) },
+  { text: '近 24 小时', value: () => buildRange(24) },
+  { text: '近 7 天', value: () => buildRange(24 * 7) },
+]
+
+function buildRange(hours: number): [Date, Date] {
+  const end = new Date()
+  return [new Date(end.getTime() - hours * 60 * 60 * 1000), end]
+}
+
+function formatAxisLabel(timestamp: string) {
+  const date = new Date(timestamp)
+  const [start, end] = props.timeRange || buildRange(1)
+  const crossesDay = start.getDate() !== end.getDate()
+    || start.getMonth() !== end.getMonth()
+  const pad = (n: number) => `${n}`.padStart(2, '0')
+  return crossesDay
+    ? `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    : `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const SERIES_CONFIGS: Record<TrendTab, {
+  axes: Array<{ name: string; min?: number; max?: number }>
+  series: Array<{ name: string; color: string; key: keyof StorageTelemetry; area?: boolean }>
+}> = {
+  soc: {
+    axes: [{ name: '%', min: 0, max: 100 }],
+    series: [{ name: 'SOC', color: '#38bdf8', key: 'soc', area: true }],
+  },
+  power: {
+    axes: [{ name: 'kW' }],
+    series: [{ name: '有功功率', color: '#4ade80', key: 'active_power', area: true }],
+  },
+  temperature: {
+    axes: [{ name: '°C' }],
+    series: [
+      { name: '最高温', color: '#fb7185', key: 'cell_temp_max' },
+      { name: '平均温', color: '#fbbf24', key: 'cell_temp_avg' },
+      { name: '最低温', color: '#60a5fa', key: 'cell_temp_min' },
+    ],
+  },
+  energy: {
+    axes: [{ name: 'kWh' }],
+    series: [
+      { name: '今日充电量', color: '#38bdf8', key: 'charge_energy_today' },
+      { name: '今日放电量', color: '#4ade80', key: 'discharge_energy_today' },
+    ],
+  },
+}
+
+const currentConfig = computed(() => SERIES_CONFIGS[activeTab.value ?? 'soc'])
+
+const hasLegend = computed(() => currentConfig.value.series.length > 1)
+
+const summaryItems = computed(() => {
+  if (!props.history.length) return []
+  const cfg = currentConfig.value.series[0]
+  if (!cfg) return []
+  const values = props.history
+    .map(r => r[cfg.key] as number | null | undefined)
+    .filter((v): v is number => v != null)
+  if (!values.length) return []
+  const latest = values[values.length - 1]
+  const peak = Math.max(...values)
+  const valley = Math.min(...values)
+  const avg = values.reduce((a, b) => a + b, 0) / values.length
+  return [
+    { label: '当前', value: `${latest.toFixed(1)}` },
+    { label: '峰值', value: `${peak.toFixed(1)}` },
+    { label: '均值', value: `${avg.toFixed(1)}` },
+    { label: '谷值', value: `${valley.toFixed(1)}` },
+  ]
+})
 
 async function renderChart() {
-  if (props.model.empty) {
+  const records = props.history
+  const cfg = currentConfig.value
+
+  if (!records.length) {
     await chart.setOptions({
       title: {
-        text: '',
+        text: '暂无历史数据',
         left: 'center',
         top: 'center',
-        textStyle: {
-          color: '#7f93b2',
-          fontSize: 15,
-          fontWeight: 400,
-        },
+        textStyle: { color: '#7f93b2', fontSize: 15, fontWeight: 400 },
       },
       xAxis: { show: false, type: 'category', data: [] },
       yAxis: { show: false, type: 'value' },
@@ -66,6 +121,8 @@ async function renderChart() {
     }, { notMerge: true })
     return
   }
+
+  const labels = records.map(r => formatAxisLabel(r.timestamp))
 
   await chart.setOptions({
     backgroundColor: 'transparent',
@@ -75,62 +132,40 @@ async function renderChart() {
       borderColor: '#314055',
       textStyle: { color: '#dfe8f5' },
     },
-    legend: {
-      show: false,
-    },
+    legend: { show: false },
     grid: { left: 56, right: 56, top: 30, bottom: 30 },
     xAxis: {
-      type: props.model.xAxisType || 'category',
-      data: props.model.xAxisType === 'time' ? undefined : props.model.labels,
-      min: props.model.xAxisType === 'time' ? props.model.xAxisMin : undefined,
-      max: props.model.xAxisType === 'time' ? props.model.xAxisMax : undefined,
+      type: 'category',
+      data: labels,
       axisLine: { lineStyle: { color: '#314055' } },
-      axisLabel: {
-        color: '#8ea0bc',
-        fontSize: 11,
-        formatter: props.model.xAxisType === 'time'
-          ? (value: number) => formatTimeAxisLabel(value, props.model.xAxisMin, props.model.xAxisMax)
-          : undefined,
-      },
-    } as any,
-    yAxis: props.model.axes.map((axis, index) => ({
+      axisLabel: { color: '#8ea0bc', fontSize: 11 },
+    },
+    yAxis: cfg.axes.map((axis) => ({
       type: 'value',
       name: axis.name,
-      position: axis.position || (index === 1 ? 'right' : 'left'),
       min: axis.min,
       max: axis.max,
       nameGap: 10,
-      nameTextStyle: {
-        color: '#8ea0bc',
-        padding: (axis.position || (index === 1 ? 'right' : 'left')) === 'right' ? [0, 0, 0, 0] : [0, 0, 0, 6],
-      },
+      nameTextStyle: { color: '#8ea0bc', padding: [0, 0, 0, 6] },
       axisLabel: { color: '#8ea0bc', fontSize: 11 },
-      splitLine: {
-        lineStyle: {
-          color: index === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0)',
-        },
-      },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
     })),
-    series: props.model.series.map((series) => ({
-      name: series.name,
+    series: cfg.series.map((s) => ({
+      name: s.name,
       type: 'line',
       smooth: true,
       showSymbol: false,
-      yAxisIndex: series.yAxisIndex || 0,
-      data: series.data,
-      lineStyle: { color: series.color, width: 2.6 },
-      itemStyle: { color: series.color },
-      areaStyle: series.area
+      data: records.map(r => (r[s.key] as number | null | undefined) ?? null),
+      lineStyle: { color: s.color, width: 2.6 },
+      itemStyle: { color: s.color },
+      areaStyle: s.area
         ? {
             color: {
               type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
+              x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: `${series.color}55` },
-                { offset: 1, color: `${series.color}00` },
+                { offset: 0, color: `${s.color}55` },
+                { offset: 1, color: `${s.color}00` },
               ],
             },
           }
@@ -139,30 +174,9 @@ async function renderChart() {
   }, { notMerge: true })
 }
 
-function formatTimeAxisLabel(value: number, min?: string, max?: string) {
-  const date = new Date(value)
-  const start = min ? new Date(min) : null
-  const end = max ? new Date(max) : null
-  const crossesDay = start && end
-    ? start.getFullYear() !== end.getFullYear()
-      || start.getMonth() !== end.getMonth()
-      || start.getDate() !== end.getDate()
-    : false
-
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  const hours = `${date.getHours()}`.padStart(2, '0')
-  const minutes = `${date.getMinutes()}`.padStart(2, '0')
-  return crossesDay ? `${month}/${day} ${hours}:${minutes}` : `${hours}:${minutes}`
-}
-
-watch(() => props.model, () => {
+watch(() => [props.history, activeTab.value], () => {
   void renderChart()
 }, { deep: true })
-
-watch(() => props.activeTab, () => {
-  void renderChart()
-})
 
 watch(() => chart.chartRef.value, async () => {
   if (!chart.chartRef.value) return
@@ -176,16 +190,14 @@ watch(() => chart.chartRef.value, async () => {
     <div class="trend-panel__head">
       <div class="trend-panel__intro">
         <h3>历史趋势</h3>
-        <span v-if="model.hint">{{ model.hint }}</span>
       </div>
       <div class="trend-panel__toolbar">
         <div class="trend-panel__tab-wrapper">
           <div class="trend-panel__tab-switcher">
             <el-segmented
-              :model-value="activeTab"
-              :options="segmentedOptions"
+              v-model="activeTab"
+              :options="tabs.map(t => ({ label: t.label, value: t.value }))"
               size="small"
-              @change="$emit('update:activeTab', $event as CompensationTrendTab)"
             />
           </div>
         </div>
@@ -197,42 +209,28 @@ watch(() => chart.chartRef.value, async () => {
             start-placeholder="开始时间"
             end-placeholder="结束时间"
             range-separator="至"
-            :shortcuts="shortcuts"
-            @update:model-value="$emit('update:timeRange', $event)"
-            @change="$emit('range-change')"
+            :shortcuts="timeShortcuts"
+            @update:model-value="emit('update:timeRange', $event)"
+            @change="emit('range-change')"
           />
         </div>
       </div>
     </div>
 
     <div class="trend-panel__summary">
-      <span
-        v-for="item in model.summary"
-        :key="item.label"
-      >
+      <span v-for="item in summaryItems" :key="item.label">
         {{ item.label }} {{ item.value }}
       </span>
-      <el-tag
-        v-if="model.isMock"
-        size="small"
-        type="warning"
-        effect="plain"
-      >
-        演示占位
-      </el-tag>
     </div>
 
-    <div
-      v-if="model.legend.length"
-      class="trend-panel__legend"
-    >
+    <div v-if="hasLegend" class="trend-panel__legend">
       <span
-        v-for="(item, index) in model.legend"
-        :key="item"
+        v-for="(s, i) in currentConfig.series"
+        :key="s.name"
         class="trend-panel__legend-item"
       >
-        <i :style="{ background: model.series[index]?.color || '#8ea0bc' }" />
-        {{ item }}
+        <i :style="{ background: s.color }" />
+        {{ s.name }}
       </span>
     </div>
 
@@ -259,21 +257,10 @@ watch(() => chart.chartRef.value, async () => {
   gap: 14px;
 }
 
-.trend-panel__intro {
-  min-width: 0;
-}
-
 .trend-panel__head h3 {
   margin: 0;
   font-size: 16px;
   color: #f5f7fb;
-}
-
-.trend-panel__head span {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  color: #8ea0bc;
 }
 
 .trend-panel__toolbar {
@@ -289,7 +276,6 @@ watch(() => chart.chartRef.value, async () => {
 .trend-panel__tab-wrapper {
   flex: 0 1 auto;
   min-width: 0;
-  position: relative;
 }
 
 .trend-panel__tab-switcher {
@@ -298,18 +284,16 @@ watch(() => chart.chartRef.value, async () => {
   scrollbar-width: none;
 }
 
-.trend-panel__tab-switcher::-webkit-scrollbar {
-  display: none;
-}
+.trend-panel__tab-switcher::-webkit-scrollbar { display: none; }
 
 .trend-panel__tab-switcher :deep(.el-segmented) {
   white-space: nowrap;
   min-width: max-content;
   --el-segmented-bg-color: rgba(7, 15, 26, 0.7);
-  --el-segmented-item-selected-bg-color: rgba(59, 130, 246, 0.28);
-  --el-segmented-item-selected-color: #eaf4ff;
-  --el-segmented-item-hover-bg-color: rgba(96, 165, 250, 0.16);
-  --el-segmented-item-hover-color: #dbeafe;
+  --el-segmented-item-selected-bg-color: rgba(34, 197, 94, 0.22);
+  --el-segmented-item-selected-color: #dcfce7;
+  --el-segmented-item-hover-bg-color: rgba(74, 222, 128, 0.14);
+  --el-segmented-item-hover-color: #bbf7d0;
   border: 1px solid rgba(72, 96, 130, 0.72);
   border-radius: 8px;
   padding: 2px;
@@ -326,7 +310,7 @@ watch(() => chart.chartRef.value, async () => {
 }
 
 .trend-panel__tab-switcher :deep(.el-segmented__item-selected) {
-  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3);
 }
 
 .trend-panel__range-picker {
@@ -408,12 +392,7 @@ watch(() => chart.chartRef.value, async () => {
 }
 
 @media (max-width: 900px) {
-  .trend-panel {
-    padding: 16px;
-  }
-
-  .trend-panel__chart {
-    height: 320px;
-  }
+  .trend-panel { padding: 16px; }
+  .trend-panel__chart { height: 320px; }
 }
 </style>

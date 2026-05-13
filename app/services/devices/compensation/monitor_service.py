@@ -337,8 +337,8 @@ class CompensationMonitorService:
         telemetry = CompensationMonitorService._get_latest_svg_telemetry(session, device.id)
         profile = SVGService.get_operations_profile(session, device.id)
         control_mode = CompensationMonitorService._resolve_svg_control_mode(telemetry)
-        total_count = int(getattr(profile, "module_count", 0) or 0)
-        total_count = total_count if total_count > 0 else 8
+        profile_module_count = int(getattr(profile, "module_count", 0) or 0)
+        total_count = profile_module_count if profile_module_count > 0 else None
 
         capacity_utilization = getattr(telemetry, "capacity_utilization", None)
         capacity_utilization_source = "telemetry"
@@ -354,10 +354,10 @@ class CompensationMonitorService:
                 capacity_utilization_source = "missing"
                 capacity_utilization_state = "missing"
 
-        running_count = 0
-        circuit_source = "placeholder"
-        circuit_state = "mock"
-        if capacity_utilization is not None:
+        running_count = None
+        circuit_source = "profile" if total_count is not None else "missing"
+        circuit_state = "live" if total_count is not None else "missing"
+        if capacity_utilization is not None and total_count is not None:
             running_count = max(0, min(total_count, round((float(capacity_utilization) / 100.0) * total_count)))
             circuit_source = capacity_utilization_source
             circuit_state = "live" if capacity_utilization_state == "live" else "mock"
@@ -378,7 +378,7 @@ class CompensationMonitorService:
             "circuit_summary": {
                 "running_count": running_count,
                 "total_count": total_count,
-                "has_realtime_state": capacity_utilization is not None,
+                "has_realtime_state": capacity_utilization is not None and total_count is not None,
                 "source": circuit_source,
                 "state": circuit_state,
             },

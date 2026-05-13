@@ -9,9 +9,11 @@ from sqlmodel import Session, SQLModel, create_engine
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.api.endpoints.devices import monitoring
+from app.models.storage import StorageTelemetry
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog, SVGAssetProfile, SVGTelemetry
 from app.services.alarm_service import AlarmService
 from app.services.device_monitor_service import DeviceMonitorService
+from app.services.devices.monitor_template_service import MonitorTemplateService
 from app.services.energy_service import EnergyService
 from app.services.device_service import DeviceService
 from app.services.ingestion_health_service import IngestionHealthService
@@ -21,6 +23,378 @@ class TestDeviceMonitorService(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite://")
         SQLModel.metadata.create_all(self.engine)
+
+    def test_monitor_template_contract_matrix_covers_supported_templates(self):
+        matrix = MonitorTemplateService.get_template_contract_matrix()
+        expected_keys = {
+            "generic_device",
+            "capacitor_bank_controller",
+            "svg",
+            "storage",
+            "water_meter",
+            "gas_meter",
+            "heat_meter",
+            "cooling_meter",
+        }
+
+        self.assertEqual(set(matrix), expected_keys)
+        for template_key, spec in matrix.items():
+            self.assertEqual(spec["template_key"], template_key)
+            self.assertGreaterEqual(len(spec["metric_keys"]), 1)
+            self.assertGreaterEqual(len(spec["trend_keys"]), 1)
+            self.assertIn("display_name", spec)
+            self.assertIn("specific_panels", spec)
+            self.assertIn("supports_remote_control", spec)
+
+    def test_monitor_template_outputs_required_fields_for_all_supported_templates(self):
+        cases = [
+            (
+                "generic_device",
+                SimpleNamespace(device_category="vendor_box", device_subtype=None, device_type="vendor_box", energy_type="electricity"),
+                None,
+                None,
+            ),
+            (
+                "capacitor_bank_controller",
+                SimpleNamespace(
+                    device_category="compensation",
+                    device_subtype="capacitor_bank_controller",
+                    device_type="compensation",
+                    energy_type="electricity",
+                ),
+                {
+                    "subtype": "capacitor_bank_controller",
+                    "circuit_summary": {"running_count": 1, "source": "telemetry", "state": "live"},
+                    "key_metrics": {
+                        "capacity_utilization": {"value": 25.0, "source": "telemetry", "state": "live"},
+                    },
+                    "capabilities_summary": {"supports_remote_control": True},
+                },
+                None,
+            ),
+            (
+                "svg",
+                SimpleNamespace(device_category="compensation", device_subtype="svg", device_type="svg", energy_type="electricity"),
+                {
+                    "subtype": "svg",
+                    "circuit_summary": {"total_count": 8, "source": "profile", "state": "live"},
+                    "key_metrics": {
+                        "capacity_utilization": {"value": 50.0, "source": "telemetry", "state": "live"},
+                        "cabinet_temperature": {"value": 36.0, "source": "telemetry", "state": "live"},
+                    },
+                },
+                None,
+            ),
+            (
+                "storage",
+                SimpleNamespace(device_category="storage", device_subtype=None, device_type="storage", energy_type="electricity"),
+                None,
+                {
+                    "key_metrics": {
+                        "soc": {"value": 76.0, "source": "telemetry", "state": "live"},
+                    },
+                },
+            ),
+            (
+                "water_meter",
+                SimpleNamespace(device_category="water_meter", device_subtype=None, device_type="water_meter", energy_type="water"),
+                None,
+                None,
+            ),
+            (
+                "gas_meter",
+                SimpleNamespace(device_category="gas_meter", device_subtype=None, device_type="gas_meter", energy_type="gas"),
+                None,
+                None,
+            ),
+            (
+                "heat_meter",
+                SimpleNamespace(device_category="heat_meter", device_subtype=None, device_type="heat_meter", energy_type="heat"),
+                None,
+                None,
+            ),
+            (
+                "cooling_meter",
+                SimpleNamespace(device_category="cooling_meter", device_subtype=None, device_type="cooling_meter", energy_type="cooling"),
+                None,
+                None,
+            ),
+        ]
+        required_fields = {
+            "monitor_template",
+            "metric_cards",
+            "trend_fields",
+            "control_summary",
+            "diagnostics_summary",
+            "template_diagnostics",
+        }
+
+        for expected_key, device, compensation_monitor, storage_monitor in cases:
+            with self.subTest(template=expected_key):
+                payload = MonitorTemplateService.build_overview_template(
+                    device=device,
+                    realtime={
+                        "flow_rate": 1.2,
+                        "consumption": 10.0,
+                        "voltage": 220.0,
+                        "current": 5.0,
+                        "pressure": 0.3,
+                        "temperature": 22.0,
+                        "reactive_power": -12.0,
+                        "power_factor": 0.96,
+                    },
+                    runtime_status={"ingestion_status": "online", "is_online": True},
+                    ingestion_health={"status": "online", "is_online": True},
+                    compensation_monitor=compensation_monitor,
+                    storage_monitor=storage_monitor,
+                )
+
+                self.assertTrue(required_fields.issubset(payload.keys()))
+                self.assertEqual(payload["monitor_template"]["template_key"], expected_key)
+                self.assertGreaterEqual(len(payload["metric_cards"]), 1)
+                self.assertGreaterEqual(len(payload["trend_fields"]), 1)
+                self.assertEqual(payload["template_diagnostics"]["template_key"], expected_key)
+
+    def test_monitor_template_diagnostics_marks_partial_missing_and_offline(self):
+        device = SimpleNamespace(
+            device_category="water_meter",
+            device_subtype=None,
+            device_type="water_meter",
+            energy_type="water",
+        )
+
+        partial_payload = MonitorTemplateService.build_overview_template(
+            device=device,
+            realtime={"flow_rate": 2.2, "consumption": 12.5, "pressure": 0.33},
+            runtime_status={"ingestion_status": "online", "is_online": True},
+            ingestion_health={"status": "online", "is_online": True},
+        )
+        partial_diagnostics = partial_payload["template_diagnostics"]
+        self.assertEqual(partial_diagnostics["overall_status"], "partial")
+        self.assertEqual(partial_diagnostics["metric_coverage"]["total"], 4)
+        self.assertEqual(partial_diagnostics["metric_coverage"]["live"], 3)
+        self.assertEqual(partial_diagnostics["metric_coverage"]["missing"], 1)
+        self.assertEqual(partial_diagnostics["metric_coverage"]["missing_keys"], ["temperature"])
+        self.assertEqual(
+            partial_diagnostics["trend_coverage"]["drawable_keys"],
+            ["flow_rate", "consumption"],
+        )
+        self.assertEqual(
+            partial_diagnostics["trend_coverage"]["unsupported_keys"],
+            ["pressure", "temperature"],
+        )
+
+        missing_payload = MonitorTemplateService.build_overview_template(
+            device=device,
+            realtime={},
+            runtime_status={"ingestion_status": "online", "is_online": True},
+            ingestion_health={"status": "online", "is_online": True},
+        )
+        self.assertEqual(missing_payload["template_diagnostics"]["overall_status"], "missing")
+
+        offline_payload = MonitorTemplateService.build_overview_template(
+            device=device,
+            realtime={"flow_rate": 2.2, "consumption": 12.5, "pressure": 0.33, "temperature": 21.5},
+            runtime_status={"ingestion_status": "offline", "is_online": False},
+            ingestion_health={"status": "offline", "is_online": False},
+        )
+        self.assertEqual(offline_payload["template_diagnostics"]["overall_status"], "offline")
+
+    def test_monitor_template_diagnostics_keeps_metric_coverage_consistent_for_capacitor_bank(self):
+        device = SimpleNamespace(
+            device_category="compensation",
+            device_subtype="capacitor_bank_controller",
+            device_type="compensation",
+            energy_type="electricity",
+        )
+
+        payload = MonitorTemplateService.build_overview_template(
+            device=device,
+            realtime={
+                "reactive_power": -12.0,
+                "power_factor": 0.96,
+                "voltage": 220.0,
+            },
+            runtime_status={"ingestion_status": "offline", "is_online": False},
+            ingestion_health={"status": "offline", "is_online": False},
+            compensation_monitor={
+                "subtype": "capacitor_bank_controller",
+                "circuit_summary": {},
+                "key_metrics": {},
+                "capabilities_summary": {"supports_remote_control": True},
+            },
+        )
+
+        coverage = payload["template_diagnostics"]["metric_coverage"]
+        self.assertEqual(coverage["total"], 6)
+        self.assertEqual(coverage["live"], 3)
+        self.assertEqual(coverage["missing"], 3)
+        self.assertEqual(
+            coverage["missing_keys"],
+            ["current", "running_circuit_count", "capacity_utilization"],
+        )
+        self.assertEqual(coverage["live"] + coverage["missing"], coverage["total"])
+        self.assertEqual(payload["template_diagnostics"]["overall_status"], "offline")
+
+    def test_monitor_overview_calibrates_heat_and_cooling_meter_supply_return_delta(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            heat_device = Device(
+                name="热量表准真实联调",
+                sn="HEAT-UAT-001",
+                device_type="heat_meter",
+                device_category="heat_meter",
+                energy_type="heat",
+                is_active=True,
+            )
+            cooling_device = Device(
+                name="冷量表准真实联调",
+                sn="COOL-UAT-001",
+                device_type="cooling_meter",
+                device_category="cooling_meter",
+                energy_type="cooling",
+                is_active=True,
+            )
+            session.add(heat_device)
+            session.add(cooling_device)
+            session.commit()
+            session.refresh(heat_device)
+            session.refresh(cooling_device)
+
+            DeviceService.report_device_data(
+                session,
+                heat_device.id,
+                data={
+                    "consumption": 128.4,
+                    "heat_power": 52.6,
+                    "supply_temp": 60.2,
+                    "return_temp": 47.7,
+                    "pressure": 0.41,
+                },
+                timestamp=now - timedelta(minutes=3),
+            )
+            DeviceService.report_device_data(
+                session,
+                cooling_device.id,
+                data={
+                    "consumption": 96.7,
+                    "cooling_power": 44.3,
+                    "supply_temp": 7.1,
+                    "return_temp": 12.6,
+                    "pressure": 0.37,
+                },
+                timestamp=now - timedelta(minutes=2),
+            )
+            IngestionHealthService.mark_ingestion_success(session, heat_device.id, now)
+            IngestionHealthService.mark_ingestion_success(session, cooling_device.id, now)
+            session.commit()
+
+            heat_overview = DeviceMonitorService.get_monitor_overview(session, heat_device.id)
+            cooling_overview = DeviceMonitorService.get_monitor_overview(session, cooling_device.id)
+
+            self.assertEqual(heat_overview["realtime"]["heat_flow"], 52.6)
+            self.assertEqual(heat_overview["realtime"]["temperature_delta"], 12.5)
+            heat_metrics = {item["key"]: item for item in heat_overview["metric_cards"]}
+            self.assertEqual(heat_metrics["consumption"]["unit"], "GJ")
+            self.assertEqual(heat_metrics["flow_rate"]["label"], "瞬时热功率")
+            self.assertEqual(heat_metrics["flow_rate"]["unit"], "kW")
+            self.assertEqual(heat_metrics["supply_temp"]["value"], 60.2)
+            self.assertEqual(heat_metrics["return_temp"]["value"], 47.7)
+            self.assertEqual(heat_metrics["temperature_delta"]["value"], 12.5)
+            self.assertEqual(heat_overview["template_diagnostics"]["overall_status"], "passed")
+
+            self.assertIsNone(cooling_overview["realtime"]["heat_flow"])
+            self.assertEqual(cooling_overview["realtime"]["temperature_delta"], 5.5)
+            cooling_metrics = {item["key"]: item for item in cooling_overview["metric_cards"]}
+            self.assertEqual(cooling_metrics["consumption"]["unit"], "GJ")
+            self.assertEqual(cooling_metrics["flow_rate"]["label"], "瞬时冷功率")
+            self.assertEqual(cooling_metrics["flow_rate"]["unit"], "kW")
+            self.assertEqual(cooling_metrics["supply_temp"]["value"], 7.1)
+            self.assertEqual(cooling_metrics["return_temp"]["value"], 12.6)
+            self.assertEqual(cooling_metrics["temperature_delta"]["value"], 5.5)
+            self.assertEqual(cooling_overview["template_diagnostics"]["overall_status"], "passed")
+
+    def test_monitor_diagnostics_attribute_missing_svg_and_storage_fields(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            svg_device = Device(
+                name="SVG 缺字段归因",
+                sn="SVG-UAT-MISSING",
+                device_type="svg",
+                device_subtype="svg",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            storage_device = Device(
+                name="储能缺字段归因",
+                sn="ESS-UAT-MISSING",
+                device_type="storage",
+                device_category="storage",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(svg_device)
+            session.add(storage_device)
+            session.commit()
+            session.refresh(svg_device)
+            session.refresh(storage_device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=svg_device.id,
+                energy_type=svg_device.energy_type,
+                consumption=16.0,
+                flow_rate=28.0,
+                timestamp=now - timedelta(minutes=1),
+                reactive_power=42.0,
+                power_factor=0.99,
+                voltage=398.0,
+                current=38.0,
+            )
+            session.add(
+                SVGTelemetry(
+                    device_id=svg_device.id,
+                    timestamp=now,
+                    auto_mode=True,
+                    capacity_utilization=64.5,
+                    cabinet_temp=35.6,
+                )
+            )
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=storage_device.id,
+                energy_type=storage_device.energy_type,
+                consumption=100.0,
+                flow_rate=12.5,
+                timestamp=now - timedelta(minutes=1),
+                voltage=380.0,
+                current=25.0,
+                temperature=32.0,
+            )
+            session.add(
+                StorageTelemetry(
+                    device_id=storage_device.id,
+                    timestamp=now,
+                    soc=76.5,
+                    active_power=-18.2,
+                    run_state="discharging",
+                )
+            )
+            IngestionHealthService.mark_ingestion_success(session, svg_device.id, now)
+            IngestionHealthService.mark_ingestion_success(session, storage_device.id, now)
+            session.commit()
+
+            svg_diagnostics = DeviceMonitorService.get_monitor_overview(session, svg_device.id)["template_diagnostics"]
+            storage_diagnostics = DeviceMonitorService.get_monitor_overview(session, storage_device.id)["template_diagnostics"]
+
+            self.assertEqual(svg_diagnostics["overall_status"], "partial")
+            self.assertEqual(svg_diagnostics["metric_coverage"]["missing_keys"], ["module_count"])
+            self.assertEqual(storage_diagnostics["overall_status"], "partial")
+            self.assertEqual(
+                storage_diagnostics["metric_coverage"]["missing_keys"],
+                ["soh", "cell_temp_max", "charge_energy_today", "discharge_energy_today"],
+            )
 
     def test_toggle_device_status_creates_control_log(self):
         with Session(self.engine) as session:
@@ -99,6 +473,16 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(overview["runtime_status"]["code"], "alarm")
             self.assertEqual(overview["realtime"]["flow_rate"], 2.2)
             self.assertEqual(len(overview["recent_alarms"]), 1)
+            self.assertEqual(overview["monitor_template"]["template_key"], "water_meter")
+            self.assertEqual(overview["monitor_template"]["category"], "water_meter")
+            self.assertEqual(overview["monitor_template"]["specific_panels"], [])
+            self.assertFalse(overview["control_summary"]["supports_remote_control"])
+            self.assertEqual(overview["diagnostics_summary"]["ingestion_status"], "online")
+            metric_by_key = {item["key"]: item for item in overview["metric_cards"]}
+            self.assertEqual(metric_by_key["flow_rate"]["value"], 2.2)
+            self.assertEqual(metric_by_key["flow_rate"]["state"], "live")
+            self.assertEqual(metric_by_key["pressure"]["value"], 0.33)
+            self.assertEqual(metric_by_key["temperature"]["value"], 21.5)
 
     def test_monitor_overview_preserves_device_subtype_for_compensation_devices(self):
         with Session(self.engine) as session:
@@ -203,6 +587,29 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(compensation_monitor["key_metrics"]["cabinet_temperature"]["value"], 39.8)
             self.assertEqual(compensation_monitor["profile_status"]["source_status"], "fresh")
             self.assertTrue(compensation_monitor["capabilities_summary"]["supports_remote_control"])
+
+            self.assertEqual(overview["monitor_template"]["template_key"], "capacitor_bank_controller")
+            self.assertEqual(overview["monitor_template"]["category"], "compensation")
+            self.assertEqual(overview["monitor_template"]["subtype"], "capacitor_bank_controller")
+            self.assertEqual(overview["monitor_template"]["display_name"], "电容补偿控制器")
+            self.assertEqual(
+                overview["monitor_template"]["specific_panels"],
+                ["three_phase", "circuit_state", "control_profile", "control_summary"],
+            )
+            metric_by_key = {item["key"]: item for item in overview["metric_cards"]}
+            self.assertEqual(metric_by_key["reactive_power"]["value"], -32.0)
+            self.assertEqual(metric_by_key["power_factor"]["value"], 0.95)
+            self.assertEqual(metric_by_key["running_circuit_count"]["value"], 6)
+            self.assertEqual(metric_by_key["running_circuit_count"]["source"], "telemetry")
+            self.assertEqual(metric_by_key["capacity_utilization"]["value"], 25.0)
+            self.assertEqual(metric_by_key["capacity_utilization"]["source"], "telemetry")
+            self.assertEqual(
+                [item["key"] for item in overview["trend_fields"]],
+                ["reactive_power", "power_factor", "voltage", "current"],
+            )
+            self.assertTrue(overview["control_summary"]["supports_remote_control"])
+            self.assertTrue(overview["control_summary"]["receipt_required"])
+            self.assertIn("manual_switch", overview["control_summary"]["supported_commands"])
 
     def test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder(self):
         now = datetime.now()
@@ -433,6 +840,12 @@ class TestDeviceMonitorService(unittest.TestCase):
                     svg_reactive_output=48.0,
                 )
             )
+            session.add(
+                SVGAssetProfile(
+                    device_id=device.id,
+                    module_count=8,
+                )
+            )
             session.commit()
 
             overview = DeviceMonitorService.get_monitor_overview(session, device.id)
@@ -443,6 +856,104 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(compensation_monitor["control_mode"]["source"], "telemetry")
             self.assertEqual(compensation_monitor["key_metrics"]["capacity_utilization"]["value"], 64.5)
             self.assertEqual(compensation_monitor["key_metrics"]["cabinet_temperature"]["value"], 35.6)
+            self.assertEqual(overview["monitor_template"]["template_key"], "svg")
+            metric_by_key = {item["key"]: item for item in overview["metric_cards"]}
+            self.assertEqual(metric_by_key["capacity_utilization"]["value"], 64.5)
+            self.assertEqual(metric_by_key["cabinet_temperature"]["value"], 35.6)
+            self.assertEqual(metric_by_key["module_count"]["value"], 8)
+            self.assertEqual(
+                [item["key"] for item in overview["trend_fields"]],
+                ["reactive_power", "power_factor", "voltage", "current"],
+            )
+
+    def test_monitor_overview_returns_storage_template_semantics(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="储能柜模板测试",
+                sn="ESS-MON-001",
+                device_type="storage",
+                device_category="storage",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=100.0,
+                flow_rate=12.5,
+                timestamp=now - timedelta(minutes=1),
+                voltage=380.0,
+                current=25.0,
+                temperature=32.0,
+            )
+            session.add(
+                StorageTelemetry(
+                    device_id=device.id,
+                    timestamp=now,
+                    soc=76.5,
+                    soh=98.1,
+                    active_power=-18.2,
+                    run_state="discharging",
+                    cell_temp_max=36.7,
+                    charge_energy_today=42.0,
+                    discharge_energy_today=38.5,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+
+            self.assertEqual(overview["monitor_template"]["template_key"], "storage")
+            self.assertEqual(overview["monitor_template"]["category"], "storage")
+            metric_by_key = {item["key"]: item for item in overview["metric_cards"]}
+            self.assertEqual(metric_by_key["soc"]["value"], 76.5)
+            self.assertEqual(metric_by_key["soh"]["value"], 98.1)
+            self.assertEqual(metric_by_key["active_power"]["value"], -18.2)
+            self.assertEqual(metric_by_key["run_state"]["value"], "放电中")
+            self.assertEqual(metric_by_key["cell_temp_max"]["value"], 36.7)
+            self.assertEqual(metric_by_key["charge_energy_today"]["value"], 42.0)
+            self.assertEqual(metric_by_key["discharge_energy_today"]["value"], 38.5)
+            self.assertFalse(overview["control_summary"]["supports_remote_control"])
+
+    def test_monitor_overview_specializes_meter_templates_and_unknown_fallback(self):
+        with Session(self.engine) as session:
+            gas_device = Device(
+                name="燃气表模板测试",
+                sn="GAS-MON-001",
+                device_type="gas_meter",
+                device_category="gas_meter",
+                energy_type="gas",
+                is_active=True,
+            )
+            unknown_device = Device(
+                name="未知设备模板测试",
+                sn="UNK-MON-001",
+                device_type="vendor_box",
+                device_category="vendor_box",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(gas_device)
+            session.add(unknown_device)
+            session.commit()
+            session.refresh(gas_device)
+            session.refresh(unknown_device)
+
+            gas_overview = DeviceMonitorService.get_monitor_overview(session, gas_device.id)
+            unknown_overview = DeviceMonitorService.get_monitor_overview(session, unknown_device.id)
+
+            self.assertEqual(gas_overview["monitor_template"]["template_key"], "gas_meter")
+            self.assertEqual(
+                [item["key"] for item in gas_overview["metric_cards"]],
+                ["flow_rate", "consumption", "pressure"],
+            )
+            self.assertEqual(unknown_overview["monitor_template"]["template_key"], "generic_device")
 
     def test_monitor_overview_svg_circuit_summary_prefers_asset_profile_module_count(self):
         now = datetime.now()
