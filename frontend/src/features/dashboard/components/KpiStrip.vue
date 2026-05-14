@@ -1,137 +1,143 @@
 <script setup lang="ts">
-defineProps<{
-  currentLoad: number
-  onlineCount: number
-  totalCount: number
-  alarmCount: number
-  todayEnergy: number
-  monthlyEnergy: number
-  shift: string
-}>()
+import { computed } from 'vue'
 
-function fmt(v: number, d = 1) {
-  return Number.isFinite(v) ? v.toFixed(d) : '0.0'
+export type KpiStatus = 'ok' | 'notice' | 'warn' | 'err'
+
+export interface KpiItem {
+  label: string
+  value: string
+  unit?: string
+  delta?: string
+  deltaDir?: 'up' | 'down'
+  sub?: string
+  status?: KpiStatus
+  spark?: number[]
+  sparkColor?: string
+}
+
+interface Props {
+  items: KpiItem[]
+}
+const props = defineProps<Props>()
+const items = computed(() => props.items || [])
+
+function sparkPath(data: number[], width: number, height: number) {
+  if (!data.length) return { line: '', last: [0, 0] as [number, number] }
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const range = max - min || 1
+  const pts = data.map((d, i) => {
+    const x = (i / Math.max(1, data.length - 1)) * width
+    const y = height - ((d - min) / range) * (height - 4) - 2
+    return [x, y] as [number, number]
+  })
+  const line = 'M ' + pts.map(p => p.join(',')).join(' L ')
+  return { line, last: pts[pts.length - 1] }
+}
+
+function statusColor(s?: KpiStatus) {
+  if (s === 'notice') return 'var(--notice)'
+  if (s === 'warn') return 'var(--warn)'
+  if (s === 'err') return 'var(--err)'
+  return ''
+}
+
+function deltaColor(item: KpiItem) {
+  if (item.status === 'err' || item.status === 'warn') return 'var(--err)'
+  return item.deltaDir === 'up' ? 'var(--ok)' : 'var(--err)'
 }
 </script>
 
 <template>
   <div class="kpi-strip">
-    <div class="kpi-tile kpi-tile--load">
-      <span class="kpi-tile__label">实时负荷</span>
-      <div class="kpi-tile__value">
-        <strong>{{ fmt(currentLoad) }}</strong>
-        <span class="kpi-tile__unit">kW</span>
+    <div
+      v-for="(item, i) in items"
+      :key="i"
+      class="kpi"
+      :class="[
+        item.status && item.status !== 'ok' ? 'has-status' : '',
+        item.status === 'notice' ? 'a-glow-notice' : '',
+        item.status === 'warn' ? 'a-glow-warn' : '',
+        item.status === 'err' ? 'a-glow-err' : ''
+      ]"
+      :style="item.status && item.status !== 'ok' ? ({ '--sc': statusColor(item.status) } as Record<string, string>) : {}"
+    >
+      <span v-if="item.status && item.status !== 'ok'" class="corner a-pulse-ring" />
+      <div class="row label-row">
+        <span class="label">{{ item.label }}</span>
       </div>
-      <span class="kpi-tile__sub">{{ shift }}</span>
-    </div>
-
-    <div class="kpi-tile kpi-tile--device">
-      <span class="kpi-tile__label">启用设备</span>
-      <div class="kpi-tile__value">
-        <strong>{{ onlineCount }}</strong>
-        <span class="kpi-tile__unit">/ {{ totalCount }}</span>
+      <div class="row value-row">
+        <span class="value num">{{ item.value }}</span>
+        <span v-if="item.unit" class="unit">{{ item.unit }}</span>
       </div>
-      <span class="kpi-tile__sub">启用率 {{ totalCount > 0 ? Math.round((onlineCount / totalCount) * 100) : 0 }}%</span>
-    </div>
-
-    <div class="kpi-tile" :class="alarmCount > 0 ? 'kpi-tile--alarm' : 'kpi-tile--safe'">
-      <span class="kpi-tile__label">活跃告警</span>
-      <div class="kpi-tile__value">
-        <strong>{{ alarmCount }}</strong>
-        <span class="kpi-tile__unit">条</span>
+      <div class="row bottom-row">
+        <div class="delta-wrap">
+          <span v-if="item.delta" class="delta mono" :style="{ color: deltaColor(item) }">
+            {{ item.deltaDir === 'up' ? '↑' : '↓' }} {{ item.delta }}
+          </span>
+          <span v-if="item.sub" class="sub">{{ item.sub }}</span>
+        </div>
+        <svg v-if="item.spark && item.spark.length" width="64" height="22" class="spark">
+          <path
+            :d="sparkPath(item.spark, 64, 22).line"
+            fill="none"
+            :stroke="statusColor(item.status) || item.sparkColor || 'var(--accent)'"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle
+            :cx="sparkPath(item.spark, 64, 22).last[0]"
+            :cy="sparkPath(item.spark, 64, 22).last[1]"
+            r="2.2"
+            :fill="statusColor(item.status) || item.sparkColor || 'var(--accent)'"
+          />
+        </svg>
       </div>
-      <span class="kpi-tile__sub">{{ alarmCount > 0 ? '需立即处理' : '系统稳定' }}</span>
-    </div>
-
-    <div class="kpi-tile kpi-tile--energy">
-      <span class="kpi-tile__label">今日能耗</span>
-      <div class="kpi-tile__value">
-        <strong>{{ fmt(todayEnergy) }}</strong>
-        <span class="kpi-tile__unit">kWh</span>
-      </div>
-      <span class="kpi-tile__sub">电 / 水 / 气 / 冷 / 热</span>
-    </div>
-
-    <div class="kpi-tile kpi-tile--monthly">
-      <span class="kpi-tile__label">月度能耗</span>
-      <div class="kpi-tile__value">
-        <strong>{{ fmt(monthlyEnergy) }}</strong>
-        <span class="kpi-tile__unit">kWh</span>
-      </div>
-      <span class="kpi-tile__sub">自然月累计</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.kpi-strip {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-}
-
-.kpi-tile {
+.kpi-strip { display: flex; gap: 12px; }
+.kpi {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 2px solid var(--kpi-accent, rgba(255,255,255,0.1));
-  transition: background 0.18s ease;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
-
-.kpi-tile:hover {
-  background: rgba(255, 255, 255, 0.06);
+.kpi.has-status {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sc) 7%, transparent), var(--surface) 60%);
+  border-color: color-mix(in srgb, var(--sc) 35%, transparent);
 }
-
-.kpi-tile--load   { --kpi-accent: #38bdf8; }
-.kpi-tile--device { --kpi-accent: #34d399; }
-.kpi-tile--alarm  { --kpi-accent: #f87171; }
-.kpi-tile--safe   { --kpi-accent: #34d399; }
-.kpi-tile--energy { --kpi-accent: #a78bfa; }
-.kpi-tile--monthly { --kpi-accent: #fb923c; }
-
-.kpi-tile__label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.46);
+.corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--sc);
+  color: var(--sc);
 }
-
-.kpi-tile__value {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  line-height: 1;
-}
-
-.kpi-tile__value strong {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  color: #f0f6ff;
-}
-
-.kpi-tile__unit {
-  font-size: 13px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.kpi-tile__sub {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.38);
-  margin-top: 2px;
-}
-
-.kpi-tile--alarm .kpi-tile__value strong {
-  color: #fca5a5;
-}
-
-.kpi-tile--safe .kpi-tile__value strong {
-  color: #86efac;
-}
+.row { display: flex; align-items: center; }
+.label-row { justify-content: space-between; padding-right: 18px; }
+.label { font-size: 11px; color: var(--text-mid); letter-spacing: 0.3px; }
+.kpi.has-status .label { color: var(--sc); font-weight: 600; }
+.value-row { align-items: flex-end; gap: 4px; }
+.value { font-size: 30px; font-weight: 600; color: var(--text); line-height: 1; }
+.unit { font-size: 12px; color: var(--text-mid); margin-bottom: 4px; }
+.bottom-row { justify-content: space-between; margin-top: 2px; }
+.delta-wrap { display: flex; align-items: center; gap: 6px; font-size: 11px; min-width: 0; }
+.delta { font-weight: 600; }
+.sub { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spark { display: block; flex: 0 0 auto; }
 </style>

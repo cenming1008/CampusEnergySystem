@@ -18,6 +18,12 @@
   --brand-color: #3b82f6;   /* 主品牌色 */
   --danger-color: #ef4444;  /* 报警红 */
   --success-color: #10b981; /* 正常绿 */
+
+  /* 设计 token：标签色 / 分隔线 / 触控目标 / 最小字号（WCAG AA） */
+  --text-label: #8aa0bf;
+  --divider: rgba(148, 163, 184, 0.12);
+  --touch-target: 24px;
+  --font-caption: 12px;
 }
 
 html, body, #app {

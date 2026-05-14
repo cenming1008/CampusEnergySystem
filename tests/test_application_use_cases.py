@@ -18,8 +18,11 @@ from app.application.energy_management import (
     save_energy_data_use_case,
 )
 from app.application.reporting import list_energy_report_rows_use_case
+from app.application.reporting import build_device_history_field_config_use_case
 from app.application.reporting import build_report_csv_export_use_case
 from app.application.telemetry_ingestion import ingest_telemetry_use_case
+from app.core.exceptions import PermissionDeniedException
+from app.services.report_service import ReportService
 
 
 class TestApplicationUseCases(unittest.TestCase):
@@ -309,6 +312,237 @@ class TestApplicationUseCases(unittest.TestCase):
         self.assertIn("设备名称", payload.content)
         self.assertIn("一号设备", payload.content)
         self.assertIn("对象语义", payload.content)
+
+    def test_build_report_csv_export_use_case_requires_device_for_device_history(self):
+        session = MagicMock()
+
+        with self.assertRaisesRegex(ValueError, "device_history 需要提供 device_id"):
+            build_report_csv_export_use_case(
+                session=session,
+                current_user=None,
+                report_type="device_history",
+                limit=10,
+            )
+
+    @patch("app.application.reporting.ReportService.list_device_history_report_rows")
+    def test_build_report_csv_export_use_case_exports_generic_device_history(self, mock_history_rows):
+        session = MagicMock()
+        mock_history_rows.return_value = {
+            "device": SimpleNamespace(
+                id=7,
+                name="总进线电表",
+                device_type="meter",
+                device_category="meter",
+                device_subtype=None,
+            ),
+            "history_kind": "energy",
+            "rows": [
+                SimpleNamespace(
+                    timestamp=SimpleNamespace(strftime=lambda fmt: "2026-05-14 09:00:00"),
+                    device_id=7,
+                    energy_type="electricity",
+                    voltage=380.0,
+                    current=12.5,
+                    flow_rate=8.6,
+                    consumption=123.4,
+                )
+            ],
+        }
+
+        payload = build_report_csv_export_use_case(
+            session=session,
+            current_user=None,
+            report_type="device_history",
+            device_id=7,
+            limit=10,
+        )
+
+        self.assertEqual(payload.filename, f"device_history_7_{datetime.now().strftime('%Y%m%d')}.csv")
+        self.assertIn("功率/流量", payload.content)
+        self.assertIn("总进线电表", payload.content)
+        self.assertIn("123.4", payload.content)
+        mock_history_rows.assert_called_once_with(
+            session=session,
+            current_user=None,
+            device_id=7,
+            start_time=None,
+            end_time=None,
+            limit=10,
+        )
+
+    @patch("app.application.reporting.ReportService.get_device_for_history_report")
+    def test_build_device_history_field_config_returns_generic_template(self, mock_get_device):
+        session = MagicMock()
+        mock_get_device.return_value = SimpleNamespace(
+            id=7,
+            device_subtype=None,
+        )
+
+        payload = build_device_history_field_config_use_case(
+            session=session,
+            current_user=None,
+            device_id=7,
+        )
+
+        self.assertEqual(payload["template"], "generic_energy")
+        self.assertIn("timestamp", payload["required_fields"])
+        self.assertIn("flow_rate", payload["default_fields"])
+        self.assertEqual(payload["groups"][0]["label"], "基础信息")
+
+    @patch("app.application.reporting.ReportService.get_device_for_history_report")
+    def test_build_device_history_field_config_returns_capacitor_bank_template(self, mock_get_device):
+        session = MagicMock()
+        mock_get_device.return_value = SimpleNamespace(
+            id=8,
+            device_subtype="capacitor_bank_controller",
+        )
+
+        payload = build_device_history_field_config_use_case(
+            session=session,
+            current_user=None,
+            device_id=8,
+        )
+
+        self.assertEqual(payload["template"], "capacitor_bank_controller")
+        labels = [
+            field["label"]
+            for group in payload["groups"]
+            for field in group["fields"]
+        ]
+        self.assertIn("A相无功(kvar)", labels)
+        self.assertIn("A相功率因数", labels)
+        self.assertIn("当前投入回路总数", labels)
+
+    @patch("app.application.reporting.ReportService.list_device_history_report_rows")
+    def test_build_report_csv_export_use_case_exports_capacitor_bank_history(self, mock_history_rows):
+        session = MagicMock()
+        mock_history_rows.return_value = {
+            "device": SimpleNamespace(
+                id=8,
+                name="无功补偿控制器",
+                device_type="compensation",
+                device_category="compensation",
+                device_subtype="capacitor_bank_controller",
+            ),
+            "history_kind": "capacitor_bank",
+            "rows": [
+                SimpleNamespace(
+                    timestamp=SimpleNamespace(strftime=lambda fmt: "2026-05-14 09:05:00"),
+                    device_id=8,
+                    voltage_a=221.0,
+                    voltage_b=222.0,
+                    voltage_c=223.0,
+                    current_a=10.0,
+                    current_b=11.0,
+                    current_c=12.0,
+                    power_factor_a=0.96,
+                    power_factor_b=0.97,
+                    power_factor_c=0.98,
+                    active_power_a=1.1,
+                    active_power_b=1.2,
+                    active_power_c=1.3,
+                    reactive_power_a=2.1,
+                    reactive_power_b=2.2,
+                    reactive_power_c=2.3,
+                    apparent_power_a=3.1,
+                    apparent_power_b=3.2,
+                    apparent_power_c=3.3,
+                    voltage_thd_a=4.1,
+                    voltage_thd_b=4.2,
+                    voltage_thd_c=4.3,
+                    current_harmonic_a=5.1,
+                    current_harmonic_b=5.2,
+                    current_harmonic_c=5.3,
+                    frequency=50.0,
+                    temperature=31.5,
+                    split_circuit_running_count=2,
+                    common_circuit_running_count=3,
+                    running_circuit_count=5,
+                    control_mode="auto",
+                    last_auto_action="switch_on",
+                )
+            ],
+        }
+
+        payload = build_report_csv_export_use_case(
+            session=session,
+            current_user=None,
+            report_type="device_history",
+            device_id=8,
+            limit=10,
+        )
+
+        self.assertIn("A相无功(kvar)", payload.content)
+        self.assertIn("B相功率因数", payload.content)
+        self.assertIn("当前投入回路总数", payload.content)
+        self.assertIn("无功补偿控制器", payload.content)
+        self.assertIn("2.1", payload.content)
+
+    @patch("app.application.reporting.ReportService.list_device_history_report_rows")
+    def test_build_report_csv_export_use_case_limits_device_history_to_selected_fields(self, mock_history_rows):
+        session = MagicMock()
+        mock_history_rows.return_value = {
+            "device": SimpleNamespace(
+                id=8,
+                name="无功补偿控制器",
+                device_type="compensation",
+                device_category="compensation",
+                device_subtype="capacitor_bank_controller",
+            ),
+            "history_kind": "capacitor_bank",
+            "rows": [
+                SimpleNamespace(
+                    timestamp=SimpleNamespace(strftime=lambda fmt: "2026-05-14 09:05:00"),
+                    device_id=8,
+                    reactive_power_a=2.1,
+                    power_factor_a=0.96,
+                    running_circuit_count=5,
+                )
+            ],
+        }
+
+        payload = build_report_csv_export_use_case(
+            session=session,
+            current_user=None,
+            report_type="device_history",
+            device_id=8,
+            fields="device_name,reactive_power_a,running_circuit_count",
+            limit=10,
+        )
+
+        first_line = payload.content.splitlines()[0]
+        self.assertEqual(first_line, "时间,设备名称,A相无功(kvar),当前投入回路总数")
+        self.assertIn("2026-05-14 09:05:00,无功补偿控制器,2.1,5", payload.content)
+        self.assertNotIn("A相功率因数", payload.content)
+
+    def test_build_report_csv_export_use_case_rejects_invalid_device_history_field(self):
+        session = MagicMock()
+
+        with self.assertRaisesRegex(ValueError, "不支持的导出字段: bad_field"):
+            build_report_csv_export_use_case(
+                session=session,
+                current_user=None,
+                report_type="device_history",
+                device_id=8,
+                fields="device_name,bad_field",
+                limit=10,
+            )
+
+    @patch("app.services.report_service.ensure_device_access")
+    def test_list_device_history_report_rows_checks_device_access(self, mock_ensure_access):
+        session = MagicMock()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        mock_ensure_access.side_effect = PermissionDeniedException("当前用户无权访问该设备")
+
+        with self.assertRaises(PermissionDeniedException):
+            ReportService.list_device_history_report_rows(
+                session=session,
+                current_user=current_user,
+                device_id=9,
+                limit=10,
+            )
+
+        mock_ensure_access.assert_called_once_with(session, current_user, 9)
 
     @patch("app.application.reporting.EnergyService.get_carbon_summary")
     @patch("app.application.reporting.EnergyService.get_statistics_by_type")

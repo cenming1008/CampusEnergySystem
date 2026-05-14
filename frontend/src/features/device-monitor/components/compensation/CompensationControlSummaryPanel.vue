@@ -16,17 +16,28 @@ defineProps({
     default: false,
   },
 })
+
+const emit = defineEmits<{
+  (event: 'open-console'): void
+}>()
 </script>
 
 <template>
   <section class="side-panel side-panel--muted control-summary-panel">
     <div class="side-panel__head">
       <div class="control-summary-headline">
-        <h3>控制参数摘要</h3>
-        <div class="control-summary-badges">
-          <span class="control-summary-badge">只读摘要</span>
-          <span class="control-summary-badge control-summary-badge--accent">控制台查看完整参数</span>
+        <div class="control-summary-title">
+          <h3>控制参数摘要</h3>
+          <span class="control-summary-hint">仅展示参数概览</span>
         </div>
+        <el-button
+          link
+          type="primary"
+          class="control-summary-console-link"
+          @click="emit('open-console')"
+        >
+          打开控制台 →
+        </el-button>
       </div>
     </div>
 
@@ -107,30 +118,24 @@ defineProps({
   gap: 12px;
 }
 
-.control-summary-badges {
+.control-summary-title {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.control-summary-badge {
-  flex-shrink: 0;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(83, 110, 140, 0.55);
-  background: rgba(34, 52, 77, 0.72);
-  color: #9eb3cf;
-  font-size: 11px;
+.control-summary-hint {
+  font-size: var(--font-caption);
+  color: var(--text-label);
   line-height: 1.4;
-  white-space: nowrap;
 }
 
-.control-summary-badge--accent {
-  border-color: rgba(76, 171, 255, 0.35);
-  background: rgba(22, 90, 146, 0.2);
-  color: #b9ddff;
+.control-summary-console-link {
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+  font-size: var(--font-caption);
+  font-weight: 500;
 }
 
 .profile-list {
@@ -145,7 +150,7 @@ defineProps({
   align-items: flex-start;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(41, 57, 77, 0.72);
+  border-bottom: 1px solid var(--divider);
 }
 
 .profile-row:last-child {
@@ -153,13 +158,13 @@ defineProps({
 }
 
 .profile-row span {
-  color: #91a5c4;
-  font-size: 12px;
+  color: var(--text-label);
+  font-size: var(--font-caption);
 }
 
 .profile-row strong {
   color: #dfe8f5;
-  font-size: 12px;
+  font-size: var(--font-caption);
   text-align: right;
   max-width: 60%;
   line-height: 1.5;
@@ -205,8 +210,8 @@ defineProps({
 }
 
 .capacity-expansion-list__head span {
-  color: #8ea0bc;
-  font-size: 11px;
+  color: var(--text-label);
+  font-size: var(--font-caption);
 }
 
 .capacity-expansion-row {
@@ -220,13 +225,13 @@ defineProps({
 }
 
 .capacity-expansion-row span {
-  color: #90a2bf;
-  font-size: 11px;
+  color: var(--text-label);
+  font-size: var(--font-caption);
 }
 
 .capacity-expansion-row strong {
   color: #f5f7fb;
-  font-size: 12px;
+  font-size: var(--font-caption);
   line-height: 1.5;
 }
 </style>

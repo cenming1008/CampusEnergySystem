@@ -339,7 +339,10 @@ class DeviceMonitorService:
                     "message": alarm.message,
                     "severity": alarm.severity,
                     "category": alarm.category,
+                    "source": alarm.source,
                     "timestamp": alarm.timestamp,
+                    "last_seen_at": alarm.last_seen_at,
+                    "recovered_at": alarm.recovered_at,
                     "is_resolved": alarm.is_resolved,
                 }
                 for alarm in AlarmService.list_alarms(session, device_id=device_id, limit=10)

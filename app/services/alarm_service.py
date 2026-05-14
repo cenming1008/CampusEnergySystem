@@ -5,7 +5,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from sqlmodel import Session, select
 
@@ -22,6 +22,10 @@ class AlarmService:
     - 批量解决报警
     - 报警统计和查询
     """
+    SOURCE_DEVICE_NATIVE = "device_native"
+    SOURCE_PLATFORM_RULE = "platform_rule"
+    SOURCE_PLATFORM_COMM = "platform_comm"
+    CATEGORY_COMMUNICATION_OFFLINE = "communication_offline"
     
     @staticmethod
     def get_unresolved_alarms(session: Session, limit: int = 20) -> List[Alarm]:
@@ -291,6 +295,46 @@ class AlarmService:
         return alarm, True
 
     @staticmethod
+    def sync_platform_comm_alarm(
+        session: Session,
+        device_id: int,
+        is_offline: bool,
+        timestamp: datetime,
+        last_success_at: Optional[datetime] = None,
+    ) -> Union[tuple[Alarm, bool], int]:
+        """创建或恢复平台通讯中断告警。"""
+        category = AlarmService.CATEGORY_COMMUNICATION_OFFLINE
+        source = AlarmService.SOURCE_PLATFORM_COMM
+
+        if is_offline:
+            detail = (
+                f"最近成功接入时间 {last_success_at:%Y-%m-%d %H:%M:%S}"
+                if last_success_at is not None
+                else "暂无成功接入记录"
+            )
+            return AlarmService.upsert_active_alarm(
+                session=session,
+                device_id=device_id,
+                message=f"设备通讯中断：{detail}",
+                timestamp=timestamp,
+                severity="critical",
+                category=category,
+                source=source,
+            )
+
+        recovered_count = AlarmService.mark_recovered_alarms(
+            session=session,
+            device_id=device_id,
+            active_instance_keys=set(),
+            timestamp=timestamp,
+            categories={category},
+            source=source,
+        )
+        if recovered_count:
+            session.flush()
+        return recovered_count
+
+    @staticmethod
     def mark_recovered_alarms(
         session: Session,
         device_id: int,
@@ -365,7 +409,7 @@ class AlarmService:
                     timestamp=timestamp,
                     severity=severity,
                     category=category,
-                    source="svg_telemetry",
+                    source=AlarmService.SOURCE_DEVICE_NATIVE,
                 )
                 active_instance_keys.add(alarm.instance_key or "")
                 if created:
@@ -383,7 +427,7 @@ class AlarmService:
                 timestamp=timestamp,
                 severity="critical",
                 category="svg_fault_code",
-                source="svg_telemetry",
+                source=AlarmService.SOURCE_DEVICE_NATIVE,
             )
             active_instance_keys.add(alarm.instance_key or "")
             if created:
@@ -395,7 +439,7 @@ class AlarmService:
             active_instance_keys={k for k in active_instance_keys if k},
             timestamp=timestamp,
             categories=managed_categories,
-            source="svg_telemetry",
+            source=AlarmService.SOURCE_DEVICE_NATIVE,
         )
 
         return alarms
@@ -422,7 +466,8 @@ class AlarmService:
         alarms: list[Alarm] = []
         active_instance_keys: set[str] = set()
         mutated = False
-        source = "capacitor_bank_telemetry"
+        device_native_source = AlarmService.SOURCE_DEVICE_NATIVE
+        platform_rule_source = AlarmService.SOURCE_PLATFORM_RULE
         profile_data = profile_data or {}
 
         def _to_float(value: Any) -> Optional[float]:
@@ -433,7 +478,7 @@ class AlarmService:
             except (TypeError, ValueError):
                 return None
 
-        def _activate(category: str, severity: str, message: str) -> None:
+        def _activate(category: str, severity: str, message: str, source: str) -> None:
             nonlocal mutated
             alarm, created = AlarmService.upsert_active_alarm(
                 session=session,
@@ -460,12 +505,14 @@ class AlarmService:
 
         temperature = _to_float(cap_data.get("temperature"))
         temp_limit = _to_float(profile_data.get("temperature_upper_limit"))
-        if cap_data.get("temp_alarm") is True or (
-            temperature is not None and temp_limit is not None and temperature >= temp_limit
-        ):
+        if cap_data.get("temp_alarm") is True:
             detail = f"{temperature:.1f}°C" if temperature is not None else "状态位触发"
             limit_text = f"（上限 {temp_limit:.1f}°C）" if temp_limit is not None else ""
-            _activate("cap_temp_alarm", "warning", f"电容补偿柜温度超限：{detail}{limit_text}")
+            _activate("cap_temp_alarm", "warning", f"电容补偿柜温度超限：{detail}{limit_text}", device_native_source)
+        elif temperature is not None and temp_limit is not None and temperature >= temp_limit:
+            detail = f"{temperature:.1f}°C"
+            limit_text = f"（上限 {temp_limit:.1f}°C）"
+            _activate("cap_temp_alarm", "warning", f"电容补偿柜温度超限：{detail}{limit_text}", platform_rule_source)
 
         overvoltage_limit = _to_float(profile_data.get("overvoltage_threshold"))
         voltage_harmonic_limit = _to_float(profile_data.get("voltage_harmonic_threshold"))
@@ -473,43 +520,71 @@ class AlarmService:
         for phase in ("a", "b", "c"):
             phase_upper = phase.upper()
             phase_voltage = _to_float(cap_data.get(f"voltage_{phase}"))
-            if cap_data.get(f"overvoltage_alarm_{phase}") is True or (
-                phase_voltage is not None and overvoltage_limit is not None and phase_voltage >= overvoltage_limit
-            ):
+            if cap_data.get(f"overvoltage_alarm_{phase}") is True:
                 detail = f"{phase_voltage:.1f}V" if phase_voltage is not None else "状态位触发"
                 limit_text = f"（门限 {overvoltage_limit:.1f}V）" if overvoltage_limit is not None else ""
                 _activate(
                     f"cap_overvoltage_{phase}",
                     "warning",
                     f"{phase_upper} 相过压告警：{detail}{limit_text}",
+                    device_native_source,
+                )
+            elif phase_voltage is not None and overvoltage_limit is not None and phase_voltage >= overvoltage_limit:
+                detail = f"{phase_voltage:.1f}V"
+                limit_text = f"（门限 {overvoltage_limit:.1f}V）"
+                _activate(
+                    f"cap_overvoltage_{phase}",
+                    "warning",
+                    f"{phase_upper} 相过压告警：{detail}{limit_text}",
+                    platform_rule_source,
                 )
 
             phase_voltage_thd = _to_float(cap_data.get(f"voltage_thd_{phase}"))
-            if cap_data.get(f"voltage_thd_alarm_{phase}") is True or (
-                phase_voltage_thd is not None
-                and voltage_harmonic_limit is not None
-                and phase_voltage_thd >= voltage_harmonic_limit
-            ):
+            if cap_data.get(f"voltage_thd_alarm_{phase}") is True:
                 detail = f"{phase_voltage_thd:.2f}%" if phase_voltage_thd is not None else "状态位触发"
                 limit_text = f"（门限 {voltage_harmonic_limit:.2f}%）" if voltage_harmonic_limit is not None else ""
                 _activate(
                     f"cap_voltage_thd_{phase}",
                     "warning",
                     f"{phase_upper} 相电压谐波超限：{detail}{limit_text}",
+                    device_native_source,
+                )
+            elif (
+                phase_voltage_thd is not None
+                and voltage_harmonic_limit is not None
+                and phase_voltage_thd >= voltage_harmonic_limit
+            ):
+                detail = f"{phase_voltage_thd:.2f}%"
+                limit_text = f"（门限 {voltage_harmonic_limit:.2f}%）"
+                _activate(
+                    f"cap_voltage_thd_{phase}",
+                    "warning",
+                    f"{phase_upper} 相电压谐波超限：{detail}{limit_text}",
+                    platform_rule_source,
                 )
 
             phase_current_harmonic = _to_float(cap_data.get(f"current_harmonic_{phase}"))
-            if cap_data.get(f"current_thd_alarm_{phase}") is True or (
-                phase_current_harmonic is not None
-                and current_harmonic_limit is not None
-                and phase_current_harmonic >= current_harmonic_limit
-            ):
+            if cap_data.get(f"current_thd_alarm_{phase}") is True:
                 detail = f"{phase_current_harmonic:.2f}A" if phase_current_harmonic is not None else "状态位触发"
                 limit_text = f"（门限 {current_harmonic_limit:.2f}A）" if current_harmonic_limit is not None else ""
                 _activate(
                     f"cap_current_thd_{phase}",
                     "warning",
                     f"{phase_upper} 相电流谐波超限：{detail}{limit_text}",
+                    device_native_source,
+                )
+            elif (
+                phase_current_harmonic is not None
+                and current_harmonic_limit is not None
+                and phase_current_harmonic >= current_harmonic_limit
+            ):
+                detail = f"{phase_current_harmonic:.2f}A"
+                limit_text = f"（门限 {current_harmonic_limit:.2f}A）"
+                _activate(
+                    f"cap_current_thd_{phase}",
+                    "warning",
+                    f"{phase_upper} 相电流谐波超限：{detail}{limit_text}",
+                    platform_rule_source,
                 )
 
             if cap_data.get(f"undercurrent_{phase}") is True:
@@ -517,6 +592,7 @@ class AlarmService:
                     f"cap_undercurrent_{phase}",
                     "info",
                     f"{phase_upper} 相欠流告警",
+                    device_native_source,
                 )
 
         reactive_power = _to_float(cap_data.get("reactive_power"))
@@ -534,18 +610,20 @@ class AlarmService:
                 "cap_overcompensation",
                 "warning",
                 f"电容补偿器过补偿：Q={reactive_power:.2f}kVar，{leading_count} 相超前",
+                platform_rule_source,
             )
 
-        recovered_count = AlarmService.mark_recovered_alarms(
-            session=session,
-            device_id=device_id,
-            active_instance_keys={key for key in active_instance_keys if key},
-            timestamp=timestamp,
-            categories=managed_categories,
-            source=source,
-        )
-        if recovered_count:
-            mutated = True
+        for source in (device_native_source, platform_rule_source):
+            recovered_count = AlarmService.mark_recovered_alarms(
+                session=session,
+                device_id=device_id,
+                active_instance_keys={key for key in active_instance_keys if key},
+                timestamp=timestamp,
+                categories=managed_categories,
+                source=source,
+            )
+            if recovered_count:
+                mutated = True
 
         return alarms
 
@@ -603,6 +681,11 @@ class AlarmService:
         active_instance_keys: set[str] = set()
         managed_categories: set[str] = set()
         mutated = False
+        device = session.get(Device, device_id)
+        if getattr(device, "device_category", None) == "compensation":
+            return alarms
+
+        source = AlarmService.SOURCE_PLATFORM_RULE
         cfg = AlarmService.load_thresholds()
         defaults = cfg.get("default", {})
         dev_cfg = cfg.get("device_thresholds", {}).get(str(device_id), {})
@@ -622,6 +705,7 @@ class AlarmService:
                     timestamp=timestamp,
                     severity="critical",
                     category="current_overload",
+                    source=source,
                 )
                 active_instance_keys.add(alarm.instance_key or "")
                 mutated = True
@@ -646,6 +730,7 @@ class AlarmService:
                     timestamp=timestamp,
                     severity="warning",
                     category="voltage_out_of_range",
+                    source=source,
                 )
                 active_instance_keys.add(alarm.instance_key or "")
                 mutated = True
@@ -659,6 +744,7 @@ class AlarmService:
             active_instance_keys={key for key in active_instance_keys if key},
             timestamp=timestamp,
             categories=managed_categories,
+            source=source,
         )
         if recovered_count:
             mutated = True

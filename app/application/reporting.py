@@ -8,7 +8,7 @@ import csv
 import io
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from sqlmodel import Session
 
@@ -23,6 +23,17 @@ from app.services.report_service import ReportService
 class CsvExportPayload:
     filename: str
     content: str
+
+
+@dataclass(frozen=True)
+class DeviceHistoryField:
+    key: str
+    label: str
+    group_key: str
+    group_label: str
+    accessor: Callable[[Any, Any], Any]
+    default: bool = False
+    required: bool = False
 
 
 REPORT_DEFINITIONS = {
@@ -42,6 +53,116 @@ REPORT_DEFINITIONS = {
         "headers": ["能源类型", "周期消耗", "累计单位", "平均瞬时值", "瞬时单位", "峰值瞬时值", "样本数", "碳排估算(kg CO2)", "碳排边界"],
         "rows_loader": "multi_energy_summary",
     },
+    "device_history": {
+        "headers": [],
+        "rows_loader": "device_history",
+    },
+}
+
+GENERIC_DEVICE_HISTORY_HEADERS = ["时间", "设备ID", "设备名称", "能源类型", "电压(V)", "电流(A)", "功率/流量", "累计消耗", "设备类型", "设备类别"]
+
+CAPACITOR_BANK_HISTORY_HEADERS = [
+    "时间",
+    "设备ID",
+    "设备名称",
+    "设备类型",
+    "A相电压(V)",
+    "B相电压(V)",
+    "C相电压(V)",
+    "A相电流(A)",
+    "B相电流(A)",
+    "C相电流(A)",
+    "A相功率因数",
+    "B相功率因数",
+    "C相功率因数",
+    "A相有功(kW)",
+    "B相有功(kW)",
+    "C相有功(kW)",
+    "A相无功(kvar)",
+    "B相无功(kvar)",
+    "C相无功(kvar)",
+    "A相视在(kVA)",
+    "B相视在(kVA)",
+    "C相视在(kVA)",
+    "A相电压THD(%)",
+    "B相电压THD(%)",
+    "C相电压THD(%)",
+    "A相谐波电流(A)",
+    "B相谐波电流(A)",
+    "C相谐波电流(A)",
+    "频率(Hz)",
+    "柜内温度(°C)",
+    "分补投入回路数",
+    "公补投入回路数",
+    "当前投入回路总数",
+    "控制模式",
+    "最近自动动作",
+]
+
+
+def _row_attr(row, key: str):
+    return getattr(row, key, "")
+
+
+def _device_attr(device, key: str):
+    return getattr(device, key, "")
+
+
+GENERIC_DEVICE_HISTORY_FIELDS = [
+    DeviceHistoryField("timestamp", "时间", "required", "必导字段", lambda device, row: row.timestamp.strftime("%Y-%m-%d %H:%M:%S"), required=True),
+    DeviceHistoryField("device_id", "设备ID", "base", "基础信息", lambda device, row: row.device_id, default=True),
+    DeviceHistoryField("device_name", "设备名称", "base", "基础信息", lambda device, row: _device_attr(device, "name"), default=True),
+    DeviceHistoryField("energy_type", "能源类型", "telemetry", "通用遥测", lambda device, row: _row_attr(row, "energy_type"), default=True),
+    DeviceHistoryField("voltage", "电压(V)", "telemetry", "通用遥测", lambda device, row: _row_attr(row, "voltage"), default=True),
+    DeviceHistoryField("current", "电流(A)", "telemetry", "通用遥测", lambda device, row: _row_attr(row, "current"), default=True),
+    DeviceHistoryField("flow_rate", "功率/流量", "telemetry", "通用遥测", lambda device, row: _row_attr(row, "flow_rate"), default=True),
+    DeviceHistoryField("consumption", "累计消耗", "telemetry", "通用遥测", lambda device, row: _row_attr(row, "consumption"), default=True),
+    DeviceHistoryField("device_type", "设备类型", "semantics", "设备语义", lambda device, row: _device_attr(device, "device_type")),
+    DeviceHistoryField("device_category", "设备类别", "semantics", "设备语义", lambda device, row: _device_attr(device, "device_category")),
+]
+
+
+CAPACITOR_BANK_DEVICE_HISTORY_FIELDS = [
+    DeviceHistoryField("timestamp", "时间", "required", "必导字段", lambda device, row: row.timestamp.strftime("%Y-%m-%d %H:%M:%S"), required=True),
+    DeviceHistoryField("device_id", "设备ID", "base", "基础信息", lambda device, row: row.device_id),
+    DeviceHistoryField("device_name", "设备名称", "base", "基础信息", lambda device, row: _device_attr(device, "name"), default=True),
+    DeviceHistoryField("voltage_a", "A相电压(V)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "voltage_a")),
+    DeviceHistoryField("voltage_b", "B相电压(V)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "voltage_b")),
+    DeviceHistoryField("voltage_c", "C相电压(V)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "voltage_c")),
+    DeviceHistoryField("current_a", "A相电流(A)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "current_a")),
+    DeviceHistoryField("current_b", "B相电流(A)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "current_b")),
+    DeviceHistoryField("current_c", "C相电流(A)", "three_phase", "三相电参", lambda device, row: _row_attr(row, "current_c")),
+    DeviceHistoryField("reactive_power_a", "A相无功(kvar)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "reactive_power_a"), default=True),
+    DeviceHistoryField("reactive_power_b", "B相无功(kvar)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "reactive_power_b"), default=True),
+    DeviceHistoryField("reactive_power_c", "C相无功(kvar)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "reactive_power_c"), default=True),
+    DeviceHistoryField("power_factor_a", "A相功率因数", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "power_factor_a"), default=True),
+    DeviceHistoryField("power_factor_b", "B相功率因数", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "power_factor_b"), default=True),
+    DeviceHistoryField("power_factor_c", "C相功率因数", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "power_factor_c"), default=True),
+    DeviceHistoryField("active_power_a", "A相有功(kW)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "active_power_a")),
+    DeviceHistoryField("active_power_b", "B相有功(kW)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "active_power_b")),
+    DeviceHistoryField("active_power_c", "C相有功(kW)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "active_power_c")),
+    DeviceHistoryField("apparent_power_a", "A相视在(kVA)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "apparent_power_a")),
+    DeviceHistoryField("apparent_power_b", "B相视在(kVA)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "apparent_power_b")),
+    DeviceHistoryField("apparent_power_c", "C相视在(kVA)", "compensation_effect", "补偿效果", lambda device, row: _row_attr(row, "apparent_power_c")),
+    DeviceHistoryField("voltage_thd_a", "A相电压THD(%)", "harmonic", "谐波", lambda device, row: _row_attr(row, "voltage_thd_a")),
+    DeviceHistoryField("voltage_thd_b", "B相电压THD(%)", "harmonic", "谐波", lambda device, row: _row_attr(row, "voltage_thd_b")),
+    DeviceHistoryField("voltage_thd_c", "C相电压THD(%)", "harmonic", "谐波", lambda device, row: _row_attr(row, "voltage_thd_c")),
+    DeviceHistoryField("current_harmonic_a", "A相谐波电流(A)", "harmonic", "谐波", lambda device, row: _row_attr(row, "current_harmonic_a")),
+    DeviceHistoryField("current_harmonic_b", "B相谐波电流(A)", "harmonic", "谐波", lambda device, row: _row_attr(row, "current_harmonic_b")),
+    DeviceHistoryField("current_harmonic_c", "C相谐波电流(A)", "harmonic", "谐波", lambda device, row: _row_attr(row, "current_harmonic_c")),
+    DeviceHistoryField("split_circuit_running_count", "分补投入回路数", "switching", "投切状态", lambda device, row: _row_attr(row, "split_circuit_running_count")),
+    DeviceHistoryField("common_circuit_running_count", "公补投入回路数", "switching", "投切状态", lambda device, row: _row_attr(row, "common_circuit_running_count")),
+    DeviceHistoryField("running_circuit_count", "当前投入回路总数", "switching", "投切状态", lambda device, row: _row_attr(row, "running_circuit_count"), default=True),
+    DeviceHistoryField("frequency", "频率(Hz)", "runtime", "运行状态", lambda device, row: _row_attr(row, "frequency")),
+    DeviceHistoryField("temperature", "柜内温度(°C)", "runtime", "运行状态", lambda device, row: _row_attr(row, "temperature"), default=True),
+    DeviceHistoryField("control_mode", "控制模式", "runtime", "运行状态", lambda device, row: _row_attr(row, "control_mode"), default=True),
+    DeviceHistoryField("last_auto_action", "最近自动动作", "runtime", "运行状态", lambda device, row: _row_attr(row, "last_auto_action")),
+]
+
+
+DEVICE_HISTORY_TEMPLATES = {
+    "generic_energy": GENERIC_DEVICE_HISTORY_FIELDS,
+    "capacitor_bank_controller": CAPACITOR_BANK_DEVICE_HISTORY_FIELDS,
 }
 
 
@@ -162,6 +283,107 @@ def build_multi_energy_summary_rows_use_case(
     return rows
 
 
+def list_device_history_report_rows_use_case(
+    session: Session,
+    current_user: Optional[User],
+    device_id: int,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    limit: int = 1000,
+) -> dict:
+    return ReportService.list_device_history_report_rows(
+        session=session,
+        current_user=current_user,
+        device_id=device_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
+
+
+def _resolve_device_history_template_key(device) -> str:
+    if getattr(device, "device_subtype", None) == "capacitor_bank_controller":
+        return "capacitor_bank_controller"
+    return "generic_energy"
+
+
+def _device_history_fields_for_device(device) -> list[DeviceHistoryField]:
+    return DEVICE_HISTORY_TEMPLATES[_resolve_device_history_template_key(device)]
+
+
+def _field_config_payload(device) -> dict:
+    fields = _device_history_fields_for_device(device)
+    default_fields = [field.key for field in fields if field.default and not field.required]
+    required_fields = [field.key for field in fields if field.required]
+    groups_by_key: dict[str, dict] = {}
+    for field in fields:
+        if field.required:
+            continue
+        group = groups_by_key.setdefault(
+            field.group_key,
+            {"key": field.group_key, "label": field.group_label, "fields": []},
+        )
+        group["fields"].append({
+            "key": field.key,
+            "label": field.label,
+            "default": field.default,
+        })
+    return {
+        "device_id": getattr(device, "id", None),
+        "template": _resolve_device_history_template_key(device),
+        "required_fields": required_fields,
+        "default_fields": default_fields,
+        "groups": list(groups_by_key.values()),
+    }
+
+
+def build_device_history_field_config_use_case(
+    session: Session,
+    current_user: Optional[User],
+    device_id: int,
+) -> dict:
+    device = ReportService.get_device_for_history_report(session, current_user, device_id)
+    return _field_config_payload(device)
+
+
+def _parse_requested_device_history_fields(fields: Optional[str]) -> list[str] | None:
+    if fields is None:
+        return None
+    parsed = [field.strip() for field in fields.split(",") if field.strip()]
+    return parsed or None
+
+
+def _select_device_history_fields(device, fields: Optional[str]) -> list[DeviceHistoryField]:
+    template_fields = _device_history_fields_for_device(device)
+    field_by_key = {field.key: field for field in template_fields}
+    required_keys = [field.key for field in template_fields if field.required]
+    requested_keys = _parse_requested_device_history_fields(fields)
+    if requested_keys is None:
+        selected_keys = required_keys + [
+            field.key for field in template_fields if field.default and not field.required
+        ]
+    else:
+        invalid_keys = [key for key in requested_keys if key not in field_by_key]
+        if invalid_keys:
+            raise ValueError(f"不支持的导出字段: {', '.join(invalid_keys)}")
+        selected_keys = required_keys + [key for key in requested_keys if key not in required_keys]
+
+    selected_key_set = set(selected_keys)
+    return [field for field in template_fields if field.key in selected_key_set]
+
+
+def _write_device_history_rows(
+    writer: csv.writer,
+    device,
+    rows,
+    fields: Optional[str],
+) -> None:
+    selected_fields = _select_device_history_fields(device, fields)
+    writer.writerow([field.label for field in selected_fields])
+    for row in rows:
+        writer.writerow([field.accessor(device, row) for field in selected_fields])
+
+
 def build_report_csv_export_use_case(
     session: Session,
     current_user: Optional[User],
@@ -172,6 +394,7 @@ def build_report_csv_export_use_case(
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
     limit: int = 1000,
+    fields: Optional[str] = None,
 ) -> CsvExportPayload:
     normalized_report_type = report_type.strip().lower()
     report_definition = REPORT_DEFINITIONS.get(normalized_report_type)
@@ -180,9 +403,8 @@ def build_report_csv_export_use_case(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(report_definition["headers"])
-
     if report_definition["rows_loader"] == "energy":
+        writer.writerow(report_definition["headers"])
         rows = list_energy_report_rows_use_case(
             session=session,
             current_user=current_user,
@@ -209,6 +431,7 @@ def build_report_csv_export_use_case(
                 semantics["point_kind"],
             ])
     elif report_definition["rows_loader"] == "alarm":
+        writer.writerow(report_definition["headers"])
         rows = list_alarm_report_rows_use_case(
             session=session,
             current_user=current_user,
@@ -230,6 +453,7 @@ def build_report_csv_export_use_case(
                 alarm.resolved_at.strftime("%Y-%m-%d %H:%M:%S") if alarm.resolved_at else "",
             ])
     elif report_definition["rows_loader"] == "carbon":
+        writer.writerow(report_definition["headers"])
         rows = list_carbon_report_rows_use_case(
             session=session,
             current_user=current_user,
@@ -253,7 +477,8 @@ def build_report_csv_export_use_case(
                 semantics["object_role"],
                 semantics["point_kind"],
             ])
-    else:
+    elif report_definition["rows_loader"] == "multi_energy_summary":
+        writer.writerow(report_definition["headers"])
         rows = build_multi_energy_summary_rows_use_case(
             session=session,
             current_user=current_user,
@@ -273,8 +498,24 @@ def build_report_csv_export_use_case(
                 row["carbon_emission"],
                 row["carbon_boundary"],
             ])
+    else:
+        if device_id is None:
+            raise ValueError("device_history 需要提供 device_id")
+        payload = list_device_history_report_rows_use_case(
+            session=session,
+            current_user=current_user,
+            device_id=device_id,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        device = payload["device"]
+        _write_device_history_rows(writer, device, payload["rows"], fields)
 
+    filename_prefix = normalized_report_type
+    if normalized_report_type == "device_history" and device_id is not None:
+        filename_prefix = f"device_history_{device_id}"
     return CsvExportPayload(
-        filename=f"{normalized_report_type}_{_safe_filename_date(end_time or start_time)}.csv",
+        filename=f"{filename_prefix}_{_safe_filename_date(end_time or start_time)}.csv",
         content=output.getvalue(),
     )

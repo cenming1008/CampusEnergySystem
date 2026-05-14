@@ -12,7 +12,9 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
+from app.core.access_control import ensure_device_access
 from app.models.tables import Alarm, CarbonEmission, Device, User
+from app.models.tables import CapacitorBankTelemetry
 from app.repositories.energy_repository import EnergyRepository
 
 
@@ -102,3 +104,53 @@ class ReportService:
         if end_time:
             statement = statement.where(CarbonEmission.timestamp <= end_time)
         return list(session.exec(statement).all())
+
+    @staticmethod
+    def list_device_history_report_rows(
+        session: Session,
+        current_user: Optional[User],
+        device_id: int,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 1000,
+    ) -> dict:
+        device = ReportService.get_device_for_history_report(session, current_user, device_id)
+
+        if getattr(device, "device_subtype", None) == "capacitor_bank_controller":
+            statement = select(CapacitorBankTelemetry).where(CapacitorBankTelemetry.device_id == device_id)
+            if start_time:
+                statement = statement.where(CapacitorBankTelemetry.timestamp >= start_time)
+            if end_time:
+                statement = statement.where(CapacitorBankTelemetry.timestamp <= end_time)
+            rows = session.exec(statement.order_by(CapacitorBankTelemetry.timestamp.asc()).limit(limit)).all()
+            return {
+                "device": device,
+                "history_kind": "capacitor_bank",
+                "rows": list(rows),
+            }
+
+        rows = EnergyRepository.list_energy_data(
+            session=session,
+            device_id=device_id,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+        return {
+            "device": device,
+            "history_kind": "energy",
+            "rows": rows,
+        }
+
+    @staticmethod
+    def get_device_for_history_report(
+        session: Session,
+        current_user: Optional[User],
+        device_id: int,
+    ) -> Device:
+        if current_user is not None:
+            return ensure_device_access(session, current_user, device_id)
+        device = session.get(Device, device_id)
+        if not device:
+            raise ValueError("设备不存在或不可访问")
+        return device

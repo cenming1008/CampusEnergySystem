@@ -107,6 +107,8 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
             { 'is-loading': toggleSubmitting },
           ]"
           :disabled="!canControlDevices || toggleSubmitting"
+          :aria-label="toggleSubmitting ? '处理中' : toggleActionLabel"
+          :title="toggleSubmitting ? '处理中' : toggleActionLabel"
           @click="$emit('toggle')"
         >
           <el-icon
@@ -121,13 +123,20 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
           v-if="showConsoleEntry"
           type="button"
           class="comp-header__action comp-header__action--warning"
+          aria-label="进入控制台"
+          title="进入控制台"
           @click="$emit('openConsole')"
         >
+          <el-icon :size="14">
+            <SwitchButton />
+          </el-icon>
           <span>进入控制台</span>
         </button>
         <button
           type="button"
           class="comp-header__action comp-header__action--neutral"
+          aria-label="刷新"
+          title="刷新"
           @click="$emit('refresh')"
         >
           <el-icon :size="14">
@@ -242,14 +251,16 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
 .comp-header__chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  min-height: 26px;
+  min-width: 84px;
+  min-height: var(--touch-target);
   padding: 0 10px;
   border-radius: 7px;
   border: 1px solid rgba(72, 96, 130, 0.68);
   background: rgba(7, 15, 26, 0.58);
   color: #cbd5e1;
-  font-size: 12px;
+  font-size: var(--font-caption);
   font-weight: 600;
   letter-spacing: 0;
   line-height: 1;
@@ -338,6 +349,23 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
 
 .comp-header__action--neutral {
   color: #dbeafe;
+}
+
+@media (max-width: 1400px) {
+  .comp-header__action {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    padding: 0 10px;
+  }
+
+  .comp-header__action span {
+    display: none;
+  }
+
+  /* 提交中保留文字提示，避免空按钮 */
+  .comp-header__action.is-loading span {
+    display: inline;
+  }
 }
 
 @media (max-width: 1320px) {

@@ -10,6 +10,7 @@ from app.core.database import engine
 from app.core.logger import logger
 from app.services.devices.compensation.capacitor_bank.service import CapacitorBankService
 from app.services.data_cleanup_service import cleanup_old_data
+from app.services.ingestion_health_service import IngestionHealthService
 
 
 def auto_cleanup_data() -> None:
@@ -50,3 +51,19 @@ def expire_compensation_control_timeouts() -> None:
             logger.debug("补偿控制超时收口完成：没有需要更新的待定日志")
     except Exception as exc:
         logger.error(f"补偿控制超时收口执行失败: {exc}")
+
+
+def sync_platform_comm_alarms() -> None:
+    """主动同步平台通讯类告警，避免只在页面读取时才发现离线。"""
+    logger.info("开始扫描平台通讯告警状态...")
+
+    try:
+        with Session(engine) as session:
+            result = IngestionHealthService.sync_platform_comm_alarms(session)
+
+        logger.info(
+            "✅ 平台通讯告警同步完成：检查 "
+            f"{result.get('checked', 0)} 台设备，新增 {result.get('created', 0)} 条，恢复 {result.get('recovered', 0)} 条"
+        )
+    except Exception as exc:
+        logger.error(f"平台通讯告警同步执行失败: {exc}")

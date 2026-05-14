@@ -50,13 +50,23 @@ class IngestionHealthService:
         device_id: int,
         timestamp: Optional[datetime] = None,
     ) -> DeviceIngestionHealth:
+        observed_at = timestamp or datetime.now()
         status = IngestionHealthService._get_or_create(session, device_id)
-        status.last_message_at = timestamp or datetime.now()
-        status.last_success_at = timestamp or datetime.now()
+        status.last_message_at = observed_at
+        status.last_success_at = observed_at
         status.consecutive_failures = 0
         status.last_failure_reason = None
         status.updated_at = datetime.now()
         session.add(status)
+        from app.services.alarm_service import AlarmService
+
+        AlarmService.sync_platform_comm_alarm(
+            session=session,
+            device_id=device_id,
+            is_offline=False,
+            timestamp=observed_at,
+            last_success_at=observed_at,
+        )
         return status
 
     @staticmethod
@@ -97,12 +107,49 @@ class IngestionHealthService:
                 "total_failures": 0,
             }
 
-        return IngestionHealthService.serialize_status(status)
+        result = IngestionHealthService.serialize_status(status)
+        from app.services.alarm_service import AlarmService
+
+        AlarmService.sync_platform_comm_alarm(
+            session=session,
+            device_id=device_id,
+            is_offline=result.get("status") == "offline",
+            timestamp=datetime.now(),
+            last_success_at=result.get("last_success_at"),
+        )
+        return result
 
     @staticmethod
     def list_device_health(session: Session) -> list[Dict[str, Any]]:
         statuses = list(session.exec(select(DeviceIngestionHealth).order_by(DeviceIngestionHealth.device_id)).all())
         return [IngestionHealthService.serialize_status(status) for status in statuses]
+
+    @staticmethod
+    def sync_platform_comm_alarms(session: Session) -> Dict[str, int]:
+        """扫描所有接入健康记录，并同步平台通讯告警生命周期。"""
+        statuses = list(session.exec(select(DeviceIngestionHealth).order_by(DeviceIngestionHealth.device_id)).all())
+        from app.services.alarm_service import AlarmService
+
+        summary = {"checked": 0, "created": 0, "recovered": 0}
+        now = datetime.now()
+        for status in statuses:
+            serialized = IngestionHealthService.serialize_status(status)
+            summary["checked"] += 1
+            result = AlarmService.sync_platform_comm_alarm(
+                session=session,
+                device_id=status.device_id,
+                is_offline=serialized.get("status") == "offline",
+                timestamp=now,
+                last_success_at=serialized.get("last_success_at"),
+            )
+            if isinstance(result, tuple):
+                _alarm, created = result
+                if created:
+                    summary["created"] += 1
+            else:
+                summary["recovered"] += int(result or 0)
+        session.commit()
+        return summary
 
     @staticmethod
     def serialize_status(status: DeviceIngestionHealth) -> Dict[str, Any]:

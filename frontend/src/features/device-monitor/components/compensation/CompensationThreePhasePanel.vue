@@ -214,17 +214,21 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 .group-label {
-  font-size: 11px;
+  font-size: var(--font-caption);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #5d7699;
+  color: var(--text-label);
   margin-bottom: 8px;
-  margin-top: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
 }
 
 .group-label:first-of-type {
   margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .phase-grid {
@@ -246,7 +250,7 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 .phase-card__phase {
-  font-size: 11px;
+  font-size: var(--font-caption);
   color: #7f93b2;
   letter-spacing: 0.04em;
 }
@@ -259,8 +263,8 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 .phase-card__unit {
-  font-size: 11px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
 }
 
 /* 三相功率表格 */
@@ -281,8 +285,8 @@ function formatTimestamp(value: string | null | undefined): string {
 .power-table__head {
   padding: 6px 12px;
   background: rgba(30, 48, 70, 0.8);
-  font-size: 11px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
   font-weight: 600;
   text-align: right;
 }
@@ -301,7 +305,7 @@ function formatTimestamp(value: string | null | undefined): string {
 
 .power-table__phase {
   color: #7f93b2;
-  font-size: 11px;
+  font-size: var(--font-caption);
   text-align: left;
 }
 
@@ -326,8 +330,8 @@ function formatTimestamp(value: string | null | undefined): string {
 
 .harmonic-row--head {
   background: rgba(30, 48, 70, 0.8);
-  font-size: 11px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
   font-weight: 600;
   border-top: none;
 }
@@ -339,9 +343,10 @@ function formatTimestamp(value: string | null | undefined): string {
 
 /* 其他量测 */
 .extra-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 0;
 }
 
 .extra-row {
@@ -349,16 +354,17 @@ function formatTimestamp(value: string | null | undefined): string {
   justify-content: space-between;
   align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(41, 57, 77, 0.55);
+  border-bottom: 1px solid var(--divider);
 }
 
-.extra-row:last-child {
+.extra-row:last-child,
+.extra-row:nth-last-child(2):nth-child(odd) {
   border-bottom: none;
 }
 
 .extra-row span {
-  font-size: 12px;
-  color: #8ea0bc;
+  font-size: var(--font-caption);
+  color: var(--text-label);
 }
 
 .extra-row strong {
@@ -367,15 +373,15 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 .extra-row strong small {
-  font-size: 11px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
   margin-left: 3px;
 }
 
 .empty-hint {
   padding: 24px 0 10px;
   text-align: center;
-  color: #5d7699;
+  color: var(--text-label);
 }
 
 .empty-hint strong {

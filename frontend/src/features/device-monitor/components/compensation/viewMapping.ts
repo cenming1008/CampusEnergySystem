@@ -396,7 +396,7 @@ function buildTimedCapBankSwitchingSeries(
     for (const k of keys) {
       const rawValue = point[k]
       if (typeof rawValue === 'number') {
-        total = (total ?? 0) + decodeSwitchingCount(rawValue)
+        total = (total ?? 0) + (decodeSwitchingCount(rawValue) ?? 0)
       }
     }
     return [point.timestamp, total]
@@ -1337,7 +1337,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     return {
       labels: [],
       legend: ['A相投入路数', 'B相投入路数', 'C相投入路数', '公补投入路数'],
-      axes: [{ name: '路数', min: 0 }],
+      axes: [{ name: '路数', min: 0, max: 20 }],
       series: [
         { name: 'A相投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_phase_a'), color: '#38bdf8' },
         { name: 'B相投入路数', data: buildTimedCapBankSwitchingSeries(input.capacitorBankTelemetryHistory, 'circuit_state_phase_b'), color: '#60a5fa' },

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 import type { PropType } from 'vue'
 import type { DeviceAlarmRecord } from '@/api/deviceMonitor'
+import { alarmSourceLabel } from '@/features/alarm/sourceLabels'
 
 const props = defineProps({
   rows: {
@@ -131,6 +132,17 @@ function resetPage() {
         <template #default="{ row }">
           <el-tag :type="severityTagType(row.severity)">
             {{ row.severity || 'info' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="source"
+        label="来源"
+        width="110"
+      >
+        <template #default="{ row }">
+          <el-tag type="info" effect="plain">
+            {{ alarmSourceLabel(row.source) }}
           </el-tag>
         </template>
       </el-table-column>

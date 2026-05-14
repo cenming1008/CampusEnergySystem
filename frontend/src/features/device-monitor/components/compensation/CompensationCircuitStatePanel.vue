@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 import {
@@ -50,7 +50,6 @@ const props = defineProps({
   },
 })
 
-const legendVisible = ref(false)
 const placeholderCircuitGroups = [
   { label: 'A相分补', alarmFlag: false, mask: 0 },
   { label: 'B相分补', alarmFlag: false, mask: 0 },
@@ -74,33 +73,19 @@ const renderedCircuitGroups = computed(() =>
 <template>
   <section class="circuit-panel">
     <div class="circuit-panel__head">
-      <div>
-        <h3>
-          电容回路投切状态
-          <el-tooltip content="来自 JKWF-LCD 投切寄存器（0x01~0x03）" placement="top">
-            <span class="head-info-icon">ℹ</span>
-          </el-tooltip>
-        </h3>
-      </div>
-      <button
-        class="legend-toggle"
-        @click="legendVisible = !legendVisible"
-      >
-        {{ legendVisible ? '收起图例' : '图例说明' }}
-      </button>
-    </div>
-
-    <transition name="legend-fade">
-      <div
-        v-if="legendVisible"
-        class="legend-bar"
-      >
+      <h3>
+        电容回路投切状态
+        <el-tooltip content="来自 JKWF-LCD 投切寄存器（0x01~0x03）" placement="top">
+          <span class="head-info-icon">ℹ</span>
+        </el-tooltip>
+      </h3>
+      <div class="legend-bar">
         <span class="legend-item legend-item--on"><i />投入</span>
         <span class="legend-item legend-item--off"><i />切除</span>
         <span class="legend-item legend-item--unconfigured"><i />未配置</span>
         <span class="legend-item legend-item--na"><i />等待回读</span>
       </div>
-    </transition>
+    </div>
 
     <div class="groups-grid">
       <div
@@ -196,9 +181,10 @@ const renderedCircuitGroups = computed(() =>
 
 .circuit-panel__head {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 16px;
   margin-bottom: 14px;
 }
 
@@ -211,82 +197,67 @@ const renderedCircuitGroups = computed(() =>
 .head-info-icon {
   display: inline-block;
   margin-left: 6px;
-  color: #5d7699;
-  font-size: 12px;
+  color: var(--text-label);
+  font-size: var(--font-caption);
   cursor: default;
   vertical-align: middle;
 }
 
-.legend-toggle {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border: 1px solid rgba(53, 72, 97, 0.6);
-  border-radius: 6px;
-  background: transparent;
-  color: #8ea0bc;
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.legend-toggle:hover {
-  color: #c5d2e7;
-  border-color: rgba(90, 120, 160, 0.6);
-}
-
-/* Legend */
+/* Legend：始终内联展示，与标题同行（窄屏换行） */
 .legend-bar {
   display: flex;
-  gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  background: rgba(14, 22, 34, 0.5);
-  border: 1px solid rgba(53, 72, 97, 0.4);
-  border-radius: 8px;
+  gap: 12px 16px;
 }
 
 .legend-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: #aebbd0;
+  font-size: var(--font-caption);
+  color: #c5d2e7;
 }
 
+/* 图例样本：与 step-badge 视觉等价，便于直观对照 */
 .legend-item i {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-style: normal;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  font-family: 'SFMono-Regular', monospace;
   flex-shrink: 0;
 }
 
 .legend-item--on i {
   background: rgba(34, 197, 94, 0.2);
-  border: 1px solid rgba(34, 197, 94, 0.45);
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: #6ee7a4;
 }
+.legend-item--on i::before { content: '✓'; }
+
 .legend-item--off i {
   background: rgba(30, 48, 70, 0.4);
-  border: 1px solid rgba(53, 72, 97, 0.4);
+  border: 1px solid rgba(74, 96, 128, 0.65);
+  color: #8aa0bf;
 }
+.legend-item--off i::before { content: '–'; }
+
 .legend-item--unconfigured i {
   background: rgba(33, 42, 55, 0.24);
-  border: 1px dashed rgba(120, 135, 156, 0.25);
+  border: 1px dashed rgba(140, 155, 180, 0.35);
+  color: #8294b3;
 }
+.legend-item--unconfigured i::before { content: '·'; }
+
 .legend-item--na i {
   background: rgba(30, 48, 70, 0.2);
-  border: 1px dashed rgba(53, 72, 97, 0.3);
-}
-
-.legend-fade-enter-active,
-.legend-fade-leave-active {
-  transition: opacity 0.18s, transform 0.18s;
-}
-.legend-fade-enter-from,
-.legend-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+  border: 1px dashed rgba(74, 96, 128, 0.5);
+  color: #6b82a4;
 }
 
 /* Group cards */
@@ -325,20 +296,20 @@ const renderedCircuitGroups = computed(() =>
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: #7f93b2;
+  font-size: var(--font-caption);
+  color: #b4c4dc;
   font-weight: 600;
 }
 
 .group-card__count {
-  font-size: 10px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .group-card__progress {
-  height: 3px;
+  height: 6px;
   background: rgba(53, 72, 97, 0.4);
   border-radius: 999px;
   overflow: hidden;
@@ -353,55 +324,77 @@ const renderedCircuitGroups = computed(() =>
 }
 
 .alarm-badge {
-  font-size: 10px;
-  padding: 1px 5px;
+  font-size: var(--font-caption);
+  padding: 1px 6px;
   border-radius: 4px;
   background: rgba(220, 80, 80, 0.25);
-  color: #f87171;
-  border: 1px solid rgba(220, 80, 80, 0.4);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 80, 80, 0.45);
 }
 
 .steps-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 8px;
 }
 
 .step-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  gap: 3px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0 4px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--font-caption);
   font-family: 'SFMono-Regular', monospace;
   cursor: default;
   transition: background 0.15s;
 }
 
+/* 颜色冗余：通=✓ / 断=– / 未配置=· / 等待回读=空（保留色块差异） */
+.step-badge--on::before {
+  content: '✓';
+  font-weight: 700;
+  line-height: 1;
+}
+
+.step-badge--off::before {
+  content: '–';
+  font-weight: 700;
+  line-height: 1;
+}
+
+.step-badge--unconfigured::before {
+  content: '·';
+  font-weight: 700;
+  line-height: 1;
+}
+
 .step-badge--on {
   background: rgba(34, 197, 94, 0.2);
-  border: 1px solid rgba(34, 197, 94, 0.45);
-  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: #6ee7a4;
 }
 
 .step-badge--off {
   background: rgba(30, 48, 70, 0.4);
-  border: 1px solid rgba(53, 72, 97, 0.4);
-  color: #4a6080;
+  border: 1px solid rgba(74, 96, 128, 0.65);
+  color: #8aa0bf;
 }
 
 .step-badge--na {
   background: rgba(30, 48, 70, 0.2);
-  border: 1px dashed rgba(53, 72, 97, 0.3);
-  color: #344c68;
+  border: 1px dashed rgba(74, 96, 128, 0.5);
+  color: #6b82a4;
 }
 
 .step-badge--unconfigured {
   background: rgba(33, 42, 55, 0.24);
-  border: 1px dashed rgba(120, 135, 156, 0.25);
-  color: #5d6e86;
-  opacity: 0.72;
+  border: 1px dashed rgba(140, 155, 180, 0.35);
+  color: #8294b3;
+  opacity: 0.85;
 }
 
 /* Grouped flags */
@@ -409,21 +402,21 @@ const renderedCircuitGroups = computed(() =>
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid rgba(41, 57, 77, 0.5);
+  border-top: 1px solid var(--divider);
 }
 
 .flag-group {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .flag-group__label {
-  font-size: 10px;
-  color: #4a6080;
+  font-size: var(--font-caption);
+  color: var(--text-label);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -434,38 +427,37 @@ const renderedCircuitGroups = computed(() =>
 
 .flag-group__chips {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .flag-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: var(--font-caption);
   font-weight: 600;
 }
 
 .flag-chip--active {
   background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fcd34d;
 }
 
 .flag-chip--ok {
   background: rgba(30, 48, 70, 0.35);
-  border: 1px solid rgba(53, 72, 97, 0.35);
-  color: #3f5572;
+  border: 1px solid rgba(74, 96, 128, 0.4);
+  color: var(--text-label);
 }
 
 .flags-all-ok {
   margin-left: auto;
-  font-size: 11px;
-  color: #4ade80;
-  opacity: 0.7;
+  font-size: var(--font-caption);
+  color: #6ee7a4;
 }
 
 </style>

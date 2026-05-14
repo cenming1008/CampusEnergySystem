@@ -161,21 +161,65 @@ class Settings(BaseSettings):
     )
     
     mqtt_port: int = Field(
-        default=1883,
+        default=8883,
         env="MQTT_PORT",
-        description="MQTT端口"
+        description="MQTT端口（默认 8883 = TLS）"
     )
-    
+
     mqtt_username: Optional[str] = Field(
         default=None,
         env="MQTT_USERNAME",
-        description="MQTT用户名（可选）"
+        description="MQTT用户名（ingest worker 使用，亦作为旧字段兼容）"
     )
-    
+
     mqtt_password: Optional[str] = Field(
         default=None,
         env="MQTT_PASSWORD",
-        description="MQTT密码（可选）"
+        description="MQTT密码（ingest worker 使用，亦作为旧字段兼容）"
+    )
+
+    # ---------- TLS ----------
+    mqtt_tls_enabled: bool = Field(
+        default=True,
+        env="MQTT_TLS_ENABLED",
+        description="是否对 MQTT 客户端启用 TLS"
+    )
+
+    mqtt_tls_ca_path: Optional[str] = Field(
+        default=None,
+        env="MQTT_TLS_CA_PATH",
+        description="自签 CA 证书路径，启用 TLS 时必填"
+    )
+
+    mqtt_tls_certfile: Optional[str] = Field(
+        default=None,
+        env="MQTT_TLS_CERTFILE",
+        description="客户端证书路径（仅 mTLS 时需要）"
+    )
+
+    mqtt_tls_keyfile: Optional[str] = Field(
+        default=None,
+        env="MQTT_TLS_KEYFILE",
+        description="客户端私钥路径（仅 mTLS 时需要）"
+    )
+
+    mqtt_tls_insecure: bool = Field(
+        default=False,
+        env="MQTT_TLS_INSECURE",
+        description="是否跳过服务端证书 hostname 校验（仅 dev 调试用）"
+    )
+
+    # ---------- 分角色凭据 ----------
+    mqtt_control_username: Optional[str] = Field(
+        default=None,
+        env="MQTT_CONTROL_USERNAME",
+        description="控制下发使用的 MQTT 账号（缺省回退到 mqtt_username）"
+    )
+
+    mqtt_control_password: Optional[str] = Field(
+        default=None,
+        env="MQTT_CONTROL_PASSWORD",
+        description="控制下发使用的 MQTT 密码（缺省回退到 mqtt_password）"
     )
     
     mqtt_topic: str = Field(

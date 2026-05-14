@@ -91,21 +91,34 @@ function tagType(tone?: CompensationEventItem['tone']) {
 }
 
 .event-count {
-  font-size: 12px;
-  color: #5d7699;
+  font-size: var(--font-caption);
+  color: var(--text-label);
 }
 
 .side-panel__head em {
   font-style: normal;
-  color: #5d7699;
+  color: var(--text-label);
 }
 
 .timeline-wrap {
-  max-height: 420px;
+  max-height: clamp(360px, 50vh, 720px);
   overflow-y: auto;
-  padding-right: 6px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(53, 72, 97, 0.5) transparent;
+  padding-right: 8px;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(74, 96, 128, 0.6) transparent;
+}
+
+.timeline-wrap::-webkit-scrollbar {
+  width: 8px;
+}
+
+.timeline-wrap::-webkit-scrollbar-thumb {
+  background: rgba(74, 96, 128, 0.6);
+  border-radius: 4px;
+}
+
+.timeline-wrap::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .timeline-card {
@@ -130,14 +143,14 @@ function tagType(tone?: CompensationEventItem['tone']) {
 
 .timeline-card p {
   margin: 0;
-  color: #8ea0bc;
-  font-size: 12px;
+  color: #b4c4dc;
+  font-size: var(--font-caption);
   line-height: 1.6;
 }
 
 .empty-hint {
   padding: 14px 0 4px;
-  color: #8ea0bc;
-  font-size: 12px;
+  color: var(--text-label);
+  font-size: var(--font-caption);
 }
 </style>

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
-import CompensationCircuitStatePanel from '@/features/device-monitor/components/compensation/CompensationCircuitStatePanel.vue'
 import CompensationControlSummaryPanel from '@/features/device-monitor/components/compensation/CompensationControlSummaryPanel.vue'
+import CompensationDetailPanel from '@/features/device-monitor/components/compensation/CompensationDetailPanel.vue'
 import CompensationDeviceProfile from '@/features/device-monitor/components/compensation/CompensationDeviceProfile.vue'
 import CompensationEventTimeline from '@/features/device-monitor/components/compensation/CompensationEventTimeline.vue'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
 import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
 import CompensationStatusSummary from '@/features/device-monitor/components/compensation/CompensationStatusSummary.vue'
 import CompensationSvgProfileEditDialog from '@/features/device-monitor/components/compensation/CompensationSvgProfileEditDialog.vue'
-import CompensationThreePhasePanel from '@/features/device-monitor/components/compensation/CompensationThreePhasePanel.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
 import DeviceTemplateDiagnosticsPanel from '@/features/device-monitor/components/common/DeviceTemplateDiagnosticsPanel.vue'
 import MonitorViewShell from './MonitorViewShell.vue'
@@ -45,26 +44,6 @@ defineProps<{
         :extended-hint="page.compensationExtendedHint"
       />
 
-      <CompensationThreePhasePanel
-        v-if="page.isSvgDevice || page.compensationSubtype === 'capacitor_bank_controller'"
-        :svg-telemetry="page.compensationSvgTelemetry"
-        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-        :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
-      />
-
-      <CompensationCircuitStatePanel
-        v-if="page.compensationSubtype === 'capacitor_bank_controller'"
-        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-        :configured-split-circuit-count="page.compensationCapacitorBankControlProfile?.split_output_circuit_count ?? undefined"
-        :configured-common-circuit-count="page.compensationCapacitorBankControlProfile?.common_output_circuit_count ?? undefined"
-        :phase-a-circuit-total-count="page.compensationCapacitorBankControlProfile?.phase_a_circuit_total_count ?? undefined"
-        :phase-b-circuit-total-count="page.compensationCapacitorBankControlProfile?.phase_b_circuit_total_count ?? undefined"
-        :phase-c-circuit-total-count="page.compensationCapacitorBankControlProfile?.phase_c_circuit_total_count ?? undefined"
-        :common1-circuit-total-count="page.compensationCapacitorBankControlProfile?.common_1_circuit_total_count ?? undefined"
-        :common2-circuit-total-count="page.compensationCapacitorBankControlProfile?.common_2_circuit_total_count ?? undefined"
-        :common3-circuit-total-count="page.compensationCapacitorBankControlProfile?.common_3_circuit_total_count ?? undefined"
-      />
-
       <CompensationTrendPanel
         v-model:active-tab="page.compensationTrendTab"
         v-model:time-range="page.timeRange"
@@ -73,6 +52,15 @@ defineProps<{
         :shortcuts="page.timeShortcuts"
         :loading="page.chartLoading"
         @range-change="page.handleRangeChange"
+      />
+
+      <CompensationDetailPanel
+        v-if="page.isSvgDevice || page.compensationSubtype === 'capacitor_bank_controller'"
+        v-model:active-tab="page.compensationDetailTab"
+        :svg-telemetry="page.compensationSvgTelemetry"
+        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
+        :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
+        :circuit-profile="page.compensationCircuitProfile"
       />
 
       <CompensationAlarmTable
@@ -94,6 +82,7 @@ defineProps<{
         :summary-items="page.capacitorBankControlSummaryView.summaryItems"
         :capacity-expansion-items="page.capacitorBankControlSummaryView.capacityExpansionItems"
         :has-summary-data="page.capacitorBankControlSummaryView.hasSummaryData"
+        @open-console="page.router.push(`/device-console/${page.deviceId}`)"
       />
       <CompensationDeviceProfile
         :items="page.compensationProfileItems"

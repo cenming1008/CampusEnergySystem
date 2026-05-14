@@ -67,13 +67,15 @@ function toneIcon(tone?: CompensationStatusItem['tone']) {
       </div>
     </div>
 
-    <button
+    <el-button
       v-if="hasMore"
+      link
+      type="primary"
       class="collapse-toggle"
       @click="collapsed = !collapsed"
     >
       {{ collapsed ? `展开全部 (${items.length - PINNED_COUNT} 项)` : '收起' }}
-    </button>
+    </el-button>
   </section>
 </template>
 
@@ -113,7 +115,7 @@ function toneIcon(tone?: CompensationStatusItem['tone']) {
   align-items: flex-start;
   gap: 12px;
   padding: 9px 0;
-  border-bottom: 1px solid rgba(41, 57, 77, 0.72);
+  border-bottom: 1px solid var(--divider);
 }
 
 .status-row:last-child {
@@ -128,7 +130,7 @@ function toneIcon(tone?: CompensationStatusItem['tone']) {
 
 .status-row__meta span {
   color: #aebbd0;
-  font-size: 12px;
+  font-size: var(--font-caption);
 }
 
 .label-with-hint {
@@ -150,7 +152,7 @@ function toneIcon(tone?: CompensationStatusItem['tone']) {
 }
 
 .tone-icon {
-  font-size: 11px;
+  font-size: var(--font-caption);
   font-weight: 700;
   line-height: 1;
 }
@@ -168,21 +170,11 @@ function toneIcon(tone?: CompensationStatusItem['tone']) {
 .is-info .tone-icon { color: #60a5fa; }
 
 .collapse-toggle {
-  display: block;
+  display: flex;
   width: 100%;
   margin-top: 10px;
-  padding: 6px 0;
-  border: 1px solid rgba(53, 72, 97, 0.5);
-  border-radius: 8px;
-  background: transparent;
-  color: #7f93b2;
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.collapse-toggle:hover {
-  color: #c5d2e7;
-  border-color: rgba(90, 120, 160, 0.5);
+  min-height: var(--touch-target);
+  justify-content: center;
+  font-size: var(--font-caption);
 }
 </style>

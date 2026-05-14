@@ -16,9 +16,17 @@ import paho.mqtt.client as mqtt
 
 from app.core.logger import logger
 from app.core.settings import settings
+from app.services.mqtt_tls import apply_tls
 
 _lock = threading.Lock()
 _publisher_client: mqtt.Client | None = None
+
+
+def _resolve_publisher_credentials() -> tuple[str | None, str | None]:
+    """优先使用控制下发专用账号，缺省回退到 ingest worker 账号。"""
+    user = settings.mqtt_control_username or settings.mqtt_username
+    pwd = settings.mqtt_control_password or settings.mqtt_password
+    return user, pwd
 
 
 def _get_publisher() -> mqtt.Client:
@@ -39,8 +47,10 @@ def _get_publisher() -> mqtt.Client:
                 pass
 
         c = mqtt.Client()
-        if settings.mqtt_username and settings.mqtt_password:
-            c.username_pw_set(settings.mqtt_username, settings.mqtt_password)
+        user, pwd = _resolve_publisher_credentials()
+        if user and pwd:
+            c.username_pw_set(user, pwd)
+        apply_tls(c)
         c.reconnect_delay_set(min_delay=1, max_delay=30)
         c.connect(settings.mqtt_broker, settings.mqtt_port, keepalive=60)
         c.loop_start()

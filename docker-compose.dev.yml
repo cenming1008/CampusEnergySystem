@@ -30,15 +30,18 @@ services:
     restart: unless-stopped
     ports:
       - "1883:1883"
-      - "9001:9001"
+      - "8883:8883"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     networks:
       - app_network
+    environment:
+      MQTT_INGEST_USERNAME: ${MQTT_INGEST_USERNAME:-ingest-worker}
+      MQTT_INGEST_PASSWORD: ${MQTT_INGEST_PASSWORD:-}
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u campus_mqtt -P campus_mqtt_secret_2026 -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -u \"$$MQTT_INGEST_USERNAME\" -P \"$$MQTT_INGEST_PASSWORD\" -t '$$SYS/#' -C 1 -W 3 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 3

@@ -30,6 +30,12 @@
 - [x] SVG 缺少资产 profile 时，`module_count` 不再用静态默认值掩盖，诊断会通过 `missing_keys` 暴露缺失。
 - [x] 储能缺少 `soh/cell_temp_max/charge_energy_today/discharge_energy_today` 时，诊断会通过 `missing_keys` 暴露缺失。
 - [x] `docs/guides/device-monitor-template.md` 已补充冷热量表单位、温差计算和 SVG 模块数来源说明。
+- [x] 告警边界已按设备原生、平台规则、平台通讯三类来源收敛；`Alarm.source` 统一使用 `device_native/platform_rule/platform_comm`。
+- [x] 补偿设备原生状态位 / 故障码 / 告警码进入 `device_native`，参数门限和过补偿推导进入 `platform_rule`，补偿设备不再默认套用通用电流 / 电压阈值告警。
+- [x] 接入健康已补充 `platform_comm/communication_offline` 通讯告警创建与恢复闭环；系统恢复和人工处理继续分离。
+- [x] 告警中心和补偿监控告警表已展示告警来源标签；监控页面不新增核心告警判定逻辑。
+- [x] 默认 scheduler 已新增每分钟全量同步平台通讯告警任务 `sync_platform_comm_alarms`。
+- [x] 旧 `source=telemetry` 告警前端统一显示为“历史遥测”，不做历史数据迁移。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -43,6 +49,10 @@
 - `./venv/bin/python -m pytest tests/test_device_monitor_plugin_registry.py tests/test_device_monitor_service.py tests/test_mqtt_contracts.py -q` 通过：`34 passed, 2 warnings`。
 - `cd frontend && npm run test:unit -- DeviceMonitor.test.ts DeviceTemplateDiagnosticsPanel.test.ts` 通过：`2 files / 10 tests passed`。
 - `cd frontend && npm run typecheck` 通过。
+- `./venv/bin/python -m pytest tests/test_alarm_service.py tests/test_alarm_endpoints.py tests/test_device_monitor_service.py tests/test_ingestion_health_service.py -q` 通过：`46 passed, 1 warning`。
+- `cd frontend && npm run test:unit -- sourceLabels.test.ts DeviceMonitor.test.ts` 通过：`2 files / 13 tests passed`。
+- `cd frontend && npm run typecheck` 通过。
+- `./venv/bin/python -m pytest tests/test_scheduler_jobs.py tests/test_ingestion_health_service.py -q` 通过：`11 passed, 1 warning`。
 
 ## 当前验收判断
 - 当前可判定：设备监控统一模板 V4 已完成后端、前端和文档接入。
@@ -58,3 +68,4 @@
 - 前端趋势可绘图字段仍受白名单限制。
 - 专属面板声明本轮只展示，不驱动页面显隐。
 - 冷热量表现场若上报 `kWh/MWh` 或厂商自定义单位，仍需在设备接入层按当前模板口径统一换算。
+- 历史告警数据不做迁移；前端以“历史遥测”标签兼容展示旧 `source=telemetry`。

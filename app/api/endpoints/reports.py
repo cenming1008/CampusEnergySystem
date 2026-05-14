@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from app.api.deps import get_current_user
-from app.application.reporting import build_report_csv_export_use_case
+from app.application.reporting import build_device_history_field_config_use_case, build_report_csv_export_use_case
 from app.core.database import get_session
 from app.core.rate_limit import limit_requests
 from app.core.settings import settings
@@ -15,15 +15,33 @@ from app.models.tables import User
 router = APIRouter()
 
 
+@router.get("/device-history-fields")
+def device_history_fields(
+    device_id: int = Query(..., description="设备ID"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """获取单设备历史数据导出的字段模板。"""
+    try:
+        return build_device_history_field_config_use_case(
+            session=session,
+            current_user=current_user,
+            device_id=device_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/export_csv")
 def export_csv(
-    report_type: str = Query("energy_detail", description="报表类型: energy_detail/alarm_history/carbon_emission/multi_energy_summary"),
+    report_type: str = Query("energy_detail", description="报表类型: energy_detail/alarm_history/carbon_emission/multi_energy_summary/device_history"),
     device_id: Optional[int] = Query(None, description="设备ID"),
     energy_type: Optional[str] = Query(None, description="能源类型"),
     resolved: Optional[bool] = Query(None, description="仅报警报表使用"),
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     limit: int = Query(1000, ge=1, le=20000, description="最大导出条数"),
+    fields: Optional[str] = Query(None, description="单设备历史导出字段，逗号分隔"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     _: None = Depends(
@@ -46,6 +64,7 @@ def export_csv(
             start_time=start_time,
             end_time=end_time,
             limit=limit,
+            fields=fields,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

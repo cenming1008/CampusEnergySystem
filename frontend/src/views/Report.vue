@@ -1,15 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { DataAnalysis, Document, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 import { getDevices, type Device } from '@/api/device'
-import { buildReportDownloadName, downloadReport, type ReportType } from '@/api/report'
+import {
+  buildReportDownloadName,
+  downloadReport,
+  getDeviceHistoryFields,
+  type DeviceHistoryFieldConfig,
+  type ReportDownloadParams,
+  type ReportType,
+} from '@/api/report'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePermissions } from '@/shared/composables/usePermissions'
 
 const downloading = ref(false)
+const fieldConfigLoading = ref(false)
+const fieldConfigLoadFailed = ref(false)
 const deviceList = ref<Device[]>([])
+const deviceHistoryFieldConfig = ref<DeviceHistoryFieldConfig | null>(null)
+const selectedFieldKeys = ref<string[]>([])
 const authStore = useAuthStore()
 const { hasScopedAccess } = usePermissions()
 
@@ -31,6 +42,7 @@ const reportTypeOptions: Array<{ label: string; value: ReportType; description: 
   { label: '报警历史', value: 'alarm_history', description: '导出报警产生、恢复与处理记录' },
   { label: '碳排放', value: 'carbon_emission', description: '导出碳排放与能耗记录' },
   { label: '多能源汇总', value: 'multi_energy_summary', description: '导出分能源周期消耗、瞬时统计与展示级碳排估算' },
+  { label: '单设备历史数据', value: 'device_history', description: '按所选设备导出原始历史遥测，补偿控制器包含三相无功、功率因数与投切状态' },
 ]
 
 const energyTypeOptions = [
@@ -59,7 +71,7 @@ const selectedDeviceName = computed(() => {
 })
 
 const selectedEnergyName = computed(() => {
-  if (filters.value.report_type === 'alarm_history') return '不适用'
+  if (filters.value.report_type === 'alarm_history' || filters.value.report_type === 'device_history') return '不适用'
   if (!filters.value.energy_type) return '全部能源'
   return energyTypeOptions.find((item) => item.value === filters.value.energy_type)?.label || filters.value.energy_type
 })
@@ -79,7 +91,25 @@ const exportScopeRows = computed(() => [
   { label: '开始时间', value: filters.value.start_time || '不限' },
   { label: '结束时间', value: filters.value.end_time || '不限' },
   { label: '导出上限', value: `${filters.value.limit.toLocaleString()} 条` },
+  {
+    label: '导出字段',
+    value: filters.value.report_type === 'device_history'
+      ? `${selectedFieldKeys.value.length + (deviceHistoryFieldConfig.value?.required_fields.length ?? 0)} 个`
+      : '默认字段',
+  },
 ])
+
+const allDeviceHistoryFieldKeys = computed(() => (
+  deviceHistoryFieldConfig.value?.groups.flatMap((group) => group.fields.map((field) => field.key)) ?? []
+))
+
+const canDownload = computed(() => {
+  if (filters.value.report_type !== 'device_history') return true
+  return Boolean(filters.value.device_id)
+    && !fieldConfigLoading.value
+    && !fieldConfigLoadFailed.value
+    && selectedFieldKeys.value.length > 0
+})
 
 function normalizeDateRange() {
   if (!filters.value.start_time || !filters.value.end_time) {
@@ -96,17 +126,65 @@ async function loadDevices() {
   deviceList.value = await getDevices()
 }
 
+async function loadDeviceHistoryFields() {
+  deviceHistoryFieldConfig.value = null
+  selectedFieldKeys.value = []
+  fieldConfigLoadFailed.value = false
+  if (filters.value.report_type !== 'device_history' || !filters.value.device_id) {
+    return
+  }
+  fieldConfigLoading.value = true
+  try {
+    const config = await getDeviceHistoryFields(filters.value.device_id)
+    deviceHistoryFieldConfig.value = config
+    selectedFieldKeys.value = [...config.default_fields]
+  } catch {
+    fieldConfigLoadFailed.value = true
+    ElMessage.warning('字段配置加载失败')
+  } finally {
+    fieldConfigLoading.value = false
+  }
+}
+
+function selectDefaultFields() {
+  selectedFieldKeys.value = [...(deviceHistoryFieldConfig.value?.default_fields ?? [])]
+}
+
+function selectAllFields() {
+  selectedFieldKeys.value = [...allDeviceHistoryFieldKeys.value]
+}
+
+function clearSelectedFields() {
+  selectedFieldKeys.value = []
+}
+
 async function handleDownload() {
   normalizeDateRange()
+  if (filters.value.report_type === 'device_history' && !filters.value.device_id) {
+    ElMessage.warning('请选择要导出的设备')
+    return
+  }
+  if (filters.value.report_type === 'device_history' && fieldConfigLoadFailed.value) {
+    ElMessage.warning('字段配置加载失败')
+    return
+  }
+  if (filters.value.report_type === 'device_history' && selectedFieldKeys.value.length === 0) {
+    ElMessage.warning('请至少选择一个导出字段')
+    return
+  }
   downloading.value = true
   try {
-    const blob = await downloadReport(filters.value)
+    const params: ReportDownloadParams = { ...filters.value }
+    if (params.report_type === 'device_history') {
+      params.fields = selectedFieldKeys.value.join(',')
+    }
+    const blob = await downloadReport(params)
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
     link.setAttribute(
       'download',
-      buildReportDownloadName(filters.value)
+      buildReportDownloadName(params)
     )
     document.body.appendChild(link)
     link.click()
@@ -125,6 +203,13 @@ onMounted(() => {
     ElMessage.warning('设备列表加载失败，仍可导出全量权限范围数据')
   })
 })
+
+watch(
+  () => [filters.value.report_type, filters.value.device_id] as const,
+  () => {
+    loadDeviceHistoryFields()
+  }
+)
 </script>
 
 <template>
@@ -211,7 +296,7 @@ onMounted(() => {
           </el-form-item>
 
           <el-form-item
-            v-if="filters.report_type !== 'alarm_history'"
+            v-if="filters.report_type !== 'alarm_history' && filters.report_type !== 'device_history'"
             label="能源类型"
           >
             <el-select
@@ -252,6 +337,76 @@ onMounted(() => {
             </el-select>
           </el-form-item>
 
+          <el-form-item
+            v-if="filters.report_type === 'device_history'"
+            label="导出字段"
+          >
+            <div class="field-picker">
+              <div class="field-picker-actions">
+                <el-button
+                  size="small"
+                  @click="selectDefaultFields"
+                >
+                  推荐字段
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="selectAllFields"
+                >
+                  全选
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="clearSelectedFields"
+                >
+                  清空
+                </el-button>
+              </div>
+              <el-alert
+                v-if="!filters.device_id"
+                title="请选择设备后配置导出字段"
+                type="info"
+                :closable="false"
+                show-icon
+              />
+              <el-alert
+                v-else-if="fieldConfigLoadFailed"
+                title="字段配置加载失败"
+                type="error"
+                :closable="false"
+                show-icon
+              />
+              <div
+                v-else-if="deviceHistoryFieldConfig"
+                class="field-groups"
+              >
+                <div
+                  v-for="group in deviceHistoryFieldConfig.groups"
+                  :key="group.key"
+                  class="field-group"
+                >
+                  <p>{{ group.label }}</p>
+                  <el-checkbox-group v-model="selectedFieldKeys">
+                    <el-checkbox
+                      v-for="field in group.fields"
+                      :key="field.key"
+                      :label="field.key"
+                    >
+                      {{ field.label }}
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </div>
+              </div>
+              <el-alert
+                v-else
+                :title="fieldConfigLoading ? '字段配置加载中' : '暂无字段配置'"
+                type="info"
+                :closable="false"
+                show-icon
+              />
+            </div>
+          </el-form-item>
+
           <div class="date-row">
             <el-form-item label="开始日期">
               <el-date-picker
@@ -286,6 +441,7 @@ onMounted(() => {
           size="large"
           :icon="Download"
           :loading="downloading"
+          :disabled="!canDownload"
           class="download-btn"
           @click="handleDownload"
         >
@@ -601,7 +757,7 @@ onMounted(() => {
 
 .report-type-group {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
   width: 100%;
 }
@@ -638,6 +794,50 @@ onMounted(() => {
   margin-top: 8px;
   border-radius: 22px;
   grid-column: 1 / -1;
+}
+
+.field-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.field-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.055);
+}
+
+.field-group p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(226,232,240,0.76);
+}
+
+.field-group :deep(.el-checkbox-group) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 6px 12px;
+}
+
+.field-group :deep(.el-checkbox) {
+  height: auto;
+  margin-right: 0;
+  color: rgba(226,232,240,0.72);
 }
 
 :deep(.el-button) {

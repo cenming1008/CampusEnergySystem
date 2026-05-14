@@ -48,13 +48,31 @@ class TestSchedulerJobs(unittest.TestCase):
         )
         mock_logger.info.assert_any_call("✅ 补偿控制超时收口完成：共更新 2 条控制日志")
 
+    @patch("app.services.scheduler_jobs.IngestionHealthService.sync_platform_comm_alarms")
+    @patch("app.services.scheduler_jobs.Session")
+    @patch("app.services.scheduler_jobs.logger")
+    def test_sync_platform_comm_alarms_logs_processed_count(
+        self,
+        mock_logger,
+        mock_session_cls,
+        mock_sync_platform_comm,
+    ):
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+        mock_sync_platform_comm.return_value = {"created": 1, "recovered": 2, "checked": 3}
+
+        scheduler_jobs.sync_platform_comm_alarms()
+
+        mock_logger.info.assert_any_call("开始扫描平台通讯告警状态...")
+        mock_sync_platform_comm.assert_called_once_with(mock_session)
+        mock_logger.info.assert_any_call("✅ 平台通讯告警同步完成：检查 3 台设备，新增 1 条，恢复 2 条")
+
     def test_scheduler_registry_only_registers_cleanup_job(self):
         with patch.object(scheduler_registry.settings, "enable_auto_cleanup", True):
             jobs = list(scheduler_registry.get_enabled_job_definitions())
 
         self.assertEqual(
             [job.id for job in jobs],
-            ["auto_cleanup_data", "expire_compensation_control_timeouts"],
+            ["auto_cleanup_data", "expire_compensation_control_timeouts", "sync_platform_comm_alarms"],
         )
 
 if __name__ == "__main__":

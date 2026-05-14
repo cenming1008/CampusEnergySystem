@@ -47,11 +47,20 @@ def process_data(
     return ws_message
 
 
-def _create_client() -> mqtt.Client:
+from app.services.mqtt_tls import apply_tls
+
+
+def _create_client(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> mqtt.Client:
     """创建并配置 MQTT 客户端实例。"""
     c = mqtt.Client()
-    if settings.mqtt_username and settings.mqtt_password:
-        c.username_pw_set(settings.mqtt_username, settings.mqtt_password)
+    user = username if username is not None else settings.mqtt_username
+    pwd = password if password is not None else settings.mqtt_password
+    if user and pwd:
+        c.username_pw_set(user, pwd)
+    apply_tls(c)
     c.reconnect_delay_set(min_delay=_RECONNECT_BASE_DELAY, max_delay=_RECONNECT_MAX_DELAY)
     return c
 

@@ -16,6 +16,12 @@
     --danger-color: #ef4444;
     --success-color: #22c55e;
     --warning-color: #f59e0b;
+
+    /* 设计 token：标签色 / 分隔线 / 触控目标 / 最小字号（WCAG AA） */
+    --text-label: #8aa0bf;
+    --divider: rgba(148, 163, 184, 0.12);
+    --touch-target: 24px;
+    --font-caption: 12px;
 }
 
 body {
@@ -261,4 +267,75 @@ body {
 
 .scrollbar-hidden::-webkit-scrollbar {
     display: none;
+}
+
+/* ================= Dashboard v2 (EMS 改版探索 · 方向 A) ================= */
+.ems-cockpit-v2 {
+    --bg: #0a0f17;
+    --surface: #101826;
+    --surface-hi: #162133;
+    --border: rgba(255,255,255,0.06);
+    --border-hi: rgba(255,255,255,0.10);
+    --text: #e6edf5;
+    --text-mid: #9aa6b8;
+    --text-dim: #5a6577;
+    --accent: #4dd0c4;
+    --accent-2: #6b9eff;
+    --ok: #34d399;
+    --notice: #f5b544;
+    --warn: #fb923c;
+    --err: #ef5a5a;
+    --flat: #7787a0;
+    --m-elec: #6b9eff;
+    --m-water: #4dd0c4;
+    --m-gas: #f5b544;
+    --m-cool: #a78bfa;
+    --m-heat: #ef7a6b;
+    --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--text);
+}
+.ems-cockpit-v2 .num,
+.ems-cockpit-v2 .mono {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+}
+
+@keyframes ems-a-pulse {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.25); }
+}
+@keyframes ems-a-pulse-ring {
+    0% { transform: scale(1); opacity: .55; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes ems-a-glow-notice {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(245,181,68,.27), 0 0 10px -2px rgba(245,181,68,.13); }
+    50% { box-shadow: 0 0 0 1px rgba(245,181,68,.40), 0 0 16px -2px rgba(245,181,68,.27); }
+}
+@keyframes ems-a-glow-warn {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(251,146,60,.33), 0 0 14px -2px rgba(251,146,60,.20); }
+    50% { box-shadow: 0 0 0 1px rgba(251,146,60,.53), 0 0 22px -2px rgba(251,146,60,.33); }
+}
+@keyframes ems-a-glow-err {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(239,90,90,.40), 0 0 16px -2px rgba(239,90,90,.27); }
+    50% { box-shadow: 0 0 0 1px rgba(239,90,90,.80), 0 0 26px -2px rgba(239,90,90,.47); }
+}
+.ems-cockpit-v2 .a-pulse { animation: ems-a-pulse 1.4s ease-in-out infinite; }
+.ems-cockpit-v2 .a-pulse-ring { position: relative; }
+.ems-cockpit-v2 .a-pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: .55;
+    animation: ems-a-pulse-ring 1.4s ease-out infinite;
+    pointer-events: none;
+}
+.ems-cockpit-v2 .a-glow-notice { animation: ems-a-glow-notice 3.2s ease-in-out infinite; }
+.ems-cockpit-v2 .a-glow-warn { animation: ems-a-glow-warn 2.6s ease-in-out infinite; }
+.ems-cockpit-v2 .a-glow-err { animation: ems-a-glow-err 2s ease-in-out infinite; }
+.ems-cockpit-v2 .a-stripe {
+    background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255,255,255,0.03) 6px 7px);
 }

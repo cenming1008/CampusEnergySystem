@@ -1,700 +1,433 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useSocketStore } from '@/stores/useSocketStore'
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
-import { useDashboardCharts } from '@/features/dashboard/composables/useDashboardCharts'
 import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
-import { useDashboardDeviceSelection } from '@/features/dashboard/composables/useDashboardDeviceSelection'
-import { useDashboardEnergyStats } from '@/features/dashboard/composables/useDashboardEnergyStats'
-import { useDashboardRealtime } from '@/features/dashboard/composables/useDashboardRealtime'
-import KpiStrip from '@/features/dashboard/components/KpiStrip.vue'
-import OnlineGauge from '@/features/dashboard/components/OnlineGauge.vue'
-import EnergyMix from '@/features/dashboard/components/EnergyMix.vue'
-import AlarmFeed from '@/features/dashboard/components/AlarmFeed.vue'
-import TrendPanel from '@/features/dashboard/components/TrendPanel.vue'
-import DeviceSpotlight from '@/features/dashboard/components/DeviceSpotlight.vue'
-import ScadaBoard from '@/features/dashboard/components/ScadaBoard.vue'
-import { getDeviceTypeLabel, resolveDeviceGroupMeta } from '@/shared/deviceTypeLabels'
-import RegionRanking from '@/features/dashboard/components/RegionRanking.vue'
-import type { Device } from '@/api/device'
-import type { DeviceAnalysis } from '@/api/telemetry'
-import {
-  getDeviceMonitorOverview,
-  getDeviceMonitorStatusHistory,
-  type DeviceStatusEvent,
-  type MonitorOverview,
-} from '@/api/deviceMonitor'
+import { useDashboardOverview } from '@/features/dashboard/composables/useDashboardOverview'
+import { resolveAlarm, type Alarm } from '@/api/alarm'
+import type { DeviceIngestionHealthItem } from '@/api/deviceMonitor'
 
-const socketStore = useSocketStore()
+import DashboardStatusBar from '@/features/dashboard/components/DashboardStatusBar.vue'
+import CriticalAlertBanner from '@/features/dashboard/components/CriticalAlertBanner.vue'
+import KpiStrip, { type KpiItem } from '@/features/dashboard/components/KpiStrip.vue'
+import StackedTrend, { type TrendSeries } from '@/features/dashboard/components/StackedTrend.vue'
+import AlertTrack, { type AlertItem, type AlertSeverity } from '@/features/dashboard/components/AlertTrack.vue'
+import DeviceMatrix, { type MatrixGroup, type MatrixStatus } from '@/features/dashboard/components/DeviceMatrix.vue'
+import EnergyMixDonut, { type MixItem } from '@/features/dashboard/components/EnergyMixDonut.vue'
+import Ranking, { type RankItem } from '@/features/dashboard/components/Ranking.vue'
+
 const authStore = useAuthStore()
-const { latestMessage, isConnected } = storeToRefs(socketStore)
-const { alarmCount, alarmList } = useAlarmPolling({ interval: 10000 })
 const { currentTime, currentDate } = useDashboardClock()
-const { currentDevice, currentDeviceId, deviceList, deviceTypes, selectableDevices, totalDevices, onlineDevices, loadDeviceList } = useDashboardDeviceSelection()
-const { energyStats, todayEnergy, monthlyEnergy, loadEnergyStats } = useDashboardEnergyStats()
+const { alarmList, fetchAlarms } = useAlarmPolling({ interval: 10000 })
 const {
-  analysisSnapshot,
-  displayCurrent,
-  displayEnergy,
-  displayPower,
-  energyTrendData,
-  loading: realtimeLoading,
-  realTimeData,
-  loadDeviceData
-} = useDashboardRealtime({
-  currentDeviceId,
+  overview,
+  previousOverview,
+  ingestionByDevice,
+  perMediumTrend,
+  rankings,
+  prevRankingMap,
   deviceList,
-  latestMessage
+  pvCurrentPower,
+  storageSOC,
+  samplingOnline,
+  samplingTotal,
+} = useDashboardOverview()
+
+// session-scoped UI state
+const bannerDismissedId = ref<number | string | null>(null)
+const mutedIds = ref<Set<number | string>>(new Set())
+
+// ----- date / status bar -----
+const dateLine = computed(() => {
+  const date = new Date()
+  const pad = (n: number) => `${n}`.padStart(2, '0')
+  const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()]
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${week}`
 })
 
-const monitorOverview = ref<MonitorOverview | null>(null)
-const monitorStatusHistory = ref<DeviceStatusEvent[]>([])
-const focusCardDevice = ref<Device | undefined>(undefined)
-const focusCardOverview = ref<MonitorOverview | null>(null)
-const focusCardAnalysis = ref<DeviceAnalysis | null>(null)
-const focusCardRealtime = ref({
-  power: 0,
-  energy: 0,
-  current: 0,
-  voltage: 0
-})
-const focusCardSwitching = ref(false)
-const locationScope = computed(() => authStore.locationScope?.trim() || '')
-
-const energyNameMap: Record<string, string> = {
-  electricity: '电力',
-  water: '水务',
-  gas: '燃气',
-  heat: '热力',
-  cooling: '冷量'
+function resolveShiftLabel(time: string) {
+  const hour = Number(time.split(':')[0] || NaN)
+  if (!Number.isFinite(hour)) return '白天时段'
+  if (hour >= 8 && hour < 14) return '白班 08:00-14:00'
+  if (hour >= 14 && hour < 22) return '白班 14:00-22:00'
+  return '夜班 22:00-08:00'
 }
 
-function formatAlarmTime(timestamp: string) {
-  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000))
-  if (diffMinutes < 1) return '刚刚'
-  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours} 小时前`
+const shiftLabel = computed(() => resolveShiftLabel(currentTime.value))
+const operatorName = computed(() => authStore.username || '运维')
+
+const parkName = computed(() => {
+  const scope = (authStore.locationScope || '').trim()
+  if (scope) return scope
+  return overview.value?.campus_entities?.[0]?.name || '园区'
+})
+
+// ----- alarms -----
+function severityOf(s?: string): AlertSeverity {
+  if (s === 'critical') return 'crit'
+  if (s === 'warning') return 'warn'
+  return 'info'
+}
+
+function alarmTimeAgo(timestamp: string) {
+  const diffMin = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000))
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return `${diffMin} 分钟前`
+  const diffHr = Math.round(diffMin / 60)
+  if (diffHr < 24) return `${diffHr} 小时前`
   return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
 }
 
-function resolveShiftLabel(current: string) {
-  const hour = Number(current.split(':')[0] || Number.NaN)
-  if (!Number.isFinite(hour)) return '白天时段'
-  if (hour >= 8 && hour < 18) return '白天时段'
-  if (hour >= 18 && hour < 23) return '夜间值守'
-  return '深夜巡检'
-}
-
-function formatNumber(value: number, digits = 1) {
-  return Number.isFinite(value) ? value.toFixed(digits) : '0.0'
-}
-
-function formatCompactDateTime(value?: string | null) {
-  if (!value) return '--'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '--'
-
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
-}
-
-function resolvePreferredDeviceId() {
-  const devices = selectableDevices.value
-  const exactHeatMeter = devices.find((device) => device.name?.includes('1号热量表'))
-  if (exactHeatMeter?.id) return exactHeatMeter.id
-
-  const heatMeter = devices.find((device) => device.energy_type === 'heat')
-  if (heatMeter?.id) return heatMeter.id
-
-  const fallback = devices.find((device) => device.device_type === 'load')
-  return fallback?.id || devices[0]?.id
-}
-
-function syncFocusCardState() {
-  focusCardDevice.value = currentDevice.value || focusDevice.value
-  focusCardOverview.value = monitorOverview.value
-  focusCardAnalysis.value = analysisSnapshot.value
-  focusCardRealtime.value = {
-    power: realTimeData.power,
-    energy: realTimeData.energy,
-    current: realTimeData.current,
-    voltage: realTimeData.voltage
-  }
-}
-
-const onlineRate = computed(() => {
-  if (totalDevices.value === 0) return 0
-  return Math.round((onlineDevices.value / totalDevices.value) * 100)
+const topCritical = computed<Alarm | null>(() => {
+  return alarmList.value.find((a) => !a.is_resolved && a.severity === 'critical') || null
 })
 
-const offlineDevices = computed(() => Math.max(0, totalDevices.value - onlineDevices.value))
-
-const focusDevice = computed<Device | undefined>(() => {
-  if (currentDevice.value) return currentDevice.value
-  return selectableDevices.value.find((device) => device.id === resolvePreferredDeviceId())
+const showBanner = computed(() => {
+  const top = topCritical.value
+  if (!top) return false
+  if (bannerDismissedId.value === top.id) return false
+  if (mutedIds.value.has(top.id)) return false
+  return true
 })
 
-const focusArchive = computed(() => focusCardOverview.value?.archive)
-const focusIdentity = computed(() => focusArchive.value || focusCardDevice.value || focusDevice.value)
-const focusDeviceName = computed(() => focusIdentity.value?.name || '1号热量表')
-const focusDeviceType = computed(() => getDeviceTypeLabel(focusIdentity.value?.device_type, deviceTypes.value) || '热量表')
-const focusEnergyType = computed(() => energyNameMap[focusIdentity.value?.energy_type || ''] || focusIdentity.value?.energy_type || '热力')
-const focusRuntime = computed(() => focusCardOverview.value?.runtime_status)
-const focusIngestion = computed<Record<string, unknown>>(() => (focusCardOverview.value?.ingestion_health as Record<string, unknown>) || {})
-const focusStatusLabel = computed(() => {
-  if (focusDevice.value?.is_active === false || focusRuntime.value?.is_active === false) {
-    return '停用'
-  }
+const pinnedAlarmId = computed(() => (showBanner.value ? topCritical.value?.id ?? null : null))
 
-  if (focusRuntime.value?.code === 'alarm') {
-    return focusRuntime.value?.label || '告警中'
-  }
-
-  if (focusRuntime.value?.code === 'degraded') {
-    return focusRuntime.value?.label || '运行波动'
-  }
-
-  if (focusRuntime.value?.code === 'offline') {
-    return '离线'
-  }
-
-  if (focusRuntime.value?.is_online) {
-    return '在线采集'
-  }
-
-  return '启用'
-})
-
-const focusStatusTone = computed((): 'online' | 'offline' | 'alarm' => {
-  if (focusDevice.value?.is_active === false || focusRuntime.value?.is_active === false) {
-    return 'offline'
-  }
-
-  if (focusRuntime.value?.code === 'alarm') {
-    return 'alarm'
-  }
-
-  return 'online'
-})
-const focusRatedCapacity = computed(() => Number(focusArchive.value?.rated_capacity || focusDevice.value?.rated_capacity || 0))
-const focusCapacityUtilization = computed(() => {
-  if (focusRatedCapacity.value <= 0) return null
-  return Math.min(100, Math.max(0, (Math.abs(focusCardRealtime.value.power) / focusRatedCapacity.value) * 100))
-})
-
-const warningThreshold = computed(() => {
-  if (focusRatedCapacity.value > 0) return focusRatedCapacity.value * 0.85
-  if (Math.abs(focusCardRealtime.value.power) > 0) return Math.max(Math.abs(focusCardRealtime.value.power) * 1.5, 50)
-  return 50
-})
-
-const focusMeasurementLabel = computed(() => focusCardAnalysis.value?.current_value_label || '当前瞬时值')
-const focusMeasurementUnit = computed(() => focusCardAnalysis.value?.current_value_unit || focusArchive.value?.unit || 'kW')
-const focusTodayUnit = computed(() => focusCardAnalysis.value?.today_consumption_unit || 'kWh')
-const focusSummaryItems = computed(() => {
-  const latestReportAt = focusRuntime.value?.latest_timestamp || focusRuntime.value?.last_success_at || focusRuntime.value?.last_message_at
-  const alarmCount = focusRuntime.value?.unresolved_alarm_count || 0
-  const communicationValue = focusRuntime.value?.is_online
-    ? '正常'
-    : (focusRuntime.value?.is_active === false ? '停用' : '待确认')
-
-  return [
-    { label: '最近上报', value: formatCompactDateTime(latestReportAt) },
-    { label: '通讯状态', value: communicationValue, tone: focusRuntime.value?.is_online ? 'good' as const : 'warn' as const },
-    { label: '今日告警', value: `${alarmCount} 条`, tone: alarmCount > 0 ? 'warn' as const : 'good' as const },
-    { label: '安装位置', value: focusIdentity.value?.location?.trim() || '未标注' }
-  ]
-})
-
-const charts = useDashboardCharts({
-  currentDevice: focusDevice,
-  energyTrendData,
-  warningThreshold,
-  displayPower,
-  gaugeValue: onlineRate,
-  gaugeUnit: '%',
-  gaugeMax: 100,
-  energyStats,
-})
-
-const trendChartEl = charts.mainChart.chartRef
-const gaugeChartEl = charts.gaugeChart.chartRef
-const pieChartEl = charts.pieChart.chartRef
-
-const trendValues = computed(() => energyTrendData.values.map((value) => Math.abs(Number(value) || 0)))
-const trendCurrent = computed(() => trendValues.value.at(-1) || 0)
-const trendPeak = computed(() => (trendValues.value.length ? Math.max(...trendValues.value) : 0))
-const trendValley = computed(() => (trendValues.value.length ? Math.min(...trendValues.value) : 0))
-const trendAverage = computed(() => {
-  if (trendValues.value.length === 0) return 0
-  return trendValues.value.reduce((sum, value) => sum + value, 0) / trendValues.value.length
-})
-
-const hasEnergyDistributionData = computed(() => (
-  Object.values(energyStats).some((item) => (item?.total_consumption || 0) > 0)
-))
-
-const trendStats = computed(() => [
-  { label: '当前值', value: `${formatNumber(trendCurrent.value)} kW` },
-  { label: '峰值', value: `${formatNumber(trendPeak.value)} kW` },
-  { label: '谷值', value: `${formatNumber(trendValley.value)} kW` },
-  { label: '均值', value: `${formatNumber(trendAverage.value)} kW` }
-])
-
-const unresolvedAlarms = computed(() => (
-  alarmList.value.slice(0, 4).map((alarm) => ({
-    id: alarm.id,
-    message: alarm.message,
-    time: formatAlarmTime(alarm.timestamp)
+const recentAlerts = computed<AlertItem[]>(() => (
+  alarmList.value.slice(0, 6).map((a) => ({
+    id: a.id,
+    sev: severityOf(a.severity),
+    title: a.message,
+    detail: a.handling_note || undefined,
+    loc: a.source || undefined,
+    time: alarmTimeAgo(a.timestamp),
+    ack: a.is_resolved,
   }))
 ))
 
-const scadaDeviceGroups = computed(() => {
-  const groups = new Map<string, { key: string; label: string; devices: typeof selectableDevices.value }>()
-
-  for (const device of selectableDevices.value) {
-    const groupMeta = resolveDeviceGroupMeta(device, deviceTypes.value)
-    const existing = groups.get(groupMeta.key)
-
-    if (existing) {
-      existing.devices.push(device)
-      continue
-    }
-
-    groups.set(groupMeta.key, {
-      key: groupMeta.key,
-      label: groupMeta.label,
-      devices: [device]
-    })
-  }
-
-  return Array.from(groups.values())
-    .sort((left, right) => right.devices.length - left.devices.length)
-    .map((group) => ({
-      ...group,
-      online: group.devices.filter((device) => device.is_active).length
-    }))
-})
-
-const regionRankings = computed(() => {
-  const regions = new Map<string, { score: number; online: number; total: number }>()
-  for (const device of deviceList.value) {
-    const region = device.location?.trim() || '未分区'
-    const current = regions.get(region) || { score: 0, online: 0, total: 0 }
-    const ratedCapacity = Number(device.rated_capacity || 0)
-    current.total += 1
-    if (device.is_active) current.online += 1
-    current.score += ratedCapacity > 0 ? ratedCapacity : (device.is_active ? 24 : 8)
-    regions.set(region, current)
-  }
-
-  return Array.from(regions.entries())
-    .map(([name, stats]) => ({ name, ...stats }))
-    .sort((left, right) => right.score - left.score)
-    .slice(0, 5)
-})
-
-const statusLabel = computed(() => (isConnected.value ? '系统正常运行' : '通讯链路中断'))
-const dashboardSubtitle = computed(() => {
-  if (!locationScope.value) return '面向园区、区域、楼栋与设备表计的综合能源管理平台'
-  return `当前范围：${locationScope.value}`
-})
-
-const selectDevice = (deviceId?: number) => {
-  if (typeof deviceId !== 'number' || deviceId === currentDeviceId.value) return
-  currentDeviceId.value = deviceId
-}
-
-const loadFocusMonitorData = async () => {
-  if (!currentDeviceId.value) return
-
+async function onBannerHandle() {
+  const top = topCritical.value
+  if (!top) return
   try {
-    const [overview, history] = await Promise.all([
-      getDeviceMonitorOverview(currentDeviceId.value),
-      getDeviceMonitorStatusHistory(currentDeviceId.value, { limit: 6, hours: 48 })
-    ])
-    monitorOverview.value = overview
-    monitorStatusHistory.value = history.items || []
+    await resolveAlarm(top.id, '从首页确认处理')
+    ElMessage.success('已确认处理')
+    await fetchAlarms()
   } catch {
-    monitorOverview.value = null
-    monitorStatusHistory.value = []
+    ElMessage.error('处理失败，请重试')
   }
 }
 
-onMounted(async () => {
-  socketStore.connect()
-  await nextTick()
-  await loadDeviceList()
+function onBannerMute() {
+  const top = topCritical.value
+  if (!top) return
+  mutedIds.value.add(top.id)
+  ElMessage.info('已暂时静音')
+}
 
-  const preferredId = resolvePreferredDeviceId()
-  if (preferredId) currentDeviceId.value = preferredId
+// ----- KPIs -----
+function abbreviate(value: number) {
+  if (value >= 10000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+  if (value >= 1000) return value.toFixed(0)
+  return value.toFixed(1)
+}
 
-  await Promise.all([
-    loadDeviceData(),
-    loadEnergyStats(),
-    loadFocusMonitorData()
-  ])
+function pctDelta(current: number, previous: number): { dir: 'up' | 'down'; pct: string } | null {
+  if (!Number.isFinite(previous) || previous === 0) return null
+  const delta = ((current - previous) / Math.abs(previous)) * 100
+  if (!Number.isFinite(delta)) return null
+  return { dir: delta >= 0 ? 'up' : 'down', pct: `${Math.abs(delta).toFixed(1)}%` }
+}
 
-  syncFocusCardState()
-
-  await charts.initCharts()
-})
-
-watch(currentDeviceId, async (deviceId, previousId) => {
-  if (!deviceId || deviceId === previousId) return
-
-  focusCardSwitching.value = true
-
-  try {
-    await Promise.all([
-      loadDeviceData(),
-      loadFocusMonitorData()
-    ])
-    if (currentDeviceId.value === deviceId) {
-      syncFocusCardState()
-    }
-  } finally {
-    if (currentDeviceId.value === deviceId) {
-      focusCardSwitching.value = false
-    }
+const analysis = computed(() => overview.value?.analysis_summary)
+const prevAnalysis = computed(() => previousOverview.value?.analysis_summary)
+const alarmSeverityCounts = computed(() => {
+  const m = overview.value?.alarm_summary?.by_severity || {}
+  return {
+    critical: Number(m.critical || 0),
+    warning: Number(m.warning || 0),
+    info: Number(m.info || 0),
   }
 })
 
-watch(
-  [analysisSnapshot, monitorOverview, () => realTimeData.power, () => realTimeData.energy, () => realTimeData.current, () => realTimeData.voltage],
-  () => {
-    if (focusCardSwitching.value) return
-    if (!currentDeviceId.value) return
-    syncFocusCardState()
+const kpiItems = computed<KpiItem[]>(() => {
+  const a = analysis.value
+  const prev = prevAnalysis.value
+  const sev = alarmSeverityCounts.value
+  const totalAlarms = sev.critical + sev.warning + sev.info
+
+  const loadDelta = a && prev ? pctDelta(a.realtime_load, prev.realtime_load) : null
+  const energyDelta = a && prev ? pctDelta(a.total_consumption, prev.total_consumption) : null
+  const carbonDelta = a && prev ? pctDelta(a.estimated_carbon, prev.estimated_carbon) : null
+
+  const items: KpiItem[] = [
+    {
+      label: '实时总负荷',
+      value: a ? abbreviate(a.realtime_load) : '—',
+      unit: 'kW',
+      delta: loadDelta?.pct,
+      deltaDir: loadDelta?.dir,
+      sub: loadDelta ? 'vs 昨日同时段' : undefined,
+      status: 'ok',
+    },
+    {
+      label: '今日累计能耗',
+      value: a ? abbreviate(a.total_consumption) : '—',
+      unit: 'kWh',
+      delta: energyDelta?.pct,
+      deltaDir: energyDelta?.dir,
+      sub: energyDelta ? 'vs 昨日' : undefined,
+      status: 'ok',
+    },
+    {
+      label: '光伏发电',
+      value: pvCurrentPower.value != null ? abbreviate(pvCurrentPower.value) : '未配置',
+      unit: pvCurrentPower.value != null ? 'kW' : '',
+      sub: pvCurrentPower.value != null ? '当前出力' : '暂无光伏设备',
+      status: 'ok',
+    },
+    {
+      label: '储能 SOC',
+      value: storageSOC.value != null ? storageSOC.value.toFixed(0) : '未配置',
+      unit: storageSOC.value != null ? '%' : '',
+      sub: storageSOC.value != null ? '平均荷电状态' : '暂无储能设备',
+      status: storageSOC.value != null && storageSOC.value < 30 ? 'notice' : 'ok',
+    },
+    {
+      label: '近 24h 告警',
+      value: String(totalAlarms),
+      unit: '条',
+      delta: `${sev.critical} 严重 · ${sev.warning} 警告`,
+      deltaDir: 'up',
+      sub: `${sev.info} 提示`,
+      status: sev.critical > 0 ? 'err' : (sev.warning > 0 ? 'warn' : 'ok'),
+    },
+    {
+      label: '碳排放',
+      value: a ? (a.estimated_carbon / 1000).toFixed(2) : '—',
+      unit: 'tCO₂',
+      delta: carbonDelta?.pct,
+      deltaDir: carbonDelta?.dir,
+      sub: carbonDelta ? '环比昨日' : undefined,
+      status: 'ok',
+    },
+  ]
+  return items
+})
+
+// ----- StackedTrend -----
+const MEDIUM_META: Record<string, { name: string; color: string }> = {
+  electricity: { name: '电', color: 'var(--m-elec)' },
+  cooling: { name: '冷', color: 'var(--m-cool)' },
+  heat: { name: '热', color: 'var(--m-heat)' },
+  water: { name: '水', color: 'var(--m-water)' },
+  gas: { name: '气', color: 'var(--m-gas)' },
+}
+
+const trendSeries = computed<TrendSeries[]>(() => {
+  const order = ['electricity', 'cooling', 'heat', 'water', 'gas']
+  return order
+    .map((key) => {
+      const points = perMediumTrend.value[key] || []
+      const meta = MEDIUM_META[key]
+      return {
+        key,
+        name: meta.name,
+        color: meta.color,
+        data: points.map((p) => Math.max(0, p.v)),
+        unit: 'kW',
+      } as TrendSeries
+    })
+    .filter((s) => s.data.length > 0)
+})
+
+// ----- DeviceMatrix -----
+function deviceStatusFromHealth(deviceId: number, isActive: boolean): MatrixStatus {
+  if (!isActive) return 'off'
+  const health = ingestionByDevice.value[deviceId]
+  if (!health) return 'on'
+  if (health.status === 'degraded') return 'notice'
+  if (health.status === 'offline') return 'off'
+  return 'on'
+}
+
+const matrixGroups = computed<MatrixGroup[]>(() => {
+  type GroupDef = { key: string; name: string; color: string; match: (d: Device) => boolean }
+  type Device = typeof deviceList.value[number]
+  const defs: GroupDef[] = [
+    { key: 'elec', name: '电', color: 'var(--m-elec)', match: (d) => d.energy_type === 'electricity' && d.device_type !== 'storage' && d.device_type !== 'pv' },
+    { key: 'pv-storage', name: '光储', color: 'var(--notice)', match: (d) => d.device_type === 'pv' || d.device_type === 'storage' || /光伏|储能|PV/i.test(d.name || '') },
+    { key: 'cool-heat', name: '冷热', color: 'var(--m-cool)', match: (d) => d.energy_type === 'cooling' || d.energy_type === 'heat' },
+    { key: 'water-gas', name: '水气', color: 'var(--m-water)', match: (d) => d.energy_type === 'water' || d.energy_type === 'gas' },
+  ]
+  return defs.map((g) => ({
+    name: g.name,
+    color: g.color,
+    items: deviceList.value
+      .filter(g.match)
+      .slice(0, 6)
+      .map((d) => {
+        const status = deviceStatusFromHealth(d.id!, !!d.is_active)
+        const health = ingestionByDevice.value[d.id!]
+        const reason = status === 'notice'
+          ? `采集状态降级 · 上次成功 ${health?.last_success_at ?? '—'}`
+          : status === 'off'
+            ? '设备已停机 / 离线 · 等待确认'
+            : null
+        return {
+          n: d.name || `#${d.id}`,
+          s: status,
+          v: '—',
+          u: d.unit || '',
+          reason,
+        }
+      }),
+  }))
+})
+
+const matrixLegend = computed(() => {
+  let ok = 0, notice = 0, warn = 0, off = 0
+  for (const d of deviceList.value) {
+    const s = deviceStatusFromHealth(d.id!, !!d.is_active)
+    if (s === 'on') ok += 1
+    else if (s === 'notice') notice += 1
+    else if (s === 'warn') warn += 1
+    else off += 1
   }
-)
+  return { ok, notice, warn, off }
+})
+
+// ----- EnergyMixDonut -----
+const ENERGY_CATEGORY_META: Record<string, { name: string; color: string }> = {
+  electricity: { name: '电', color: 'var(--m-elec)' },
+  cooling: { name: '冷', color: 'var(--m-cool)' },
+  heat: { name: '热', color: 'var(--m-heat)' },
+  gas: { name: '气', color: 'var(--m-gas)' },
+  water: { name: '水', color: 'var(--m-water)' },
+}
+
+const energyMix = computed<MixItem[]>(() => {
+  const categories = overview.value?.energy_category_summary || []
+  if (categories.length === 0) return []
+  const total = categories.reduce((sum, c) => sum + (c.total_consumption || 0), 0)
+  return categories.map((c) => {
+    const meta = ENERGY_CATEGORY_META[c.energy_category]
+    return {
+      name: meta?.name || c.label || c.energy_category,
+      color: meta?.color || 'var(--accent)',
+      kwh: c.total_consumption || 0,
+      value: total > 0 ? (c.total_consumption / total) * 100 : (c.ratio || 0) * 100,
+    }
+  })
+})
+
+const totalKwhToday = computed(() => energyMix.value.reduce((a, b) => a + b.kwh, 0))
+
+const energyDeltaPct = computed<number | undefined>(() => {
+  const a = analysis.value
+  const prev = prevAnalysis.value
+  if (!a || !prev || !Number.isFinite(prev.total_consumption) || prev.total_consumption === 0) return undefined
+  return ((a.total_consumption - prev.total_consumption) / prev.total_consumption) * 100
+})
+
+// ----- Ranking -----
+const rankingItems = computed<RankItem[]>(() => {
+  return rankings.value.slice(0, 6).map((r) => {
+    const prev = prevRankingMap.value[r.location_id] || 0
+    const delta = prev > 0 ? ((r.total_consumption - prev) / prev) * 100 : 0
+    return {
+      name: r.name,
+      value: Math.round(r.total_consumption),
+      deltaPct: Number.isFinite(delta) ? delta : 0,
+    }
+  })
+})
 </script>
 
 <template>
-  <div class="ems-cockpit">
-    <div class="cockpit-noise" />
-
-    <!-- ── 顶部 Header（极简化） ── -->
-    <header class="top-header">
-      <div class="brand-block">
-        <div class="brand-mark">
-          <span class="brand-mark__dot" />
-        </div>
-        <div class="brand-text">
-          <p class="brand-kicker">Park Energy Cockpit</p>
-          <h1>园区综合能源管理系统</h1>
-          <p class="brand-subtitle">{{ dashboardSubtitle }}</p>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <div class="time-panel">
-          <span class="time-panel__date">{{ currentDate }}</span>
-          <strong class="time-panel__clock">{{ currentTime }}</strong>
-        </div>
-        <div class="run-badge" :class="{ 'run-badge--offline': !isConnected }">
-          <span class="run-badge__dot" />
-          <span>{{ statusLabel }}</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- ── KPI Strip（全宽核心指标） ── -->
-    <KpiStrip
-      :current-load="displayPower"
-      :online-count="onlineDevices"
-      :total-count="totalDevices"
-      :alarm-count="alarmCount"
-      :today-energy="todayEnergy"
-      :monthly-energy="monthlyEnergy"
-      :shift="resolveShiftLabel(currentTime)"
+  <div class="ems-cockpit-v2">
+    <DashboardStatusBar
+      :park="parkName"
+      :operator="operatorName"
+      :shift="shiftLabel"
+      :sampling-online="samplingOnline"
+      :sampling-total="samplingTotal"
+      :time="currentTime"
+      :date="dateLine"
     />
 
-    <!-- ── 主内容三栏布局 ── -->
-    <main class="bento-layout">
+    <CriticalAlertBanner
+      v-if="showBanner && topCritical"
+      :title="topCritical.message"
+      :location="topCritical.source"
+      :started-at="alarmTimeAgo(topCritical.timestamp)"
+      @dismiss="bannerDismissedId = topCritical!.id"
+      @handle="onBannerHandle"
+      @mute="onBannerMute"
+    >
+      {{ topCritical.message }}
+    </CriticalAlertBanner>
 
-      <!-- 左栏 -->
-      <aside class="left-column">
-        <OnlineGauge
-          :online-count="onlineDevices"
-          :offline-count="offlineDevices"
-          :total-count="totalDevices"
-          :online-rate="onlineRate"
-        >
-          <template #chart>
-            <div ref="gaugeChartEl" class="chart-mount" />
-          </template>
-        </OnlineGauge>
+    <KpiStrip :items="kpiItems" />
 
-        <EnergyMix
-          :today-energy="todayEnergy"
-          :monthly-energy="monthlyEnergy"
-          :has-distribution-data="hasEnergyDistributionData"
-        >
-          <template #chart>
-            <div ref="pieChartEl" class="chart-mount" />
-          </template>
-        </EnergyMix>
-
-        <AlarmFeed :alarms="unresolvedAlarms" />
-      </aside>
-
-      <!-- 中栏 -->
-      <section class="center-column">
-        <TrendPanel :stats="trendStats">
-          <template #chart>
-            <div ref="trendChartEl" class="chart-mount" />
-          </template>
-        </TrendPanel>
-
-        <DeviceSpotlight
-          :device-name="focusDeviceName"
-          :device-type="focusDeviceType"
-          :energy-type="focusEnergyType"
-          :status-label="focusStatusLabel"
-          :status-tone="focusStatusTone"
-          :current-value="Math.abs(focusCardRealtime.power)"
-          :current-unit="focusMeasurementUnit"
-          :measurement-label="focusMeasurementLabel"
-          :today-value="Math.abs(focusCardRealtime.energy)"
-          :today-unit="focusTodayUnit"
-          :rated-capacity="focusRatedCapacity"
-          :capacity-utilization="focusCapacityUtilization"
-          :summary-items="focusSummaryItems"
-          :selectable-devices="selectableDevices"
-          :current-device-id="currentDeviceId"
-          :loading="focusCardSwitching"
-          @device-change="selectDevice"
-        />
+    <main class="main">
+      <section class="col-main">
+        <div class="card trend-card">
+          <StackedTrend
+            :series="trendSeries"
+            :subtitle="`${currentDate} · ${trendSeries[0]?.data.length || 0} 点 · 1h`"
+          />
+        </div>
+        <div class="row-pair">
+          <DeviceMatrix :groups="matrixGroups" :legend="matrixLegend" />
+          <EnergyMixDonut
+            :items="energyMix"
+            :total-kwh="totalKwhToday"
+            :delta-pct="energyDeltaPct"
+          />
+        </div>
       </section>
-
-      <!-- 右栏 -->
-      <aside class="right-column">
-        <ScadaBoard
-          :groups="scadaDeviceGroups"
-          :current-device-id="currentDeviceId"
-          :online-count="onlineDevices"
-          :total-count="totalDevices"
-          :device-types="deviceTypes"
-          @select-device="selectDevice"
+      <aside class="col-side">
+        <AlertTrack
+          :alerts="recentAlerts"
+          :pinned-id="pinnedAlarmId"
+          :total-count="alarmList.length"
         />
-
-        <RegionRanking :rankings="regionRankings" />
+        <Ranking :items="rankingItems" :is-sample="false" />
       </aside>
     </main>
   </div>
 </template>
 
 <style scoped>
-/* ── 页面容器 ── */
-.ems-cockpit {
-  position: relative;
+.ems-cockpit-v2 {
   width: 100%;
   min-height: 100%;
-  height: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
+  box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
-  color: #f5f7fa;
-  background:
-    radial-gradient(circle at top left, rgba(107, 184, 255, 0.08), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.05), transparent 26%),
-    #090e17;
-  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
 
-.cockpit-noise {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent 20%, transparent 80%, rgba(255,255,255,0.012));
-  opacity: 0.3;
-  z-index: 0;
-}
-
-/* ── Header（极简） ── */
-.top-header {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 108px;
-  padding: 22px 22px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px) saturate(135%);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.18);
-  box-sizing: border-box;
-}
-
-.brand-block {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: rgba(107, 184, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.brand-mark__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #6bb8ff;
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.brand-kicker {
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.46);
-}
-
-.brand-text h1 {
-  margin: 0;
-  font-size: clamp(22px, 2vw, 28px);
-  font-weight: 700;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
-}
-
-.brand-subtitle {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(255,255,255,0.48);
-  line-height: 1.3;
-}
-
-.header-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.time-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.time-panel__date {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.44);
-}
-
-.time-panel__clock {
-  font-size: clamp(20px, 1.7vw, 24px);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.run-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: rgba(0, 224, 176, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(0, 224, 176, 0.18);
-  color: #c8fff4;
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.run-badge__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #00e0b0;
-  box-shadow: 0 0 10px rgba(0, 224, 176, 0.5);
-}
-
-.run-badge--offline {
-  background: rgba(248, 113, 113, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.2);
-  color: #ffe2e2;
-}
-
-.run-badge--offline .run-badge__dot {
-  background: #f87171;
-  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
-}
-
-/* ── 三栏网格布局 ── */
-.bento-layout {
-  position: relative;
-  z-index: 1;
+.main {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1.8fr) minmax(200px, 0.82fr);
-  grid-template-rows: 1fr;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 12px;
 }
-
-.left-column {
-  display: grid;
-  grid-template-rows: auto auto auto;
-  gap: 12px;
-  min-height: 0;
+.col-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.col-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row-pair { display: flex; gap: 12px; flex: 1; min-height: 0; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  box-sizing: border-box;
 }
-
-.center-column {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-height: 0;
-}
-
-.right-column {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-height: 0;
-}
-
-/* ── ECharts 挂载容器 ── */
-.chart-mount {
-  width: 100%;
-  height: 100%;
-}
+.trend-card { flex: 0 0 auto; }
 </style>

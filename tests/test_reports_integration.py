@@ -121,6 +121,93 @@ class ReportIntegrationTest(unittest.TestCase):
         self.assertIn("能源类型", response.text)
         self.assertIn("电", response.text)
 
+    def test_device_history_export_requires_device_id(self):
+        fake_user = SimpleNamespace(username="admin", role=UserRole.ADMIN)
+        self.app.dependency_overrides[reports.get_session] = lambda: object()
+        self.app.dependency_overrides[reports.get_current_user] = lambda: fake_user
+        self.app.dependency_overrides[reports.limit_requests(
+            bucket="report-export",
+            max_calls=reports.settings.report_export_rate_limit_count,
+            window_seconds=reports.settings.report_export_rate_limit_window_seconds,
+        )] = lambda: None
+
+        response = self.client.get("/reports/export_csv", params={"report_type": "device_history"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("device_history 需要提供 device_id", response.text)
+
+    def test_device_history_fields_returns_template(self):
+        fake_user = SimpleNamespace(username="admin", role=UserRole.ADMIN)
+        self.app.dependency_overrides[reports.get_session] = lambda: object()
+        self.app.dependency_overrides[reports.get_current_user] = lambda: fake_user
+
+        with patch.object(
+            reports,
+            "build_device_history_field_config_use_case",
+            return_value={
+                "device_id": 8,
+                "template": "capacitor_bank_controller",
+                "required_fields": ["timestamp"],
+                "default_fields": ["device_name", "reactive_power_a"],
+                "groups": [
+                    {
+                        "key": "compensation_effect",
+                        "label": "补偿效果",
+                        "fields": [
+                            {"key": "reactive_power_a", "label": "A相无功(kvar)", "default": True},
+                            {"key": "power_factor_a", "label": "A相功率因数", "default": True},
+                        ],
+                    },
+                    {
+                        "key": "switching",
+                        "label": "投切状态",
+                        "fields": [
+                            {"key": "running_circuit_count", "label": "当前投入回路总数", "default": True},
+                        ],
+                    },
+                ],
+            },
+        ):
+            response = self.client.get("/reports/device-history-fields", params={"device_id": 8})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["template"], "capacitor_bank_controller")
+        labels = [
+            field["label"]
+            for group in response.json()["groups"]
+            for field in group["fields"]
+        ]
+        self.assertIn("A相无功(kvar)", labels)
+        self.assertIn("当前投入回路总数", labels)
+
+    def test_device_history_export_passes_fields_to_use_case(self):
+        fake_user = SimpleNamespace(username="admin", role=UserRole.ADMIN)
+        self.app.dependency_overrides[reports.get_session] = lambda: object()
+        self.app.dependency_overrides[reports.get_current_user] = lambda: fake_user
+        self.app.dependency_overrides[reports.limit_requests(
+            bucket="report-export",
+            max_calls=reports.settings.report_export_rate_limit_count,
+            window_seconds=reports.settings.report_export_rate_limit_window_seconds,
+        )] = lambda: None
+
+        with patch.object(
+            reports,
+            "build_report_csv_export_use_case",
+            return_value=SimpleNamespace(filename="device_history_8_20260514.csv", content="时间,设备名称\n2026-05-14,无功补偿控制器\n"),
+        ) as mock_export:
+            response = self.client.get(
+                "/reports/export_csv",
+                params={
+                    "report_type": "device_history",
+                    "device_id": 8,
+                    "fields": "device_name,reactive_power_a",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_export.assert_called_once()
+        self.assertEqual(mock_export.call_args.kwargs["fields"], "device_name,reactive_power_a")
+
 
 if __name__ == "__main__":
     unittest.main()

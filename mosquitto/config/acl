@@ -1,0 +1,15 @@
+# 后端 ingest worker：仅订阅遥测，不能写
+user ingest-worker
+topic read campus/telemetry
+topic read campus/device/+/telemetry
+
+# 后端控制下发：仅可发布控制 topic
+user control-publisher
+topic write campus/control/+
+topic write campus/control/+/+
+
+# 设备 CAP-001：只能发自己 SN 的 telemetry；只能订阅自己的控制
+user cap-001
+topic write campus/device/CAP-001/telemetry
+topic read  campus/control/CAP-001
+topic read  campus/control/CAP-001/+

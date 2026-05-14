@@ -1,5 +1,6 @@
 import os
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -78,6 +79,54 @@ class TestAlarmService(unittest.TestCase):
                 self.assertEqual(alarm.recovered_at, recovery_at)
                 self.assertFalse(alarm.is_resolved)
                 self.assertIsNone(alarm.resolved_at)
+
+    def test_general_threshold_alarm_uses_platform_rule_source_for_load_device(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-011")
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={"default": {"current_max": 10.0}},
+            ):
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"current": 12.0},
+                    datetime(2026, 5, 14, 9, 0, 0),
+                )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].source, "platform_rule")
+
+    def test_general_threshold_alarm_skips_compensation_devices(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-012",
+                sn="ALARM-012",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={"default": {"current_max": 10.0, "voltage_max": 230.0, "voltage_min": 190.0}},
+            ):
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"current": 99.0, "voltage": 260.0},
+                    datetime(2026, 5, 14, 9, 5, 0),
+                )
+
+            self.assertEqual(created, [])
+            self.assertEqual(session.exec(select(Alarm)).all(), [])
 
     def test_manual_handle_is_separate_from_system_recovery(self):
         with Session(self.engine) as session:
@@ -251,6 +300,11 @@ class TestAlarmService(unittest.TestCase):
             )
 
             self.assertEqual(len(created), 6)
+            self.assertTrue(all(alarm.source == "device_native" for alarm in created if alarm.category != "cap_overcompensation"))
+            self.assertEqual(
+                next(alarm for alarm in created if alarm.category == "cap_overcompensation").source,
+                "platform_rule",
+            )
             categories = {alarm.category for alarm in session.exec(select(Alarm)).all()}
             self.assertEqual(
                 categories,
@@ -330,6 +384,40 @@ class TestAlarmService(unittest.TestCase):
                 "cap_voltage_thd_a",
                 "cap_current_thd_a",
             })
+            self.assertEqual({alarm.source for alarm in created}, {"platform_rule"})
+
+    def test_sync_platform_comm_alarm_creates_and_recovers_offline_instance(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-013")
+            detected_at = datetime(2026, 5, 14, 10, 0, 0)
+            recovered_at = detected_at + timedelta(minutes=3)
+
+            alarm, created = AlarmService.sync_platform_comm_alarm(
+                session=session,
+                device_id=device.id,
+                is_offline=True,
+                timestamp=detected_at,
+                last_success_at=detected_at - timedelta(minutes=10),
+            )
+
+            self.assertTrue(created)
+            self.assertEqual(alarm.source, "platform_comm")
+            self.assertEqual(alarm.category, "communication_offline")
+            self.assertIsNone(alarm.recovered_at)
+            self.assertFalse(alarm.is_resolved)
+
+            recovered_count = AlarmService.sync_platform_comm_alarm(
+                session=session,
+                device_id=device.id,
+                is_offline=False,
+                timestamp=recovered_at,
+                last_success_at=recovered_at,
+            )
+
+            session.refresh(alarm)
+            self.assertEqual(recovered_count, 1)
+            self.assertEqual(alarm.recovered_at, recovered_at)
+            self.assertFalse(alarm.is_resolved)
 
 
 if __name__ == "__main__":

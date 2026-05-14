@@ -389,7 +389,8 @@ watch(() => chart.chartRef.value, async () => {
 
 .trend-panel__chart {
   width: 100%;
-  height: 360px;
+  min-height: 320px;
+  height: clamp(320px, 38vh, 520px);
 }
 
 @media (max-width: 1360px) {

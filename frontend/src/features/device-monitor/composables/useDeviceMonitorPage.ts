@@ -65,6 +65,7 @@ export function useDeviceMonitorPage() {
   const alarmFilter = ref<'all' | 'unresolved' | 'resolved'>('all')
   const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
   const compensationTrendTab = ref<CompensationTrendTab>('effect')
+  const compensationDetailTab = ref<'three-phase' | 'circuit'>('three-phase')
   const storageTrendTab = ref<'soc' | 'power' | 'temperature' | 'energy'>('soc')
   const svgProfileEditVisible = ref(false)
   let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -160,6 +161,21 @@ export function useDeviceMonitorPage() {
     || realtime.value?.timestamp
   )
   const isRealtimeStale = computed(() => runtimeStatus.value?.is_online === false && Boolean(realtimeStaleTime.value))
+
+  // 聚合电容柜回路 profile 的 split/common 与各相回路总数，供 CompensationDetailPanel 使用
+  const compensationCircuitProfile = computed(() => {
+    const profile = compensation.compensationCapacitorBankControlProfile.value
+    return {
+      splitCircuitCount: profile?.split_output_circuit_count ?? undefined,
+      commonCircuitCount: profile?.common_output_circuit_count ?? undefined,
+      phaseACircuitTotalCount: profile?.phase_a_circuit_total_count ?? undefined,
+      phaseBCircuitTotalCount: profile?.phase_b_circuit_total_count ?? undefined,
+      phaseCCircuitTotalCount: profile?.phase_c_circuit_total_count ?? undefined,
+      common1CircuitTotalCount: profile?.common_1_circuit_total_count ?? undefined,
+      common2CircuitTotalCount: profile?.common_2_circuit_total_count ?? undefined,
+      common3CircuitTotalCount: profile?.common_3_circuit_total_count ?? undefined,
+    }
+  })
   const timelineHours = computed(() => {
     const [start, end] = timeRange.value || defaultTimeRange()
     return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (60 * 60 * 1000)))
@@ -547,6 +563,8 @@ export function useDeviceMonitorPage() {
     alarmFilter,
     timeRange,
     compensationTrendTab,
+    compensationDetailTab,
+    compensationCircuitProfile,
     storageTrendTab,
     svgProfileEditVisible,
     archive,

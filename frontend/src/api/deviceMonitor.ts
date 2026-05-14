@@ -58,6 +58,8 @@ export interface DeviceAlarmRecord {
   category?: string
   source?: string
   timestamp: string
+  last_seen_at?: string | null
+  recovered_at?: string | null
   is_resolved: boolean
   resolved_at?: string | null
   resolved_by?: string | null
@@ -284,4 +286,27 @@ export function getDeviceMonitorStatusHistory(deviceId: number, params?: Monitor
       { params: { limit: 30, hours: 72, ...params } }
     )
     .then((response) => response.data)
+}
+
+export interface DeviceIngestionHealthItem {
+  device_id: number
+  is_online: boolean
+  status: 'online' | 'degraded' | 'offline' | 'unknown'
+  last_message_at?: string | null
+  last_success_at?: string | null
+  last_failure_at?: string | null
+  last_failure_reason?: string | null
+  consecutive_failures: number
+  total_messages: number
+  total_failures: number
+  success_rate?: number | null
+  updated_at?: string | null
+}
+
+export function getIngestionHealthOverview() {
+  return request
+    .get<never, WrappedResponse<{ items: DeviceIngestionHealthItem[] }>>(
+      '/devices/ingestion-health/overview'
+    )
+    .then((response) => response.data.items)
 }

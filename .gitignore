@@ -180,6 +180,8 @@ $RECYCLE.BIN/
 mosquitto/data/
 mosquitto/log/
 mosquitto/config/passwd
+mosquitto/config/certs/
+.env.local.mqtt
 
 # ============================================
 # Redis 数据

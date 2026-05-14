@@ -32,6 +32,15 @@
   - 热 / 冷量表第一屏指标已展示供水温度、回水温度、供回水温差、压力、累计量和瞬时功率。
   - SVG 缺少资产 profile 时，`module_count` 会进入 `template_diagnostics.metric_coverage.missing_keys`。
   - 储能缺少 `soh/cell_temp_max/charge_energy_today/discharge_energy_today` 时，诊断会暴露对应 `missing_keys`。
+- 告警边界已按三类来源实现：
+  - `device_native`：设备 / 控制器原生故障位、告警位、告警码、故障码或事件。
+  - `platform_rule`：平台声明的补充规则，例如普通设备通用电流 / 电压阈值、补偿控制器参数门限或过补偿推导。
+  - `platform_comm`：平台基于接入健康生成的通讯类告警。
+- 补偿设备不再默认套用通用 `current_overload` / `voltage_out_of_range` 阈值告警。
+- 接入健康会创建 / 恢复 `platform_comm/communication_offline` 告警；恢复写入 `recovered_at`，不自动设置 `is_resolved`。
+- 告警中心与补偿监控告警表已展示来源标签。
+- 默认 scheduler 每分钟执行 `sync_platform_comm_alarms` 全量扫描接入健康记录，避免通讯告警只在页面读取时才同步。
+- 旧 `source=telemetry` 告警在前端显示为“历史遥测”，本轮不迁移历史数据。
 
 ## 下一棒
 - 验收角色：
@@ -45,11 +54,16 @@
   - 新增设备专属页面时优先新增或复用 `features/device-monitor/views/*MonitorView.vue` 视图容器，不把大段 template 重新堆回 `DeviceMonitor.vue`。
   - 新增页面级请求、轮询或刷新副作用时优先进入 `useDeviceMonitorPage` 或进一步拆出稳定 composable。
   - 后续如需要，可把诊断面板扩展为接入验收 checklist 或独立报告。
+  - 告警相关 UI 只展示 `Alarm.source/category/message` 等后端返回语义，不在页面根据实时值制造核心告警。
 
 ## 已验证
 - `./venv/bin/python -m pytest tests/test_device_monitor_plugin_registry.py tests/test_device_monitor_service.py tests/test_mqtt_contracts.py -q` 通过：`34 passed, 2 warnings`。
 - `cd frontend && npm run test:unit -- DeviceMonitor.test.ts DeviceTemplateDiagnosticsPanel.test.ts` 通过：`2 files / 10 tests passed`。
 - `cd frontend && npm run typecheck` 通过。
+- `./venv/bin/python -m pytest tests/test_alarm_service.py tests/test_alarm_endpoints.py tests/test_device_monitor_service.py tests/test_ingestion_health_service.py -q` 通过：`46 passed, 1 warning`。
+- `cd frontend && npm run test:unit -- sourceLabels.test.ts DeviceMonitor.test.ts` 通过：`2 files / 13 tests passed`。
+- `cd frontend && npm run typecheck` 通过。
+- `./venv/bin/python -m pytest tests/test_scheduler_jobs.py tests/test_ingestion_health_service.py -q` 通过：`11 passed, 1 warning`。
 
 ## 剩余风险
 - 当前诊断结果基于模板输出和当前健康字段，不替代真实设备 UAT。
@@ -57,3 +71,4 @@
 - 专属面板声明不在本轮驱动布局。
 - `useDeviceMonitorPage` 是本轮低风险收口的页面级 view model；若后续继续膨胀，应按数据加载、通用趋势、告警控制等更细粒度继续拆分。
 - 现场真实协议如果上报非 `GJ/kW/degC` 口径，仍需在设备接入层做单位换算后再进入当前监控模板。
+- 历史旧告警仍可能保留 `source=telemetry`，当前按“历史遥测”兼容显示，不做历史数据迁移。

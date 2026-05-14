@@ -5,6 +5,7 @@ import { Bell, RefreshRight } from '@element-plus/icons-vue'
 
 import { getAlarms, resolveAlarm, resolveAllAlarms, type Alarm } from '@/api/alarm'
 import { getDevices, type Device } from '@/api/device'
+import { alarmSourceLabel } from '@/features/alarm/sourceLabels'
 import { echarts } from '@/shared/lib/echarts'
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -530,6 +531,12 @@ onUnmounted(() => {
           </template>
         </el-table-column>
 
+        <el-table-column label="来源" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain">{{ alarmSourceLabel(row.source) }}</el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="message" label="告警内容" min-width="240" show-overflow-tooltip />
 
         <el-table-column label="最后触发" min-width="170">
@@ -598,7 +605,7 @@ onUnmounted(() => {
           </el-descriptions-item>
           <el-descriptions-item label="设备">{{ resolveDeviceName(selectedAlarm.device_id) }}</el-descriptions-item>
           <el-descriptions-item label="类别">{{ categoryLabel(selectedAlarm.category) }}</el-descriptions-item>
-          <el-descriptions-item label="来源">{{ selectedAlarm.source ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{ alarmSourceLabel(selectedAlarm.source) }}</el-descriptions-item>
           <el-descriptions-item label="告警内容">{{ selectedAlarm.message }}</el-descriptions-item>
           <el-descriptions-item label="首次触发">{{ formatDateTime(selectedAlarm.timestamp) }}</el-descriptions-item>
           <el-descriptions-item label="最后触发">{{ formatDateTime(selectedAlarm.last_seen_at) }}</el-descriptions-item>
