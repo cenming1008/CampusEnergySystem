@@ -23,6 +23,7 @@ from app.domain.energy_rules import (
     ENERGY_PRICES as DOMAIN_ENERGY_PRICES,
     ENERGY_UNITS as DOMAIN_ENERGY_UNITS,
     build_carbon_fields,
+    build_energy_type_profile,
     calculate_energy_cost as calculate_energy_cost_rule,
     empty_energy_statistics,
     get_carbon_factor,
@@ -99,27 +100,8 @@ class EnergyService:
 
     @staticmethod
     def get_energy_type_profile(energy_type: str) -> Dict:
-        semantics = EnergyService.get_energy_semantics(energy_type)
-        device_configs = device_registry.get_by_energy_type(EnergyType(energy_type))
-        specialized_fields = sorted({
-            field
-            for config in device_configs
-            for field in config.specialized_fields
-        })
-        return {
-            **semantics,
-            "supported_device_types": [config.device_type for config in device_configs],
-            "supported_device_categories": sorted({config.category.value for config in device_configs}),
-            "field_profiles": [
-                describe_energy_data_fields(config.device_type)
-                for config in device_configs
-            ],
-            "data_object_kind": "energy_point_series",
-            "point_kind": "energy_point_series",
-            "public_fields": ["consumption", "flow_rate", "timestamp"],
-            "specialized_fields": specialized_fields,
-            "null_field_rule": "nullable_specialized_field_means_not_applicable_or_not_reported",
-        }
+        """返回能源类型完整 profile（语义 + 设备类型 + 字段）。"""
+        return build_energy_type_profile(energy_type)
 
     @staticmethod
     def get_electricity_price(hour: int) -> float:

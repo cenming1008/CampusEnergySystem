@@ -363,3 +363,37 @@ def validate_energy_type_match(expected: str, actual: str) -> None:
         raise ValueError(
             f"能源类型不匹配: 期望 {expected}, 实际 {actual}"
         )
+
+
+
+def build_energy_type_profile(energy_type: str) -> dict[str, object]:
+    """
+    构造能源类型的完整 profile，包含语义 + 关联设备类型 + 字段说明。
+
+    依赖纯函数和注册表，无 DB I/O。
+    """
+    # 延迟导入避免循环依赖（device_payloads 依赖 energy_rules 时也能正常工作）
+    from app.core.device_registry import device_registry
+    from app.domain.device_payloads import describe_energy_data_fields
+
+    semantics = dict(get_energy_semantics(energy_type))
+    device_configs = device_registry.get_by_energy_type(EnergyType(energy_type))
+    specialized_fields = sorted({
+        field
+        for config in device_configs
+        for field in config.specialized_fields
+    })
+    return {
+        **semantics,
+        "supported_device_types": [config.device_type for config in device_configs],
+        "supported_device_categories": sorted({config.category.value for config in device_configs}),
+        "field_profiles": [
+            describe_energy_data_fields(config.device_type)
+            for config in device_configs
+        ],
+        "data_object_kind": "energy_point_series",
+        "point_kind": "energy_point_series",
+        "public_fields": ["consumption", "flow_rate", "timestamp"],
+        "specialized_fields": specialized_fields,
+        "null_field_rule": "nullable_specialized_field_means_not_applicable_or_not_reported",
+    }
