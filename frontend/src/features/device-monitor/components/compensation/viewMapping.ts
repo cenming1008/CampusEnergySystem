@@ -1344,7 +1344,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     return {
       labels: [],
       legend: ['A相电压', 'B相电压', 'C相电压'],
-      axes: [{ name: 'V' }],
+      axes: [{ name: 'V', min: 200, max: 240 }],
       series: [
         { name: 'A相电压', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'voltage_a'), color: '#38bdf8' },
         { name: 'B相电压', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'voltage_b'), color: '#60a5fa' },
@@ -1501,9 +1501,12 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
   const hasCabinetTemp = input.isSvgDevice
     ? input.svgTelemetryHistory.some((p) => p.cabinet_temp != null)
     : input.capacitorBankTelemetryHistory.some((p) => p.temperature != null)
-  const healthFrequency = !input.isSvgDevice && input.capacitorBankTelemetryHistory.some((p) => p.frequency != null)
+  const hasFrequencyHistory = !input.isSvgDevice && input.capacitorBankTelemetryHistory.some((p) => p.frequency != null)
+  const healthFrequency = hasFrequencyHistory
     ? input.capacitorBankTelemetryHistory.map((p) => p.frequency ?? null)
     : []
+  // 即使历史中没有频率数据，只要最新遥测有频率值，也显示频率轴
+  const showFrequencyAxis = !input.isSvgDevice && (hasFrequencyHistory || input.capacitorBankTelemetry?.frequency != null)
   const svgTempDetails = input.isSvgDevice
     ? [
       { label: '模块温度', value: displayValueWithUnit(input.svgTelemetry?.module_temp, '暂无数据', '°C') },
@@ -1514,11 +1517,15 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
   const hasHealthData = hasCabinetTemp || healthFrequency.length > 0
   return {
     labels: [],
-    legend: !input.isSvgDevice && healthFrequency.length ? ['柜内温度', '频率'] : ['柜内温度'],
-    axes: [
-      { name: '°C' },
-      { name: !input.isSvgDevice && healthFrequency.length ? 'Hz' : '', min: !input.isSvgDevice && healthFrequency.length ? 45 : 0, max: !input.isSvgDevice && healthFrequency.length ? 55 : 100, position: 'right' },
-    ],
+    legend: showFrequencyAxis ? ['柜内温度', '频率'] : ['柜内温度'],
+    axes: showFrequencyAxis
+      ? [
+        { name: '°C', min: 0, max: 100 },
+        { name: 'Hz', min: 45, max: 55, position: 'right' },
+      ]
+      : [
+        { name: '°C', min: 0, max: 100 },
+      ],
     series: [
       {
         name: '柜内温度',
@@ -1529,7 +1536,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
         color: '#fb7185',
         area: true,
       },
-      ...(!input.isSvgDevice && healthFrequency.length
+      ...(showFrequencyAxis
         ? [{
             name: '频率',
             data: input.capacitorBankTelemetryHistory.map((point) => [point.timestamp, point.frequency ?? null] as [string, number | null]),

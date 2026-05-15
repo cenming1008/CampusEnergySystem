@@ -59,7 +59,7 @@ async function renderChart() {
     legend: {
       show: false,
     },
-    grid: { left: 56, right: 56, top: 30, bottom: 30 },
+    grid: { left: 48, right: 48, top: 36, bottom: 30, containLabel: true },
     xAxis: {
       type: props.model.xAxisType || 'category',
       data: props.model.xAxisType === 'time' ? undefined : props.model.labels,

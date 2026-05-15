@@ -47,12 +47,12 @@ function formatNumber(value: number | null | undefined, digits = 1) {
 }
 
 async function renderChart() {
-  const yMax = model.value.threshold !== null
-    ? model.value.threshold * 1.5
-    : (model.value.empty ? 10 : undefined)
+  // 门限线固定，y轴保持静态范围
+  const staticMax = activeKind.value === 'voltage' ? 10 : 50
 
   await chart.setOptions({
     backgroundColor: 'transparent',
+    animation: false,
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(11, 19, 30, 0.96)',
@@ -82,7 +82,7 @@ async function renderChart() {
       axisLabel: { color: '#8ea0bc', fontSize: 11 },
       splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
       min: 0,
-      max: yMax,
+      max: staticMax,
     },
     series: [
       {
@@ -91,8 +91,7 @@ async function renderChart() {
         barMaxWidth: 18,
         data: model.value.bars.map((bar) => ({
           ...bar,
-          // 占位柱给一个极小可见高度，避免 value=0 整列贴底看不出"骨架"
-          value: bar.placeholder ? (yMax ?? 10) * 0.02 : bar.value,
+          value: bar.placeholder ? staticMax * 0.02 : bar.value,
           itemStyle: {
             color: bar.placeholder
               ? 'rgba(96, 165, 250, 0.18)'
@@ -103,7 +102,8 @@ async function renderChart() {
         markLine: model.value.threshold !== null
           ? {
               symbol: 'none',
-              label: { color: '#fbbf24', formatter: `门限 ${model.value.threshold}` },
+              animation: false,
+              label: { color: '#fbbf24', formatter: '门限' },
               lineStyle: { color: '#fbbf24', type: 'dashed' },
               data: [{ yAxis: model.value.threshold }],
             }
@@ -209,6 +209,27 @@ watch(() => chart.chartRef.value, async () => {
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.spectrum-panel__controls :deep(.el-segmented) {
+  --el-segmented-bg-color: rgba(7, 15, 26, 0.7);
+  --el-segmented-item-selected-bg-color: rgba(59, 130, 246, 0.28);
+  --el-segmented-item-selected-color: #eaf4ff;
+  --el-segmented-item-hover-bg-color: rgba(96, 165, 250, 0.16);
+  --el-segmented-item-hover-color: #dbeafe;
+  border: 1px solid rgba(72, 96, 130, 0.72);
+  border-radius: 8px;
+  padding: 2px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.spectrum-panel__controls :deep(.el-segmented__item) {
+  color: #9fb1ca;
+  border-radius: 6px;
+}
+
+.spectrum-panel__controls :deep(.el-segmented__item-selected) {
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35);
 }
 
 .spectrum-panel__summary {
