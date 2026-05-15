@@ -94,7 +94,7 @@ class MonitorTemplateService:
             MonitorMetricSpec("capacity_utilization", "容量利用率", "%", 1),
         ),
         trend_specs=_ELECTRIC_TRENDS,
-        specific_panels=("three_phase", "circuit_state", "control_profile", "control_summary"),
+        specific_panels=("three_phase", "circuit_state", "harmonic_spectrum", "control_profile", "control_summary"),
         supports_remote_control=True,
         receipt_required=True,
         supported_commands=tuple(_CAPACITOR_BANK_COMMANDS),

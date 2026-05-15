@@ -20,6 +20,7 @@
 - [run_mqtt_ingest_worker.py](/Users/todo/CampusEnergySystem/scripts/python/run_mqtt_ingest_worker.py)：MQTT 入站采集 worker 入口
 - [generate_prod_secrets.py](/Users/todo/CampusEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
 - [send_test_alert.py](/Users/todo/CampusEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
+- [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：生成或发送电容补偿控制器 2~31 次逐次谐波联调验收 payload
 
 这些脚本优先视为正式入口。
 
@@ -28,6 +29,8 @@
 - [stress_test.py](/Users/todo/CampusEnergySystem/scripts/python/stress_test.py)：压力测试
 
 ### MQTT/协议调试
+
+- [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：逐次谐波准真实 payload 验收，可用 `--print-only` 先打印 topic 与 JSON
 
 本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台 MQTT 接入记录为准。
 

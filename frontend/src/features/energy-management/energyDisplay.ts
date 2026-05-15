@@ -9,16 +9,33 @@ import type {
 } from '@/api/energy'
 import type { Device } from '@/api/device'
 
+// Park EMS Design Tokens v1.0 — 介质色板。
+// 这些十六进制值与 main.css 中 --token-medium-* 严格一一对应。
+// 同步规则：改动这里时必须同步 main.css 的 token 段。
+// 之所以保留 hex（而非 var(--token-*)）：
+//   1. ECharts 配色项不解析 CSS 变量，必须传 hex/rgb 字符串。
+//   2. 部分调用方做 `color + '55'` 形式的 alpha 拼接（见 EnergyManagement.vue 的 chip rail）。
+// 调用方需要 token 变量时直接写 'var(--token-medium-elec)' 即可。
 export const typeColorMap: Record<string, string> = {
-  electricity: '#5eead4',
-  water: '#7ab8ff',
-  gas: '#f7b267',
-  heat: '#fb7185',
-  cooling: '#b794f6',
-  steam: '#a78bfa',
+  electricity: '#3B82F6',
+  water:       '#14B8A6',
+  gas:         '#F59E0B',
+  heat:        '#EF4444',
+  cooling:     '#06B6D4',
+  steam:       '#EF4444',  // 蒸汽暂归入热色系
 }
 
-export const typeColor = (key: string) => typeColorMap[key] || '#94a3b8'
+export const typeColor = (key: string) => typeColorMap[key] || '#6B7280'
+
+export const typeCssVarMap: Record<string, string> = {
+  electricity: 'var(--token-medium-elec)',
+  water:       'var(--token-medium-water)',
+  gas:         'var(--token-medium-gas)',
+  heat:        'var(--token-medium-heat)',
+  cooling:     'var(--token-medium-cool)',
+  steam:       'var(--token-medium-heat)',
+}
+export const typeCssVar = (key: string) => typeCssVarMap[key] || 'var(--token-status-disabled)'
 
 export function hasSteamRuntimePresence(
   statistics: Record<string, EnergyStatistics>,
@@ -55,7 +72,7 @@ export function buildEnergyMixItems(
         label: type.label,
         unit: type.unit,
         value,
-        color: typeColorMap[type.value] || '#94a3b8',
+        color: typeColorMap[type.value] || '#6B7280',
       }
     })
     .filter((item) => item.value > 0)

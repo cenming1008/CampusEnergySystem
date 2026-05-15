@@ -12,7 +12,7 @@ import {
   type DeviceIngestionHealthItem,
 } from '@/api/deviceMonitor'
 import { getDevices, type Device } from '@/api/device'
-import { isDemoSuppressed, suppressDemoMode } from '@/shared/demoMode'
+import { isDemoModeEnabled, suppressDemoMode } from '@/shared/demoMode'
 import { useSocketStore } from '@/stores/useSocketStore'
 import {
   FALLBACK_INGESTION_HEALTH,
@@ -181,7 +181,29 @@ export function useDashboardOverview() {
   const samplingOnline = computed(() => ingestionHealth.value.filter((item) => item.is_online).length)
   const samplingTotal = computed(() => ingestionHealth.value.length || deviceList.value.length)
 
+  const applyDashboardDemoData = () => {
+    demoMode.value = true
+    overview.value = FALLBACK_OVERVIEW
+    previousOverview.value = FALLBACK_PREVIOUS_OVERVIEW
+    ingestionHealth.value = FALLBACK_INGESTION_HEALTH
+    perMediumTrend.value = FALLBACK_TREND
+    perMediumTrendByRange.value = FALLBACK_TREND_BY_RANGE
+    deviceList.value = FALLBACK_DEVICES
+    pvCurrentPower.value = 286
+    storageSOC.value = 74
+    realSource.overview = false
+    realSource.previousOverview = false
+    realSource.trend = false
+    realSource.ingestion = false
+    realSource.devices = false
+    realSource.pvStorage = false
+  }
+
   const loadDevices = async () => {
+    if (isDemoModeEnabled()) {
+      applyDashboardDemoData()
+      return
+    }
     loading.devices = true
     try {
       const devices = await getDevices({ silent: true })
@@ -197,6 +219,10 @@ export function useDashboardOverview() {
   }
 
   const loadOverview = async () => {
+    if (isDemoModeEnabled()) {
+      applyDashboardDemoData()
+      return
+    }
     loading.overview = true
     try {
       const data = await getCampusOverview({}, { silent: true })
@@ -213,6 +239,11 @@ export function useDashboardOverview() {
   }
 
   const loadPreviousOverview = async () => {
+    if (isDemoModeEnabled()) {
+      previousOverview.value = FALLBACK_PREVIOUS_OVERVIEW
+      realSource.previousOverview = false
+      return
+    }
     try {
       const data = await getCampusOverview(buildPrevWindow(), { silent: true })
       previousOverview.value = hasOverviewData(data) ? data : null
@@ -226,6 +257,13 @@ export function useDashboardOverview() {
   }
 
   const loadTrend = async () => {
+    if (isDemoModeEnabled()) {
+      demoMode.value = true
+      perMediumTrend.value = FALLBACK_TREND
+      perMediumTrendByRange.value = FALLBACK_TREND_BY_RANGE
+      realSource.trend = false
+      return
+    }
     loading.trend = true
     try {
       const data: EnergyOverview = await getEnergyOverview({
@@ -272,6 +310,12 @@ export function useDashboardOverview() {
   }
 
   const loadIngestionHealth = async () => {
+    if (isDemoModeEnabled()) {
+      demoMode.value = true
+      ingestionHealth.value = FALLBACK_INGESTION_HEALTH
+      realSource.ingestion = false
+      return
+    }
     try {
       const items = await getIngestionHealthOverview({ silent: true })
       ingestionHealth.value = items
@@ -285,7 +329,7 @@ export function useDashboardOverview() {
   }
 
   const loadPvStorage = async () => {
-    if (demoMode.value) {
+    if (isDemoModeEnabled() || demoMode.value) {
       pvCurrentPower.value = 286
       storageSOC.value = 74
       realSource.pvStorage = false
@@ -349,17 +393,12 @@ export function useDashboardOverview() {
   }
 
   const refreshAll = async () => {
+    if (isDemoModeEnabled()) {
+      applyDashboardDemoData()
+      return
+    }
     demoMode.value = false
     await Promise.all([loadOverview(), loadTrend(), loadIngestionHealth()])
-    if (!isDemoSuppressed() && !realSource.overview && !realSource.trend && !realSource.ingestion && !realSource.devices) {
-      demoMode.value = true
-      overview.value = FALLBACK_OVERVIEW
-      previousOverview.value = FALLBACK_PREVIOUS_OVERVIEW
-      ingestionHealth.value = FALLBACK_INGESTION_HEALTH
-      perMediumTrend.value = FALLBACK_TREND
-      perMediumTrendByRange.value = FALLBACK_TREND_BY_RANGE
-      deviceList.value = FALLBACK_DEVICES
-    }
     await loadPvStorage()
   }
 

@@ -63,9 +63,13 @@ function renderComparisonChart() {
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      borderColor: '#5eead4',
-      textStyle: { color: '#f0f6ff' }
+      backgroundColor: 'rgba(22,33,51,0.96)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      textStyle: {
+        color: '#e6edf5',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 12,
+      },
     },
     legend: { show: false },
     series: [{
@@ -82,11 +86,14 @@ function renderComparisonChart() {
       label: { show: false },
       emphasis: {
         label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f6ff' },
-        itemStyle: { shadowBlur: 14, shadowColor: 'rgba(94,234,212,0.22)' }
+        itemStyle: { shadowBlur: 14, shadowColor: 'rgba(59,130,246,0.28)' }
       },
       labelLine: { show: false },
-      data,
-      color: Object.values(typeColorMap)
+      // 按介质名称取 token 色，避免 Object.values 顺序不稳定
+      data: data.map((d) => {
+        const meta = props.visibleEnergyTypes.find((t) => t.label === d.name)
+        return { ...d, itemStyle: { color: typeColorMap[meta?.value || ''] } }
+      }),
     }]
   })
 }
@@ -103,21 +110,28 @@ function renderCarbonChart() {
     }
   }).filter((item): item is { name: string; value: number } => Boolean(item && item.value > 0))
 
+  // 碳排=热色系（红）
+  const HEAT = '#EF4444'
+  const HEAT_BRIGHT = '#F87171'
   carbonChart.setOption({
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      borderColor: '#fb7185',
-      textStyle: { color: '#f0f6ff' }
+      backgroundColor: 'rgba(22,33,51,0.96)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      textStyle: {
+        color: '#e6edf5',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 12,
+      },
     },
     grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
     xAxis: {
       type: 'category',
       data: data.map(d => d.name),
       axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-      axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
+      axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' },
       axisTick: { show: false }
     },
     yAxis: {
@@ -125,7 +139,7 @@ function renderCarbonChart() {
       name: 'kg CO₂',
       nameTextStyle: { color: 'rgba(255,255,255,0.35)', fontSize: 10 },
       splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)', type: 'dashed' } },
-      axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 }
+      axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }
     },
     series: [{
       name: '碳排放',
@@ -133,16 +147,16 @@ function renderCarbonChart() {
       data: data.map(d => d.value),
       itemStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: '#fb7185' },
-          { offset: 1, color: 'rgba(251,113,133,0.3)' }
+          { offset: 0, color: HEAT },
+          { offset: 1, color: 'rgba(239,68,68,0.3)' }
         ]),
         borderRadius: [6, 6, 0, 0]
       },
       emphasis: {
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#fda4af' },
-            { offset: 1, color: 'rgba(251,113,133,0.5)' }
+            { offset: 0, color: HEAT_BRIGHT },
+            { offset: 1, color: 'rgba(239,68,68,0.5)' }
           ])
         }
       }

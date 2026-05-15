@@ -25,7 +25,7 @@ import {
   type EnergyOverview
 } from '@/api/energy'
 import { getDevices, type Device } from '@/api/device'
-import { isDemoSuppressed } from '@/shared/demoMode'
+import { isDemoModeEnabled } from '@/shared/demoMode'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePermissions } from '@/shared/composables/usePermissions'
 import EnergyDataEntryTab from '@/features/energy-management/components/EnergyDataEntryTab.vue'
@@ -35,6 +35,7 @@ import EnergyOverviewTab from '@/features/energy-management/components/EnergyOve
 import EnergyRankingAnomalyTab from '@/features/energy-management/components/EnergyRankingAnomalyTab.vue'
 import EnergyTrendComparisonTab from '@/features/energy-management/components/EnergyTrendComparisonTab.vue'
 import '@/features/energy-management/energyManagement.css'
+import { registerParkEmsTheme } from '@/features/energy-management/echartsTheme'
 import { formatBooleanRule, formatMetricValue } from '@/features/energy-management/formatters'
 import {
   buildEnergyMixItems,
@@ -321,6 +322,13 @@ const statBasisText = computed(() => {
 // ==================== 数据加载 ====================
 
 const loadEnergyTypes = async () => {
+  if (isDemoModeEnabled()) {
+    energyTypes.value = FALLBACK_ENERGY_TYPES
+    if (!FALLBACK_ENERGY_TYPES.some((type) => type.value === selectedEnergyType.value)) {
+      selectedEnergyType.value = FALLBACK_ENERGY_TYPES[0]?.value || 'electricity'
+    }
+    return
+  }
   try {
     const res = await getEnergyTypes({ silent: true })
     energyTypes.value = res.energy_types
@@ -328,12 +336,17 @@ const loadEnergyTypes = async () => {
       selectedEnergyType.value = energyTypes.value[0].value
     }
   } catch {
-    energyTypes.value = isDemoSuppressed() ? [] : FALLBACK_ENERGY_TYPES
+    energyTypes.value = []
     if (!selectedEnergyType.value) selectedEnergyType.value = energyTypes.value[0]?.value || 'electricity'
   }
 }
 
 const loadDevices = async () => {
+  if (isDemoModeEnabled()) {
+    deviceList.value = FALLBACK_ENERGY_DEVICES
+    hasRealDevices.value = false
+    return
+  }
   try {
     const devices = await getDevices({ silent: true })
     deviceList.value = devices
@@ -345,19 +358,19 @@ const loadDevices = async () => {
 }
 
 const loadCarbonFactors = async () => {
+  if (isDemoModeEnabled()) {
+    carbonFactors.value = FALLBACK_CARBON_FACTORS
+    return
+  }
   try {
     const res = await getCarbonFactors({ silent: true })
     carbonFactors.value = res.carbon_factors
   } catch {
-    carbonFactors.value = isDemoSuppressed() ? {} : FALLBACK_CARBON_FACTORS
+    carbonFactors.value = {}
   }
 }
 
 function applyEnergyDemoFallback() {
-  if (isDemoSuppressed()) {
-    demoMode.value = false
-    return
-  }
   demoMode.value = true
   energyTypes.value = FALLBACK_ENERGY_TYPES
   deviceList.value = FALLBACK_ENERGY_DEVICES
@@ -371,6 +384,10 @@ function applyEnergyDemoFallback() {
 }
 
 const loadOverview = async () => {
+  if (isDemoModeEnabled()) {
+    applyEnergyDemoFallback()
+    return
+  }
   loading.value = true
   try {
     const [startTime, endTime] = formatDateRange.value
@@ -407,6 +424,12 @@ const loadOverview = async () => {
 }
 
 const refreshData = async () => {
+  if (isDemoModeEnabled()) {
+    applyEnergyDemoFallback()
+    energyDetails.value = []
+    carbonDetails.value = []
+    return
+  }
   try {
     await Promise.all([loadOverview(), loadDetailData()])
   } catch {
@@ -498,13 +521,15 @@ const handleSaveEntry = async () => {
 // ==================== 生命周期 ====================
 
 onMounted(async () => {
+  registerParkEmsTheme()
+  if (isDemoModeEnabled()) {
+    applyEnergyDemoFallback()
+    return
+  }
   await loadEnergyTypes()
   await loadDevices()
   await loadCarbonFactors()
   await refreshData()
-  if (!isDemoSuppressed() && !hasRealOverview.value && !hasRealDevices.value) {
-    applyEnergyDemoFallback()
-  }
 })
 
 watch(selectedEnergyType, () => { refreshData() })
@@ -534,7 +559,7 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
 </script>
 
 <template>
-  <div class="em-page">
+  <div class="em-page park-ems-report">
     <div class="em-noise" />
 
     <header class="em-header glass-card">

@@ -111,3 +111,34 @@ export interface CompensationProfileItem {
   label: string
   value: string
 }
+
+export type HarmonicSpectrumKind = 'voltage' | 'current'
+export type HarmonicSpectrumPhase = 'a' | 'b' | 'c'
+
+export interface HarmonicSpectrumBar {
+  order: number
+  value: number
+  exceeded: boolean
+  placeholder?: boolean
+}
+
+export interface HarmonicSpectrumSummary {
+  phaseLabel: string
+  kindLabel: string
+  unit: string
+  peakOrder: number | null
+  peakValue: number | null
+  threshold: number | null
+  statusText: string
+  statusTone: CompensationTone
+  timestamp: string | null
+}
+
+export interface HarmonicSpectrumModel {
+  bars: HarmonicSpectrumBar[]
+  unit: string
+  threshold: number | null
+  summary: HarmonicSpectrumSummary
+  empty: boolean
+  emptyText: string
+}

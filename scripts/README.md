@@ -82,6 +82,7 @@
 - `send_test_alert.py`
 - `replay_mqtt_failures.py`
 - `run_mqtt_ingest_worker.py`
+- `send_capacitor_bank_harmonic_uat_payloads.py`
 
 本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台接入记录为准。
 

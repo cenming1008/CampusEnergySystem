@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 
 
@@ -138,6 +139,12 @@ class CapacitorBankTelemetry(SQLModel, table=True):
     current_harmonic_a: Optional[float] = Field(default=None, description="A相谐波电流幅值 (A)")
     current_harmonic_b: Optional[float] = Field(default=None, description="B相谐波电流幅值 (A)")
     current_harmonic_c: Optional[float] = Field(default=None, description="C相谐波电流幅值 (A)")
+    voltage_harmonics_a: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="A相2-31次电压谐波谱线")
+    voltage_harmonics_b: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="B相2-31次电压谐波谱线")
+    voltage_harmonics_c: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="C相2-31次电压谐波谱线")
+    current_harmonics_a: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="A相2-31次电流谐波谱线")
+    current_harmonics_b: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="B相2-31次电流谐波谱线")
+    current_harmonics_c: Optional[list[dict[str, Any]]] = Field(default=None, sa_column=Column(JSON, nullable=True), description="C相2-31次电流谐波谱线")
 
     # 系统参数
     frequency: Optional[float] = Field(default=None, description="系统频率 (Hz)")

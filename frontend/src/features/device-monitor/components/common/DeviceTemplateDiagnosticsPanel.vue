@@ -62,6 +62,7 @@ const fieldLabelMap: Record<string, string> = {
 const panelLabelMap: Record<string, string> = {
   three_phase: '三相快照',
   circuit_state: '回路状态',
+  harmonic_spectrum: '谐波频谱',
   control_profile: '控制档案',
   control_summary: '控制摘要',
   module_status: '模块状态',

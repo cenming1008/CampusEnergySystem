@@ -84,6 +84,16 @@ RAW_PAYLOAD = {
     "split_capacity_code": "7:1124",
     "temperature_upper_limit": 55.0,
     "baud_rate": 9600,
+    "voltage_harmonics_a": [
+        {"order": 2, "value": 1.2},
+        {"order": 5, "value": 6.4},
+        {"order": 32, "value": 9.9},
+        {"order": 7, "value": "bad"},
+    ],
+    "current_harmonics_b": [
+        {"order": 3, "value": 0.8},
+        {"order": 11, "value": 2.1},
+    ],
 }
 
 
@@ -130,6 +140,19 @@ class TestCapacitorBankExtraction(unittest.TestCase):
     def test_current_harmonic_extracted(self):
         result = extract_capacitor_bank_telemetry(self.data)
         self.assertAlmostEqual(result["current_harmonic_a"], 1.5, places=1)
+
+    def test_harmonic_spectrum_extracted_and_sanitized(self):
+        result = extract_capacitor_bank_telemetry(self.data)
+
+        self.assertEqual(
+            result["voltage_harmonics_a"],
+            [{"order": 2, "value": 1.2}, {"order": 5, "value": 6.4}],
+        )
+        self.assertEqual(
+            result["current_harmonics_b"],
+            [{"order": 3, "value": 0.8}, {"order": 11, "value": 2.1}],
+        )
+        self.assertNotIn("voltage_harmonics_b", result)
 
     def test_status_flags_decoded(self):
         """jkwf_status=0x8001 → leading_a=True, temp_alarm=True, 其余 False"""
@@ -208,6 +231,8 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
                 reactive_power_a=-8.0, reactive_power_b=-7.0, reactive_power_c=-9.0,
                 apparent_power_a=24.0,
                 voltage_thd_a=3.2,
+                voltage_harmonics_a=[{"order": 5, "value": 6.4}],
+                current_harmonics_b=[{"order": 11, "value": 2.1}],
                 leading_a=True, temp_alarm=True, leading_b=False,
                 circuit_state_phase_a=0x0F, circuit_state_phase_b=0x05,
                 circuit_state_common_1=0x00,
@@ -241,6 +266,8 @@ class TestCapacitorBankTelemetryPersistence(unittest.TestCase):
         self.assertEqual(row.circuit_state_phase_a, 0x0F)
         self.assertEqual(row.circuit_state_phase_b, 0x05)
         self.assertAlmostEqual(row.voltage_thd_a, 3.2, places=1)
+        self.assertEqual(row.voltage_harmonics_a, [{"order": 5, "value": 6.4}])
+        self.assertEqual(row.current_harmonics_b, [{"order": 11, "value": 2.1}])
         self.assertIsNotNone(profile_row)
         self.assertEqual(profile_row.switch_on_power_factor, 95)
         self.assertEqual(profile_row.source, "telemetry")

@@ -597,7 +597,7 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(overview["monitor_template"]["display_name"], "电容补偿控制器")
             self.assertEqual(
                 overview["monitor_template"]["specific_panels"],
-                ["three_phase", "circuit_state", "control_profile", "control_summary"],
+                ["three_phase", "circuit_state", "harmonic_spectrum", "control_profile", "control_summary"],
             )
             metric_by_key = {item["key"]: item for item in overview["metric_cards"]}
             self.assertEqual(metric_by_key["reactive_power"]["value"], -32.0)

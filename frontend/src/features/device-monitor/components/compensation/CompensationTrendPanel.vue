@@ -48,25 +48,6 @@ const segmentedOptions = computed(() =>
 )
 
 async function renderChart() {
-  if (props.model.empty) {
-    await chart.setOptions({
-      title: {
-        text: '',
-        left: 'center',
-        top: 'center',
-        textStyle: {
-          color: '#7f93b2',
-          fontSize: 15,
-          fontWeight: 400,
-        },
-      },
-      xAxis: { show: false, type: 'category', data: [] },
-      yAxis: { show: false, type: 'value' },
-      series: [],
-    }, { notMerge: true })
-    return
-  }
-
   await chart.setOptions({
     backgroundColor: 'transparent',
     tooltip: {
@@ -97,8 +78,8 @@ async function renderChart() {
       type: 'value',
       name: axis.name,
       position: axis.position || (index === 1 ? 'right' : 'left'),
-      min: axis.min,
-      max: axis.max,
+      min: axis.min ?? 0,
+      max: axis.max ?? (props.model.empty ? fallbackMaxByUnit(axis.name) : undefined),
       nameGap: 10,
       nameTextStyle: {
         color: '#8ea0bc',
@@ -137,6 +118,20 @@ async function renderChart() {
         : undefined,
     })),
   }, { notMerge: true })
+}
+
+function fallbackMaxByUnit(name: string): number | undefined {
+  const map: Record<string, number> = {
+    kW: 100,
+    kVar: 100,
+    kvar: 100,
+    V: 280,
+    A: 200,
+    PF: 1.1,
+    '%': 10,
+    路数: 20,
+  }
+  return map[name]
 }
 
 function formatTimeAxisLabel(value: number, min?: string, max?: string) {
@@ -240,6 +235,7 @@ watch(() => chart.chartRef.value, async () => {
       :ref="chart.chartRef"
       v-loading="loading"
       class="trend-panel__chart"
+      :class="{ 'trend-panel__chart--empty': model.empty }"
     />
   </section>
 </template>
@@ -393,6 +389,11 @@ watch(() => chart.chartRef.value, async () => {
   height: clamp(320px, 38vh, 520px);
 }
 
+.trend-panel__chart--empty {
+  min-height: 220px;
+  height: 220px;
+}
+
 @media (max-width: 1360px) {
   .trend-panel__toolbar {
     justify-content: flex-start;
@@ -415,6 +416,10 @@ watch(() => chart.chartRef.value, async () => {
 
   .trend-panel__chart {
     height: 320px;
+  }
+
+  .trend-panel__chart--empty {
+    height: 220px;
   }
 }
 </style>

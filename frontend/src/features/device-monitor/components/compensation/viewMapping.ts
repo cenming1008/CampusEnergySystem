@@ -23,6 +23,9 @@ import type {
   CompensationTone,
   CompensationTrendModel,
   CompensationTrendTab,
+  HarmonicSpectrumKind,
+  HarmonicSpectrumModel,
+  HarmonicSpectrumPhase,
   ModuleStateTone,
   ModuleStatusModel,
 } from './types'
@@ -199,6 +202,13 @@ export interface CompensationTrendViewInput {
   capacitorBankTelemetry: CompensationCapacitorBankTelemetry | null | undefined
 }
 
+export interface HarmonicSpectrumViewInput {
+  activeKind: HarmonicSpectrumKind
+  activePhase: HarmonicSpectrumPhase
+  telemetry: CompensationCapacitorBankTelemetry | null | undefined
+  controlProfile: CompensationCapacitorBankControlProfile | null | undefined
+}
+
 function normalizeState(value?: string | null, fallback: CompensationSemanticView['controlModeState'] = 'missing') {
   if (value === 'live' || value === 'mock' || value === 'missing') return value
   return fallback
@@ -269,6 +279,89 @@ function formatCapacitySlotList(values?: number[] | null) {
 function displayValueWithUnit(value: number | string | null | undefined, emptyText: string, unit = '', digits = 1) {
   const displayed = displayValue(value, emptyText, digits)
   return unit ? `${displayed} ${unit}` : displayed
+}
+
+const harmonicPhaseLabels: Record<HarmonicSpectrumPhase, string> = {
+  a: 'A相',
+  b: 'B相',
+  c: 'C相',
+}
+
+const harmonicKindLabels: Record<HarmonicSpectrumKind, string> = {
+  voltage: '电压谐波',
+  current: '电流谐波',
+}
+
+function harmonicUnit(kind: HarmonicSpectrumKind) {
+  return kind === 'voltage' ? '%' : 'A'
+}
+
+function harmonicThreshold(
+  kind: HarmonicSpectrumKind,
+  profile: CompensationCapacitorBankControlProfile | null | undefined,
+) {
+  const raw = kind === 'voltage'
+    ? profile?.voltage_harmonic_threshold
+    : profile?.current_harmonic_threshold
+  if (raw === null || raw === undefined || !Number.isFinite(Number(raw))) return null
+  return Number(raw)
+}
+
+function harmonicSpectrumField(kind: HarmonicSpectrumKind, phase: HarmonicSpectrumPhase) {
+  return `${kind}_harmonics_${phase}` as keyof CompensationCapacitorBankTelemetry
+}
+
+export function buildHarmonicSpectrumView(input: HarmonicSpectrumViewInput): HarmonicSpectrumModel {
+  const field = harmonicSpectrumField(input.activeKind, input.activePhase)
+  const rawSpectrum = input.telemetry?.[field]
+  const threshold = harmonicThreshold(input.activeKind, input.controlProfile)
+  const unit = harmonicUnit(input.activeKind)
+  const realBars = Array.isArray(rawSpectrum)
+    ? rawSpectrum
+        .map((point) => ({
+          order: Number(point?.order),
+          value: Number(point?.value),
+        }))
+        .filter((point) => Number.isInteger(point.order) && point.order >= 2 && point.order <= 31 && Number.isFinite(point.value))
+        .sort((a, b) => a.order - b.order)
+        .map((point) => ({
+          ...point,
+          exceeded: threshold !== null && point.value >= threshold,
+        }))
+    : []
+  const isEmpty = realBars.length === 0
+  const bars: HarmonicSpectrumModel['bars'] = isEmpty
+    ? Array.from({ length: 30 }, (_, i) => ({
+        order: i + 2,
+        value: 0,
+        exceeded: false,
+        placeholder: true,
+      }))
+    : realBars
+  const peak = realBars.reduce<typeof realBars[number] | null>(
+    (current, point) => (current === null || point.value > current.value ? point : current),
+    null,
+  )
+  const exceeded = realBars.some((point) => point.exceeded)
+
+  return {
+    bars,
+    unit,
+    threshold,
+    summary: {
+      phaseLabel: harmonicPhaseLabels[input.activePhase],
+      kindLabel: harmonicKindLabels[input.activeKind],
+      unit,
+      peakOrder: peak?.order ?? null,
+      peakValue: peak?.value ?? null,
+      threshold,
+      statusText: isEmpty ? '暂无数据' : (exceeded ? '超限' : '正常'),
+      statusTone: isEmpty ? 'neutral' : (exceeded ? 'danger' : 'success'),
+      timestamp: input.telemetry?.timestamp ?? null,
+    },
+    empty: isEmpty,
+    emptyText: '当前网关未上报 2~31 次谐波谱线',
+  }
 }
 
 function toShortTimeInRange(timestamp: string | null | undefined, range: [Date, Date]) {
@@ -1100,7 +1193,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
       legend: ['无功功率 Q', '功率因数 PF'],
       axes: [
         { name: 'kVar' },
-        { name: 'PF', min: 0.8, max: 1, position: 'right' },
+        { name: 'PF', min: 0.8, max: 1.1, position: 'right' },
       ],
       series: [
         { name: '无功功率 Q', data: qSeries, color: '#38bdf8', area: true },
@@ -1134,7 +1227,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
       legend: ['A相有功', 'B相有功', 'C相有功', 'A相无功', 'B相无功', 'C相无功', 'A相PF', 'B相PF', 'C相PF'],
       axes: [
         { name: 'kW / kvar' },
-        { name: 'PF', min: 0.8, max: 1, position: 'right' },
+        { name: 'PF', min: 0.8, max: 1.1, position: 'right' },
       ],
       series: [
         { name: 'A相有功', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'active_power_a'), color: '#38bdf8' },
@@ -1225,7 +1318,7 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     return {
       labels: [],
       legend: ['A相PF', 'B相PF', 'C相PF'],
-      axes: [{ name: 'PF', min: 0.8, max: 1 }],
+      axes: [{ name: 'PF', min: 0.8, max: 1.1 }],
       series: [
         { name: 'A相PF', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'power_factor_a'), color: '#f59e0b' },
         { name: 'B相PF', data: buildTimedCapBankSeries(input.capacitorBankTelemetryHistory, 'power_factor_b'), color: '#fbbf24' },

@@ -39,13 +39,18 @@ function renderTrendChart() {
   const consumption = props.trendItems.map(item => Number((item.total_consumption || 0).toFixed(2)))
   const load = props.trendItems.map(item => Number((item.total_load || 0).toFixed(2)))
 
+  // 沿用 design tokens v1.0 介质色板 hex 值（电=蓝 #3B82F6，作"周期能耗"主线；
+  // 负荷用 status-success 绿 #10B981 区分双轴）
+  const ELEC = '#3B82F6'
+  const SUCCESS = '#10B981'
+  const MONO = 'JetBrains Mono, monospace'
   trendChart.setOption({
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      borderColor: '#5eead4',
-      textStyle: { color: '#f0f6ff' }
+      backgroundColor: 'rgba(22,33,51,0.96)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      textStyle: { color: '#e6edf5', fontFamily: MONO, fontSize: 12 },
     },
     legend: {
       data: ['周期能耗', '负荷'],
@@ -57,7 +62,7 @@ function renderTrendChart() {
       type: 'category',
       data: xAxis,
       axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-      axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 10 }
+      axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontFamily: MONO }
     },
     yAxis: [
       {
@@ -65,14 +70,14 @@ function renderTrendChart() {
         name: '能耗',
         nameTextStyle: { color: 'rgba(255,255,255,0.35)', fontSize: 10 },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)', type: 'dashed' } },
-        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 }
+        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: MONO }
       },
       {
         type: 'value',
         name: '负荷',
         nameTextStyle: { color: 'rgba(255,255,255,0.35)', fontSize: 10 },
         splitLine: { show: false },
-        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 }
+        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: MONO }
       }
     ],
     series: [
@@ -82,11 +87,11 @@ function renderTrendChart() {
         smooth: true,
         showSymbol: false,
         data: consumption,
-        lineStyle: { color: '#63d6ff', width: 2 },
+        lineStyle: { color: ELEC, width: 2 },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(99,214,255,0.28)' },
-            { offset: 1, color: 'rgba(99,214,255,0.02)' }
+            { offset: 0, color: 'rgba(59,130,246,0.28)' },
+            { offset: 1, color: 'rgba(59,130,246,0.02)' }
           ])
         }
       },
@@ -97,7 +102,7 @@ function renderTrendChart() {
         showSymbol: false,
         yAxisIndex: 1,
         data: load,
-        lineStyle: { color: '#78f0b8', width: 2 }
+        lineStyle: { color: SUCCESS, width: 2 }
       }
     ]
   }, true)

@@ -121,7 +121,7 @@ describe('DeviceTemplateDiagnosticsPanel', () => {
             ],
           },
           panel_coverage: {
-            specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+            specific_panels: ['three_phase', 'circuit_state', 'harmonic_spectrum', 'control_profile', 'control_summary'],
           },
           ingestion_health: {
             ingestion_status: 'offline',
@@ -162,7 +162,7 @@ describe('DeviceTemplateDiagnosticsPanel', () => {
             unsupported_keys: [],
           },
           panel_coverage: {
-            specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+            specific_panels: ['three_phase', 'circuit_state', 'harmonic_spectrum', 'control_profile', 'control_summary'],
           },
           overall_status: 'offline',
         }),

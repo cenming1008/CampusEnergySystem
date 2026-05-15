@@ -81,7 +81,7 @@
 | `gas_meter` | 气表 | `flow_rate`、`consumption`、`pressure` | 同核心指标 | 无 | 不支持远程控制 |
 | `heat_meter` | 热量表 | `consumption`、`flow_rate`、`supply_temp`、`return_temp`、`temperature_delta`、`pressure` | `consumption`、`flow_rate` | 无 | 不支持远程控制 |
 | `cooling_meter` | 冷量表 | `consumption`、`flow_rate`、`supply_temp`、`return_temp`、`temperature_delta`、`pressure` | `consumption`、`flow_rate` | 无 | 不支持远程控制 |
-| `capacitor_bank_controller` | 电容补偿控制器 | `reactive_power`、`power_factor`、`voltage`、`current`、`running_circuit_count`、`capacity_utilization` | `reactive_power`、`power_factor`、`voltage`、`current` | `three_phase`、`circuit_state`、`control_profile`、`control_summary` | 支持远程控制，要求回执 |
+| `capacitor_bank_controller` | 电容补偿控制器 | `reactive_power`、`power_factor`、`voltage`、`current`、`running_circuit_count`、`capacity_utilization` | `reactive_power`、`power_factor`、`voltage`、`current` | `three_phase`、`circuit_state`、`harmonic_spectrum`、`control_profile`、`control_summary` | 支持远程控制，要求回执 |
 | `svg` | SVG 无功补偿装置 | `reactive_power`、`power_factor`、`capacity_utilization`、`cabinet_temperature`、`module_count` | `reactive_power`、`power_factor`、`voltage`、`current` | `three_phase`、`module_status`、`device_profile` | 不支持远程控制 |
 | `storage` | 储能设备 | `soc`、`soh`、`active_power`、`run_state`、`cell_temp_max`、`charge_energy_today`、`discharge_energy_today` | `flow_rate`、`voltage`、`current`、`temperature` | `storage_realtime`、`storage_trend`、`storage_status` | 不支持远程控制 |
 
@@ -96,6 +96,7 @@
 - `DeviceTrendPanel` 只展示白名单内字段；没有可展示字段时显示空态。
 - `DeviceDiagnosticsSummary` 在缺少 `runtime_status` 或 `diagnostics_summary` 时显示安全默认值。
 - `DeviceTemplateDiagnosticsPanel` 展示 `template_diagnostics`，用于接入验收和现场联调排查。
+- 电容补偿控制器使用两个独立谐波视图：`谐波趋势` tab 只展示三相电压 THD 与三相谐波电流历史趋势；`高次谐波` tab 只展示最新采样的 2~31 次谐波柱状谱图。未上报逐次谱线时，`高次谐波` tab 显示空态，不影响既有 THD 趋势。
 
 ## 新增设备判断
 
@@ -271,7 +272,7 @@
 
 ```json
 {
-  "monitor_template": { "template_key": "capacitor_bank_controller", "category": "compensation", "subtype": "capacitor_bank_controller", "display_name": "电容补偿控制器", "specific_panels": ["three_phase", "circuit_state", "control_profile", "control_summary"] },
+  "monitor_template": { "template_key": "capacitor_bank_controller", "category": "compensation", "subtype": "capacitor_bank_controller", "display_name": "电容补偿控制器", "specific_panels": ["three_phase", "circuit_state", "harmonic_spectrum", "control_profile", "control_summary"] },
   "metric_cards": [
     { "key": "reactive_power", "label": "无功功率", "value": -32.0, "unit": "kvar", "precision": 2, "source": "realtime", "state": "live" },
     { "key": "power_factor", "label": "功率因数", "value": 0.95, "unit": null, "precision": 3, "source": "realtime", "state": "live" },
@@ -297,3 +298,4 @@
 - 热 / 冷累计量单位当前采用 `GJ`，瞬时热 / 冷功率单位采用 `kW`；现场协议若上报 `kWh`、`MWh` 或厂商自定义单位，需要在设备接入层统一换算。
 - 储能的 `active_power` 正负方向已由专属组件解释，统一指标卡仅展示数值和单位。
 - SVG 的 `module_count` 来源使用资产 profile；没有 profile 时通过 `template_diagnostics.metric_coverage.missing_keys` 暴露为缺失。
+- 电容补偿控制器逐次谐波联调用 `scripts/python/send_capacitor_bank_harmonic_uat_payloads.py` 生成准真实 payload；验收时重点确认 `谐波趋势` tab 仍只显示 THD / 谐波电流历史趋势，`高次谐波` tab 可切换电压 / 电流与 A/B/C 相，A 相 5 次超限标红，B 相电流缺谱线只显示空态。

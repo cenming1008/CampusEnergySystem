@@ -83,6 +83,13 @@ function alarmTimeAgo(timestamp: string) {
   return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
 }
 
+function alarmStartedAtAbs(timestamp: string) {
+  const d = new Date(timestamp)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => `${n}`.padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 const topCritical = computed<Alarm | null>(() => {
   return alarmList.value.find((a) => !a.is_resolved && a.severity === 'critical') || null
 })
@@ -250,7 +257,7 @@ const kpiItems = computed<KpiItem[]>(() => {
       delta: `${sev.critical} 严重 · ${sev.warning} 警告`,
       deltaDir: 'up',
       sub: `${sev.info} 提示`,
-      status: sev.critical > 0 ? 'err' : (sev.warning > 0 ? 'warn' : 'ok'),
+      status: 'ok',
       spark: alertSpark,
       sparkColor: 'var(--warn)',
     },
@@ -452,7 +459,7 @@ const rankingItems = computed<RankItem[]>(() => {
       v-if="showBanner && topCritical"
       :title="topCritical.message"
       :location="topCritical.source"
-      :started-at="alarmTimeAgo(topCritical.timestamp)"
+      :started-at="alarmStartedAtAbs(topCritical.timestamp)"
       @dismiss="bannerDismissedId = topCritical!.id"
       @handle="onBannerHandle"
       @mute="onBannerMute"

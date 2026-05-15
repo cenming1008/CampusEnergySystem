@@ -79,6 +79,11 @@ export interface CompensationSvgTelemetry {
   heatsink_temp?: number | null
 }
 
+export interface CompensationHarmonicSpectrumPoint {
+  order: number
+  value: number
+}
+
 export interface CompensationCapacitorBankTelemetry {
   device_id: number
   timestamp: string
@@ -106,6 +111,12 @@ export interface CompensationCapacitorBankTelemetry {
   current_harmonic_a?: number | null
   current_harmonic_b?: number | null
   current_harmonic_c?: number | null
+  voltage_harmonics_a?: CompensationHarmonicSpectrumPoint[] | null
+  voltage_harmonics_b?: CompensationHarmonicSpectrumPoint[] | null
+  voltage_harmonics_c?: CompensationHarmonicSpectrumPoint[] | null
+  current_harmonics_a?: CompensationHarmonicSpectrumPoint[] | null
+  current_harmonics_b?: CompensationHarmonicSpectrumPoint[] | null
+  current_harmonics_c?: CompensationHarmonicSpectrumPoint[] | null
   frequency?: number | null
   temperature?: number | null
   leading_a?: boolean | null

@@ -61,6 +61,7 @@ function mountView() {
         'el-option': true,
         'el-input-number': true,
         'el-checkbox': true,
+        'el-switch': true,
         'el-button': true,
         'el-empty': true,
         'el-alert': true,
@@ -241,5 +242,35 @@ describe('SystemSettings view', () => {
     expect(vm.cleanupStats?.audit_event?.total).toBe(6)
     expect(vm.cleanupStats?.svg_telemetry?.total).toBe(4)
     expect(vm.cleanupStats?.capacitor_bank_telemetry?.total).toBe(2)
+  })
+
+  it('toggles global demo data mode from system settings', async () => {
+    requestGetMock.mockImplementation(async (url: string) => {
+      if (url === '/metrics') return ''
+      if (url === '/devices/ingestion-records') return { items: [] }
+      return {}
+    })
+    getCleanupStatsMock.mockResolvedValue({})
+    localStorage.setItem('campus-ems-demo-suppressed', '1')
+
+    const wrapper = mountView()
+    await flushAsync()
+    const vm = wrapper.vm as unknown as {
+      demoModeEnabled: boolean
+      demoModeStatusText: string
+      handleDemoModeChange: (enabled: boolean) => void
+    }
+
+    expect(vm.demoModeEnabled).toBe(false)
+    expect(vm.demoModeStatusText).toBe('已关闭，不使用演示数据')
+
+    vm.handleDemoModeChange(true)
+    expect(localStorage.getItem('campus-ems-demo-suppressed')).toBeNull()
+    expect(successMock).toHaveBeenCalledWith(expect.stringContaining('已开启演示数据模式'))
+    expect(vm.demoModeStatusText).toBe('已开启，使用演示数据')
+
+    vm.handleDemoModeChange(false)
+    expect(localStorage.getItem('campus-ems-demo-suppressed')).toBe('1')
+    expect(successMock).toHaveBeenCalledWith(expect.stringContaining('已关闭演示数据模式'))
   })
 })

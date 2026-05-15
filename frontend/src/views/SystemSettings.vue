@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Delete } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { cleanupData, getCleanupStats, cleanupAllData, type CleanupResult, type CleanupStats } from '@/api/dataCleanup'
+import { isDemoModeEnabled, setDemoModeEnabled } from '@/shared/demoMode'
 
 interface MessageResponse {
   message?: string
@@ -96,6 +97,7 @@ const systemStatus = ref<SystemStatus | null>(null)
 const metricsText = ref('')
 const ingestionRecords = ref<IngestionRecord[]>([])
 const ingestionLoading = ref(false)
+const demoModeEnabled = ref(isDemoModeEnabled())
 
 const cleanupHours = ref(1)
 const cleanupLoading = ref(false)
@@ -121,8 +123,21 @@ const ingestionIssueCount = computed(() => (
 ))
 
 const metricsLineCount = computed(() => (
-  metricsText.value.split('\n').filter((line) => line.trim() && !line.startsWith('#')).length
+  String(metricsText.value || '').split('\n').filter((line) => line.trim() && !line.startsWith('#')).length
 ))
+
+const demoModeStatusText = computed(() => (
+  demoModeEnabled.value ? '已开启，使用演示数据' : '已关闭，不使用演示数据'
+))
+
+const handleDemoModeChange = (enabled: boolean) => {
+  demoModeEnabled.value = enabled
+  setDemoModeEnabled(enabled)
+  ElMessage.success(enabled ? '已开启演示数据模式，页面即将刷新' : '已关闭演示数据模式，页面即将刷新')
+  window.setTimeout(() => {
+    window.location.reload()
+  }, 350)
+}
 
 // --- API 调用 ---
 const loadSystemStatus = async () => {
@@ -137,7 +152,7 @@ const loadSystemStatus = async () => {
 const loadMetrics = async () => {
   try {
     const res = await request.get<never, string>('/metrics', { responseType: 'text' })
-    metricsText.value = res
+    metricsText.value = typeof res === 'string' ? res : ''
   } catch {
     metricsText.value = ''
   }
@@ -335,6 +350,27 @@ onMounted(async () => {
           <span>项</span>
         </div>
         <span class="settings-kpi__sub">Prometheus output</span>
+      </div>
+    </div>
+
+    <!-- 演示数据模式 -->
+    <div class="admin-section glass-panel">
+      <div class="section-label">演示数据模式</div>
+      <div class="demo-mode-panel inner-panel">
+        <div class="demo-mode-copy">
+          <span class="demo-mode-title">使用演示数据</span>
+          <span class="dim">
+            开启后页面使用演示数据展示；关闭后页面不再使用演示数据。
+          </span>
+          <span class="demo-mode-status">{{ demoModeStatusText }}</span>
+        </div>
+        <el-switch
+          v-model="demoModeEnabled"
+          size="large"
+          active-text="开启"
+          inactive-text="关闭"
+          @change="handleDemoModeChange"
+        />
       </div>
     </div>
 
@@ -714,6 +750,31 @@ onMounted(async () => {
 .settings-kpi__sub {
   font-size: 12px;
   color: rgba(255,255,255,0.42);
+}
+
+.demo-mode-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.demo-mode-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.demo-mode-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f0f6ff;
+}
+
+.demo-mode-status {
+  font-size: 12px;
+  color: #67e8f9;
 }
 
 .admin-section {

@@ -39,6 +39,7 @@
 | `replay_mqtt_failures.py` | 重放 MQTT 失败/死信记录。 |
 | `run_mqtt_ingest_worker.py` | MQTT 入站采集 worker 入口。 |
 | `generate_prod_secrets.py` | 生成生产环境密钥片段。 |
+| `send_capacitor_bank_harmonic_uat_payloads.py` | 生成或发送电容补偿控制器逐次谐波联调验收 payload。 |
 
 ### 压测
 
@@ -51,8 +52,8 @@
 | 类型 | 数量 |
 |------|------|
 | Shell | 10 |
-| Python | 10 |
-| 合计 | 20 |
+| Python | 11 |
+| 合计 | 21 |
 
 ## 与 bin 的关系
 

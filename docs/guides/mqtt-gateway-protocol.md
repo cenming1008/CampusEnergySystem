@@ -190,6 +190,14 @@ campus/telemetry
   "reactive_power_a": 3.2,
   "reactive_power_b": 3.0,
   "reactive_power_c": 3.4,
+  "voltage_harmonics_a": [
+    { "order": 2, "value": 1.2 },
+    { "order": 5, "value": 6.4 }
+  ],
+  "current_harmonics_a": [
+    { "order": 2, "value": 0.6 },
+    { "order": 5, "value": 1.8 }
+  ],
   "circuit_state_reg_1": 255,
   "switch_on_power_factor": 95,
   "switch_off_power_factor": 102
@@ -197,6 +205,81 @@ campus/telemetry
 ```
 
 平台会把可复用三相值归一到公共层，同时保留子型专属遥测和参数快照。网关侧不得把原始寄存器名直接扩散为公共业务字段。
+
+### 6.2 逐次谐波谱线
+
+电容补偿控制器可上报 2~31 次逐次谐波谱线，用于监控页“谐波”tab 展示当前最新采样的频谱柱状图。
+
+字段：
+
+| 字段 | 单位 | 说明 |
+| --- | --- | --- |
+| `voltage_harmonics_a/b/c` | `%` | A/B/C 相 2~31 次电压谐波 |
+| `current_harmonics_a/b/c` | `A` | A/B/C 相 2~31 次电流谐波；若现场网关仍按百分比口径输出，必须先和平台显示单位统一 |
+
+格式：
+
+```json
+{
+  "voltage_harmonics_a": [
+    { "order": 2, "value": 1.2 },
+    { "order": 3, "value": 0.8 },
+    { "order": 5, "value": 6.4 }
+  ]
+}
+```
+
+约束：
+
+- `order` 必须是 `2~31` 的整数。
+- `value` 必须是有限数值，不允许 `NaN`、`Infinity` 或带单位字符串。
+- 网关负责把 JKWF-LCD 原始寄存器换算成工程值后上报，平台不直接解析 RS-485 / Modbus 原始帧。
+- 平台第一版只使用最新采样谱线做频谱展示；历史趋势仍使用三相电压 THD 与三相谐波电流聚合字段。
+
+联调验收样例：
+
+平台提供 `scripts/python/send_capacitor_bank_harmonic_uat_payloads.py` 生成准真实验收 payload。默认发送到：
+
+```text
+campus/device/CAP-001/telemetry
+```
+
+先打印确认：
+
+```bash
+./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only --timestamp 2026-05-15T14:44:21+08:00
+```
+
+连接本地 broker 发送：
+
+```bash
+MQTT_BROKER=127.0.0.1 MQTT_PORT=1883 ./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py
+```
+
+该脚本固定输出四类场景：
+
+| 场景 | 验收点 |
+| --- | --- |
+| `a_phase_voltage_5th_over_threshold` | A 相 5 次电压谐波 `6.4%` 高于 `voltage_harmonic_threshold=5.0`，页面应显示最高 5 次并标红 |
+| `b_phase_current_missing` | B 相电流逐次谱线缺失，切到“电流谐波 / B 相”时只该频谱为空态 |
+| `legacy_cap001_without_spectrum` | 旧 CAP-001 payload 不带逐次谱线，THD / 谐波电流历史趋势仍可展示 |
+| `invalid_spectrum_items_ignored` | 包含 `order=1/32` 与非数值 `value` 的项，平台应丢弃非法项且整条遥测不失败 |
+
+示例片段：
+
+```json
+{
+  "device_code": "CAP-001",
+  "device_category": "compensation",
+  "device_subtype": "capacitor_bank_controller",
+  "voltage_harmonic_threshold": 5.0,
+  "voltage_harmonics_a": [
+    { "order": 2, "value": 0.94 },
+    { "order": 5, "value": 6.4 },
+    { "order": 31, "value": 1.06 }
+  ]
+}
+```
 
 ## 7. 控制命令
 

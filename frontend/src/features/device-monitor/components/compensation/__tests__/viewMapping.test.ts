@@ -10,6 +10,7 @@ import {
   buildCompensationSemanticView,
   buildCompensationStatusItems,
   buildCompensationTrendView,
+  buildHarmonicSpectrumView,
   describeCompensationSource,
 } from '../viewMapping'
 import type { CompensationMonitor } from '@/api/deviceMonitor'
@@ -624,7 +625,7 @@ describe('compensation view mapping', () => {
     expect(reactive.series[2]?.data).toEqual([['2026-04-22T20:10:00', 5]])
 
     expect(pf.legend).toEqual(['A相PF', 'B相PF', 'C相PF'])
-    expect(pf.axes).toEqual([{ name: 'PF', min: 0.8, max: 1 }])
+    expect(pf.axes).toEqual([{ name: 'PF', min: 0.8, max: 1.1 }])
     expect(pf.series[1]?.data).toEqual([['2026-04-22T20:10:00', 0.93]])
   })
 
@@ -708,5 +709,65 @@ describe('compensation view mapping', () => {
     })
 
     expect(model.axes[1]).toMatchObject({ name: 'Hz', min: 45, max: 55, position: 'right' })
+  })
+
+  it('builds latest harmonic spectrum with threshold summary and exceeded bars', () => {
+    const model = buildHarmonicSpectrumView({
+      activeKind: 'voltage',
+      activePhase: 'a',
+      telemetry: {
+        device_id: 16,
+        timestamp: '2026-04-22T17:10:00',
+        voltage_harmonics_a: [
+          { order: 2, value: 1.2 },
+          { order: 5, value: 6.4 },
+        ],
+      } as any,
+      controlProfile: {
+        device_id: 16,
+        voltage_harmonic_threshold: 5,
+      } as any,
+    })
+
+    expect(model.empty).toBe(false)
+    expect(model.unit).toBe('%')
+    expect(model.summary.peakOrder).toBe(5)
+    expect(model.summary.statusTone).toBe('danger')
+    expect(model.bars.find((bar) => bar.order === 5)?.exceeded).toBe(true)
+  })
+
+  it('builds harmonic spectrum empty state with 2~31 skeleton bars when selected phase has no spectrum data', () => {
+    const model = buildHarmonicSpectrumView({
+      activeKind: 'current',
+      activePhase: 'b',
+      telemetry: {
+        device_id: 16,
+        timestamp: '2026-04-22T17:10:00',
+        voltage_harmonics_a: [{ order: 5, value: 6.4 }],
+      } as any,
+      controlProfile: null,
+    })
+
+    expect(model.empty).toBe(true)
+    expect(model.emptyText).toContain('当前网关未上报 2~31 次谐波谱线')
+    expect(model.bars).toHaveLength(30)
+    expect(model.bars[0]).toMatchObject({ order: 2, placeholder: true, exceeded: false })
+    expect(model.bars[29]).toMatchObject({ order: 31, placeholder: true })
+    expect(model.summary.statusText).toBe('暂无数据')
+    expect(model.summary.statusTone).toBe('neutral')
+  })
+
+  it('preserves threshold in empty state so the markLine can still be drawn', () => {
+    const model = buildHarmonicSpectrumView({
+      activeKind: 'voltage',
+      activePhase: 'a',
+      telemetry: null,
+      controlProfile: { device_id: 16, voltage_harmonic_threshold: 5 } as any,
+    })
+
+    expect(model.empty).toBe(true)
+    expect(model.threshold).toBe(5)
+    expect(model.bars).toHaveLength(30)
+    expect(model.bars.every((bar) => bar.placeholder === true)).toBe(true)
   })
 })

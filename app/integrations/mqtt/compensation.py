@@ -175,6 +175,28 @@ def _sum_numeric(data: dict[str, Any], keys: tuple[str, ...]) -> Optional[float]
     return sum(valid)
 
 
+def _sanitize_harmonic_spectrum(value: Any) -> Optional[list[dict[str, float | int]]]:
+    """保留 2~31 次、有限数值的逐次谐波谱线。"""
+    if not isinstance(value, list):
+        return None
+
+    by_order: dict[int, float] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            order = int(item.get("order"))
+            magnitude = _parse_numeric(item.get("value"), "harmonic.value")
+        except (TypeError, ValueError):
+            continue
+        if 2 <= order <= 31:
+            by_order[order] = magnitude
+
+    if not by_order:
+        return None
+    return [{"order": order, "value": by_order[order]} for order in sorted(by_order)]
+
+
 def normalize_compensation_measurements(data: dict[str, Any]) -> dict[str, Any]:
     """将补偿控制器常见三相字段归一到公共字段层。"""
     normalized = dict(data)
@@ -243,6 +265,8 @@ _CAPACITOR_BANK_TELEMETRY_FIELDS = (
     "apparent_power_a", "apparent_power_b", "apparent_power_c",
     "voltage_thd_a", "voltage_thd_b", "voltage_thd_c",
     "current_harmonic_a", "current_harmonic_b", "current_harmonic_c",
+    "voltage_harmonics_a", "voltage_harmonics_b", "voltage_harmonics_c",
+    "current_harmonics_a", "current_harmonics_b", "current_harmonics_c",
     "frequency", "temperature",
     "leading_a", "leading_b", "leading_c",
     "undercurrent_a", "undercurrent_b", "undercurrent_c",
@@ -312,6 +336,15 @@ def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str,
 
     decoded = decode_jkwf_payload(data)
     merged = {**data, **{key: value for key, value in decoded.items() if key not in data}}
+    for field in (
+        "voltage_harmonics_a", "voltage_harmonics_b", "voltage_harmonics_c",
+        "current_harmonics_a", "current_harmonics_b", "current_harmonics_c",
+    ):
+        sanitized = _sanitize_harmonic_spectrum(merged.get(field))
+        if sanitized is not None:
+            merged[field] = sanitized
+        else:
+            merged.pop(field, None)
 
     extracted = {
         field: merged[field]

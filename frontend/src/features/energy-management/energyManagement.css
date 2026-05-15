@@ -1041,3 +1041,214 @@
   .focus-value { font-size: 30px; }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* =================================================================
+ * Park EMS · Variant B (Report) — Design Tokens v1.0 覆盖层
+ * 仅作用在 .em-page.park-ems-report 这个 scope 上，保持向后兼容。
+ * ================================================================= */
+.em-page.park-ems-report {
+  font-family: var(--font-sans);
+  gap: var(--space-4);              /* 16px */
+  padding: var(--space-6);          /* 24px */
+}
+
+/* 数值 / mono 字段 ----------------------------------------------- */
+.park-ems-report .chip-val,
+.park-ems-report .kpi-val strong,
+.park-ems-report .kpi-unit,
+.park-ems-report .focus-value,
+.park-ems-report .focus-unit,
+.park-ems-report .focus-metric__val,
+.park-ems-report .legend-pct,
+.park-ems-report .legend-val,
+.park-ems-report .period-card strong,
+.park-ems-report .rank-side,
+.park-ems-report .anomaly-pill strong,
+.park-ems-report .basis-note,
+.park-ems-report .el-table td.el-table__cell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 双层标题 ------------------------------------------------------- */
+.park-ems-report .eyebrow {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 2px;
+  color: var(--token-status-disabled);
+  opacity: 0.7;
+}
+.park-ems-report .em-header__brand h1 {
+  font-size: var(--text-display-m);
+  font-weight: 500;
+  line-height: 28px;
+  font-family: var(--font-sans);
+}
+.park-ems-report .card-title {
+  font-size: var(--text-h3);
+  font-weight: 500;
+}
+
+/* Header tags（hdr-tag 改成介质/状态色）------------------------- */
+.park-ems-report .hdr-tag {
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  border-color: var(--token-status-disabled-bg);
+  background: var(--token-status-disabled-bg);
+  color: var(--token-status-disabled);
+}
+.park-ems-report .hdr-tag--cyan {
+  color: var(--token-medium-cool);
+  border-color: var(--token-medium-cool-dim);
+  background: var(--token-status-info-bg);
+}
+.park-ems-report .hdr-tag--amber {
+  color: var(--token-status-warning);
+  border-color: var(--token-status-warning-bg);
+  background: var(--token-status-warning-bg);
+}
+
+/* Brand mark dot 改为介质蓝（电色）------------------------------ */
+.park-ems-report .em-brand-mark {
+  background: var(--token-status-info-bg);
+  border-radius: var(--radius-lg);
+}
+.park-ems-report .em-brand-mark__dot {
+  background: var(--token-medium-elec);
+  box-shadow: 0 0 12px var(--token-medium-elec-dim);
+}
+
+/* KPI tile —— Variant B 风格：padding 20-24、22-26 主数 ------- */
+.park-ems-report .kpi-strip { gap: var(--space-4); }
+.park-ems-report .kpi-tile {
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--kpi-accent, var(--token-status-disabled));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.park-ems-report .kpi-tile--energy { --kpi-accent: var(--token-medium-elec); }
+.park-ems-report .kpi-tile--load   { --kpi-accent: var(--token-medium-cool); }
+.park-ems-report .kpi-tile--carbon { --kpi-accent: var(--token-medium-gas); }
+.park-ems-report .kpi-tile--device { --kpi-accent: var(--token-status-success); }
+.park-ems-report .kpi-tile--focus  { --kpi-accent: var(--token-medium-water); }
+.park-ems-report .kpi-val strong {
+  font-size: var(--text-display-m);
+  font-weight: 500;
+}
+.park-ems-report .kpi-eyebrow {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 2px;
+}
+
+/* Energy chip rail —— 数值 mono、圆角 sm ----------------------- */
+.park-ems-report .energy-rail { gap: var(--space-2); }
+.park-ems-report .energy-chip {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-caption);
+  font-family: var(--font-sans);
+}
+
+/* Cards / focus hero / period / ranking ------------------------- */
+.park-ems-report .em-card { padding: var(--space-4); border-radius: var(--radius-lg); }
+.park-ems-report .focus-hero {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, var(--token-status-info-bg), transparent 60%),
+    rgba(255,255,255,0.025);
+  border: 1px solid var(--token-medium-elec-dim);
+}
+.park-ems-report .focus-value {
+  font-size: var(--text-display-m);
+  color: var(--token-medium-elec-bright);
+}
+.park-ems-report .focus-unit {
+  color: var(--token-medium-elec);
+}
+.park-ems-report .focus-metric {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+.park-ems-report .focus-metric__val {
+  font-size: var(--text-h3);
+  font-weight: 500;
+}
+.park-ems-report .focus-metric__label {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 1.5px;
+  color: var(--token-status-disabled);
+}
+
+.park-ems-report .period-card {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+.park-ems-report .period-card strong {
+  font-size: var(--text-display-m);
+  font-weight: 500;
+}
+.park-ems-report .period-card span {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 1.5px;
+  color: var(--token-status-disabled);
+}
+
+/* Ranking 排行：进度条按 polarity（升红/降绿/持平灰）by inline ---*/
+.park-ems-report .rank-item {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+.park-ems-report .rank-index {
+  border-radius: var(--radius-sm);
+  background: var(--token-status-info-bg);
+  color: var(--token-medium-elec);
+  font-family: var(--font-mono);
+}
+.park-ems-report .rank-side { font-size: var(--text-body); font-weight: 600; }
+
+/* Anomaly summary pills ----------------------------------------- */
+.park-ems-report .anomaly-pill {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+.park-ems-report .anomaly-pill strong {
+  font-size: var(--text-display-m);
+  font-weight: 500;
+}
+
+/* 表格 ---------------------------------------------------------- */
+.park-ems-report .el-table {
+  --el-table-border-color: var(--divider);
+}
+.park-ems-report .el-table th.el-table__cell {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+
+/* Element Plus buttons / inputs：去胶囊化（Variant B 工业感）---*/
+.park-ems-report .el-button {
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+.park-ems-report .el-button--primary {
+  background: var(--token-medium-elec);
+  border-color: var(--token-medium-elec);
+  color: #fff;
+}
+.park-ems-report .el-button--primary:hover {
+  background: var(--token-medium-elec-bright);
+  border-color: var(--token-medium-elec-bright);
+}
+.park-ems-report .el-input__wrapper,
+.park-ems-report .el-select__wrapper {
+  border-radius: var(--radius-md);
+}
+
+/* el-collapse 标题字体 ----------------------------------------- */
+.park-ems-report .em-collapse .el-collapse-item__header {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  letter-spacing: 0;
+}

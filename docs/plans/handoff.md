@@ -41,6 +41,12 @@
 - 告警中心与补偿监控告警表已展示来源标签。
 - 默认 scheduler 每分钟执行 `sync_platform_comm_alarms` 全量扫描接入健康记录，避免通讯告警只在页面读取时才同步。
 - 旧 `source=telemetry` 告警在前端显示为“历史遥测”，本轮不迁移历史数据。
+- 电容补偿控制器已新增 2~31 次逐次谐波谱线接入：
+  - 后端 `CapacitorBankTelemetry` 支持 `voltage_harmonics_a/b/c` 与 `current_harmonics_a/b/c` JSON 字段。
+  - MQTT payload 接受 `{ "order": 2..31, "value": finite number }` 数组，非法阶次或非数值项会被丢弃，不影响整条遥测。
+  - 补偿监控已拆为 `谐波趋势` 与 `高次谐波` 两个 tab：`谐波趋势` 保留原三相电压 THD / 谐波电流历史趋势，`高次谐波` 展示最新采样的逐次谐波柱状谱图。
+  - 电容补偿控制器模板专属面板已新增 `harmonic_spectrum`。
+  - 准真实验收脚本 `scripts/python/send_capacitor_bank_harmonic_uat_payloads.py` 已固化 4 类 payload：A 相 5 次电压谐波超限、B 相电流谱线缺失、旧 CAP-001 无谱线、非法谱线项过滤。
 
 ## 下一棒
 - 验收角色：
@@ -48,6 +54,8 @@
   - 打开普通表计、补偿设备、储能设备监控页，确认诊断面板不影响既有专属页面。
 - 后端/设备接入角色：
   - 用真实 payload 继续复核冷热表单位是否已换算到模板口径：累计热 / 冷量 `GJ`，瞬时热 / 冷功率 `kW`，温度 `degC`。
+  - 联调逐次谐波时，网关需要先把 JKWF-LCD 2~31 次寄存器换算为工程值后再上报 `voltage_harmonics_a/b/c`、`current_harmonics_a/b/c`；平台不解析原始 RS-485 / Modbus 帧。
+  - 现场网关未就绪时，可先运行 `./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only` 对齐 payload，再连接 broker 发送到 `campus/device/CAP-001/telemetry` 做平台闭环。
   - 关注诊断面板暴露出的缺失字段，优先判断是 MQTT 映射问题还是模板定义问题。
   - 新增专属设备时优先新增监控插件；普通表计优先补轻量模板，不回到 `DeviceMonitorService` 手写分流。
 - 前端角色：
@@ -55,6 +63,7 @@
   - 新增页面级请求、轮询或刷新副作用时优先进入 `useDeviceMonitorPage` 或进一步拆出稳定 composable。
   - 后续如需要，可把诊断面板扩展为接入验收 checklist 或独立报告。
   - 告警相关 UI 只展示 `Alarm.source/category/message` 等后端返回语义，不在页面根据实时值制造核心告警。
+  - 逐次谐波第一版只展示最新采样谱线；历史回放仍在 `谐波趋势` tab 看 THD / 谐波电流聚合趋势。
 
 ## 已验证
 - `./venv/bin/python -m pytest tests/test_device_monitor_plugin_registry.py tests/test_device_monitor_service.py tests/test_mqtt_contracts.py -q` 通过：`34 passed, 2 warnings`。
@@ -64,6 +73,12 @@
 - `cd frontend && npm run test:unit -- sourceLabels.test.ts DeviceMonitor.test.ts` 通过：`2 files / 13 tests passed`。
 - `cd frontend && npm run typecheck` 通过。
 - `./venv/bin/python -m pytest tests/test_scheduler_jobs.py tests/test_ingestion_health_service.py -q` 通过：`11 passed, 1 warning`。
+- `./venv/bin/python -m pytest tests/test_capacitor_bank_ingestion.py tests/test_device_monitor_service.py tests/test_compensation_device_nested_api.py -q` 通过：`54 passed, 1 warning`。
+- `cd frontend && npm run test:unit -- viewMapping.test.ts DeviceTemplateDiagnosticsPanel.test.ts DeviceMonitor.test.ts` 通过：`4 files / 47 tests passed`。
+- `cd frontend && npm run typecheck` 通过。
+- `./venv/bin/python -m pytest tests/test_capacitor_bank_harmonic_uat_payloads.py tests/test_capacitor_bank_ingestion.py tests/test_device_monitor_service.py tests/test_compensation_device_nested_api.py -q` 通过：`57 passed, 1 warning`。
+- `./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only --timestamp 2026-05-15T14:44:21+08:00` 通过，已打印 4 条 `campus/device/CAP-001/telemetry` 准真实联调消息。
+- `cd frontend && npm run test:unit -- viewMapping.test.ts DeviceMonitor.test.ts` 通过：`2 files / 45 tests passed`。
 
 ## 剩余风险
 - 当前诊断结果基于模板输出和当前健康字段，不替代真实设备 UAT。
@@ -72,3 +87,4 @@
 - `useDeviceMonitorPage` 是本轮低风险收口的页面级 view model；若后续继续膨胀，应按数据加载、通用趋势、告警控制等更细粒度继续拆分。
 - 现场真实协议如果上报非 `GJ/kW/degC` 口径，仍需在设备接入层做单位换算后再进入当前监控模板。
 - 历史旧告警仍可能保留 `source=telemetry`，当前按“历史遥测”兼容显示，不做历史数据迁移。
+- 逐次谐波频谱依赖网关上报最新谱线；历史接口当前不做 2~31 次长周期谱线回放。

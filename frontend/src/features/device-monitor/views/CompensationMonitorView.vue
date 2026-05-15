@@ -10,6 +10,7 @@ import CompensationStatusSummary from '@/features/device-monitor/components/comp
 import CompensationSvgProfileEditDialog from '@/features/device-monitor/components/compensation/CompensationSvgProfileEditDialog.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
 import DeviceTemplateDiagnosticsPanel from '@/features/device-monitor/components/common/DeviceTemplateDiagnosticsPanel.vue'
+import HarmonicSpectrumPanel from '@/features/device-monitor/components/compensation/HarmonicSpectrumPanel.vue'
 import MonitorViewShell from './MonitorViewShell.vue'
 import type { DeviceMonitorPageModel } from '@/features/device-monitor/composables/useDeviceMonitorPage'
 
@@ -52,6 +53,12 @@ defineProps<{
         :shortcuts="page.timeShortcuts"
         :loading="page.chartLoading"
         @range-change="page.handleRangeChange"
+      />
+
+      <HarmonicSpectrumPanel
+        v-if="page.compensationSubtype === 'capacitor_bank_controller'"
+        :telemetry="page.compensationCapacitorBankTelemetry"
+        :control-profile="page.compensationCapacitorBankControlProfile"
       />
 
       <CompensationDetailPanel

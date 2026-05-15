@@ -211,6 +211,12 @@ class CapacitorBankTelemetryResponse(BaseModel):
     current_harmonic_a: Optional[float] = None
     current_harmonic_b: Optional[float] = None
     current_harmonic_c: Optional[float] = None
+    voltage_harmonics_a: Optional[list[dict]] = None
+    voltage_harmonics_b: Optional[list[dict]] = None
+    voltage_harmonics_c: Optional[list[dict]] = None
+    current_harmonics_a: Optional[list[dict]] = None
+    current_harmonics_b: Optional[list[dict]] = None
+    current_harmonics_c: Optional[list[dict]] = None
     frequency: Optional[float] = None
     temperature: Optional[float] = None
     leading_a: Optional[bool] = None

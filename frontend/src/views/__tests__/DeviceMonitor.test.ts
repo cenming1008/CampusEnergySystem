@@ -271,6 +271,26 @@ const DeviceTemplateDiagnosticsPanelProbe = defineComponent({
   `,
 })
 
+const CompensationTrendPanelSwitchToSpectrumProbe = defineComponent({
+  props: {
+    tabs: {
+      type: Array,
+      required: true,
+    },
+  },
+  template: `
+    <div class="compensation-trend-panel-spectrum-probe">
+      <span
+        v-for="item in tabs"
+        :key="item.value"
+        class="trend-tab-label"
+      >
+        {{ item.label }}
+      </span>
+    </div>
+  `,
+})
+
 function mountViewWithRealtimeProbe() {
   return shallowMount(DeviceMonitor, {
     global: {
@@ -279,6 +299,54 @@ function mountViewWithRealtimeProbe() {
         CompensationMonitorView: false,
         CompensationRealtimeOverview: RealtimeOverviewProbe,
         CompensationTrendPanel: true,
+        CompensationEventTimeline: true,
+        CompensationStatusSummary: true,
+        CompensationDeviceProfile: true,
+        CompensationControlSummaryPanel: true,
+        DeviceMetricGrid: DeviceMetricGridProbe,
+        DeviceTrendPanel: DeviceTrendPanelProbe,
+        DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
+        DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        StorageHeader: true,
+        StorageRealtimeOverview: true,
+        StorageTrendPanel: true,
+        StorageStatusPanel: true,
+        MonitorSectionPanel: MonitorSectionPanelProbe,
+        MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorViewShell: false,
+        CompensationAlarmTable: true,
+        CompensationThreePhasePanel: true,
+        CompensationCircuitStatePanel: true,
+        GenericMonitorView: false,
+        StorageMonitorView: false,
+        'el-button': true,
+        'el-card': true,
+        'el-date-picker': true,
+        'el-empty': true,
+        'el-radio-group': true,
+        'el-radio-button': true,
+        'el-segmented': true,
+        'el-tag': true,
+        'el-scrollbar': true,
+        'el-alert': true,
+        'el-table': true,
+        'el-table-column': true,
+      },
+      directives: {
+        loading: () => undefined,
+      },
+    },
+  })
+}
+
+function mountViewWithSpectrumTabProbe() {
+  return shallowMount(DeviceMonitor, {
+    global: {
+      stubs: {
+        CompensationHeader: true,
+        CompensationMonitorView: false,
+        CompensationRealtimeOverview: true,
+        CompensationTrendPanel: CompensationTrendPanelSwitchToSpectrumProbe,
         CompensationEventTimeline: true,
         CompensationStatusSummary: true,
         CompensationDeviceProfile: true,
@@ -419,7 +487,7 @@ describe('DeviceMonitor view', () => {
           unsupported_keys: [],
         },
         panel_coverage: {
-          specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+          specific_panels: ['three_phase', 'circuit_state', 'harmonic_spectrum', 'control_profile', 'control_summary'],
         },
         ingestion_health: {
           ingestion_status: 'online',
@@ -515,6 +583,25 @@ describe('DeviceMonitor view', () => {
     expect(wrapper.find('.device-template-diagnostics-panel-probe').exists()).toBe(true)
   })
 
+  it('renders the harmonic spectrum panel as a standalone section for capacitor bank controllers', async () => {
+    getCompensationCapBankLatestMock.mockResolvedValueOnce({
+      device_id: 2,
+      timestamp: '2026-04-21T17:09:39',
+      voltage_harmonics_a: [
+        { order: 2, value: 1.2 },
+        { order: 5, value: 6.4 },
+      ],
+    })
+
+    const wrapper = mountViewWithSpectrumTabProbe()
+    await flushAsync()
+
+    const trendProbeText = wrapper.find('.compensation-trend-panel-spectrum-probe').text()
+    expect(trendProbeText).toContain('谐波趋势')
+    expect(trendProbeText).not.toContain('高次谐波')
+    expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(true)
+  })
+
   it.each(['offline', 'missing', 'partial'] as const)(
     'keeps capacitor bank diagnostics on the dedicated path when template status is %s',
     async (overallStatus) => {
@@ -587,7 +674,7 @@ describe('DeviceMonitor view', () => {
             unsupported_keys: [],
           },
           panel_coverage: {
-            specific_panels: ['three_phase', 'circuit_state', 'control_profile', 'control_summary'],
+            specific_panels: ['three_phase', 'circuit_state', 'harmonic_spectrum', 'control_profile', 'control_summary'],
           },
           ingestion_health: {
             ingestion_status: overallStatus === 'offline' ? 'offline' : 'online',
