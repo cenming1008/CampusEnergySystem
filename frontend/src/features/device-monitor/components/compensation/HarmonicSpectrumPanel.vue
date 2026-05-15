@@ -7,6 +7,7 @@ import type {
 } from '@/api/compensation'
 import {
   buildHarmonicSpectrumView,
+  getHarmonicSpectrumYAxisMax,
 } from './viewMapping'
 import type {
   HarmonicSpectrumKind,
@@ -48,7 +49,7 @@ function formatNumber(value: number | null | undefined, digits = 1) {
 
 async function renderChart() {
   // 门限线固定，y轴保持静态范围
-  const staticMax = activeKind.value === 'voltage' ? 10 : 50
+  const staticMax = getHarmonicSpectrumYAxisMax(activeKind.value)
 
   await chart.setOptions({
     backgroundColor: 'transparent',

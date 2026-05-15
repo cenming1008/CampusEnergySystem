@@ -197,6 +197,25 @@ def _sanitize_harmonic_spectrum(value: Any) -> Optional[list[dict[str, float | i
     return [{"order": order, "value": by_order[order]} for order in sorted(by_order)]
 
 
+def _fold_flat_harmonic_spectrum(
+    data: dict[str, Any],
+    *,
+    kind: str,
+    phase: str,
+) -> Optional[list[dict[str, float | int]]]:
+    """兼容现场网关 flat 字段：voltage_harmonic_a_5 -> {order: 5, value: ...}。"""
+    prefix = f"{kind}_harmonic_{phase}_"
+    rows: list[dict[str, float | int]] = []
+    for key, raw_value in data.items():
+        if not key.startswith(prefix):
+            continue
+        order_text = key[len(prefix):]
+        if not order_text.isdigit():
+            continue
+        rows.append({"order": int(order_text), "value": raw_value})
+    return _sanitize_harmonic_spectrum(rows)
+
+
 def normalize_compensation_measurements(data: dict[str, Any]) -> dict[str, Any]:
     """将补偿控制器常见三相字段归一到公共字段层。"""
     normalized = dict(data)
@@ -336,15 +355,16 @@ def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str,
 
     decoded = decode_jkwf_payload(data)
     merged = {**data, **{key: value for key, value in decoded.items() if key not in data}}
-    for field in (
-        "voltage_harmonics_a", "voltage_harmonics_b", "voltage_harmonics_c",
-        "current_harmonics_a", "current_harmonics_b", "current_harmonics_c",
-    ):
-        sanitized = _sanitize_harmonic_spectrum(merged.get(field))
-        if sanitized is not None:
-            merged[field] = sanitized
-        else:
-            merged.pop(field, None)
+    for kind in ("voltage", "current"):
+        for phase in ("a", "b", "c"):
+            field = f"{kind}_harmonics_{phase}"
+            sanitized = _sanitize_harmonic_spectrum(merged.get(field))
+            if sanitized is None:
+                sanitized = _fold_flat_harmonic_spectrum(merged, kind=kind, phase=phase)
+            if sanitized is not None:
+                merged[field] = sanitized
+            else:
+                merged.pop(field, None)
 
     extracted = {
         field: merged[field]

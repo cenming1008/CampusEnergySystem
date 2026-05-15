@@ -177,6 +177,15 @@ def evaluate_capacitor_bank_faults(
         except (TypeError, ValueError):
             return None
 
+    def _effective_harmonic_limit(kind: str, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        if kind == "voltage" and value == 2.9:
+            return None
+        if kind == "current" and value == 29:
+            return None
+        return value
+
     # 温度超限
     temperature = _to_float(cap_data.get("temperature"))
     temp_limit = thresholds.temperature_upper_limit
@@ -201,8 +210,8 @@ def evaluate_capacitor_bank_faults(
 
     # 各相检测
     overvoltage_limit = thresholds.overvoltage_threshold
-    voltage_harmonic_limit = thresholds.voltage_harmonic_threshold
-    current_harmonic_limit = thresholds.current_harmonic_threshold
+    voltage_harmonic_limit = _effective_harmonic_limit("voltage", thresholds.voltage_harmonic_threshold)
+    current_harmonic_limit = _effective_harmonic_limit("current", thresholds.current_harmonic_threshold)
 
     for phase in ("a", "b", "c"):
         phase_upper = phase.upper()

@@ -235,6 +235,7 @@ campus/telemetry
 - `value` 必须是有限数值，不允许 `NaN`、`Infinity` 或带单位字符串。
 - 网关负责把 JKWF-LCD 原始寄存器换算成工程值后上报，平台不直接解析 RS-485 / Modbus 原始帧。
 - 平台第一版只使用最新采样谱线做频谱展示；历史趋势仍使用三相电压 THD 与三相谐波电流聚合字段。
+- 兼容现场已上线网关的扁平字段：`voltage_harmonic_a_2`、`voltage_harmonic_b_31`、`current_harmonic_c_5` 等会被平台折叠为 `voltage_harmonics_a/b/c` 或 `current_harmonics_a/b/c` 数组；新网关仍优先按数组格式上报。
 
 联调验收样例：
 

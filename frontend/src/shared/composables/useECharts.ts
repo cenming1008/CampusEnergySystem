@@ -11,6 +11,22 @@ export function useECharts(options: UseEChartsOptions = {}) {
   const chartRef = ref<HTMLElement | null>(null)
   const chart = shallowRef<ECharts | null>(null)
   let resizeTimer: ReturnType<typeof setTimeout> | null = null
+  let resizeObserver: ResizeObserver | null = null
+
+  const stopElementResizeObserver = () => {
+    resizeObserver?.disconnect()
+    resizeObserver = null
+  }
+
+  const startElementResizeObserver = () => {
+    if (!autoResize || typeof ResizeObserver === 'undefined' || !chartRef.value) return
+
+    stopElementResizeObserver()
+    resizeObserver = new ResizeObserver(() => {
+      resize()
+    })
+    resizeObserver.observe(chartRef.value)
+  }
 
   const initChart = async () => {
     await nextTick()
@@ -19,6 +35,7 @@ export function useECharts(options: UseEChartsOptions = {}) {
 
     chart.value?.dispose()
     chart.value = echarts.init(chartRef.value)
+    startElementResizeObserver()
 
     return chart.value
   }
@@ -55,6 +72,7 @@ export function useECharts(options: UseEChartsOptions = {}) {
 
     chart.value?.dispose()
     chart.value = null
+    stopElementResizeObserver()
   }
 
   const handleWindowResize = () => {

@@ -91,6 +91,19 @@ describe('capacitorBankControlProfile helpers', () => {
     ])
   })
 
+  it('uses protocol minimum effective values for harmonic threshold metadata', () => {
+    expect(getCapacitorBankControlParameterMeta('voltage_harmonic_threshold')).toMatchObject({
+      min: 3,
+      max: 50,
+      step: 0.1,
+    })
+    expect(getCapacitorBankControlParameterMeta('current_harmonic_threshold')).toMatchObject({
+      min: 30,
+      max: 200,
+      step: 1,
+    })
+  })
+
   it('formats boolean control values for read-only display', () => {
     const meta = getCapacitorBankControlParameterMeta('current_polarity_identification_enabled')
     expect(meta).toBeTruthy()

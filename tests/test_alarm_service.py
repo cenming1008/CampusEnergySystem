@@ -386,6 +386,35 @@ class TestAlarmService(unittest.TestCase):
             })
             self.assertEqual({alarm.source for alarm in created}, {"platform_rule"})
 
+    def test_check_capacitor_bank_faults_treats_current_harmonic_threshold_29_as_disabled(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-011",
+                sn="ALARM-011",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "current_harmonic_a": 31.0,
+                },
+                timestamp=datetime(2026, 4, 15, 17, 10, 0),
+                profile_data={
+                    "current_harmonic_threshold": 29.0,
+                },
+            )
+
+            self.assertEqual(created, [])
+
     def test_sync_platform_comm_alarm_creates_and_recovers_offline_instance(self):
         with Session(self.engine) as session:
             device = self._create_device(session, "ALARM-013")

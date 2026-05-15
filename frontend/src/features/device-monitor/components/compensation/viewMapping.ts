@@ -296,6 +296,10 @@ function harmonicUnit(kind: HarmonicSpectrumKind) {
   return kind === 'voltage' ? '%' : 'A'
 }
 
+export function getHarmonicSpectrumYAxisMax(kind: HarmonicSpectrumKind) {
+  return kind === 'voltage' ? 5 : 50
+}
+
 function harmonicThreshold(
   kind: HarmonicSpectrumKind,
   profile: CompensationCapacitorBankControlProfile | null | undefined,
@@ -304,7 +308,10 @@ function harmonicThreshold(
     ? profile?.voltage_harmonic_threshold
     : profile?.current_harmonic_threshold
   if (raw === null || raw === undefined || !Number.isFinite(Number(raw))) return null
-  return Number(raw)
+  const value = Number(raw)
+  if (kind === 'current' && value <= 29) return null
+  if (kind === 'voltage' && value <= 2.9) return null
+  return value
 }
 
 function harmonicSpectrumField(kind: HarmonicSpectrumKind, phase: HarmonicSpectrumPhase) {

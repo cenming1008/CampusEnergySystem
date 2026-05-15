@@ -11,6 +11,7 @@ import {
   buildCompensationStatusItems,
   buildCompensationTrendView,
   buildHarmonicSpectrumView,
+  getHarmonicSpectrumYAxisMax,
   describeCompensationSource,
 } from '../viewMapping'
 import type { CompensationMonitor } from '@/api/deviceMonitor'
@@ -769,5 +770,31 @@ describe('compensation view mapping', () => {
     expect(model.threshold).toBe(5)
     expect(model.bars).toHaveLength(30)
     expect(model.bars.every((bar) => bar.placeholder === true)).toBe(true)
+  })
+
+  it('uses compact default y-axis ranges for harmonic spectrum bars', () => {
+    expect(getHarmonicSpectrumYAxisMax('voltage')).toBe(5)
+    expect(getHarmonicSpectrumYAxisMax('current')).toBe(50)
+  })
+
+  it('treats current harmonic threshold 29A as disabled by protocol', () => {
+    const model = buildHarmonicSpectrumView({
+      activeKind: 'current',
+      activePhase: 'a',
+      telemetry: {
+        device_id: 16,
+        timestamp: '2026-04-22T17:10:00',
+        current_harmonics_a: [{ order: 3, value: 31 }],
+      } as any,
+      controlProfile: {
+        device_id: 16,
+        current_harmonic_threshold: 29,
+      } as any,
+    })
+
+    expect(model.threshold).toBeNull()
+    expect(model.summary.threshold).toBeNull()
+    expect(model.summary.statusText).toBe('正常')
+    expect(model.bars.find((bar) => bar.order === 3)?.exceeded).toBe(false)
   })
 })

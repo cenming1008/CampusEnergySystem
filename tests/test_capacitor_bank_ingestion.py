@@ -154,6 +154,28 @@ class TestCapacitorBankExtraction(unittest.TestCase):
         )
         self.assertNotIn("voltage_harmonics_b", result)
 
+    def test_flat_harmonic_spectrum_fields_are_folded_to_arrays(self):
+        data = {
+            "voltage_harmonic_a_2": 0.7,
+            "voltage_harmonic_a_5": "1.5",
+            "voltage_harmonic_a_32": 9.9,
+            "voltage_harmonic_a_7": "bad",
+            "current_harmonic_b_3": 0.8,
+            "current_harmonic_b_11": "2.1",
+        }
+
+        result = extract_capacitor_bank_telemetry(data)
+
+        self.assertEqual(
+            result["voltage_harmonics_a"],
+            [{"order": 2, "value": 0.7}, {"order": 5, "value": 1.5}],
+        )
+        self.assertEqual(
+            result["current_harmonics_b"],
+            [{"order": 3, "value": 0.8}, {"order": 11, "value": 2.1}],
+        )
+        self.assertNotIn("voltage_harmonics_b", result)
+
     def test_status_flags_decoded(self):
         """jkwf_status=0x8001 → leading_a=True, temp_alarm=True, 其余 False"""
         result = extract_capacitor_bank_telemetry(self.data)

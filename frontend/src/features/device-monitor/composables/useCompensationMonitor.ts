@@ -56,6 +56,19 @@ export interface UseCompensationMonitorInput {
   canControlDevices: ComputedRef<boolean>
 }
 
+export const REALTIME_FRESH_THRESHOLD_MS = 120_000
+
+export function isTimestampFresh(
+  timestamp: string | null | undefined,
+  thresholdMs: number = REALTIME_FRESH_THRESHOLD_MS,
+  now: number = Date.now(),
+): boolean {
+  if (!timestamp) return false
+  const parsed = Date.parse(timestamp)
+  if (Number.isNaN(parsed)) return false
+  return now - parsed <= thresholdMs
+}
+
 function defaultTimeRange(): [Date, Date] {
   const end = new Date()
   const start = new Date(end.getTime() - 60 * 60 * 1000)
@@ -213,9 +226,11 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     }),
   )
 
+  const isRealtimeFresh = computed(() => isTimestampFresh(realtime.value?.timestamp))
+
   const compensationStatusText = computed(() => {
     const pf = realtime.value?.power_factor
-    if (!runtimeStatus.value?.is_online) return '离线'
+    if (!runtimeStatus.value?.is_online || !isRealtimeFresh.value) return '离线'
     if (pf === null || pf === undefined) return '待判断'
     if (pf < 0.9) return '欠补偿'
     if (pf > 0.99) return '过补偿'
@@ -223,7 +238,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
   })
 
   const compensationStatusTone = computed<CompensationTone>(() => {
-    if (!runtimeStatus.value?.is_online) return 'neutral'
+    if (!runtimeStatus.value?.is_online || !isRealtimeFresh.value) return 'neutral'
     if (compensationStatusText.value === '欠补偿') return 'warning'
     if (compensationStatusText.value === '过补偿') return 'danger'
     if (compensationStatusText.value === '正常补偿') return 'success'
