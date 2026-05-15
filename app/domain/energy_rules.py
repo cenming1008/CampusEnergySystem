@@ -327,3 +327,39 @@ def summarize_multi_energy_statistics(rows: Iterable) -> dict[str, dict[str, obj
         energy_type: summarize_energy_statistics(group_rows)
         for energy_type, group_rows in grouped.items()
     }
+
+
+
+def empty_energy_statistics(energy_type: str) -> dict[str, object]:
+    """构造空时段的能源统计占位结果，包含语义字段。"""
+    semantics = get_energy_semantics(energy_type)
+    return {
+        "total_consumption": 0.0,
+        "avg_consumption": 0.0,
+        "avg_flow_rate": 0.0,
+        "peak_flow_rate": 0.0,
+        "data_count": 0,
+        "consumption_unit": semantics["consumption_unit"],
+        "flow_unit": semantics["flow_unit"],
+        "consumption_semantics": semantics["consumption_semantics"],
+        "consumption_stat_basis": semantics["consumption_stat_basis"],
+        "flow_semantics": semantics["flow_semantics"],
+        "flow_stat_basis": semantics["flow_stat_basis"],
+        "meter_reset_suspected": False,
+    }
+
+
+def get_carbon_factor(energy_type: str) -> float:
+    """获取能源类型对应的碳排放因子。"""
+    if energy_type in EnergyType._value2member_map_:
+        normalized = EnergyType(energy_type)
+        return float(CARBON_FACTORS.get(normalized, 0))
+    return float(CARBON_FACTORS.get(energy_type, 0))
+
+
+def validate_energy_type_match(expected: str, actual: str) -> None:
+    """验证能源类型匹配；不一致时抛出 ValueError。"""
+    if expected != actual:
+        raise ValueError(
+            f"能源类型不匹配: 期望 {expected}, 实际 {actual}"
+        )
