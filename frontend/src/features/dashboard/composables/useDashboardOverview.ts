@@ -12,7 +12,17 @@ import {
   type DeviceIngestionHealthItem,
 } from '@/api/deviceMonitor'
 import { getDevices, type Device } from '@/api/device'
+import { isDemoSuppressed, suppressDemoMode } from '@/shared/demoMode'
 import { useSocketStore } from '@/stores/useSocketStore'
+import {
+  FALLBACK_INGESTION_HEALTH,
+  FALLBACK_DEVICES,
+  FALLBACK_OVERVIEW,
+  FALLBACK_PREVIOUS_OVERVIEW,
+  FALLBACK_RANKING,
+  FALLBACK_TREND,
+  FALLBACK_TREND_BY_RANGE,
+} from './mockFallback'
 
 const OVERVIEW_REFRESH_MS = 30_000
 const PV_STORAGE_REFRESH_MS = 15_000
@@ -55,6 +65,51 @@ function bucketByHour(items: Array<{ timestamp?: string; energy_breakdown?: Reco
   return out
 }
 
+function hasOverviewData(value: CampusOverview | null) {
+  const analysis = value?.analysis_summary
+  const hasConsumption = Number(analysis?.total_consumption || 0) > 0
+  const hasEnergyMix = Boolean(value?.energy_category_summary?.some((item) => Number(item.total_consumption || 0) > 0))
+  return Boolean(value?.analysis_summary && hasConsumption && hasEnergyMix)
+}
+
+function hasTrendData(value: PerMediumTrend) {
+  return Object.values(value).some((items) => items.some((item) => item.v > 0))
+}
+
+function hasDashboardMatrixCoverage(devices: Device[], kind: 'electricity' | 'pv-storage' | 'cool-heat' | 'water-gas') {
+  return devices.some((device) => {
+    if (kind === 'electricity') {
+      return device.energy_type === 'electricity' && device.device_type !== 'storage' && device.device_type !== 'pv'
+    }
+    if (kind === 'pv-storage') {
+      return device.device_type === 'pv' || device.device_type === 'storage' || /光伏|储能|PV/i.test(device.name || '')
+    }
+    if (kind === 'cool-heat') {
+      return device.energy_type === 'cooling' || device.energy_type === 'heat'
+    }
+    return device.energy_type === 'water' || device.energy_type === 'gas'
+  })
+}
+
+function mergeFallbackDevices(devices: Device[]) {
+  const next = [...devices]
+  const missingKinds = (['electricity', 'pv-storage', 'cool-heat', 'water-gas'] as const)
+    .filter((kind) => !hasDashboardMatrixCoverage(devices, kind))
+  if (missingKinds.length === 0) return next
+
+  for (const device of FALLBACK_DEVICES) {
+    if (
+      (missingKinds.includes('electricity') && device.energy_type === 'electricity' && device.device_type !== 'storage' && device.device_type !== 'pv') ||
+      (missingKinds.includes('pv-storage') && (device.device_type === 'pv' || device.device_type === 'storage')) ||
+      (missingKinds.includes('cool-heat') && (device.energy_type === 'cooling' || device.energy_type === 'heat')) ||
+      (missingKinds.includes('water-gas') && (device.energy_type === 'water' || device.energy_type === 'gas'))
+    ) {
+      next.push(device)
+    }
+  }
+  return next
+}
+
 interface TelemetryMessage {
   type?: string
   data?: {
@@ -69,10 +124,25 @@ export function useDashboardOverview() {
   const previousOverview = ref<CampusOverview | null>(null)
   const ingestionHealth = ref<DeviceIngestionHealthItem[]>([])
   const perMediumTrend = ref<PerMediumTrend>({ electricity: [], cooling: [], heat: [], water: [], gas: [] })
+  const perMediumTrendByRange = ref<Record<'today' | 'yest' | 'week' | 'month', PerMediumTrend>>({
+    today: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+    yest: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+    week: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+    month: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+  })
   const deviceList = ref<Device[]>([])
   const storageSOC = ref<number | null>(null)
   const pvCurrentPower = ref<number | null>(null)
+  const demoMode = ref(false)
   const loading = reactive({ overview: false, trend: false, devices: false })
+  const realSource = reactive({
+    overview: false,
+    previousOverview: false,
+    trend: false,
+    ingestion: false,
+    devices: false,
+    pvStorage: false,
+  })
 
   const socketStore = useSocketStore()
   const { latestMessage } = storeToRefs(socketStore)
@@ -86,6 +156,8 @@ export function useDashboardOverview() {
   const storageDevices = computed(() => deviceList.value.filter(
     (d) => d.device_type === 'storage' || /储能/.test(d.name || '')
   ))
+
+  const isMock = computed(() => demoMode.value)
 
   const rankings = computed<LocationRankingItem[]>(() => {
     const map = overview.value?.location_rankings || {}
@@ -112,9 +184,13 @@ export function useDashboardOverview() {
   const loadDevices = async () => {
     loading.devices = true
     try {
-      deviceList.value = await getDevices()
+      const devices = await getDevices({ silent: true })
+      deviceList.value = devices
+      realSource.devices = devices.length > 0
+      if (devices.length > 0) demoMode.value = false
     } catch {
       deviceList.value = []
+      realSource.devices = false
     } finally {
       loading.devices = false
     }
@@ -123,9 +199,14 @@ export function useDashboardOverview() {
   const loadOverview = async () => {
     loading.overview = true
     try {
-      overview.value = await getCampusOverview()
+      const data = await getCampusOverview({}, { silent: true })
+      overview.value = hasOverviewData(data) ? data : null
+      realSource.overview = hasOverviewData(data)
+      if (realSource.overview) demoMode.value = false
+      if (!realSource.overview && demoMode.value) overview.value = FALLBACK_OVERVIEW
     } catch {
-      overview.value = null
+      overview.value = demoMode.value ? FALLBACK_OVERVIEW : null
+      realSource.overview = false
     } finally {
       loading.overview = false
     }
@@ -133,9 +214,14 @@ export function useDashboardOverview() {
 
   const loadPreviousOverview = async () => {
     try {
-      previousOverview.value = await getCampusOverview(buildPrevWindow())
+      const data = await getCampusOverview(buildPrevWindow(), { silent: true })
+      previousOverview.value = hasOverviewData(data) ? data : null
+      realSource.previousOverview = hasOverviewData(data)
+      if (realSource.previousOverview) demoMode.value = false
+      if (!realSource.previousOverview && demoMode.value) previousOverview.value = FALLBACK_PREVIOUS_OVERVIEW
     } catch {
-      previousOverview.value = null
+      previousOverview.value = demoMode.value ? FALLBACK_PREVIOUS_OVERVIEW : null
+      realSource.previousOverview = false
     }
   }
 
@@ -146,11 +232,40 @@ export function useDashboardOverview() {
         ...build24hWindow(),
         granularity: 'hour',
         include_analysis: true,
-      })
+      }, { silent: true })
       const trendItems = data.trend?.items || []
-      perMediumTrend.value = bucketByHour(trendItems as Array<{ timestamp?: string; energy_breakdown?: Record<string, number> | null; total_consumption?: number }>)
+      const nextTrend = bucketByHour(trendItems as Array<{ timestamp?: string; energy_breakdown?: Record<string, number> | null; total_consumption?: number }>)
+      perMediumTrend.value = hasTrendData(nextTrend) ? nextTrend : { electricity: [], cooling: [], heat: [], water: [], gas: [] }
+      perMediumTrendByRange.value = hasTrendData(nextTrend)
+        ? {
+            today: nextTrend,
+            yest: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            week: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            month: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+          }
+        : {
+            today: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            yest: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            week: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            month: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+          }
+      realSource.trend = hasTrendData(nextTrend)
+      if (realSource.trend) demoMode.value = false
+      if (!realSource.trend && demoMode.value) {
+        perMediumTrend.value = FALLBACK_TREND
+        perMediumTrendByRange.value = FALLBACK_TREND_BY_RANGE
+      }
     } catch {
-      perMediumTrend.value = { electricity: [], cooling: [], heat: [], water: [], gas: [] }
+      perMediumTrend.value = demoMode.value ? FALLBACK_TREND : { electricity: [], cooling: [], heat: [], water: [], gas: [] }
+      perMediumTrendByRange.value = demoMode.value
+        ? FALLBACK_TREND_BY_RANGE
+        : {
+            today: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            yest: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            week: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+            month: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+          }
+      realSource.trend = false
     } finally {
       loading.trend = false
     }
@@ -158,23 +273,41 @@ export function useDashboardOverview() {
 
   const loadIngestionHealth = async () => {
     try {
-      ingestionHealth.value = await getIngestionHealthOverview()
+      const items = await getIngestionHealthOverview({ silent: true })
+      ingestionHealth.value = items
+      realSource.ingestion = items.length > 0
+      if (items.length > 0) demoMode.value = false
+      if (items.length === 0 && demoMode.value) ingestionHealth.value = FALLBACK_INGESTION_HEALTH
     } catch {
-      ingestionHealth.value = []
+      ingestionHealth.value = demoMode.value ? FALLBACK_INGESTION_HEALTH : []
+      realSource.ingestion = false
     }
   }
 
   const loadPvStorage = async () => {
+    if (demoMode.value) {
+      pvCurrentPower.value = 286
+      storageSOC.value = 74
+      realSource.pvStorage = false
+      return
+    }
     const pv = pvDevices.value
     const storage = storageDevices.value
     if (pv.length === 0 && storage.length === 0) {
-      pvCurrentPower.value = null
-      storageSOC.value = null
+      if (isMock.value) {
+        pvCurrentPower.value = 286
+        storageSOC.value = 74
+        realSource.pvStorage = false
+      } else {
+        pvCurrentPower.value = null
+        storageSOC.value = null
+        realSource.pvStorage = false
+      }
       return
     }
     const allCalls = [
-      ...pv.map((d) => getDeviceMonitorOverview(d.id!).catch(() => null)),
-      ...storage.map((d) => getDeviceMonitorOverview(d.id!).catch(() => null)),
+      ...pv.map((d) => getDeviceMonitorOverview(d.id!, { silent: true }).catch(() => null)),
+      ...storage.map((d) => getDeviceMonitorOverview(d.id!, { silent: true }).catch(() => null)),
     ]
     const results = await Promise.all(allCalls)
     const pvResults = results.slice(0, pv.length)
@@ -184,13 +317,15 @@ export function useDashboardOverview() {
       let total = 0
       let any = false
       for (const r of pvResults) {
-        const value = Number(r?.realtime?.flow_rate || 0)
+        if (!r?.realtime) continue
+        const value = Number(r.realtime.flow_rate)
         if (Number.isFinite(value)) {
           total += Math.abs(value)
           any = true
         }
       }
       pvCurrentPower.value = any ? total : null
+      realSource.pvStorage = any
     } else {
       pvCurrentPower.value = null
     }
@@ -207,14 +342,43 @@ export function useDashboardOverview() {
         }
       }
       storageSOC.value = count > 0 ? socSum / count : null
+      realSource.pvStorage = realSource.pvStorage || count > 0
     } else {
       storageSOC.value = null
     }
   }
 
   const refreshAll = async () => {
+    demoMode.value = false
     await Promise.all([loadOverview(), loadTrend(), loadIngestionHealth()])
+    if (!isDemoSuppressed() && !realSource.overview && !realSource.trend && !realSource.ingestion && !realSource.devices) {
+      demoMode.value = true
+      overview.value = FALLBACK_OVERVIEW
+      previousOverview.value = FALLBACK_PREVIOUS_OVERVIEW
+      ingestionHealth.value = FALLBACK_INGESTION_HEALTH
+      perMediumTrend.value = FALLBACK_TREND
+      perMediumTrendByRange.value = FALLBACK_TREND_BY_RANGE
+      deviceList.value = FALLBACK_DEVICES
+    }
     await loadPvStorage()
+  }
+
+  const exitDemoMode = () => {
+    suppressDemoMode()
+    demoMode.value = false
+    overview.value = null
+    previousOverview.value = null
+    ingestionHealth.value = []
+    perMediumTrend.value = { electricity: [], cooling: [], heat: [], water: [], gas: [] }
+    perMediumTrendByRange.value = {
+      today: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+      yest: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+      week: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+      month: { electricity: [], cooling: [], heat: [], water: [], gas: [] },
+    }
+    deviceList.value = []
+    pvCurrentPower.value = null
+    storageSOC.value = null
   }
 
   watch(latestMessage, (message: TelemetryMessage | null) => {
@@ -231,7 +395,7 @@ export function useDashboardOverview() {
   })
 
   onMounted(async () => {
-    socketStore.connect()
+    socketStore.connect({ silent: true })
     await loadDevices()
     await refreshAll()
     void loadPreviousOverview()
@@ -255,6 +419,7 @@ export function useDashboardOverview() {
     ingestionHealth,
     ingestionByDevice,
     perMediumTrend,
+    perMediumTrendByRange,
     rankings,
     prevRankingMap,
     deviceList,
@@ -264,7 +429,9 @@ export function useDashboardOverview() {
     storageSOC,
     samplingOnline,
     samplingTotal,
+    isMock,
     loading,
     refreshAll,
+    exitDemoMode,
   }
 }

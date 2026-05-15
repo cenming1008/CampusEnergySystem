@@ -10,6 +10,7 @@ interface Props {
   mode?: string
   time?: string
   date?: string
+  isMock?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
   park: '滨海科技园 · 一期',
@@ -19,8 +20,12 @@ const props = withDefaults(defineProps<Props>(), {
   samplingTotal: 0,
   mode: '自动调度中',
   time: '',
-  date: ''
+  date: '',
+  isMock: false
 })
+const emit = defineEmits<{
+  exitDemo: []
+}>()
 
 const minuteTime = computed(() => (props.time || '').slice(0, 5))
 const operatorInitial = computed(() => (props.operator || ' ').charAt(0))
@@ -32,14 +37,21 @@ const samplingHealthy = computed(() => props.samplingOnline >= props.samplingTot
     <div class="left">
       <span class="brand-mark">P</span>
       <span class="brand-name">园区综合能源管理系统</span>
-      <span class="brand-version mono">PARK · EMS · v4.2</span>
       <span class="vline" />
       <span class="park">{{ park }}<span class="caret">▾</span></span>
     </div>
     <div class="right">
       <div class="mode">
-        <span class="mode-dot a-pulse" />
-        <span>{{ mode }}</span>
+        <span class="mode-dot" :class="{ 'a-pulse': !isMock, muted: isMock }" />
+        <span>{{ isMock ? '演示数据' : mode }}</span>
+        <button
+          v-if="isMock"
+          type="button"
+          class="demo-exit"
+          @click="emit('exitDemo')"
+        >
+          退出
+        </button>
       </div>
       <div class="operator">
         <div class="op-avatar">{{ operatorInitial }}</div>
@@ -91,11 +103,6 @@ const samplingHealthy = computed(() => props.samplingOnline >= props.samplingTot
   color: #0a0f17;
 }
 .brand-name { font-size: 14px; font-weight: 600; color: var(--text); }
-.brand-version {
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.5px;
-}
 .vline { width: 1px; height: 16px; background: var(--border-hi); margin-inline: 4px; }
 .vline.tall { height: 22px; }
 .park {
@@ -120,6 +127,18 @@ const samplingHealthy = computed(() => props.samplingOnline >= props.samplingTot
 .mode-dot {
   width: 6px; height: 6px; border-radius: 3px; background: var(--accent);
 }
+.mode-dot.muted { background: var(--text-dim); box-shadow: none; }
+.demo-exit {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-mid);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.demo-exit:hover { color: var(--text); border-color: var(--accent); }
 .operator { display: flex; align-items: center; gap: 8px; }
 .op-avatar {
   width: 22px; height: 22px; border-radius: 11px;

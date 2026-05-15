@@ -99,14 +99,17 @@ function deltaColor(item: KpiItem) {
 </template>
 
 <style scoped>
-.kpi-strip { display: flex; gap: 12px; }
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--card-gap);
+}
 .kpi {
-  flex: 1;
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 14px 16px;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   gap: 6px;

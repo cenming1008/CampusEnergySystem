@@ -240,9 +240,9 @@ export interface MonitorQueryRange {
   hours?: number
 }
 
-export function getDeviceMonitorOverview(deviceId: number) {
+export function getDeviceMonitorOverview(deviceId: number, options: { silent?: boolean } = {}) {
   return request
-    .get<never, WrappedResponse<MonitorOverview>>(`/devices/${deviceId}/monitor/overview`)
+    .get<never, WrappedResponse<MonitorOverview>>(`/devices/${deviceId}/monitor/overview`, { silent: options.silent })
     .then((response) => ({
       ...response.data,
       archive: normalizeCompensationDevice(response.data.archive),
@@ -303,10 +303,11 @@ export interface DeviceIngestionHealthItem {
   updated_at?: string | null
 }
 
-export function getIngestionHealthOverview() {
+export function getIngestionHealthOverview(options: { silent?: boolean } = {}) {
   return request
     .get<never, WrappedResponse<{ items: DeviceIngestionHealthItem[] }>>(
-      '/devices/ingestion-health/overview'
+      '/devices/ingestion-health/overview',
+      { silent: options.silent }
     )
     .then((response) => response.data.items)
 }

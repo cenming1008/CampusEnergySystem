@@ -37,7 +37,7 @@ const filters = reactive<{
   end_time?: string
   limit: number
 }>({
-  resolved: false,
+  resolved: undefined,
   limit: 100,
 })
 
@@ -219,7 +219,7 @@ function handleChartResize() {
 
 async function loadDevices() {
   try {
-    deviceList.value = await getDevices()
+    deviceList.value = await getDevices({ silent: true })
   } catch { /* axios interceptor handles errors */ }
 }
 
@@ -234,6 +234,9 @@ async function loadAlarms() {
       end_time: filters.end_time,
       limit: filters.limit,
     })
+    await renderChart()
+  } catch {
+    alarms.value = []
     await renderChart()
   } finally {
     loading.value = false
@@ -306,7 +309,7 @@ watch(autoRefresh, val => {
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await Promise.all([loadDevices(), loadAlarms()])
+  await Promise.allSettled([loadDevices(), loadAlarms()])
   startAutoRefresh()
   window.addEventListener('resize', handleChartResize)
 })

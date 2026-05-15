@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+
 export type MatrixStatus = 'on' | 'notice' | 'warn' | 'off'
 
 export interface MatrixItem {
+  deviceId?: number
+  category?: string
   n: string
   s: MatrixStatus
   v: string
@@ -21,6 +25,8 @@ interface Props {
 }
 defineProps<Props>()
 
+const router = useRouter()
+
 function severityColor(s: MatrixStatus) {
   if (s === 'off') return 'var(--text-dim)'
   if (s === 'warn') return 'var(--warn)'
@@ -32,6 +38,16 @@ function sevLabel(s: MatrixStatus) {
   if (s === 'warn') return 'WARN'
   if (s === 'notice') return 'NOTICE'
   return ''
+}
+
+function onCard(item: MatrixItem) {
+  if (item.deviceId != null) {
+    void router.push({ name: 'DeviceMonitor', params: { id: item.deviceId } })
+    return
+  }
+  if (item.category) {
+    void router.push({ path: '/devices', query: { category: item.category } })
+  }
 }
 </script>
 
@@ -66,6 +82,10 @@ function sevLabel(s: MatrixStatus) {
             it.s === 'notice' ? 'notice' : ''
           ]"
           :title="it.reason || `${it.n} · ${it.v} ${it.u}`"
+          tabindex="0"
+          role="button"
+          @click="onCard(it)"
+          @keydown.enter.prevent="onCard(it)"
         >
           <span class="dot" :style="{
             background: severityColor(it.s),
@@ -94,7 +114,7 @@ function sevLabel(s: MatrixStatus) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -102,7 +122,7 @@ function sevLabel(s: MatrixStatus) {
   flex: 1;
   box-sizing: border-box;
 }
-.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--card-gap); }
 .title-block { display: flex; align-items: baseline; gap: 10px; }
 .title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.2px; }
 .subtitle { font-size: 11px; color: var(--text-dim); }
@@ -112,7 +132,7 @@ function sevLabel(s: MatrixStatus) {
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: var(--card-gap);
   min-height: 0;
 }
 .group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -130,7 +150,14 @@ function sevLabel(s: MatrixStatus) {
   background: var(--surface-hi);
   border: 1px solid transparent;
   position: relative;
-  cursor: help;
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+.item:hover,
+.item:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  outline: none;
 }
 .item.warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .item.notice { border-color: color-mix(in srgb, var(--notice) 27%, transparent); }

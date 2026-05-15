@@ -36,7 +36,7 @@ export const useSocketStore = defineStore('socket', () => {
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let isManualDisconnect = false
 
-  function connect() {
+  function connect(options: { silent?: boolean } = {}) {
     const authStore = useAuthStore()
     if (!authStore.token) return
 
@@ -66,16 +66,18 @@ export const useSocketStore = defineStore('socket', () => {
           retryTimer = null
         }
 
-        ElNotification({
-          title: 'WebSocket 连接成功',
-          message: '实时数据推送已启用',
-          type: 'success',
-          duration: 2000
-        })
+        if (!options.silent) {
+          ElNotification({
+            title: 'WebSocket 连接成功',
+            message: '实时数据推送已启用',
+            type: 'success',
+            duration: 2000
+          })
+        }
       }
 
       ws.onerror = () => {
-        if (retryCount === 0) {
+        if (retryCount === 0 && !options.silent) {
           ElNotification({
             title: 'WebSocket 连接失败',
             message: '无法连接到后端服务，请检查服务是否正常运行',
@@ -102,8 +104,8 @@ export const useSocketStore = defineStore('socket', () => {
         if (retryCount < MAX_RETRIES) {
           retryCount++
           const delay = Math.min(3000 * retryCount, 10000)
-          retryTimer = setTimeout(() => connect(), delay)
-        } else {
+          retryTimer = setTimeout(() => connect(options), delay)
+        } else if (!options.silent) {
           ElNotification({
             title: 'WebSocket 连接失败',
             message: `连接断开(code=${event.code})，重连次数已达上限，请检查后端服务`,
@@ -118,7 +120,7 @@ export const useSocketStore = defineStore('socket', () => {
 
       if (retryCount < MAX_RETRIES) {
         retryCount++
-        retryTimer = setTimeout(() => connect(), 3000)
+        retryTimer = setTimeout(() => connect(options), 3000)
       }
     }
   }

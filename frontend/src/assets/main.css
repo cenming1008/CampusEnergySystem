@@ -292,6 +292,8 @@ body {
     --m-cool: #a78bfa;
     --m-heat: #ef7a6b;
     --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    --card-pad: clamp(10px, 0.9vw, 16px);
+    --card-gap: clamp(8px, 0.7vw, 12px);
     background: var(--bg);
     color: var(--text);
 }

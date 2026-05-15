@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { ref, reactive, onMounted, computed, unref, watch } from 'vue'
-    import { useRouter } from 'vue-router'
+    import { useRoute, useRouter } from 'vue-router'
     import { usePermissions } from '@/shared/composables/usePermissions'
     import { isCompensationDeviceIdentity, normalizeCompensationDevice, resolveCompensationSubtype } from '@/shared/compensationDevices'
     import { getDeviceCategoryLabel, getDeviceSubtypeLabel } from '@/shared/deviceTypeLabels'
@@ -16,6 +16,7 @@
     // --- 状态定义 ---
     const loading = ref(false)
 	    const router = useRouter()
+	    const route = useRoute()
 	    const { canManageDevices, canControlDevices, hasScopedAccess } = usePermissions()
     const canManageDevicesValue = computed(() => Boolean(unref(canManageDevices)))
     const canControlDevicesValue = computed(() => Boolean(unref(canControlDevices)))
@@ -119,6 +120,25 @@
         .sort((left, right) => right.count - left.count)
         .slice(0, 5)
     })
+
+    const routeCategory = computed(() => String(route.query.category || '').trim())
+    const categoryAliases: Record<string, string[]> = {
+      electricity: ['load', 'electricity', 'charger', 'compensation'],
+      elec: ['load', 'electricity', 'charger', 'compensation'],
+      'pv-storage': ['pv', 'solar', 'storage'],
+      'cool-heat': ['cooling', 'heat', 'cooling_meter', 'heat_meter'],
+      'water-gas': ['water', 'gas', 'water_meter', 'gas_meter'],
+    }
+    const filteredTableData = computed(() => {
+      const category = routeCategory.value
+      if (!category) return tableData.value
+      const accepted = categoryAliases[category] || [category]
+      return tableData.value.filter((device) => accepted.some((key) => (
+        device.device_category === key ||
+        device.device_type === key ||
+        device.energy_type === key
+      )))
+    })
     
     // 表单校验规则
     const rules = {
@@ -185,7 +205,7 @@
     const fetchData = async () => {
       loading.value = true
       try {
-        const res = await getDevices()
+        const res = await getDevices({ silent: true })
         // 按 ID 排序
         tableData.value = res.sort((a, b) => (a.id || 0) - (b.id || 0))
       } catch {
@@ -407,7 +427,7 @@
     // --- 获取设备类型列表 ---
     const fetchDeviceTypes = async () => {
       try {
-        const res = await getDeviceTypes()
+        const res = await getDeviceTypes({ silent: true })
         if (res.length) {
           deviceTypes.value = res
         }
@@ -491,7 +511,7 @@
 
       <el-table
         v-loading="loading"
-        :data="tableData"
+        :data="filteredTableData"
         style="width: 100%"
         class="custom-table"
         empty-text="暂无设备数据"

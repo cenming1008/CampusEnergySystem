@@ -319,14 +319,15 @@ export function getEnergyData(params: {
   start_time?: string
   end_time?: string
   limit?: number
-}) {
+}, options: { silent?: boolean } = {}) {
   return request.get<never, EnergyData[]>(`/energy/data/${params.device_id}`, {
     params: {
       energy_type: params.energy_type,
       start_time: params.start_time,
       end_time: params.end_time,
       limit: params.limit
-    }
+    },
+    silent: options.silent,
   })
 }
 
@@ -352,8 +353,8 @@ export function getEnergyOverview(params: {
   top_n?: number
   granularity?: 'hour' | 'day'
   include_analysis?: boolean
-}) {
-  return request.get<never, EnergyOverview>('/energy/overview', { params })
+}, options: { silent?: boolean } = {}) {
+  return request.get<never, EnergyOverview>('/energy/overview', { params, silent: options.silent })
 }
 
 /**
@@ -365,8 +366,8 @@ export function getCarbonEmissions(params: {
   start_time?: string
   end_time?: string
   limit?: number
-}) {
-  return request.get<never, CarbonEmission[]>('/energy/carbon/emissions', { params })
+}, options: { silent?: boolean } = {}) {
+  return request.get<never, CarbonEmission[]>('/energy/carbon/emissions', { params, silent: options.silent })
 }
 
 /**
@@ -383,22 +384,22 @@ export function getCarbonSummary(params: {
 /**
  * 获取支持的能源类型列表
  */
-export function getEnergyTypes() {
+export function getEnergyTypes(options: { silent?: boolean } = {}) {
   return request.get<never, {
     energy_types: EnergyTypeInfo[]
     device_categories: Array<{ value: string; label: string }>
     device_object_boundary?: string
-  }>('/energy/types')
+  }>('/energy/types', { silent: options.silent })
 }
 
 /**
  * 获取碳排放因子
  */
-export function getCarbonFactors() {
+export function getCarbonFactors(options: { silent?: boolean } = {}) {
   return request.get<never, {
     carbon_factors: { [key: string]: CarbonFactor }
     description: string
-  }>('/energy/carbon/factors')
+  }>('/energy/carbon/factors', { silent: options.silent })
 }
 
 /**

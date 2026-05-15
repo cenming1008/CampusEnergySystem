@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useAlarmPolling } from '@/features/alarm/composables/useAlarmPolling'
 import { useDashboardClock } from '@/features/dashboard/composables/useDashboardClock'
 import { useDashboardOverview } from '@/features/dashboard/composables/useDashboardOverview'
+import { FALLBACK_ALERTS, FALLBACK_OVERVIEW } from '@/features/dashboard/composables/mockFallback'
 import { resolveAlarm, type Alarm } from '@/api/alarm'
 import type { DeviceIngestionHealthItem } from '@/api/deviceMonitor'
 
@@ -25,6 +26,7 @@ const {
   previousOverview,
   ingestionByDevice,
   perMediumTrend,
+  perMediumTrendByRange,
   rankings,
   prevRankingMap,
   deviceList,
@@ -32,6 +34,8 @@ const {
   storageSOC,
   samplingOnline,
   samplingTotal,
+  isMock,
+  exitDemoMode,
 } = useDashboardOverview()
 
 // session-scoped UI state
@@ -93,8 +97,13 @@ const showBanner = computed(() => {
 
 const pinnedAlarmId = computed(() => (showBanner.value ? topCritical.value?.id ?? null : null))
 
+const usingFallbackAlerts = computed(() => isMock.value && alarmList.value.length === 0)
+const dashboardAlarms = computed<Alarm[]>(() => (
+  alarmList.value.length ? alarmList.value : (isMock.value ? FALLBACK_ALERTS : [])
+))
+
 const recentAlerts = computed<AlertItem[]>(() => (
-  alarmList.value.slice(0, 6).map((a) => ({
+  dashboardAlarms.value.slice(0, 6).map((a) => ({
     id: a.id,
     sev: severityOf(a.severity),
     title: a.message,
@@ -110,6 +119,18 @@ async function onBannerHandle() {
   if (!top) return
   try {
     await resolveAlarm(top.id, '从首页确认处理')
+    ElMessage.success('已确认处理')
+    await fetchAlarms()
+  } catch {
+    ElMessage.error('处理失败，请重试')
+  }
+}
+
+async function onAlertAck(id: number | string) {
+  const alarmId = Number(id)
+  if (!Number.isFinite(alarmId)) return
+  try {
+    await resolveAlarm(alarmId, '从首页告警轨道确认')
     ElMessage.success('已确认处理')
     await fetchAlarms()
   } catch {
@@ -153,11 +174,33 @@ const kpiItems = computed<KpiItem[]>(() => {
   const a = analysis.value
   const prev = prevAnalysis.value
   const sev = alarmSeverityCounts.value
-  const totalAlarms = sev.critical + sev.warning + sev.info
+  const totalAlarms = usingFallbackAlerts.value
+    ? FALLBACK_ALERTS.length
+    : sev.critical + sev.warning + sev.info
 
   const loadDelta = a && prev ? pctDelta(a.realtime_load, prev.realtime_load) : null
   const energyDelta = a && prev ? pctDelta(a.total_consumption, prev.total_consumption) : null
   const carbonDelta = a && prev ? pctDelta(a.estimated_carbon, prev.estimated_carbon) : null
+  const trend = perMediumTrendByRange.value.today
+  const totalSpark = isMock.value
+    ? Array.from({ length: 24 }, (_, index) => (
+        ['electricity', 'cooling', 'heat', 'water', 'gas']
+          .reduce((sum, key) => sum + (trend[key]?.[index]?.v || 0), 0)
+      ))
+    : undefined
+  const energySpark = totalSpark?.reduce<number[]>((out, value, index) => {
+    out.push((out[index - 1] || 0) + value)
+    return out
+  }, [])
+  const pvSpark = isMock.value
+    ? [210, 224, 238, 260, 286, 302, 318, 306, 294, 286, 301, 292]
+    : undefined
+  const storageSpark = isMock.value
+    ? [72, 71, 73, 75, 74, 72, 70, 69, 71, 73, 74, 74]
+    : undefined
+  const alertSpark = isMock.value
+    ? [3, 3, 2, 2, 4, 3, 5, 4, 3, 4, 3, totalAlarms]
+    : undefined
 
   const items: KpiItem[] = [
     {
@@ -168,6 +211,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       deltaDir: loadDelta?.dir,
       sub: loadDelta ? 'vs 昨日同时段' : undefined,
       status: 'ok',
+      spark: totalSpark,
+      sparkColor: 'var(--accent)',
     },
     {
       label: '今日累计能耗',
@@ -177,6 +222,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       deltaDir: energyDelta?.dir,
       sub: energyDelta ? 'vs 昨日' : undefined,
       status: 'ok',
+      spark: energySpark,
+      sparkColor: 'var(--accent-2)',
     },
     {
       label: '光伏发电',
@@ -184,6 +231,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       unit: pvCurrentPower.value != null ? 'kW' : '',
       sub: pvCurrentPower.value != null ? '当前出力' : '暂无光伏设备',
       status: 'ok',
+      spark: pvSpark,
+      sparkColor: 'var(--warn)',
     },
     {
       label: '储能 SOC',
@@ -191,6 +240,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       unit: storageSOC.value != null ? '%' : '',
       sub: storageSOC.value != null ? '平均荷电状态' : '暂无储能设备',
       status: storageSOC.value != null && storageSOC.value < 30 ? 'notice' : 'ok',
+      spark: storageSpark,
+      sparkColor: 'var(--notice)',
     },
     {
       label: '近 24h 告警',
@@ -200,6 +251,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       deltaDir: 'up',
       sub: `${sev.info} 提示`,
       status: sev.critical > 0 ? 'err' : (sev.warning > 0 ? 'warn' : 'ok'),
+      spark: alertSpark,
+      sparkColor: 'var(--warn)',
     },
     {
       label: '碳排放',
@@ -209,6 +262,8 @@ const kpiItems = computed<KpiItem[]>(() => {
       deltaDir: carbonDelta?.dir,
       sub: carbonDelta ? '环比昨日' : undefined,
       status: 'ok',
+      spark: energySpark?.map((value) => value * 0.603),
+      sparkColor: 'var(--err)',
     },
   ]
   return items
@@ -240,6 +295,26 @@ const trendSeries = computed<TrendSeries[]>(() => {
     .filter((s) => s.data.length > 0)
 })
 
+const trendSeriesByRange = computed<Partial<Record<'today' | 'yest' | 'week' | 'month', TrendSeries[]>>>(() => {
+  const ranges = ['today', 'yest', 'week', 'month'] as const
+  return Object.fromEntries(ranges.map((range) => [
+    range,
+    ['electricity', 'cooling', 'heat', 'water', 'gas']
+      .map((key) => {
+        const points = perMediumTrendByRange.value[range]?.[key] || []
+        const meta = MEDIUM_META[key]
+        return {
+          key,
+          name: meta.name,
+          color: meta.color,
+          data: points.map((p) => Math.max(0, p.v)),
+          unit: 'kW',
+        } as TrendSeries
+      })
+      .filter((s) => s.data.length > 0),
+  ])) as Partial<Record<'today' | 'yest' | 'week' | 'month', TrendSeries[]>>
+})
+
 // ----- DeviceMatrix -----
 function deviceStatusFromHealth(deviceId: number, isActive: boolean): MatrixStatus {
   if (!isActive) return 'off'
@@ -259,10 +334,8 @@ const matrixGroups = computed<MatrixGroup[]>(() => {
     { key: 'cool-heat', name: '冷热', color: 'var(--m-cool)', match: (d) => d.energy_type === 'cooling' || d.energy_type === 'heat' },
     { key: 'water-gas', name: '水气', color: 'var(--m-water)', match: (d) => d.energy_type === 'water' || d.energy_type === 'gas' },
   ]
-  return defs.map((g) => ({
-    name: g.name,
-    color: g.color,
-    items: deviceList.value
+  return defs.map((g) => {
+    const items = deviceList.value
       .filter(g.match)
       .slice(0, 6)
       .map((d) => {
@@ -272,16 +345,31 @@ const matrixGroups = computed<MatrixGroup[]>(() => {
           ? `采集状态降级 · 上次成功 ${health?.last_success_at ?? '—'}`
           : status === 'off'
             ? '设备已停机 / 离线 · 等待确认'
-            : null
+          : null
         return {
+          deviceId: d.id != null && d.id < 900000 ? d.id : undefined,
+          category: g.key,
           n: d.name || `#${d.id}`,
           s: status,
           v: '—',
           u: d.unit || '',
           reason,
         }
-      }),
-  }))
+      })
+
+    return {
+      name: g.name,
+      color: g.color,
+      items: items.length > 0 ? items : [{
+        category: g.key,
+        n: '暂无接入设备',
+        s: 'off' as MatrixStatus,
+        v: '—',
+        u: '',
+        reason: '进入设备与表计查看或接入真实设备',
+      }],
+    }
+  })
 })
 
 const matrixLegend = computed(() => {
@@ -307,9 +395,12 @@ const ENERGY_CATEGORY_META: Record<string, { name: string; color: string }> = {
 
 const energyMix = computed<MixItem[]>(() => {
   const categories = overview.value?.energy_category_summary || []
-  if (categories.length === 0) return []
-  const total = categories.reduce((sum, c) => sum + (c.total_consumption || 0), 0)
-  return categories.map((c) => {
+  const sourceCategories = categories.some((c) => Number(c.total_consumption || 0) > 0)
+    ? categories
+    : (isMock.value ? FALLBACK_OVERVIEW.energy_category_summary : [])
+  if (sourceCategories.length === 0) return []
+  const total = sourceCategories.reduce((sum, c) => sum + (c.total_consumption || 0), 0)
+  return sourceCategories.map((c) => {
     const meta = ENERGY_CATEGORY_META[c.energy_category]
     return {
       name: meta?.name || c.label || c.energy_category,
@@ -353,6 +444,8 @@ const rankingItems = computed<RankItem[]>(() => {
       :sampling-total="samplingTotal"
       :time="currentTime"
       :date="dateLine"
+      :is-mock="isMock || usingFallbackAlerts"
+      @exit-demo="exitDemoMode"
     />
 
     <CriticalAlertBanner
@@ -374,6 +467,7 @@ const rankingItems = computed<RankItem[]>(() => {
         <div class="card trend-card">
           <StackedTrend
             :series="trendSeries"
+            :series-by-range="trendSeriesByRange"
             :subtitle="`${currentDate} · ${trendSeries[0]?.data.length || 0} 点 · 1h`"
           />
         </div>
@@ -390,9 +484,10 @@ const rankingItems = computed<RankItem[]>(() => {
         <AlertTrack
           :alerts="recentAlerts"
           :pinned-id="pinnedAlarmId"
-          :total-count="alarmList.length"
+          :total-count="dashboardAlarms.length"
+          @ack="onAlertAck"
         />
-        <Ranking :items="rankingItems" :is-sample="false" />
+        <Ranking :items="rankingItems" :is-sample="isMock" />
       </aside>
     </main>
   </div>
@@ -404,8 +499,8 @@ const rankingItems = computed<RankItem[]>(() => {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: clamp(8px, 0.8vw, 16px);
+  padding: clamp(8px, 0.8vw, 16px);
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
@@ -416,18 +511,26 @@ const rankingItems = computed<RankItem[]>(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 400px);
+  gap: clamp(8px, 0.8vw, 16px);
 }
-.col-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.col-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.row-pair { display: flex; gap: 12px; flex: 1; min-height: 0; }
+.col-main { display: flex; flex-direction: column; gap: clamp(8px, 0.8vw, 16px); min-width: 0; }
+.col-side { display: flex; flex-direction: column; gap: clamp(8px, 0.8vw, 16px); min-width: 0; }
+.row-pair { display: flex; gap: clamp(8px, 0.8vw, 16px); flex: 1; min-height: 0; }
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 14px;
+  padding: var(--card-pad);
   box-sizing: border-box;
 }
 .trend-card { flex: 0 0 auto; }
+
+@media (max-width: 1366px) {
+  .ems-cockpit-v2 .main { grid-template-columns: minmax(0, 1fr); }
+  .ems-cockpit-v2 .col-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
 </style>

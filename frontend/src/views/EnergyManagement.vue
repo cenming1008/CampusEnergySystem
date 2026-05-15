@@ -25,6 +25,7 @@ import {
   type EnergyOverview
 } from '@/api/energy'
 import { getDevices, type Device } from '@/api/device'
+import { isDemoSuppressed } from '@/shared/demoMode'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePermissions } from '@/shared/composables/usePermissions'
 import EnergyDataEntryTab from '@/features/energy-management/components/EnergyDataEntryTab.vue'
@@ -43,6 +44,12 @@ import {
   typeColor,
   hasSteamRuntimePresence as resolveSteamRuntimePresence,
 } from '@/features/energy-management/energyDisplay'
+import {
+  FALLBACK_CARBON_FACTORS,
+  FALLBACK_ENERGY_DEVICES,
+  FALLBACK_ENERGY_OVERVIEW,
+  FALLBACK_ENERGY_TYPES,
+} from '@/features/energy-management/mockFallback'
 
 // ==================== 状态定义 ====================
 
@@ -62,6 +69,9 @@ const overviewMeta = ref<EnergyOverview | null>(null)
 const carbonSummary = ref<CarbonSummary | null>(null)
 const carbonFactors = ref<Record<string, CarbonFactor>>({})
 const loading = ref(false)
+const demoMode = ref(false)
+const hasRealOverview = ref(false)
+const hasRealDevices = ref(false)
 const detailLoading = ref(false)
 const detailDeviceId = ref<number | undefined>(undefined)
 const energyDetails = ref<EnergyData[]>([])
@@ -312,31 +322,51 @@ const statBasisText = computed(() => {
 
 const loadEnergyTypes = async () => {
   try {
-    const res = await getEnergyTypes()
+    const res = await getEnergyTypes({ silent: true })
     energyTypes.value = res.energy_types
     if (energyTypes.value.length > 0 && !selectedEnergyType.value) {
       selectedEnergyType.value = energyTypes.value[0].value
     }
-  } catch (e) {
-    ElMessage.error('加载能源类型失败')
-    throw e
+  } catch {
+    energyTypes.value = isDemoSuppressed() ? [] : FALLBACK_ENERGY_TYPES
+    if (!selectedEnergyType.value) selectedEnergyType.value = energyTypes.value[0]?.value || 'electricity'
   }
 }
 
 const loadDevices = async () => {
   try {
-    deviceList.value = await getDevices()
+    const devices = await getDevices({ silent: true })
+    deviceList.value = devices
+    hasRealDevices.value = devices.length > 0
   } catch {
-    // 由 axios 拦截器统一提示
+    deviceList.value = []
+    hasRealDevices.value = false
   }
 }
 
 const loadCarbonFactors = async () => {
   try {
-    const res = await getCarbonFactors()
+    const res = await getCarbonFactors({ silent: true })
     carbonFactors.value = res.carbon_factors
   } catch {
-    // 碳排放因子加载失败
+    carbonFactors.value = isDemoSuppressed() ? {} : FALLBACK_CARBON_FACTORS
+  }
+}
+
+function applyEnergyDemoFallback() {
+  if (isDemoSuppressed()) {
+    demoMode.value = false
+    return
+  }
+  demoMode.value = true
+  energyTypes.value = FALLBACK_ENERGY_TYPES
+  deviceList.value = FALLBACK_ENERGY_DEVICES
+  overviewMeta.value = FALLBACK_ENERGY_OVERVIEW
+  statistics.value = FALLBACK_ENERGY_OVERVIEW.statistics
+  carbonSummary.value = FALLBACK_ENERGY_OVERVIEW.carbon_summary
+  carbonFactors.value = FALLBACK_CARBON_FACTORS
+  if (!FALLBACK_ENERGY_TYPES.some((type) => type.value === selectedEnergyType.value)) {
+    selectedEnergyType.value = FALLBACK_ENERGY_TYPES[0]?.value || 'electricity'
   }
 }
 
@@ -356,12 +386,21 @@ const loadOverview = async () => {
       top_n: rankingTopN.value,
       granularity: trendGranularity.value,
       include_analysis: true,
-    })
+    }, { silent: true })
     overviewMeta.value = overview
     statistics.value = overview.statistics
     carbonSummary.value = overview.carbon_summary
-  } catch (e) {
-    ElMessage.error('加载数据失败: ' + (e as Error).message)
+    hasRealOverview.value = Object.values(overview.statistics || {}).some((item) => (
+      item.total_consumption > 0 || item.avg_flow_rate > 0 || item.data_count > 0
+    ))
+    if (hasRealOverview.value) demoMode.value = false
+  } catch {
+    hasRealOverview.value = false
+    if (!demoMode.value) {
+      overviewMeta.value = null
+      statistics.value = {}
+      carbonSummary.value = null
+    }
   } finally {
     loading.value = false
   }
@@ -393,16 +432,17 @@ const loadDetailData = async () => {
       start_time: startTime,
       end_time: endTime,
       limit: 50
-    })
+    }, { silent: true })
     carbonDetails.value = await getCarbonEmissions({
       device_id: detailDeviceId.value,
       energy_type: selectedEnergyType.value,
       start_time: startTime,
       end_time: endTime,
       limit: 100
-    })
+    }, { silent: true })
   } catch {
-    ElMessage.error('加载能源明细失败')
+    energyDetails.value = []
+    carbonDetails.value = []
   } finally {
     detailLoading.value = false
   }
@@ -458,13 +498,12 @@ const handleSaveEntry = async () => {
 // ==================== 生命周期 ====================
 
 onMounted(async () => {
-  try {
-    await loadEnergyTypes()
-    await loadDevices()
-    await loadCarbonFactors()
-    await refreshData()
-  } catch {
-    ElMessage.error('页面初始化失败，请刷新重试')
+  await loadEnergyTypes()
+  await loadDevices()
+  await loadCarbonFactors()
+  await refreshData()
+  if (!isDemoSuppressed() && !hasRealOverview.value && !hasRealDevices.value) {
+    applyEnergyDemoFallback()
   }
 })
 

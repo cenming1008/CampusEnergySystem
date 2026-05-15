@@ -94,14 +94,14 @@ function trendArrow(t: 'up' | 'down' | 'flat') {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   box-sizing: border-box;
 }
-.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--card-gap); }
 .title-block { display: flex; align-items: baseline; gap: 10px; }
 .title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.2px; }
 .sample { font-size: 9px; color: var(--text-dim); padding: 2px 5px; border: 1px dashed var(--border-hi); border-radius: 3px; }
@@ -115,7 +115,7 @@ function trendArrow(t: 'up' | 'down' | 'flat') {
 }
 .range span.active { color: var(--accent); background: rgba(77, 208, 196, 0.10); }
 .empty { padding: 20px 12px; font-size: 12px; color: var(--text-dim); text-align: center; }
-.list { display: flex; flex-direction: column; gap: 9px; }
+.list { display: flex; flex-direction: column; gap: var(--card-gap); }
 .row { display: flex; align-items: center; gap: 10px; }
 .rank { width: 18px; font-size: 11px; text-align: center; color: var(--text-dim); }
 .rank.top { color: var(--text); font-weight: 700; }

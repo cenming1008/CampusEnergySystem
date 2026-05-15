@@ -120,12 +120,16 @@ interface TimeRangeParams {
   end_time?: string
 }
 
-export function getCampusOverview(params: TimeRangeParams = {}) {
-  return request.get<never, CampusOverview>('/campus/overview', { params })
+interface RequestOptions {
+  silent?: boolean
 }
 
-export function getCampusAlarmSummary(params: TimeRangeParams = {}) {
-  return request.get<never, AlarmSummary>('/campus/alarms/summary', { params })
+export function getCampusOverview(params: TimeRangeParams = {}, options: RequestOptions = {}) {
+  return request.get<never, CampusOverview>('/campus/overview', { params, silent: options.silent })
+}
+
+export function getCampusAlarmSummary(params: TimeRangeParams = {}, options: RequestOptions = {}) {
+  return request.get<never, AlarmSummary>('/campus/alarms/summary', { params, silent: options.silent })
 }
 
 export function getCampusEnergyStatistics(

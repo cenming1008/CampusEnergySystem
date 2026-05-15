@@ -132,8 +132,10 @@ export function normalizeDeviceHierarchy(device: Device): Device {
 }
 
 // 1. 获取所有设备
-export function getDevices() {
-  return request.get<never, Device[]>('/devices/').then((devices) => devices.map(normalizeDeviceHierarchy))
+export function getDevices(options: { silent?: boolean } = {}) {
+  return request
+    .get<never, Device[]>('/devices/', { silent: options.silent })
+    .then((devices) => devices.map(normalizeDeviceHierarchy))
 }
 
 // 2. 新增设备（智能创建）
@@ -159,7 +161,7 @@ export function toggleDeviceStatus(id: number, active: boolean, reason?: string)
 }
 
 // 6. 获取支持的设备类型列表（从后端动态获取）
-export function getDeviceTypes(options?: { force?: boolean }) {
+export function getDeviceTypes(options?: { force?: boolean; silent?: boolean }) {
   if (!options?.force && deviceTypesCache) {
     return Promise.resolve(deviceTypesCache)
   }
@@ -169,7 +171,7 @@ export function getDeviceTypes(options?: { force?: boolean }) {
   }
 
   deviceTypesPromise = request
-    .get<never, SuccessResponse<DeviceTypeConfig[]>>('/devices/types')
+    .get<never, SuccessResponse<DeviceTypeConfig[]>>('/devices/types', { silent: options?.silent })
     .then((response) => {
       deviceTypesCache = response.data
       return response.data

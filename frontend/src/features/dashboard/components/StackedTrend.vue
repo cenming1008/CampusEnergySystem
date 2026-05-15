@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { LineChart } from 'echarts/charts'
+import { DataZoomComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { init, use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EChartsOption } from 'echarts'
+
+use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 export interface TrendSeries {
   key: string
@@ -11,150 +18,183 @@ export interface TrendSeries {
 
 interface Props {
   series: TrendSeries[]
+  seriesByRange?: Partial<Record<'today' | 'yest' | 'week' | 'month', TrendSeries[]>>
   title?: string
   subtitle?: string
 }
 const props = withDefaults(defineProps<Props>(), {
   title: '园区负荷趋势',
-  subtitle: ''
+  subtitle: '',
+  seriesByRange: () => ({})
 })
 
-const N = computed(() => props.series[0]?.data.length || 0)
+const chartEl = ref<HTMLDivElement | null>(null)
 const mode = ref<'abs' | 'pct'>('abs')
 const range = ref<'today' | 'yest' | 'week' | 'month'>('today')
 const visible = ref<Record<string, boolean>>({})
-const hoverIdx = ref<number | null>(null)
+const cursorIdx = ref(0)
+let chart: ReturnType<typeof init> | null = null
+let resizeObserver: ResizeObserver | null = null
 
-// initialize visibility
+const ranges: { k: 'today' | 'yest' | 'week' | 'month'; n: string }[] = [
+  { k: 'today', n: '今日' },
+  { k: 'yest', n: '昨日' },
+  { k: 'week', n: '本周' },
+  { k: 'month', n: '本月' }
+]
+
+const activeSeries = computed(() => props.seriesByRange?.[range.value] || props.series)
 const visMap = computed<Record<string, boolean>>(() => {
   const out: Record<string, boolean> = {}
-  for (const s of props.series) {
-    out[s.key] = visible.value[s.key] ?? true
-  }
+  for (const s of activeSeries.value) out[s.key] = visible.value[s.key] ?? true
   return out
 })
+const visibleSeries = computed(() => activeSeries.value.filter((s) => visMap.value[s.key]))
+const pointCount = computed(() => Math.max(0, ...activeSeries.value.map((s) => s.data.length)))
 
-const W = 900
-const H = 300
-const pad = { l: 38, r: 16, t: 8, b: 24 }
-const innerW = W - pad.l - pad.r
-const innerH = H - pad.t - pad.b
+const categoryLabels = computed(() => Array.from({ length: pointCount.value }, (_, index) => {
+  const hour = String(index).padStart(2, '0')
+  return `${hour}:00`
+}))
 
-const visSeries = computed(() => props.series.filter(s => visMap.value[s.key]))
-
-const stack = computed(() => visSeries.value.map(s => s.data))
-
-const stackEff = computed(() => {
-  if (mode.value !== 'pct') return stack.value
-  return stack.value.map(arr => arr.map((_, j) => {
-    const total = stack.value.reduce((a, c) => a + (c[j] || 0), 0) || 1
-    return ((arr[j] || 0) / total) * 100
-  }))
-})
-
-const cum = computed(() => {
-  const eff = stackEff.value
-  if (eff.length === 0) return [] as number[][]
-  const n = eff[0].length
-  return eff.map((_, i) => {
-    return Array.from({ length: n }, (_, j) => eff.slice(0, i + 1).reduce((a, c) => a + (c[j] || 0), 0))
-  })
-})
-
-const maxY = computed(() => {
-  if (cum.value.length === 0) return 1
-  if (mode.value === 'pct') return 100
-  return Math.max(...cum.value[cum.value.length - 1]) * 1.08 || 1
-})
-
-function xAt(i: number) {
-  const n = N.value
-  return pad.l + (n <= 1 ? 0 : (i / (n - 1)) * innerW)
-}
-function yAt(v: number) {
-  return pad.t + innerH - (v / maxY.value) * innerH
-}
-
-const cursorIdx = computed(() => {
-  if (hoverIdx.value != null) return hoverIdx.value
-  return Math.max(0, Math.min(N.value - 1, Math.floor(N.value * 0.625)))
-})
-
-const areaPaths = computed(() => {
-  const c = cum.value
-  if (c.length === 0) return [] as { d: string; color: string; key: string }[]
-  const n = N.value
-  return c.map((top, i) => {
-    const bottom = i === 0 ? Array(n).fill(0) : c[i - 1]
-    let p = `M ${xAt(0)},${yAt(top[0])}`
-    for (let k = 1; k < n; k++) p += ` L ${xAt(k)},${yAt(top[k])}`
-    for (let k = n - 1; k >= 0; k--) p += ` L ${xAt(k)},${yAt(bottom[k])}`
-    p += ' Z'
-    return { d: p, color: visSeries.value[i].color, key: visSeries.value[i].key }
-  })
-})
-
-const cursorTotal = computed(() => {
-  return props.series.reduce((a, s) => a + (visMap.value[s.key] ? (s.data[cursorIdx.value] || 0) : 0), 0)
-})
-
-const cursorBreak = computed(() => {
-  const t = cursorTotal.value
-  return props.series.map(s => ({
-    name: s.name,
-    color: s.color,
-    value: s.data[cursorIdx.value] || 0,
-    visible: !!visMap.value[s.key],
-    pct: t > 0 ? ((s.data[cursorIdx.value] || 0) / t) * 100 : 0
+const normalizedSeries = computed(() => {
+  if (mode.value === 'abs') return activeSeries.value
+  return activeSeries.value.map((series) => ({
+    ...series,
+    data: series.data.map((value, index) => {
+      const total = activeSeries.value
+        .filter((item) => visMap.value[item.key])
+        .reduce((sum, item) => sum + (item.data[index] || 0), 0)
+      return total > 0 ? (value / total) * 100 : 0
+    })
   }))
 })
 
 const totalCurve = computed(() => {
-  if (cum.value.length === 0) return Array(N.value).fill(0)
-  return cum.value[cum.value.length - 1]
+  return Array.from({ length: pointCount.value }, (_, index) => (
+    normalizedSeries.value
+      .filter((series) => visMap.value[series.key])
+      .reduce((sum, series) => sum + (series.data[index] || 0), 0)
+  ))
 })
 
 const stats = computed(() => {
   const arr = totalCurve.value
-  const cur = arr[cursorIdx.value] || 0
+  const idx = Math.max(0, Math.min(cursorIdx.value, arr.length - 1))
+  const cur = arr[idx] || 0
   const peak = arr.length ? Math.max(...arr) : 0
   const valley = arr.length ? Math.min(...arr) : 0
   const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
   return { cur, peak, valley, avg, gap: peak - valley }
 })
 
-const hourTicks = [0, 4, 8, 12, 16, 20, 24]
-const ranges: { k: 'today' | 'yest' | 'week' | 'month'; n: string }[] = [
-  { k: 'today', n: '今日' }, { k: 'yest', n: '昨日' }, { k: 'week', n: '本周' }, { k: 'month', n: '本月' }
-]
+const cursorClockLabel = computed(() => categoryLabels.value[cursorIdx.value] || '--:--')
 
-function onMove(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const ratio = Math.max(0, Math.min(1, x / rect.width))
-  hoverIdx.value = Math.round(ratio * (N.value - 1))
+function fmt(v: number) {
+  return mode.value === 'pct' ? v.toFixed(1) : v.toFixed(0)
+}
+
+function resolveCssColor(color: string) {
+  if (!color.startsWith('var(')) return color
+  const varName = color.slice(4, -1).trim()
+  const scope = document.querySelector('.ems-cockpit-v2') || document.documentElement
+  const value = getComputedStyle(scope).getPropertyValue(varName).trim()
+  return value || color
+}
+
+function buildOption(): EChartsOption {
+  const unit = mode.value === 'pct' ? '%' : 'kW'
+  return {
+    backgroundColor: 'transparent',
+    color: activeSeries.value.map((series) => resolveCssColor(series.color)),
+    animationDurationUpdate: 300,
+    grid: { left: 38, right: 16, top: 12, bottom: 28, containLabel: false },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: 'rgba(230,237,245,0.45)', width: 1, type: 'dashed' } },
+      confine: true,
+      backgroundColor: 'rgba(22,33,51,0.96)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      textStyle: { color: '#e6edf5', fontSize: 11 },
+      valueFormatter: (value) => `${Number(value || 0).toFixed(mode.value === 'pct' ? 1 : 0)} ${unit}`,
+    },
+    legend: { show: false },
+    dataZoom: [{ type: 'inside', disabled: true }],
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: categoryLabels.value,
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#5a6577', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 10, interval: 3 },
+    },
+    yAxis: {
+      type: 'value',
+      max: mode.value === 'pct' ? 100 : undefined,
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)', type: 'dashed' } },
+      axisLabel: {
+        color: '#5a6577',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: 10,
+        formatter: (value: number) => mode.value === 'pct' ? `${Math.round(value)}%` : `${Math.round(value)}`,
+      },
+    },
+    series: normalizedSeries.value.map((series) => ({
+      name: series.name,
+      type: 'line',
+      stack: 'total',
+      smooth: true,
+      showSymbol: false,
+      symbolSize: 6,
+      emphasis: { focus: 'series' },
+      lineStyle: { width: 1.4 },
+      areaStyle: { opacity: mode.value === 'pct' ? 0.5 : 0.42 },
+      data: visMap.value[series.key] ? series.data : [],
+    })),
+  }
+}
+
+function updateChart() {
+  if (!chart) return
+  chart.setOption(buildOption(), true)
+  chart.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: cursorIdx.value })
 }
 
 function toggle(key: string) {
   visible.value = { ...visMap.value, [key]: !visMap.value[key] }
 }
 
-const cursorClockLabel = computed(() => {
-  const minutes = Math.round((cursorIdx.value / Math.max(1, N.value)) * 24 * 60)
-  const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
-  const mm = String(minutes % 60).padStart(2, '0')
-  return `${hh}:${mm}`
-})
-
-const placeTooltipRight = computed(() => {
-  if (N.value <= 1) return true
-  return (cursorIdx.value / (N.value - 1)) < 0.5
-})
-
-function fmt(v: number) {
-  return mode.value === 'pct' ? v.toFixed(1) : v.toFixed(0)
+function onMouseMove(params: unknown) {
+  const dataIndex = (params as { dataIndex?: number })?.dataIndex
+  if (typeof dataIndex === 'number') cursorIdx.value = dataIndex
 }
+
+onMounted(async () => {
+  await nextTick()
+  if (!chartEl.value) return
+  chart = init(chartEl.value, undefined, { renderer: 'canvas' })
+  chart.on('mousemove', onMouseMove)
+  resizeObserver = new ResizeObserver(() => {
+    chart?.resize()
+  })
+  resizeObserver.observe(chartEl.value)
+  updateChart()
+})
+
+watch([() => props.series, mode, range, visible], () => {
+  cursorIdx.value = Math.min(cursorIdx.value, Math.max(0, pointCount.value - 1))
+  updateChart()
+}, { deep: true })
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (chart) {
+    chart.off('mousemove', onMouseMove)
+    chart.dispose()
+    chart = null
+  }
+})
 </script>
 
 <template>
@@ -167,7 +207,7 @@ function fmt(v: number) {
       <div class="head-right">
         <div class="mode-toggle">
           <button
-            v-for="t in [{ k: 'abs', n: '绝对值' }, { k: 'pct', n: '百分比' }]"
+            v-for="t in [{ k: 'abs', n: '绝对值' }, { k: 'pct', n: '占比' }]"
             :key="t.k"
             type="button"
             :class="{ active: mode === t.k }"
@@ -203,7 +243,7 @@ function fmt(v: number) {
       <div class="legend">
         <span class="cursor-clock mono">@ {{ cursorClockLabel }}</span>
         <button
-          v-for="s in series"
+          v-for="s in activeSeries"
           :key="s.key"
           type="button"
           class="chip"
@@ -221,86 +261,7 @@ function fmt(v: number) {
       </div>
     </div>
 
-    <div class="chart-wrap" @mousemove="onMove" @mouseleave="hoverIdx = null">
-      <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" class="chart-svg">
-        <line
-          v-for="t in [0, 0.25, 0.5, 0.75, 1]"
-          :key="`g${t}`"
-          :x1="pad.l" :x2="W - pad.r"
-          :y1="pad.t + innerH * t" :y2="pad.t + innerH * t"
-          :stroke="'rgba(255,255,255,0.06)'"
-          :stroke-dasharray="t === 1 ? '0' : '2 4'"
-        />
-        <text
-          v-for="t in [0, 0.25, 0.5, 0.75, 1]"
-          :key="`yl${t}`"
-          :x="pad.l - 6" :y="pad.t + innerH * t + 3"
-          text-anchor="end"
-          font-size="9"
-          fill="var(--text-dim)"
-          font-family="var(--mono)"
-        >{{ mode === 'pct' ? `${Math.round((1 - t) * 100)}%` : Math.round(maxY * (1 - t)) }}</text>
-        <text
-          v-for="h in hourTicks"
-          :key="`xt${h}`"
-          :x="pad.l + (h / 24) * innerW" :y="H - 6"
-          text-anchor="middle"
-          font-size="9"
-          fill="var(--text-dim)"
-          font-family="var(--mono)"
-        >{{ String(h).padStart(2, '0') }}:00</text>
-        <path
-          v-for="a in areaPaths"
-          :key="a.key"
-          :d="a.d"
-          :fill="a.color"
-          fill-opacity="0.55"
-          :stroke="a.color"
-          stroke-width="1"
-          stroke-opacity="0.9"
-        />
-        <line
-          v-if="N > 0"
-          :x1="xAt(cursorIdx)" :x2="xAt(cursorIdx)"
-          :y1="pad.t" :y2="pad.t + innerH"
-          stroke="var(--text)"
-          stroke-opacity="0.4"
-          stroke-dasharray="3 3"
-        />
-        <circle
-          v-if="cum.length > 0"
-          :cx="xAt(cursorIdx)"
-          :cy="yAt(cum[cum.length - 1][cursorIdx])"
-          r="4"
-          fill="var(--bg)"
-          stroke="var(--accent)"
-          stroke-width="2"
-        />
-      </svg>
-      <div
-        v-if="N > 0"
-        class="tooltip"
-        :style="placeTooltipRight
-          ? { left: `calc(${(xAt(cursorIdx) / W) * 100}% + 14px)` }
-          : { right: `calc(${100 - (xAt(cursorIdx) / W) * 100}% + 14px)` }"
-      >
-        <div class="tt-head">
-          <span class="mono">{{ cursorClockLabel }}</span>
-          <span class="mono total">{{ cursorTotal.toFixed(0) }} {{ mode === 'pct' ? '%' : 'kW' }}</span>
-        </div>
-        <div
-          v-for="b in cursorBreak"
-          :key="b.name"
-          class="tt-row"
-          :class="{ off: !b.visible }"
-        >
-          <span class="dot" :style="{ background: b.color }" />
-          <span class="nm">{{ b.name }}</span>
-          <span class="vl mono">{{ b.value.toFixed(1) }}</span>
-          <span class="pc mono">{{ b.visible ? b.pct.toFixed(1) + '%' : '—' }}</span>
-        </div>
-      </div>
-    </div>
+    <div ref="chartEl" class="chart-wrap" />
   </div>
 </template>
 
@@ -308,13 +269,13 @@ function fmt(v: number) {
 .stacked-trend {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--card-gap);
 }
-.head { display: flex; align-items: baseline; justify-content: space-between; }
-.head-left { display: flex; align-items: baseline; gap: 12px; }
-.title { font-size: 13px; font-weight: 600; color: var(--text); }
-.subtitle { font-size: 11px; color: var(--text-dim); }
-.head-right { display: flex; gap: 12px; }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--card-gap); }
+.head-left { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.subtitle { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.head-right { display: flex; gap: var(--card-gap); flex-wrap: wrap; justify-content: flex-end; }
 .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
 .mode-toggle button {
   padding: 4px 10px; font-size: 11px;
@@ -345,7 +306,7 @@ function fmt(v: number) {
 }
 .stats-row {
   display: flex;
-  gap: 22px;
+  gap: clamp(12px, 1.4vw, 22px);
   padding: 8px 0 10px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -382,33 +343,10 @@ function fmt(v: number) {
 .chip-dot { width: 8px; height: 8px; border-radius: 2px; }
 .chip-name { font-size: 11px; color: var(--text); }
 .chip-val { font-size: 10px; color: var(--text-dim); }
-.chart-wrap { position: relative; }
-.chart-svg { width: 100%; height: 300px; display: block; }
-.tooltip {
-  position: absolute;
-  top: 8px;
-  background: var(--surface-hi);
-  border: 1px solid var(--border-hi);
-  border-radius: 6px;
-  padding: 8px 10px;
-  min-width: 180px;
-  pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  height: clamp(240px, 19vw, 320px);
+  min-height: 220px;
 }
-.tt-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-.tt-head .mono { font-size: 11px; color: var(--text); font-weight: 600; }
-.tt-head .total { color: var(--accent); font-weight: 600; }
-.tt-row {
-  display: grid;
-  grid-template-columns: 7px 1fr 50px 40px;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 0;
-  font-size: 11px;
-}
-.tt-row.off { opacity: 0.4; }
-.tt-row .dot { width: 7px; height: 7px; border-radius: 2px; }
-.tt-row .nm { color: var(--text-mid); }
-.tt-row .vl { color: var(--text); text-align: right; }
-.tt-row .pc { color: var(--text-dim); font-size: 10px; text-align: right; }
 </style>

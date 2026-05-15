@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 export type AlertSeverity = 'crit' | 'warn' | 'info'
 
@@ -19,6 +20,11 @@ interface Props {
   totalCount?: number
 }
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  ack: [id: number | string]
+}>()
+
+const router = useRouter()
 
 const sevConfig = {
   crit: { color: 'var(--err)', label: '严重' },
@@ -27,6 +33,18 @@ const sevConfig = {
 }
 
 const items = computed(() => props.alerts || [])
+
+function goAlarm(id: number | string) {
+  void router.push({ path: '/alarms', query: { id } })
+}
+
+function goAll() {
+  void router.push({ path: '/alarms' })
+}
+
+function onAck(id: number | string) {
+  emit('ack', id)
+}
 </script>
 
 <template>
@@ -36,7 +54,7 @@ const items = computed(() => props.alerts || [])
         <span class="title">告警轨道</span>
         <span v-if="totalCount != null" class="subtitle">近 24 小时 · {{ totalCount }} 条</span>
       </div>
-      <button type="button" class="link">查看全部 →</button>
+      <button type="button" class="link" @click="goAll">查看全部 →</button>
     </div>
     <div v-if="items.length === 0" class="empty">
       <span class="empty-dot" />
@@ -56,6 +74,10 @@ const items = computed(() => props.alerts || [])
           '--sc': sevConfig[a.sev].color,
           'border-left-width': (a.sev === 'crit' && !a.ack && pinnedId !== a.id) ? '5px' : '3px'
         }"
+        tabindex="0"
+        role="button"
+        @click="goAlarm(a.id)"
+        @keydown.enter.prevent="goAlarm(a.id)"
       >
         <div class="row-body">
           <div class="row-head">
@@ -72,6 +94,14 @@ const items = computed(() => props.alerts || [])
             <span v-if="a.ack" class="ack-tag">· 已确认</span>
           </div>
         </div>
+        <button
+          v-if="!a.ack"
+          type="button"
+          class="ack-btn"
+          @click.stop="onAck(a.id)"
+        >
+          确认
+        </button>
       </div>
     </div>
   </div>
@@ -82,7 +112,7 @@ const items = computed(() => props.alerts || [])
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -90,7 +120,7 @@ const items = computed(() => props.alerts || [])
   flex: 1 1 auto;
   box-sizing: border-box;
 }
-.card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--card-gap); }
 .title-block { display: flex; align-items: baseline; gap: 10px; }
 .title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.2px; }
 .subtitle { font-size: 11px; color: var(--text-dim); }
@@ -101,7 +131,7 @@ const items = computed(() => props.alerts || [])
   border: 1px dashed var(--border); border-radius: 6px;
 }
 .empty-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.list { display: flex; flex-direction: column; gap: 8px; overflow: hidden; min-height: 0; }
+.list { display: flex; flex-direction: column; gap: var(--card-gap); overflow: hidden; min-height: 0; }
 .row {
   display: flex;
   gap: 10px;
@@ -110,11 +140,32 @@ const items = computed(() => props.alerts || [])
   background: color-mix(in srgb, var(--sc) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--sc) 25%, transparent);
   border-left: 3px solid var(--sc);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.row:hover,
+.row:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--sc) 55%, transparent);
+  outline: none;
 }
 .row.loud { background: color-mix(in srgb, var(--sc) 10%, transparent); border-color: color-mix(in srgb, var(--sc) 53%, transparent); }
 .row.ack { background: transparent; border-color: var(--border); opacity: 0.62; }
 .row.pinned { border-color: color-mix(in srgb, var(--sc) 20%, transparent); }
 .row-body { flex: 1; min-width: 0; }
+.ack-btn {
+  align-self: center;
+  border: 1px solid color-mix(in srgb, var(--sc) 35%, transparent);
+  background: color-mix(in srgb, var(--sc) 10%, transparent);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 0 0 auto;
+}
+.ack-btn:hover { border-color: var(--sc); }
 .row-head {
   display: flex; align-items: center; gap: 8px; margin-bottom: 3px; flex-wrap: wrap;
 }

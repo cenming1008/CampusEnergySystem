@@ -75,6 +75,9 @@ vi.mock('@/api/compensation', () => ({
 }))
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    query: {},
+  }),
   useRouter: () => ({
     push: routerPushMock,
   }),
