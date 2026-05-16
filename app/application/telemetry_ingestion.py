@@ -70,6 +70,7 @@ def replay_mqtt_ingestion_record_use_case(
     operator_username: str,
 ) -> dict[str, Any]:
     """人工重放一条失败/死信状态的 MQTT 接入记录。"""
+    # 延迟导入避免循环依赖：mqtt.processor 会从本模块导入 ingest_telemetry_use_case
     from app.integrations.mqtt.processor import parse_payload, process_payload_dict
 
     record = MqttReliabilityService.get_record_by_id(session, record_id)
