@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.api.deps import MAINTAINER_OR_ADMIN, OPERATOR_OR_ADMIN, get_current_user
 from app.core.audit import audit_log
@@ -32,26 +32,6 @@ from app.domain.device_payloads import resolve_compensation_subtype
 router = APIRouter()
 
 
-def _sample_history_records(records: list, limit: int):
-    if len(records) <= limit or limit < 3:
-        return records
-
-    sampled = [records[0]]
-    interior_target = limit - 2
-    last_index = len(records) - 1
-
-    for index in range(1, interior_target + 1):
-        point_index = round((index * last_index) / (interior_target + 1))
-        point = records[min(last_index - 1, max(1, point_index))]
-        if sampled[-1] is not point:
-            sampled.append(point)
-
-    if sampled[-1] is not records[last_index]:
-        sampled.append(records[last_index])
-
-    return sampled
-
-
 @router.get(
     "/{device_id}/compensation/capacitor-bank/telemetry/latest",
     response_model=CapacitorBankTelemetryResponse,
@@ -62,12 +42,7 @@ def get_device_capacitor_bank_telemetry_latest(
     current_user: User = Depends(get_current_user),
 ):
     ensure_device_access(session, current_user, device_id)
-    record = session.exec(
-        select(CapacitorBankTelemetry)
-        .where(CapacitorBankTelemetry.device_id == device_id)
-        .order_by(CapacitorBankTelemetry.timestamp.desc())
-        .limit(1)
-    ).first()
+    record = CapacitorBankService.get_latest_telemetry(session, device_id)
     if not record:
         raise HTTPException(status_code=404, detail="暂无遥测数据")
     return record
@@ -86,13 +61,13 @@ def get_device_capacitor_bank_telemetry_history(
     current_user: User = Depends(get_current_user),
 ):
     ensure_device_access(session, current_user, device_id)
-    stmt = select(CapacitorBankTelemetry).where(CapacitorBankTelemetry.device_id == device_id)
-    if start:
-        stmt = stmt.where(CapacitorBankTelemetry.timestamp >= start)
-    if end:
-        stmt = stmt.where(CapacitorBankTelemetry.timestamp <= end)
-    records = session.exec(stmt.order_by(CapacitorBankTelemetry.timestamp.asc())).all()
-    return _sample_history_records(records, limit)
+    return CapacitorBankService.list_telemetry_history(
+        session,
+        device_id,
+        start_time=start,
+        end_time=end,
+        limit=limit,
+    )
 
 
 @router.get(

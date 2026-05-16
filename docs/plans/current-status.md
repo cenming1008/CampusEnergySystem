@@ -40,6 +40,8 @@
 - [x] 补偿监控已将谐波视图拆为 `谐波趋势` 与 `高次谐波` 两个独立 tab：前者保留 THD / 谐波电流历史趋势，后者展示最新采样高次谐波频谱柱状图，支持电压 / 电流与 A/B/C 相切换、门限标线和超限着色。
 - [x] MQTT 网关协议与设备监控模板文档已补充逐次谐波 payload、单位、网关换算责任和前端展示规则。
 - [x] 已新增逐次谐波准真实联调 payload 工具 `scripts/python/send_capacitor_bank_harmonic_uat_payloads.py`，覆盖 A 相 5 次电压谐波超限、B 相电流谱线缺失、旧 CAP-001 无谱线和非法谱线项过滤四类验收场景。
+- [x] 2026-05-16 已确认当前系统现场联调入口：MQTT 明文 `192.168.1.46:1883`、MQTT TLS `192.168.1.46:8883`、后端 API `http://192.168.1.46:8088`。
+- [x] 真实设备数据已进入 MQTT 接入流水，最近记录为 `CAP-001` 发布到 `campus/device/CAP-001/telemetry`，处理状态为 `success`。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -63,6 +65,11 @@
 - `./venv/bin/python -m pytest tests/test_capacitor_bank_harmonic_uat_payloads.py tests/test_capacitor_bank_ingestion.py tests/test_device_monitor_service.py tests/test_compensation_device_nested_api.py -q` 通过：`57 passed, 1 warning`。
 - `./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only --timestamp 2026-05-15T14:44:21+08:00` 通过，已打印 4 条 `campus/device/CAP-001/telemetry` 准真实联调消息。
 - `cd frontend && npm run test:unit -- viewMapping.test.ts DeviceMonitor.test.ts` 通过：`2 files / 45 tests passed`。
+- 2026-05-16 现场入口核验：
+  - `ifconfig en0` 显示当前局域网地址为 `192.168.1.46`。
+  - `lsof -nP -iTCP -sTCP:LISTEN` 显示 MQTT `*:1883`、`*:8883` 和后端 `*:8088` 正在监听。
+  - `/health` 返回 `database/redis/mqtt_bridge/mqtt_worker/api_realtime/scheduler` 均为 `healthy`。
+  - 数据库最新 MQTT 接入记录显示 `CAP-001` 在 `campus/device/CAP-001/telemetry` 上报成功，最近 `received_at=2026-05-15T21:17:55.785974`。
 
 ## 当前验收判断
 - 当前可判定：设备监控统一模板 V4 已完成后端、前端和文档接入。
@@ -81,3 +88,4 @@
 - 冷热量表现场若上报 `kWh/MWh` 或厂商自定义单位，仍需在设备接入层按当前模板口径统一换算。
 - 历史告警数据不做迁移；前端以“历史遥测”标签兼容展示旧 `source=telemetry`。
 - 逐次谐波第一版只展示最新采样谱线；历史回放仍在 `谐波趋势` tab 使用 THD / 谐波电流聚合趋势。现场网关必须先完成 2~31 次寄存器到工程值的换算后再上报 MQTT。
+- 当前 `192.168.1.46` 是本机局域网地址，若现场网络或 DHCP 变化，需要同步更新网关侧 broker 地址和本文档中的现场入口。

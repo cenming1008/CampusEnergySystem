@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlmodel import Session, select
@@ -22,6 +23,22 @@ class StorageMonitorService:
     """构建储能设备监控页专属 payload。"""
 
     @staticmethod
+    def _sample_records(records: list, limit: int) -> list:
+        if len(records) <= limit or limit < 3:
+            return records
+        sampled = [records[0]]
+        interior_target = limit - 2
+        last_index = len(records) - 1
+        for index in range(1, interior_target + 1):
+            point_index = round((index * last_index) / (interior_target + 1))
+            point = records[min(last_index - 1, max(1, point_index))]
+            if sampled[-1] is not point:
+                sampled.append(point)
+        if sampled[-1] is not records[last_index]:
+            sampled.append(records[last_index])
+        return sampled
+
+    @staticmethod
     def _build_metric(value: Any, *, source: str, state: str) -> dict[str, Any]:
         return {"value": value, "source": source, "state": state}
 
@@ -39,6 +56,29 @@ class StorageMonitorService:
             .order_by(StorageTelemetry.timestamp.desc())
             .limit(1)
         ).first()
+
+    @staticmethod
+    def get_latest_telemetry(session: Session, device_id: int) -> Optional[StorageTelemetry]:
+        return StorageMonitorService._get_latest_telemetry(session, device_id)
+
+    @staticmethod
+    def list_telemetry_history(
+        session: Session,
+        device_id: int,
+        *,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 200,
+    ) -> list[StorageTelemetry]:
+        stmt = select(StorageTelemetry).where(StorageTelemetry.device_id == device_id)
+        if start_time:
+            stmt = stmt.where(StorageTelemetry.timestamp >= start_time)
+        if end_time:
+            stmt = stmt.where(StorageTelemetry.timestamp <= end_time)
+        stmt = stmt.order_by(StorageTelemetry.timestamp.desc()).limit(limit * 3)
+        records = list(session.exec(stmt).all())
+        records.reverse()
+        return StorageMonitorService._sample_records(records, limit)
 
     @staticmethod
     def build_storage_monitor(session: Session, device_id: int) -> dict[str, Any]:

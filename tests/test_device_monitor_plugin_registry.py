@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from app.services.devices.monitor_templates import METER_TEMPLATE_REGISTRY
 from app.services.devices.monitor_plugin_registry import DeviceMonitorContext, DeviceMonitorPluginRegistry
 
 
@@ -53,6 +54,7 @@ def test_registry_matches_meter_templates_by_category():
 
         assert plugin.plugin_key == template_key
         assert plugin.get_template_spec().template_key == template_key
+        assert plugin.get_template_spec() is METER_TEMPLATE_REGISTRY[template_key]
 
 
 def test_registry_falls_back_to_generic_for_unknown_device():

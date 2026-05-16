@@ -47,12 +47,20 @@
   - 补偿监控已拆为 `谐波趋势` 与 `高次谐波` 两个 tab：`谐波趋势` 保留原三相电压 THD / 谐波电流历史趋势，`高次谐波` 展示最新采样的逐次谐波柱状谱图。
   - 电容补偿控制器模板专属面板已新增 `harmonic_spectrum`。
   - 准真实验收脚本 `scripts/python/send_capacitor_bank_harmonic_uat_payloads.py` 已固化 4 类 payload：A 相 5 次电压谐波超限、B 相电流谱线缺失、旧 CAP-001 无谱线、非法谱线项过滤。
+- 2026-05-16 现场真实设备数据已进入平台：
+  - 当前系统局域网地址：`192.168.1.46`。
+  - MQTT 明文入口：`192.168.1.46:1883`。
+  - MQTT TLS 入口：`192.168.1.46:8883`。
+  - 后端 API / 健康检查：`http://192.168.1.46:8088`。
+  - 最新接入流水可见 `CAP-001` 发布到 `campus/device/CAP-001/telemetry`，状态 `success`。
+  - `.env` 中 `MQTT_BROKER=localhost` 保持为平台 worker 连接本机 broker 的内部配置；现场网关使用局域网地址连接。
 
 ## 下一棒
 - 验收角色：
   - 复核四种状态判定是否符合接入验收预期；当前准真实测试已覆盖 `passed/partial/missing/offline`。
   - 打开普通表计、补偿设备、储能设备监控页，确认诊断面板不影响既有专属页面。
 - 后端/设备接入角色：
+  - 现场网关继续使用 `192.168.1.46:1883` 发布 dev 明文 MQTT；如切换 TLS，则改用 `192.168.1.46:8883` 并下发 CA。
   - 用真实 payload 继续复核冷热表单位是否已换算到模板口径：累计热 / 冷量 `GJ`，瞬时热 / 冷功率 `kW`，温度 `degC`。
   - 联调逐次谐波时，网关需要先把 JKWF-LCD 2~31 次寄存器换算为工程值后再上报 `voltage_harmonics_a/b/c`、`current_harmonics_a/b/c`；平台不解析原始 RS-485 / Modbus 帧。
   - 现场网关未就绪时，可先运行 `./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only` 对齐 payload，再连接 broker 发送到 `campus/device/CAP-001/telemetry` 做平台闭环。
@@ -79,6 +87,10 @@
 - `./venv/bin/python -m pytest tests/test_capacitor_bank_harmonic_uat_payloads.py tests/test_capacitor_bank_ingestion.py tests/test_device_monitor_service.py tests/test_compensation_device_nested_api.py -q` 通过：`57 passed, 1 warning`。
 - `./venv/bin/python scripts/python/send_capacitor_bank_harmonic_uat_payloads.py --print-only --timestamp 2026-05-15T14:44:21+08:00` 通过，已打印 4 条 `campus/device/CAP-001/telemetry` 准真实联调消息。
 - `cd frontend && npm run test:unit -- viewMapping.test.ts DeviceMonitor.test.ts` 通过：`2 files / 45 tests passed`。
+- `ifconfig en0` 确认当前系统局域网地址为 `192.168.1.46`。
+- `lsof -nP -iTCP -sTCP:LISTEN` 确认 `*:1883`、`*:8883`、`*:8088` 正在监听。
+- `/health` 返回关键服务均为 `healthy`，其中 `mqtt_worker` 为 `healthy` 且已连接。
+- 数据库 MQTT 接入流水最新记录确认 `CAP-001` / `campus/device/CAP-001/telemetry` / `success`，最近 `received_at=2026-05-15T21:17:55.785974`。
 
 ## 剩余风险
 - 当前诊断结果基于模板输出和当前健康字段，不替代真实设备 UAT。
@@ -88,3 +100,4 @@
 - 现场真实协议如果上报非 `GJ/kW/degC` 口径，仍需在设备接入层做单位换算后再进入当前监控模板。
 - 历史旧告警仍可能保留 `source=telemetry`，当前按“历史遥测”兼容显示，不做历史数据迁移。
 - 逐次谐波频谱依赖网关上报最新谱线；历史接口当前不做 2~31 次长周期谱线回放。
+- `192.168.1.46` 来自当前本机 `en0` 地址；现场网络切换、DHCP 重新分配或改用固定 IP 后，需要同步更新网关侧配置与协议文档现场入口。

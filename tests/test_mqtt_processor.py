@@ -1,10 +1,9 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.services.mqtt_models import TelemetryBroadcastData
 from app.services.mqtt_processor import (
     build_data_dict,
     normalize_metrics,
@@ -52,38 +51,19 @@ class TestMqttProcessor(unittest.TestCase):
         self.assertNotIn("power_factor", data_dict)
         self.assertNotIn("flow_rate", data_dict)
 
-    @patch("app.services.mqtt_processor.persist_device_data")
-    @patch("app.services.mqtt_processor.resolve_device_id")
-    def test_process_payload_dict_returns_broadcast_model(self, mock_resolve_device_id, mock_persist_device_data):
-        mock_resolve_device_id.return_value = 7
-        mock_persist_device_data.return_value = TelemetryBroadcastData(
-            device_id=7,
-            voltage=380.0,
-            current=12.0,
-            power=4.56,
-            energy=8.9,
-            timestamp="2026-01-01 08:00:00",
-        )
+    @patch("app.integrations.mqtt.processor.process_payload_dict")
+    def test_legacy_process_payload_dict_delegates_to_canonical_processor(self, mock_canonical):
+        mock_canonical.return_value = MagicMock(device_id=7)
 
         message = process_payload_dict({"device_id": 7, "power": 4.56}, topic="campus/telemetry")
 
         self.assertIsNotNone(message)
-        self.assertEqual(message.type, "telemetry_update")
-        self.assertEqual(message.data.device_id, 7)
-        mock_resolve_device_id.assert_called_once()
-        mock_persist_device_data.assert_called_once()
+        self.assertEqual(message.device_id, 7)
+        mock_canonical.assert_called_once_with({"device_id": 7, "power": 4.56}, topic="campus/telemetry")
 
-    @patch("app.integrations.mqtt.processor.Session")
-    @patch("app.services.mqtt_processor.process_control_receipt")
-    @patch("app.services.mqtt_processor.resolve_device_id")
-    def test_process_payload_dict_handles_control_receipt_without_broadcast(
-        self,
-        mock_resolve_device_id,
-        mock_process_control_receipt,
-        mock_session_cls,
-    ):
-        mock_resolve_device_id.return_value = 16
-        mock_session = mock_session_cls.return_value.__enter__.return_value
+    @patch("app.integrations.mqtt.processor.process_payload_dict")
+    def test_legacy_process_payload_dict_preserves_none_result(self, mock_canonical):
+        mock_canonical.return_value = None
 
         message = process_payload_dict(
             {
@@ -98,20 +78,16 @@ class TestMqttProcessor(unittest.TestCase):
         )
 
         self.assertIsNone(message)
-        mock_process_control_receipt.assert_called_once()
-        mock_session.commit.assert_called_once()
+        mock_canonical.assert_called_once()
 
-    @patch("app.services.mqtt_processor.process_payload_dict")
-    def test_process_payload_wraps_model_as_dict(self, mock_process_payload_dict):
-        mock_process_payload_dict.return_value = type(
-            "FakeMessage",
-            (),
-            {"to_dict": lambda self: {"type": "telemetry_update", "data": {"device_id": 3}}},
-        )()
+    @patch("app.integrations.mqtt.processor.process_payload")
+    def test_legacy_process_payload_delegates_to_canonical_processor(self, mock_canonical):
+        mock_canonical.return_value = {"type": "telemetry_update", "data": {"device_id": 3}}
 
         result = process_payload('{"device_id": 3}')
 
         self.assertEqual(result, {"type": "telemetry_update", "data": {"device_id": 3}})
+        mock_canonical.assert_called_once_with('{"device_id": 3}', topic=None)
 
 
 if __name__ == "__main__":

@@ -62,25 +62,17 @@ class TestMqttProcessorReliability(unittest.TestCase):
 
         self.assertEqual((voltage, current, power, energy), (380.0, 5.0, 2.2, 10.0))
 
-    @patch("app.services.mqtt_processor.IngestionHealthService.mark_ingestion_failure")
-    @patch("app.services.mqtt_processor.IngestionHealthService.mark_message_received")
-    @patch("app.services.mqtt_processor.persist_device_data")
-    @patch("app.services.mqtt_processor.resolve_device_id")
-    def test_process_payload_dict_skips_invalid_payload(
+    @patch("app.integrations.mqtt.processor.process_payload_dict")
+    def test_legacy_process_payload_dict_delegates_to_integrated_processor(
         self,
-        mock_resolve_device_id,
-        mock_persist_device_data,
-        mock_mark_message_received,
-        mock_mark_ingestion_failure,
+        mock_integrated_process_payload_dict,
     ):
-        mock_resolve_device_id.return_value = 7
+        mock_integrated_process_payload_dict.return_value = None
 
         result = process_payload_dict({"device_id": 7}, topic="campus/telemetry")
 
         self.assertIsNone(result)
-        mock_persist_device_data.assert_not_called()
-        mock_mark_message_received.assert_called_once()
-        mock_mark_ingestion_failure.assert_called_once()
+        mock_integrated_process_payload_dict.assert_called_once_with({"device_id": 7}, topic="campus/telemetry")
 
     @patch("app.integrations.mqtt.processor.Session")
     @patch("app.integrations.mqtt.processor.MqttReliabilityService.claim_message")

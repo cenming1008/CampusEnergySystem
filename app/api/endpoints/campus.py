@@ -5,17 +5,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.api.deps import get_current_user
-from app.core.access_control import get_allowed_device_ids
+from app.application.campus import (
+    get_alarm_summary_use_case,
+    get_campus_overview_use_case,
+    get_energy_category_share_use_case,
+    get_location_energy_statistics_use_case,
+    get_realtime_load_trend_use_case,
+    get_subitem_statistics_use_case,
+)
 from app.core.database import get_session
 from app.models.tables import User
-from app.services.campus_service import CampusService
 
 router = APIRouter()
 
@@ -145,13 +151,9 @@ class RealtimeLoadTrendResponse(BaseModel):
     items: list[RealtimeLoadTrendItem]
 
 
-def _resolve_window(
-    start_time: Optional[datetime],
-    end_time: Optional[datetime],
-    default_hours: int,
-) -> tuple[datetime, datetime]:
+def _call_use_case(use_case: Callable[..., dict], **kwargs):
     try:
-        return CampusService.normalize_time_window(start_time, end_time, default_hours)
+        return use_case(**kwargs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -163,12 +165,12 @@ def get_campus_overview(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24)
-    return CampusService.get_campus_overview(
+    return _call_use_case(
+        get_campus_overview_use_case,
         session=session,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        current_user=current_user,
+        start_time=start_time,
+        end_time=end_time,
     )
 
 
@@ -180,13 +182,13 @@ def get_location_energy_statistics(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24 * 30)
-    return CampusService.get_location_energy_statistics(
+    return _call_use_case(
+        get_location_energy_statistics_use_case,
         session=session,
+        current_user=current_user,
         dimension=dimension,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        start_time=start_time,
+        end_time=end_time,
     )
 
 
@@ -197,12 +199,12 @@ def get_energy_category_share(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24 * 30)
-    return CampusService.get_energy_category_share(
+    return _call_use_case(
+        get_energy_category_share_use_case,
         session=session,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        current_user=current_user,
+        start_time=start_time,
+        end_time=end_time,
     )
 
 
@@ -213,12 +215,12 @@ def get_subitem_statistics(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24 * 30)
-    return CampusService.get_subitem_statistics(
+    return _call_use_case(
+        get_subitem_statistics_use_case,
         session=session,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        current_user=current_user,
+        start_time=start_time,
+        end_time=end_time,
     )
 
 
@@ -229,12 +231,12 @@ def get_realtime_load_trend(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24)
-    return CampusService.get_realtime_load_trend(
+    return _call_use_case(
+        get_realtime_load_trend_use_case,
         session=session,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        current_user=current_user,
+        start_time=start_time,
+        end_time=end_time,
     )
 
 
@@ -245,10 +247,10 @@ def get_alarm_summary(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    window_start, window_end = _resolve_window(start_time, end_time, default_hours=24)
-    return CampusService.get_alarm_summary(
+    return _call_use_case(
+        get_alarm_summary_use_case,
         session=session,
-        start_time=window_start,
-        end_time=window_end,
-        allowed_device_ids=get_allowed_device_ids(session, current_user),
+        current_user=current_user,
+        start_time=start_time,
+        end_time=end_time,
     )

@@ -10,30 +10,36 @@ from sqlmodel import Session, SQLModel, create_engine
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.api.endpoints import campus
+from app.application import campus as campus_application
 from app.models.tables import Device, EnergyData, Location
 from app.services.campus_service import CampusService
 
 
 class TestCampusEndpoints(unittest.TestCase):
-    def test_get_campus_overview_uses_allowed_device_scope(self):
+    def test_get_campus_overview_delegates_to_application(self):
         fake_user = SimpleNamespace(role="admin")
         fake_session = object()
         fake_payload = {"campus_entities": []}
+        start_time = datetime(2026, 3, 1, 0, 0, 0)
+        end_time = datetime(2026, 3, 2, 0, 0, 0)
 
-        with patch.object(campus, "get_allowed_device_ids", return_value={1, 2}) as mock_allowed:
-            with patch.object(campus.CampusService, "get_campus_overview", return_value=fake_payload) as mock_service:
-                result = campus.get_campus_overview(
-                    start_time=datetime(2026, 3, 1, 0, 0, 0),
-                    end_time=datetime(2026, 3, 2, 0, 0, 0),
-                    session=fake_session,
-                    current_user=fake_user,
-                )
+        with patch.object(campus, "get_campus_overview_use_case", return_value=fake_payload) as mock_use_case:
+            result = campus.get_campus_overview(
+                start_time=start_time,
+                end_time=end_time,
+                session=fake_session,
+                current_user=fake_user,
+            )
 
-        mock_allowed.assert_called_once_with(fake_session, fake_user)
-        mock_service.assert_called_once()
         self.assertIs(result, fake_payload)
+        mock_use_case.assert_called_once_with(
+            session=fake_session,
+            current_user=fake_user,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
-    def test_get_alarm_summary_uses_default_window(self):
+    def test_get_alarm_summary_delegates_to_application(self):
         fake_user = SimpleNamespace(role="admin")
         fake_session = object()
         fake_payload = {
@@ -49,17 +55,21 @@ class TestCampusEndpoints(unittest.TestCase):
             "latest": [],
         }
 
-        with patch.object(campus, "get_allowed_device_ids", return_value=None):
-            with patch.object(campus.CampusService, "get_alarm_summary", return_value=fake_payload) as mock_service:
-                result = campus.get_alarm_summary(
-                    start_time=None,
-                    end_time=datetime(2026, 3, 2, 0, 0, 0),
-                    session=fake_session,
-                    current_user=fake_user,
-                )
+        with patch.object(campus, "get_alarm_summary_use_case", return_value=fake_payload) as mock_use_case:
+            result = campus.get_alarm_summary(
+                start_time=None,
+                end_time=datetime(2026, 3, 2, 0, 0, 0),
+                session=fake_session,
+                current_user=fake_user,
+            )
 
-        mock_service.assert_called_once()
         self.assertEqual(result["total_count"], 0)
+        mock_use_case.assert_called_once_with(
+            session=fake_session,
+            current_user=fake_user,
+            start_time=None,
+            end_time=datetime(2026, 3, 2, 0, 0, 0),
+        )
 
     def test_get_energy_category_share_returns_400_for_invalid_window(self):
         fake_user = SimpleNamespace(role="admin")
@@ -74,6 +84,52 @@ class TestCampusEndpoints(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.detail, "start_time 不能晚于 end_time")
+
+
+class TestCampusApplicationUseCases(unittest.TestCase):
+    def test_overview_use_case_resolves_window_scope_and_calls_service(self):
+        session = object()
+        current_user = SimpleNamespace(role="admin")
+        start_time = datetime(2026, 3, 1, 0, 0, 0)
+        end_time = datetime(2026, 3, 2, 0, 0, 0)
+        payload = {"campus_entities": []}
+
+        with patch.object(campus_application, "get_allowed_device_ids", return_value={1, 2}) as mock_allowed:
+            with patch.object(
+                campus_application.CampusService,
+                "normalize_time_window",
+                return_value=(start_time, end_time),
+            ) as mock_window:
+                with patch.object(
+                    campus_application.CampusService,
+                    "get_campus_overview",
+                    return_value=payload,
+                ) as mock_service:
+                    result = campus_application.get_campus_overview_use_case(
+                        session=session,
+                        current_user=current_user,
+                        start_time=None,
+                        end_time=end_time,
+                    )
+
+        self.assertIs(result, payload)
+        mock_window.assert_called_once_with(None, end_time, 24)
+        mock_allowed.assert_called_once_with(session, current_user)
+        mock_service.assert_called_once_with(
+            session=session,
+            start_time=start_time,
+            end_time=end_time,
+            allowed_device_ids={1, 2},
+        )
+
+    def test_energy_category_use_case_raises_value_error_for_invalid_window(self):
+        with self.assertRaisesRegex(ValueError, "start_time 不能晚于 end_time"):
+            campus_application.get_energy_category_share_use_case(
+                session=object(),
+                current_user=SimpleNamespace(role="admin"),
+                start_time=datetime(2026, 3, 2, 0, 0, 0),
+                end_time=datetime(2026, 3, 1, 0, 0, 0),
+            )
 
 
 class TestCampusServiceStatistics(unittest.TestCase):

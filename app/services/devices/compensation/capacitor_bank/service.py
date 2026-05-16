@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.settings import settings
-from app.models.tables import CapacitorBankControlProfile, Device, DeviceControlLog
+from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog
 from app.repositories.device_repository import DeviceRepository
 from app.services.devices.compensation.capacitor_bank.control_command_service import CapacitorBankControlCommandService
 from app.services.devices.compensation.capacitor_bank.control_profile_service import CapacitorBankControlProfileService
@@ -47,6 +48,52 @@ class CapacitorBankService:
 
     CONTROL_ACTION_LABELS = CapacitorBankControlCommandService.CONTROL_ACTION_LABELS
     CONTROL_RESULT_LABELS = CapacitorBankControlCommandService.CONTROL_RESULT_LABELS
+
+    @staticmethod
+    def _sample_history_records(records: list, limit: int):
+        if len(records) <= limit or limit < 3:
+            return records
+
+        sampled = [records[0]]
+        interior_target = limit - 2
+        last_index = len(records) - 1
+
+        for index in range(1, interior_target + 1):
+            point_index = round((index * last_index) / (interior_target + 1))
+            point = records[min(last_index - 1, max(1, point_index))]
+            if sampled[-1] is not point:
+                sampled.append(point)
+
+        if sampled[-1] is not records[last_index]:
+            sampled.append(records[last_index])
+
+        return sampled
+
+    @staticmethod
+    def get_latest_telemetry(session: Session, device_id: int) -> Optional[CapacitorBankTelemetry]:
+        return session.exec(
+            select(CapacitorBankTelemetry)
+            .where(CapacitorBankTelemetry.device_id == device_id)
+            .order_by(CapacitorBankTelemetry.timestamp.desc())
+            .limit(1)
+        ).first()
+
+    @staticmethod
+    def list_telemetry_history(
+        session: Session,
+        device_id: int,
+        *,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 200,
+    ) -> list[CapacitorBankTelemetry]:
+        stmt = select(CapacitorBankTelemetry).where(CapacitorBankTelemetry.device_id == device_id)
+        if start_time:
+            stmt = stmt.where(CapacitorBankTelemetry.timestamp >= start_time)
+        if end_time:
+            stmt = stmt.where(CapacitorBankTelemetry.timestamp <= end_time)
+        records = list(session.exec(stmt.order_by(CapacitorBankTelemetry.timestamp.asc())).all())
+        return CapacitorBankService._sample_history_records(records, limit)
 
     @staticmethod
     def get_parameter_spec(parameter_key: str) -> CapacitorBankControlParameterSpec:

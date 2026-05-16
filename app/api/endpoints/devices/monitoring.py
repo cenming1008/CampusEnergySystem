@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.api.deps import get_current_user
+from app.application.device_monitoring import get_device_monitor_overview_use_case
 from app.core.access_control import ensure_device_access
 from app.core.database import get_session
 from app.core.response import success_response
@@ -30,7 +31,12 @@ def get_device_monitor_overview(
     current_user: User = Depends(get_current_user),
 ):
     ensure_device_access(session, current_user, device_id)
-    return success_response(data=DeviceMonitorService.get_monitor_overview(session, device_id))
+    return success_response(
+        data=get_device_monitor_overview_use_case(
+            session=session,
+            device_id=device_id,
+        )
+    )
 
 
 @router.get("/{device_id}/monitor/realtime")

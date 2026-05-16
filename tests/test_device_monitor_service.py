@@ -1184,15 +1184,15 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertIn("已入队", control_items[1]["detail"])
 
     @patch("app.api.endpoints.devices.monitoring.ensure_device_access")
-    @patch("app.api.endpoints.devices.monitoring.DeviceMonitorService.get_monitor_overview")
+    @patch("app.api.endpoints.devices.monitoring.get_device_monitor_overview_use_case")
     def test_monitor_overview_endpoint_keeps_reactive_power_key_for_compensator(
         self,
-        mock_get_overview,
+        mock_get_overview_use_case,
         mock_ensure_access,
     ):
         session = object()
         current_user = SimpleNamespace(username="admin", role="admin")
-        mock_get_overview.return_value = {
+        mock_get_overview_use_case.return_value = {
             "archive": {"id": 16, "device_type": "reactive_power_compensator"},
             "runtime_status": {"device_id": 16},
             "realtime": {
@@ -1220,6 +1220,7 @@ class TestDeviceMonitorService(unittest.TestCase):
         )
 
         mock_ensure_access.assert_called_once_with(session, current_user, 16)
+        mock_get_overview_use_case.assert_called_once_with(session=session, device_id=16)
         self.assertIn("reactive_power", response["data"]["realtime"])
         self.assertIsNone(response["data"]["realtime"]["reactive_power"])
 

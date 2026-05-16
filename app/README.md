@@ -75,7 +75,9 @@ app/
 │
 ├── integrations/              # 外部系统适配
 │   ├── mqtt/
-│   │   └── processor.py     # MQTT 解析、校验、别名、落库与广播消息构造（主实现）
+│   │   ├── processor.py          # MQTT 主编排：幂等、回执/遥测分流、成功失败标记、广播消息构造
+│   │   ├── payloads.py           # payload 别名、时间戳、数值、通用遥测入库字段规范化
+│   │   └── device_extensions.py  # SVG/电容补偿等设备专属遥测扩展落库
 │
 ├── services/                  # 业务服务（可被 application / 集成层调用）
 │   ├── device_service.py
@@ -215,7 +217,7 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 
 - 复杂查询可下沉到 `repositories/`
 - 使用 `logger` 记录关键路径
-- MQTT 后台线程入口在 `mqtt_worker.py`；消息解析与持久化的主逻辑在 `integrations/mqtt/processor.py`
+- MQTT 后台线程入口在 `mqtt_worker.py`；消息主编排在 `integrations/mqtt/processor.py`，payload 规范化在 `integrations/mqtt/payloads.py`，设备专属遥测扩展在 `integrations/mqtt/device_extensions.py`
 - 与正式投产相关的告警、审计、运行时指标、调度注册等能力也主要落在 service/core 层协作完成
 
 ---
@@ -267,10 +269,14 @@ mqtt_worker.py（订阅 settings.mqtt_topic / mqtt_topic_wildcard）
     ↓
 process_data() → integrations.mqtt.processor.process_payload（或经 mqtt_processor 兼容层）
     ↓
-字段别名、resolve_device_id、校验时间戳与测点
+payloads.apply_field_aliases、resolve_device_id、校验时间戳与测点
+    ↓
+processor 幂等记录、重复消息判断、控制回执 / 遥测分流
     ↓
 application.telemetry_ingestion.ingest_telemetry_use_case
     → report_device_data_use_case、AlarmService、IngestionHealthService
+    ↓
+device_extensions.persist_device_extensions（SVG / 电容补偿等专属遥测与参数快照）
     ↓
 lifecycle.mqtt_to_ws_callback（run_coroutine_threadsafe）
     ↓
@@ -391,7 +397,7 @@ def endpoint(session: Session = Depends(get_session)):
 
 仓库根目录 `tests/` 中已有与当前模块对应的示例：
 
-- `tests/test_mqtt_processor.py`：`mqtt_processor` 兼容层（解析、指标归一、`process_payload` 与 mock 落库）
+- `tests/test_mqtt_processor.py`：`mqtt_processor` 兼容层与 payload 工具函数
 - `tests/test_scheduler_jobs.py`：`scheduler_jobs` 在成功/禁用/模块不可用时的日志与分支
 
 可按业务继续补充 `test_api/`、`test_services/` 等结构。
@@ -477,7 +483,7 @@ value = await redis.get("key")
 2. **依赖注入**：会话与用户通过 FastAPI `Depends`
 3. **异常与日志**：自定义异常 + 全局处理；关键路径打日志
 4. **配置单一来源**：`settings.py`
-5. **MQTT 与集成**：主逻辑放在 `integrations/`，Worker 只负责连接与线程
+5. **MQTT 与集成**：Worker 只负责连接与线程；主编排、payload 规范化、设备专属扩展分别落在 `processor.py`、`payloads.py`、`device_extensions.py`
 6. **路由集中注册**：改动 `router_registry.py`，保持 `main.py` 简洁
 
 ---

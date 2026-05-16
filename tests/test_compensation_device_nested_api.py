@@ -49,45 +49,66 @@ class TestCompensationNestedSvgApi(unittest.TestCase):
         )
         self.assertEqual(result["display_name"], "SVG-B")
 
-    def test_nested_svg_telemetry_latest_reads_directly(self):
+    def test_nested_svg_telemetry_latest_uses_service(self):
         user = _make_user()
+        mock_session = object()
         telemetry = SVGTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:00:00"))
-        mock_session = SimpleNamespace(
-            exec=lambda q: SimpleNamespace(first=lambda: telemetry)
-        )
         with patch.object(compensation_svg, "ensure_device_access") as mock_access:
-            result = compensation_svg.get_device_svg_telemetry_latest(1, mock_session, user)
+            with patch.object(compensation_svg.SVGService, "get_latest_telemetry", return_value=telemetry) as mock_get:
+                result = compensation_svg.get_device_svg_telemetry_latest(1, mock_session, user)
         mock_access.assert_called_once_with(mock_session, user, 1)
+        mock_get.assert_called_once_with(mock_session, 1)
         self.assertEqual(result, telemetry)
+
+    def test_nested_svg_telemetry_history_uses_service(self):
+        user = _make_user()
+        mock_session = object()
+        start = datetime.fromisoformat("2026-04-14T10:00:00")
+        end = datetime.fromisoformat("2026-04-14T11:00:00")
+        expected = [SVGTelemetry(device_id=1, timestamp=start)]
+        with patch.object(compensation_svg, "ensure_device_access") as mock_access:
+            with patch.object(compensation_svg.SVGService, "list_telemetry_history", return_value=expected) as mock_list:
+                result = compensation_svg.get_device_svg_telemetry_history(
+                    1,
+                    start,
+                    end,
+                    50,
+                    mock_session,
+                    user,
+                )
+        mock_access.assert_called_once_with(mock_session, user, 1)
+        mock_list.assert_called_once_with(mock_session, 1, start_time=start, end_time=end, limit=50)
+        self.assertEqual(result, expected)
 
 
 class TestCompensationNestedCapBankApi(unittest.TestCase):
-    def test_nested_cap_bank_latest_reads_directly(self):
+    def test_nested_cap_bank_latest_uses_service(self):
         user = _make_user()
-        mock_session = SimpleNamespace(
-            exec=lambda q: SimpleNamespace(first=lambda: CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:00:00")))
-        )
+        mock_session = object()
+        telemetry = CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:00:00"))
         with patch.object(compensation_capacitor_bank, "ensure_device_access") as mock_access:
-            result = compensation_capacitor_bank.get_device_capacitor_bank_telemetry_latest(1, mock_session, user)
+            with patch.object(compensation_capacitor_bank.CapacitorBankService, "get_latest_telemetry", return_value=telemetry) as mock_get:
+                result = compensation_capacitor_bank.get_device_capacitor_bank_telemetry_latest(1, mock_session, user)
         mock_access.assert_called_once_with(mock_session, user, 1)
+        mock_get.assert_called_once_with(mock_session, 1)
         self.assertEqual(result.device_id, 1)
 
-    def test_nested_cap_bank_history_reads_directly(self):
+    def test_nested_cap_bank_history_uses_service(self):
         user = _make_user()
+        mock_session = object()
         expected = CapacitorBankTelemetry(device_id=1, timestamp=datetime.fromisoformat("2026-04-14T10:00:00"))
-        mock_session = SimpleNamespace(
-            exec=lambda q: SimpleNamespace(all=lambda: [expected])
-        )
         with patch.object(compensation_capacitor_bank, "ensure_device_access") as mock_access:
-            result = compensation_capacitor_bank.get_device_capacitor_bank_telemetry_history(
-                1,
-                None,
-                None,
-                200,
-                mock_session,
-                user,
-            )
+            with patch.object(compensation_capacitor_bank.CapacitorBankService, "list_telemetry_history", return_value=[expected]) as mock_list:
+                result = compensation_capacitor_bank.get_device_capacitor_bank_telemetry_history(
+                    1,
+                    None,
+                    None,
+                    200,
+                    mock_session,
+                    user,
+                )
         mock_access.assert_called_once_with(mock_session, user, 1)
+        mock_list.assert_called_once_with(mock_session, 1, start_time=None, end_time=None, limit=200)
         self.assertEqual(result, [expected])
 
     def test_nested_cap_bank_history_samples_full_selected_range(self):

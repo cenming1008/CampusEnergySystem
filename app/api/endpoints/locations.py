@@ -1,22 +1,31 @@
 """
 位置管理API端点
 """
+
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.api.deps import MAINTAINER_OR_ADMIN, get_current_user
-from app.core.access_control import (
-    ensure_location_access,
-    filter_location_tree_by_scope,
-    filter_locations_by_scope,
+from app.application.locations import (
+    assign_device_to_location_use_case,
+    create_location_use_case,
+    delete_location_use_case,
+    get_location_detail_use_case,
+    get_location_statistics_use_case,
+    get_location_tree_use_case,
+    list_child_locations_use_case,
+    list_location_devices_use_case,
+    list_locations_use_case,
+    list_root_locations_use_case,
+    search_locations_use_case,
+    update_location_use_case,
 )
-from app.core.audit import audit_log
 from app.core.database import get_session
 from app.core.response import success_response
 from app.models.tables import Device, Location, LocationType, User
-from app.services.location_service import LocationService
 
 router = APIRouter()
 
@@ -70,13 +79,13 @@ def get_locations(
     - parent_id: 父级位置ID
     - is_active: 是否启用
     """
-    locations = LocationService.get_all_locations(
+    return list_locations_use_case(
         session=session,
+        current_user=current_user,
         location_type=location_type,
         parent_id=parent_id,
-        is_active=is_active
+        is_active=is_active,
     )
-    return filter_locations_by_scope(locations, current_user)
 
 
 # 位置类型展示文案（与 models.tables.LocationType 一一对应）
@@ -117,7 +126,7 @@ def get_root_locations(
     Returns:
         顶级位置列表
     """
-    return filter_locations_by_scope(LocationService.get_root_locations(session), current_user)
+    return list_root_locations_use_case(session, current_user)
 
 
 @router.get("/tree")
@@ -137,14 +146,13 @@ def get_location_tree(
     Returns:
         树形结构数据
     """
-    if root_id is not None:
-        ensure_location_access(session, current_user, root_id)
-    tree = LocationService.get_location_tree(
+    tree = get_location_tree_use_case(
         session=session,
-        root_location_id=root_id,
-        max_depth=max_depth
+        current_user=current_user,
+        root_id=root_id,
+        max_depth=max_depth,
     )
-    return success_response(data=filter_location_tree_by_scope(tree, current_user))
+    return success_response(data=tree)
 
 
 @router.get("/search", response_model=List[Location])
@@ -162,7 +170,7 @@ def search_locations(
     Returns:
         匹配的位置列表
     """
-    return filter_locations_by_scope(LocationService.search_locations(session, keyword), current_user)
+    return search_locations_use_case(session, current_user, keyword)
 
 
 @router.get("/{location_id}", response_model=Location)
@@ -174,8 +182,7 @@ def get_location_detail(
     """
     获取位置详情（资源不存在时由全局异常处理器返回 404）
     """
-    ensure_location_access(session, current_user, location_id)
-    return LocationService.get_location_by_id(session, location_id)
+    return get_location_detail_use_case(session, current_user, location_id)
 
 
 @router.post("/", response_model=Location)
@@ -185,8 +192,9 @@ def create_location(
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """创建位置（业务校验失败由全局异常处理器返回 400/404）"""
-    result = LocationService.create_location(
+    return create_location_use_case(
         session=session,
+        current_user=current_user,
         name=request.name,
         location_type=request.location_type,
         parent_id=request.parent_id,
@@ -194,10 +202,8 @@ def create_location(
         description=request.description,
         area_sqm=request.area_sqm,
         manager=request.manager,
-        contact=request.contact
+        contact=request.contact,
     )
-    audit_log("location.create", current_user.username, f"location:{result.id}", role=current_user.role)
-    return result
 
 
 @router.put("/{location_id}", response_model=Location)
@@ -209,9 +215,7 @@ def update_location(
 ):
     """更新位置信息（资源不存在等由全局异常处理器处理）"""
     update_data = request.model_dump(exclude_unset=True)
-    result = LocationService.update_location(session, location_id, **update_data)
-    audit_log("location.update", current_user.username, f"location:{location_id}", role=current_user.role)
-    return result
+    return update_location_use_case(session, current_user, location_id, update_data)
 
 
 @router.delete("/{location_id}")
@@ -222,9 +226,8 @@ def delete_location(
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """删除位置（依赖冲突等由全局异常处理器处理）"""
-    LocationService.delete_location(session, location_id, force=force)
-    audit_log("location.delete", current_user.username, f"location:{location_id}", force=force, role=current_user.role)
-    return success_response(message=f"位置 {location_id} 已删除")
+    result = delete_location_use_case(session, current_user, location_id, force=force)
+    return success_response(message=result.message)
 
 
 # ==================== 子位置管理 ====================
@@ -237,10 +240,7 @@ def get_child_locations(
     current_user: User = Depends(get_current_user),
 ):
     """获取子位置（位置不存在时由全局异常处理器返回 404）"""
-    ensure_location_access(session, current_user, location_id)
-    return filter_locations_by_scope(LocationService.get_child_locations(
-        session, location_id, recursive=recursive
-    ), current_user)
+    return list_child_locations_use_case(session, current_user, location_id, recursive=recursive)
 
 
 # ==================== 设备管理 ====================
@@ -255,13 +255,13 @@ def get_location_devices(
     current_user: User = Depends(get_current_user),
 ):
     """获取位置下的设备（位置不存在时由全局异常处理器返回 404）"""
-    ensure_location_access(session, current_user, location_id)
-    return LocationService.get_devices_by_location(
+    return list_location_devices_use_case(
         session=session,
+        current_user=current_user,
         location_id=location_id,
         recursive=recursive,
         energy_type=energy_type,
-        is_active=is_active
+        is_active=is_active,
     )
 
 
@@ -273,19 +273,12 @@ def assign_device_to_location(
     current_user: User = Depends(MAINTAINER_OR_ADMIN),
 ):
     """将设备分配到位置（设备/位置不存在等由全局异常处理器处理）"""
-    result = LocationService.assign_device_to_location(
+    return assign_device_to_location_use_case(
         session=session,
+        current_user=current_user,
+        location_id=location_id,
         device_id=request.device_id,
-        location_id=location_id
     )
-    audit_log(
-        "location.assign_device",
-        current_user.username,
-        f"location:{location_id}",
-        device_id=request.device_id,
-        role=current_user.role,
-    )
-    return result
 
 
 # ==================== 统计分析 ====================
@@ -298,10 +291,10 @@ def get_location_statistics(
     current_user: User = Depends(get_current_user),
 ):
     """获取位置统计信息（位置不存在时由全局异常处理器返回 404）"""
-    ensure_location_access(session, current_user, location_id)
-    stats = LocationService.get_location_statistics(
+    stats = get_location_statistics_use_case(
         session=session,
+        current_user=current_user,
         location_id=location_id,
-        recursive=recursive
+        recursive=recursive,
     )
     return success_response(data=stats)

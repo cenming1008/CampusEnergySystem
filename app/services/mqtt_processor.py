@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from typing import Optional
 
+from app.integrations.mqtt import processor as _canonical_processor
 from app.integrations.mqtt.processor import (
+    FIELD_ALIASES,
     IngestionHealthService,
+    MEANINGFUL_FIELDS,
     TelemetryBroadcastMessage,
     apply_field_aliases,
     build_data_dict,
+    hash_payload_string,
     is_control_receipt_payload,
     normalize_metrics,
     parse_numeric,
@@ -28,71 +32,24 @@ from app.integrations.mqtt.processor import (
 
 def process_payload(payload_str: str, topic: Optional[str] = None) -> Optional[dict[str, object]]:
     """兼容旧入口，返回可供 WebSocket 广播的字典。"""
-    data = parse_payload(payload_str)
-    if data is None:
-        return None
-
-    message = process_payload_dict(data, topic=topic)
-    return message.to_dict() if message else None
+    return _canonical_processor.process_payload(payload_str, topic=topic)
 
 
 def process_payload_dict(
     data: dict[str, object],
     topic: Optional[str] = None,
 ) -> Optional[TelemetryBroadcastMessage]:
-    """兼容旧入口，保留本模块命名空间，支持 patch。"""
-    from app.integrations.mqtt.processor import (
-        Session,
-        TelemetryBroadcastMessage as _TelemetryBroadcastMessage,
-        engine,
-        logger,
-    )
-
-    if data is None:
-        return None
-
-    normalized_data = apply_field_aliases(data)
-    device_id = resolve_device_id(normalized_data, topic)
-    if not device_id:
-        logger.warning("MQTT payload missing device_id/device_code, skipped")
-        return None
-
-    try:
-        if is_control_receipt_payload(normalized_data):
-            with Session(engine) as session:
-                process_control_receipt(session, normalized_data, device_id)
-                session.commit()
-            return None
-        validate_payload_content(normalized_data)
-        timestamp = validate_timestamp(parse_timestamp(normalized_data))
-        voltage, current, power, energy = normalize_metrics(normalized_data)
-        data_dict = build_data_dict(normalized_data, voltage, current, power, energy)
-        ws_data = persist_device_data(device_id, data_dict, timestamp)
-    except ValueError as exc:
-        with Session(engine) as session:
-            IngestionHealthService.mark_message_received(session, device_id=device_id)
-            IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
-            session.commit()
-        logger.warning(f"MQTT payload validation failed: device_id={device_id}, err={exc}")
-        return None
-    except Exception as exc:
-        with Session(engine) as session:
-            IngestionHealthService.mark_message_received(session, device_id=device_id)
-            IngestionHealthService.mark_ingestion_failure(session, device_id=device_id, reason=str(exc))
-            session.commit()
-        logger.warning(f"MQTT payload persist failed: device_id={device_id}, err={exc}")
-        return None
-
-    return _TelemetryBroadcastMessage(
-        type="telemetry_update",
-        data=ws_data,
-    )
+    """兼容旧入口，委托 integrations.mqtt.processor 的主实现。"""
+    return _canonical_processor.process_payload_dict(data, topic=topic)
 
 
 __all__ = [
+    "FIELD_ALIASES",
     "IngestionHealthService",
+    "MEANINGFUL_FIELDS",
     "apply_field_aliases",
     "build_data_dict",
+    "hash_payload_string",
     "is_control_receipt_payload",
     "normalize_metrics",
     "parse_numeric",
