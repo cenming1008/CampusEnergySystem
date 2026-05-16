@@ -11,9 +11,9 @@ from app.core.exceptions import AuthenticationException
 
 
 class TestAuthLockMessage(unittest.TestCase):
-    @patch("app.api.endpoints.auth.audit_log")
-    @patch("app.api.endpoints.auth.UserService.register_login_failure")
-    @patch("app.api.endpoints.auth.verify_password", return_value=False)
+    @patch("app.application.auth.audit_log")
+    @patch("app.application.auth.UserService.register_login_failure")
+    @patch("app.application.auth.verify_password", return_value=False)
     def test_fifth_failed_login_tells_user_when_lock_expires(
         self,
         _mock_verify_password,
@@ -46,7 +46,7 @@ class TestAuthLockMessage(unittest.TestCase):
         self.assertIn("连续登录失败 5 次", raised.exception.message)
         self.assertIn(locked_until.strftime("%Y-%m-%d %H:%M:%S"), raised.exception.message)
 
-    @patch("app.api.endpoints.auth.audit_log")
+    @patch("app.application.auth.audit_log")
     @patch("app.api.endpoints.auth._enforce_auth_login_rate_limit")
     def test_locked_login_tells_user_when_lock_expires_before_rate_limit(
         self,

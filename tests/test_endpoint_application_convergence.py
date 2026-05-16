@@ -6,12 +6,11 @@ from unittest.mock import patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.api.endpoints import analysis
-from app.api.endpoints import inspection
-from app.api.endpoints import maintenance
-from app.api.endpoints import users
+from app.api.endpoints import analysis, auth, inspection, locations, maintenance, users
 from app.api.endpoints.devices import data as device_data
+from app.api.endpoints.devices import ingestion_health
 from app.api.endpoints.devices import management
+from app.api.endpoints.devices import monitoring as device_monitoring
 
 
 class TestEndpointApplicationConvergence(unittest.TestCase):
@@ -58,14 +57,12 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
         self.assertEqual(result["device_id"], 7)
         mock_use_case.assert_called_once_with(session, current_user, 7)
 
-    @patch("app.api.endpoints.energy.data.get_energy_analysis_overview_use_case")
-    @patch("app.api.endpoints.energy.data.EnergyService")
-    @patch("app.api.endpoints.energy.data.get_allowed_device_ids")
-    def test_energy_overview_endpoint_includes_analysis_block(
+    @patch("app.api.endpoints.energy.data.get_energy_overview_use_case")
+    @patch("app.api.endpoints.energy.data.ensure_device_access")
+    def test_energy_overview_endpoint_delegates_to_application(
         self,
-        mock_allowed,
-        mock_energy_service,
-        mock_analysis_use_case,
+        mock_ensure_access,
+        mock_use_case,
     ):
         from app.api.endpoints.energy import data as energy_data
 
@@ -73,40 +70,13 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
         current_user = SimpleNamespace(username="viewer", role="viewer")
         start_time = datetime(2026, 4, 1, 0, 0, 0)
         end_time = datetime(2026, 4, 8, 0, 0, 0)
-        mock_allowed.return_value = None
-        mock_energy_service.get_statistics_by_type.return_value = {}
-        mock_energy_service.get_carbon_summary.return_value = {"total_carbon": 0, "by_energy_type": {}}
-        mock_energy_service.get_energy_type_profile.return_value = {}
-        mock_analysis_use_case.return_value = {
-            "time_window": {"granularity": "day"},
-            "summary": {"device_count": 4},
-            "trend": {
-                "items": [
-                    {
-                        "timestamp": "2026-04-01T00:00:00",
-                        "total_consumption": 12.5,
-                        "total_load": 3.2,
-                    }
-                ]
-            },
-            "comparison": {
-                "period_over_period": {
-                    "current_total_consumption": 12.5,
-                    "previous_total_consumption": 10,
-                    "change_rate": 0.25,
-                },
-                "energy_categories": [{"energy_category": "water", "ratio": 1}],
-            },
-            "ranking": {"areas": [{"name": "一区"}], "buildings": [], "devices": []},
-            "anomaly": {"summary": {"data_gap_count": 1, "ingestion_failure_count": 2, "active_alarm_count": 3}, "items": []},
-            "insights": [{"title": "水务占比最高", "detail": "当前周期水务为主导能源"}],
-            "scope": {},
-        }
+        expected = {"summary": {"device_count": 4}, "trend": {"points": []}}
+        mock_use_case.return_value = expected
 
         result = energy_data.get_energy_overview(
             start_time=start_time,
             end_time=end_time,
-            device_id=None,
+            device_id=12,
             location_id=8,
             energy_type="water",
             top_n=7,
@@ -116,30 +86,38 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
             current_user=current_user,
         )
 
-        self.assertEqual(result["summary"]["device_count"], 4)
-        self.assertEqual(result["trend"]["granularity"], "day")
-        self.assertEqual(result["trend"]["points"][0]["value"], 12.5)
-        self.assertEqual(result["trend"]["points"][0]["load"], 3.2)
-        self.assertEqual(result["comparison"]["current"], 12.5)
-        self.assertEqual(result["comparison"]["previous"], 10)
-        self.assertEqual(result["comparison"]["ratio"], 0.25)
-        self.assertEqual(result["comparison"]["mix"][0]["energy_type"], "water")
-        self.assertEqual(result["ranking"]["regions"][0]["name"], "一区")
-        self.assertEqual(result["anomaly"]["missing_data"], 1)
-        self.assertEqual(result["anomaly"]["consecutive_failures"], 2)
-        self.assertEqual(result["anomaly"]["unresolved_alarms"], 3)
-        self.assertEqual(result["insights"], ["水务占比最高：当前周期水务为主导能源"])
-        mock_analysis_use_case.assert_called_once_with(
+        self.assertIs(result, expected)
+        mock_ensure_access.assert_called_once_with(session, current_user, 12)
+        mock_use_case.assert_called_once_with(
             session=session,
             current_user=current_user,
             start_time=start_time,
             end_time=end_time,
-            device_id=None,
+            device_id=12,
             location_id=8,
             energy_type="water",
             top_n=7,
             granularity="hour",
+            include_analysis=True,
         )
+
+    @patch("app.api.endpoints.devices.monitoring.get_device_monitor_overview_use_case")
+    @patch("app.api.endpoints.devices.monitoring.ensure_device_access")
+    def test_device_monitor_overview_endpoint_delegates_to_application(self, mock_ensure_access, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        expected = {"archive": {"id": 3}, "template_diagnostics": {"overall_status": "passed"}}
+        mock_use_case.return_value = expected
+
+        result = device_monitoring.get_device_monitor_overview(
+            device_id=3,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result["data"], expected)
+        mock_ensure_access.assert_called_once_with(session, current_user, 3)
+        mock_use_case.assert_called_once_with(session=session, device_id=3)
 
     @patch("app.api.endpoints.inspection.create_inspection_task_use_case")
     def test_inspection_create_task_endpoint_delegates_to_application(self, mock_use_case):
@@ -263,6 +241,109 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
             reason=None,
         )
 
+    @patch("app.api.endpoints.locations.list_locations_use_case")
+    def test_locations_list_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        expected = [SimpleNamespace(id=1, name="北区")]
+        mock_use_case.return_value = expected
+
+        result = locations.get_locations(
+            location_type="area",
+            parent_id=3,
+            is_active=True,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertIs(result, expected)
+        mock_use_case.assert_called_once_with(
+            session=session,
+            current_user=current_user,
+            location_type="area",
+            parent_id=3,
+            is_active=True,
+        )
+
+    @patch("app.api.endpoints.locations.get_location_tree_use_case")
+    def test_locations_tree_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        mock_use_case.return_value = [{"id": 1, "children": []}]
+
+        result = locations.get_location_tree(
+            root_id=1,
+            max_depth=2,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result["data"], [{"id": 1, "children": []}])
+        mock_use_case.assert_called_once_with(
+            session=session,
+            current_user=current_user,
+            root_id=1,
+            max_depth=2,
+        )
+
+    @patch("app.api.endpoints.locations.create_location_use_case")
+    def test_locations_create_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        request = SimpleNamespace(
+            name="北区",
+            location_type="area",
+            parent_id=1,
+            code="NORTH",
+            description="desc",
+            area_sqm=1200.0,
+            manager="alice",
+            contact="123",
+        )
+        expected = SimpleNamespace(id=2, name="北区")
+        mock_use_case.return_value = expected
+
+        result = locations.create_location(
+            request=request,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertIs(result, expected)
+        mock_use_case.assert_called_once_with(
+            session=session,
+            current_user=current_user,
+            name="北区",
+            location_type="area",
+            parent_id=1,
+            code="NORTH",
+            description="desc",
+            area_sqm=1200.0,
+            manager="alice",
+            contact="123",
+        )
+
+    @patch("app.api.endpoints.locations.get_location_statistics_use_case")
+    def test_locations_statistics_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="viewer", role="viewer")
+        mock_use_case.return_value = {"device_count": {"total": 3}}
+
+        result = locations.get_location_statistics(
+            location_id=5,
+            recursive=False,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result["data"], {"device_count": {"total": 3}})
+        mock_use_case.assert_called_once_with(
+            session=session,
+            current_user=current_user,
+            location_id=5,
+            recursive=False,
+        )
+
     @patch("app.api.endpoints.users.create_user_use_case")
     def test_users_create_endpoint_delegates_to_application(self, mock_use_case):
         session = object()
@@ -329,6 +410,48 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
             current_password="OldPass123!",
             new_password="NewPass123!",
         )
+
+    @patch("app.api.endpoints.auth.login_use_case")
+    def test_auth_login_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        request = SimpleNamespace()
+        form_data = SimpleNamespace(username="alice", password="StrongPass123!")
+        expected = {"access_token": "a", "token_type": "bearer"}
+        mock_use_case.return_value = expected
+
+        result = auth.login(request=request, form_data=form_data, session=session)
+
+        self.assertIs(result, expected)
+        mock_use_case.assert_called_once()
+        kwargs = mock_use_case.call_args.kwargs
+        self.assertIs(kwargs["session"], session)
+        self.assertEqual(kwargs["username"], "alice")
+        self.assertEqual(kwargs["password"], "StrongPass123!")
+        self.assertTrue(callable(kwargs["enforce_rate_limit"]))
+
+    @patch("app.api.endpoints.auth.refresh_access_token_use_case")
+    def test_auth_refresh_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        request = SimpleNamespace(refresh_token="rt-123")
+        expected = {"access_token": "new"}
+        mock_use_case.return_value = expected
+
+        result = auth.refresh_access_token(request=request, session=session)
+
+        self.assertIs(result, expected)
+        mock_use_case.assert_called_once_with(session=session, refresh_token="rt-123")
+
+    @patch("app.api.endpoints.auth.logout_use_case")
+    def test_auth_logout_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="alice", role="viewer")
+        expected = {"success": True, "message": "已退出登录", "token_version": 3}
+        mock_use_case.return_value = expected
+
+        result = auth.logout(current_user=current_user, session=session)
+
+        self.assertIs(result, expected)
+        mock_use_case.assert_called_once_with(session=session, current_user=current_user)
 
 
 if __name__ == "__main__":
