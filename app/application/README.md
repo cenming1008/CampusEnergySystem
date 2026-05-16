@@ -46,6 +46,7 @@
 app/application/
 ├── __init__.py
 ├── analysis.py
+├── auth.py
 ├── campus.py
 ├── device_management.py
 ├── device_monitoring.py
@@ -66,6 +67,7 @@ app/application/
 | `device_management.py` | 设备创建、更新、删除、启停等主档动作 use case | `api/endpoints/devices/management.py` |
 | `device_monitoring.py` | 设备监控 overview 聚合 use case，保持监控接口兼容字段 | `api/endpoints/devices/monitoring.py` |
 | `analysis.py` | 单设备分析 use case，负责访问前置与结果 DTO 装配 | `api/endpoints/analysis.py` |
+| `auth.py` | 用户登录、刷新令牌、登出等认证主流程 use case | `api/endpoints/auth.py` |
 | `campus.py` | 园区驾驶舱、空间层级、能源分类、分项和告警摘要聚合 use case | `api/endpoints/campus.py` |
 | `locations.py` | 位置树、位置详情、设备归属和位置统计 use case | `api/endpoints/locations.py` |
 | `maintenance.py` | 维护记录、统计和状态动作 use case | `api/endpoints/maintenance.py` |
@@ -243,11 +245,14 @@ app/application/
 
 ### 3.10 `telemetry_ingestion.py`
 
-面向“系统内部遥测接入链路”的工作流 use case，当前核心入口：
+面向”系统内部遥测接入链路”的工作流 use case。
 
-- `ingest_telemetry_use_case(...)`
+该 use case 代表的不是单纯查询，而是一条内部处理流水线，当前核心入口：
 
-该 use case 代表的不是单纯查询，而是一条内部处理流水线。它适合放在 `application` 的原因是：
+- `ingest_telemetry_use_case(...)`：单条遥测的落库、告警与健康状态更新工作流。
+- `replay_mqtt_ingestion_record_use_case(...)`：人工重放失败/死信状态的 MQTT 接入记录。
+
+它适合放在 `application` 的原因是：
 
 - 它天然是多步骤工作流
 - 会协调多类 service
@@ -261,6 +266,20 @@ app/application/
 - 广播 payload 构造
 
 这类内部工作流是 `application` 层非常典型的承载对象。
+
+---
+
+### 3.11 `auth.py`
+
+面向"用户认证主流程"的 use case，当前承接：
+
+- `login_use_case(...)`
+- `refresh_access_token_use_case(...)`
+- `logout_use_case(...)`
+
+这一层负责把用户查询、账号锁定判定、密码校验、登录失败计数、令牌签发和认证审计从
+endpoint 中收口。登录限流依赖 HTTP `Request`，通过注入 `enforce_rate_limit` 闭包保留在
+api 层，use case 只在原步骤位置调用它，不感知 `Request`。
 
 ---
 
@@ -444,7 +463,7 @@ MQTT 消息
 
 ## 8. 当前已知边界现状
 
-截至当前仓库状态，`devices/data`、`devices/management`、`devices/monitoring` overview、`analysis`、`reports`、`energy/overview`、`campus`、`locations`、`maintenance`、`inspection` 等主路径已经完成第一批 application 收敛，但 `application` 层整体仍不是“全项目已完成态”。
+截至当前仓库状态，`devices/data`、`devices/management`、`devices/monitoring` overview、`analysis`、`reports`、`energy/overview`、`campus`、`locations`、`maintenance`、`inspection`、`auth` 等主路径已经完成第一批 application 收敛，但 `application` 层整体仍不是”全项目已完成态”。
 
 仍需注意：
 
@@ -452,6 +471,8 @@ MQTT 消息
 - `DeviceMonitorService.get_monitor_overview(...)` 当前作为兼容 wrapper 保留；新增监控 overview 主流程优先进入 `device_monitoring.py`
 - `telemetry_ingestion.py` 属于内部主流程，后续如果接入链路继续扩展，应继续保持它作为统一工作流入口
 - 前端主线页面如果需要稳定聚合口径，后端应优先新增稳定 use case / 聚合接口，而不是把逻辑继续堆回 endpoint
+- `auth.py` 已承接登录/刷新/登出主流程；登录限流闭包是唯一保留在 endpoint 的 HTTP 关注点，新增认证动作时不要把编排堆回 endpoint
+- `replay_mqtt_ingestion_record_use_case` 已并入 `telemetry_ingestion.py`；MQTT 接入链路的人工运维动作继续放这里，不要回堆到 `ingestion_health.py` endpoint
 
 ---
 
