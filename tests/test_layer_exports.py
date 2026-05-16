@@ -10,8 +10,14 @@ class TestLayerExports(unittest.TestCase):
     def test_application_exports_key_use_cases(self):
         self.assertTrue(callable(application.report_device_data_use_case))
         self.assertTrue(callable(application.get_device_data_use_case))
+        self.assertTrue(callable(application.get_device_monitor_overview_use_case))
+        self.assertTrue(callable(application.get_energy_overview_use_case))
         self.assertTrue(callable(application.analyze_device_use_case))
         self.assertTrue(callable(application.ingest_telemetry_use_case))
+        self.assertTrue(callable(application.login_use_case))
+        self.assertTrue(callable(application.refresh_access_token_use_case))
+        self.assertTrue(callable(application.logout_use_case))
+        self.assertTrue(callable(application.replay_mqtt_ingestion_record_use_case))
 
     def test_domain_exports_key_rules(self):
         self.assertTrue(callable(domain.get_electricity_price))
