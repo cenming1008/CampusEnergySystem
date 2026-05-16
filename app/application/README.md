@@ -46,8 +46,14 @@
 app/application/
 ├── __init__.py
 ├── analysis.py
+├── campus.py
+├── device_management.py
+├── device_monitoring.py
 ├── device_reporting.py
 ├── energy_management.py
+├── inspection.py
+├── locations.py
+├── maintenance.py
 ├── reporting.py
 └── telemetry_ingestion.py
 ```
@@ -57,9 +63,15 @@ app/application/
 | 文件 | 当前职责 | 典型调用方 |
 |------|------|------|
 | `device_reporting.py` | 设备数据上报、历史查询、统计查询 use case | `api/endpoints/devices/data.py` |
+| `device_management.py` | 设备创建、更新、删除、启停等主档动作 use case | `api/endpoints/devices/management.py` |
+| `device_monitoring.py` | 设备监控 overview 聚合 use case，保持监控接口兼容字段 | `api/endpoints/devices/monitoring.py` |
 | `analysis.py` | 单设备分析 use case，负责访问前置与结果 DTO 装配 | `api/endpoints/analysis.py` |
+| `campus.py` | 园区驾驶舱、空间层级、能源分类、分项和告警摘要聚合 use case | `api/endpoints/campus.py` |
+| `locations.py` | 位置树、位置详情、设备归属和位置统计 use case | `api/endpoints/locations.py` |
+| `maintenance.py` | 维护记录、统计和状态动作 use case | `api/endpoints/maintenance.py` |
+| `inspection.py` | 巡检路线、计划、任务和统计动作 use case | `api/endpoints/inspection.py` |
 | `reporting.py` | 报表查询与 CSV 导出 payload 组装 | `api/endpoints/reports.py` |
-| `energy_management.py` | 通用能源统计、碳排放汇总等 use case | `api/endpoints/energy/*` |
+| `energy_management.py` | 通用能源统计、多能源 overview、碳排放汇总等 use case | `api/endpoints/energy/*` |
 | `telemetry_ingestion.py` | 遥测接入内部工作流：接收、落库、告警、健康状态更新、广播数据准备 | MQTT / 接入链路 |
 | `__init__.py` | 统一导出 application 对外 use case 入口 | 其他模块 import |
 
@@ -159,10 +171,11 @@ app/application/
 
 - `save_energy_data_use_case(...)`
 - `get_energy_statistics_use_case(...)`
+- `get_energy_overview_use_case(...)`
 - `get_carbon_summary_use_case(...)`
 - `list_carbon_emissions_use_case(...)`
 
-目前这一层仍偏轻量，但已经提供了稳定入口，适合继续承接：
+这一层当前已经承接 `/energy/overview` 的多 service 编排和兼容分析字段归一，endpoint 只保留 HTTP 参数、权限入口和状态码转换。后续仍适合继续承接：
 
 - 能源统计口径统一
 - 园区 / 区域 / 楼栋聚合前的中间编排
@@ -170,7 +183,65 @@ app/application/
 
 ---
 
-### 3.5 `telemetry_ingestion.py`
+### 3.5 `device_management.py`
+
+面向“设备主档动作”的 use case 集合，当前承接：
+
+- 智能创建设备
+- 旧入口兼容创建设备
+- 更新设备 profile
+- 删除设备
+- 启停设备
+
+这一层负责把访问校验、审计、设备类型归一和设备专属 profile 写入流程从 endpoint 中收口。`/devices/legacy` 仍是兼容入口，不作为新增主流程扩张。
+
+---
+
+### 3.6 `device_monitoring.py`
+
+面向“设备监控 overview 页面主流程”的 use case，当前核心入口为：
+
+- `get_device_monitor_overview_use_case(...)`
+
+该 use case 负责聚合设备档案、实时值、运行状态、接入健康、最近告警、控制日志、专属 monitor payload 和统一模板诊断字段。`DeviceMonitorService.get_monitor_overview(...)` 作为兼容 wrapper 保留，新的 HTTP overview 主路径优先调用 application use case。
+
+---
+
+### 3.7 `campus.py`
+
+面向“园区 EMS 驾驶舱与园区空间”的聚合 use case，当前承接：
+
+- 园区 overview
+- 区域 / 楼栋能耗统计
+- 能源分类占比
+- 分项统计
+- 实时负荷趋势
+- 告警摘要
+
+这一层统一处理时间窗口、用户可见设备范围和 `CampusService` 聚合调用。
+
+---
+
+### 3.8 `locations.py`
+
+面向“园区 / 区域 / 楼栋位置树”的 use case，当前承接位置列表、树、搜索、详情、创建、更新、删除、子位置、位置设备归属和统计。
+
+位置权限过滤应优先在这一层收口，endpoint 不直接做位置树裁剪。
+
+---
+
+### 3.9 `maintenance.py` 与 `inspection.py`
+
+面向运维闭环的 use case：
+
+- `maintenance.py`：维护记录创建、状态流转、统计汇总。
+- `inspection.py`：巡检路线、计划、任务、执行记录和统计动作。
+
+这两条主线已经从 endpoint 中收口主要业务动作；后续新增维护 / 巡检动作时优先延续当前 use case 文件，不把主流程堆回 router。
+
+---
+
+### 3.10 `telemetry_ingestion.py`
 
 面向“系统内部遥测接入链路”的工作流 use case，当前核心入口：
 
@@ -224,6 +295,20 @@ POST /devices/{device_id}/data
   -> app/api/endpoints/devices/data.py
   -> report_device_data_use_case(...)
   -> DeviceService / EnergyService
+```
+
+```text
+GET /energy/overview
+  -> app/api/endpoints/energy/data.py
+  -> get_energy_overview_use_case(...)
+  -> EnergyService / analysis overview use case
+```
+
+```text
+GET /devices/{device_id}/monitor/overview
+  -> app/api/endpoints/devices/monitoring.py
+  -> get_device_monitor_overview_use_case(...)
+  -> DeviceMonitorService / MonitorTemplateService / monitor plugin registry
 ```
 
 ### 系统内部主路径
@@ -359,13 +444,14 @@ MQTT 消息
 
 ## 8. 当前已知边界现状
 
-截至当前仓库状态，`devices/data`、`analysis`、`reports` 三条主路径已经完成第一批收敛，但 `application` 层整体仍不是“全项目已完成态”。
+截至当前仓库状态，`devices/data`、`devices/management`、`devices/monitoring` overview、`analysis`、`reports`、`energy/overview`、`campus`、`locations`、`maintenance`、`inspection` 等主路径已经完成第一批 application 收敛，但 `application` 层整体仍不是“全项目已完成态”。
 
 仍需注意：
 
-- `energy_management.py` 整体还偏轻量，后续如出现更复杂园区聚合流程，可继续增强
+- `energy_management.py` 已承接 overview 编排；后续若出现更复杂的分层计量 / 分项分析流程，应继续增强 use case，而不是回堆 endpoint
+- `DeviceMonitorService.get_monitor_overview(...)` 当前作为兼容 wrapper 保留；新增监控 overview 主流程优先进入 `device_monitoring.py`
 - `telemetry_ingestion.py` 属于内部主流程，后续如果接入链路继续扩展，应继续保持它作为统一工作流入口
-- `three` 等前端主线页面如果需要稳定聚合口径，后端应优先新增稳定 use case / 聚合接口，而不是把逻辑继续堆回 endpoint
+- 前端主线页面如果需要稳定聚合口径，后端应优先新增稳定 use case / 聚合接口，而不是把逻辑继续堆回 endpoint
 
 ---
 
@@ -388,6 +474,6 @@ MQTT 消息
 - [app/README.md](/Users/todo/CampusEnergySystem/app/README.md)
 - [app/application/__init__.py](/Users/todo/CampusEnergySystem/app/application/__init__.py)
 - [docs/guides/backend-guidelines.md](/Users/todo/CampusEnergySystem/docs/guides/backend-guidelines.md)
-- [docs/plans/PLAN-20260327-application-layer-convergence.md](/Users/todo/CampusEnergySystem/docs/plans/PLAN-20260327-application-layer-convergence.md)
+- [docs/plans/PLAN-20260407-application-usecase-layering-convergence.md](/Users/todo/CampusEnergySystem/docs/plans/PLAN-20260407-application-usecase-layering-convergence.md)
 - [docs/plans/current-status.md](/Users/todo/CampusEnergySystem/docs/plans/current-status.md)
 - [docs/plans/handoff.md](/Users/todo/CampusEnergySystem/docs/plans/handoff.md)
