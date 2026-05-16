@@ -453,6 +453,25 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
         self.assertIs(result, expected)
         mock_use_case.assert_called_once_with(session=session, current_user=current_user)
 
+    @patch("app.api.endpoints.devices.ingestion_health.replay_mqtt_ingestion_record_use_case")
+    def test_ingestion_replay_endpoint_delegates_to_application(self, mock_use_case):
+        session = object()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        mock_use_case.return_value = {"record_id": 5, "replayed": True}
+
+        result = ingestion_health.replay_mqtt_ingestion_record(
+            record_id=5,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result["data"], {"record_id": 5, "replayed": True})
+        mock_use_case.assert_called_once_with(
+            session=session,
+            record_id=5,
+            operator_username="admin",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
