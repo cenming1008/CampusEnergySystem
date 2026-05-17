@@ -65,7 +65,7 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
 
 .side-panel__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 12px;
