@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
 import type { CompensationProfileItem } from './types'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 
 defineProps({
   summaryItems: {
@@ -20,6 +22,8 @@ defineProps({
 const emit = defineEmits<{
   (event: 'open-console'): void
 }>()
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:control-summary', false)
 </script>
 
 <template>
@@ -38,47 +42,56 @@ const emit = defineEmits<{
         >
           打开控制台 →
         </el-button>
+        <PanelCollapseToggle
+          :collapsed="collapsed"
+          @toggle="toggle"
+        />
       </div>
     </div>
 
     <div
-      v-if="hasSummaryData"
-      class="profile-list"
+      v-show="!collapsed"
+      class="control-summary-body"
     >
       <div
-        v-for="item in summaryItems"
-        :key="item.label"
-        class="profile-row"
+        v-if="hasSummaryData"
+        class="profile-list"
       >
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
+        <div
+          v-for="item in summaryItems"
+          :key="item.label"
+          class="profile-row"
+        >
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
       </div>
-    </div>
 
-    <div
-      v-if="capacityExpansionItems.length"
-      class="capacity-expansion-list"
-    >
-      <div class="capacity-expansion-list__head">
-        <strong>容量展开</strong>
-        <span>按 JKWF 容量编码与阶梯容量推导每一路配置</span>
-      </div>
       <div
-        v-for="item in capacityExpansionItems"
-        :key="item.label"
-        class="capacity-expansion-row"
+        v-if="capacityExpansionItems.length"
+        class="capacity-expansion-list"
       >
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
+        <div class="capacity-expansion-list__head">
+          <strong>容量展开</strong>
+          <span>按 JKWF 容量编码与阶梯容量推导每一路配置</span>
+        </div>
+        <div
+          v-for="item in capacityExpansionItems"
+          :key="item.label"
+          class="capacity-expansion-row"
+        >
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
       </div>
-    </div>
 
-    <div
-      v-else
-      class="control-summary-empty"
-    >
-      <strong>暂无参数</strong>
-      <span>当前设备还没有可回读的 JKWF 参数快照。</span>
+      <div
+        v-else
+        class="control-summary-empty"
+      >
+        <strong>暂无参数</strong>
+        <span>当前设备还没有可回读的 JKWF 参数快照。</span>
+      </div>
     </div>
   </section>
 </template>
@@ -233,5 +246,11 @@ const emit = defineEmits<{
   color: #f5f7fb;
   font-size: var(--font-caption);
   line-height: 1.5;
+}
+
+.control-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 </style>

@@ -6,6 +6,8 @@ import type {
 } from '@/api/compensation'
 import CompensationThreePhasePanel from './CompensationThreePhasePanel.vue'
 import CompensationCircuitStatePanel from './CompensationCircuitStatePanel.vue'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 
 export type CompensationDetailTab = 'three-phase' | 'circuit'
 
@@ -62,17 +64,26 @@ const segmentedOptions = computed(() => {
 const resolvedTab = computed<CompensationDetailTab>(() =>
   showCircuitTab.value ? props.activeTab : 'three-phase',
 )
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:detail', false)
 </script>
 
 <template>
   <section class="detail-panel">
     <header class="detail-panel__head">
       <div class="detail-panel__intro">
-        <h3>实时详查</h3>
+        <div class="panel-title-row">
+          <h3>实时详查</h3>
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
+        </div>
         <span>三相电气量与回路投切状态</span>
       </div>
       <div
         v-if="showCircuitTab"
+        v-show="!collapsed"
         class="detail-panel__tab-switcher"
       >
         <el-segmented
@@ -84,7 +95,10 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
       </div>
     </header>
 
-    <div class="detail-panel__body">
+    <div
+      v-show="!collapsed"
+      class="detail-panel__body"
+    >
       <CompensationThreePhasePanel
         v-show="resolvedTab === 'three-phase'"
         :svg-telemetry="svgTelemetry"
@@ -196,5 +210,12 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
 
 .detail-panel__body :deep(.circuit-panel__head > h3) {
   display: none;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 </style>

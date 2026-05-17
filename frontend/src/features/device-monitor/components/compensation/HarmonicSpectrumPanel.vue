@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 import type {
   CompensationCapacitorBankControlProfile,
   CompensationCapacitorBankTelemetry,
@@ -22,6 +24,12 @@ const props = defineProps<{
 const chart = useECharts()
 const activeKind = ref<HarmonicSpectrumKind>('voltage')
 const activePhase = ref<HarmonicSpectrumPhase>('a')
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:harmonic', true)
+
+watch(collapsed, (isCollapsed) => {
+  if (!isCollapsed) nextTick(() => chart.resize())
+})
 
 const kindOptions = [
   { label: '电压谐波', value: 'voltage' },
@@ -129,10 +137,19 @@ watch(() => chart.chartRef.value, async () => {
   <section class="spectrum-panel">
     <div class="spectrum-panel__head">
       <div>
-        <h3>高次谐波频谱</h3>
+        <div class="panel-title-row">
+          <h3>高次谐波频谱</h3>
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
+        </div>
         <span>展示最新采样的 2~31 次谐波分布。</span>
       </div>
-      <div class="spectrum-panel__controls">
+      <div
+        v-show="!collapsed"
+        class="spectrum-panel__controls"
+      >
         <el-segmented
           :model-value="activeKind"
           :options="kindOptions"
@@ -148,7 +165,10 @@ watch(() => chart.chartRef.value, async () => {
       </div>
     </div>
 
-    <div class="spectrum-panel__summary">
+    <div
+      v-show="!collapsed"
+      class="spectrum-panel__summary"
+    >
       <span>{{ model.summary.phaseLabel }} {{ model.summary.kindLabel }}</span>
       <span>最高 {{ model.summary.peakOrder ? `${model.summary.peakOrder}次` : '暂无数据' }}</span>
       <span>{{ formatNumber(model.summary.peakValue) }} {{ model.unit }}</span>
@@ -162,7 +182,10 @@ watch(() => chart.chartRef.value, async () => {
       </el-tag>
     </div>
 
-    <div class="spectrum-panel__chart-wrap">
+    <div
+      v-show="!collapsed"
+      class="spectrum-panel__chart-wrap"
+    >
       <div
         :ref="chart.chartRef"
         class="spectrum-panel__chart"
@@ -271,5 +294,12 @@ watch(() => chart.chartRef.value, async () => {
   .spectrum-panel__controls {
     justify-content: flex-start;
   }
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 </style>

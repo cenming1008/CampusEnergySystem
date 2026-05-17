@@ -2,6 +2,8 @@
 import type { PropType } from 'vue'
 import { Edit } from '@element-plus/icons-vue'
 import type { CompensationProfileItem } from './types'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 
 defineProps({
   items: {
@@ -15,25 +17,34 @@ defineProps({
 })
 
 const emit = defineEmits<{ (e: 'edit'): void }>()
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:device-profile', true)
 </script>
 
 <template>
   <section class="side-panel side-panel--muted">
     <div class="side-panel__head">
-      <div>
-        <h3>设备档案</h3>
+      <h3>设备档案</h3>
+      <div class="side-panel__head-actions">
+        <button
+          v-if="editable"
+          class="edit-btn"
+          @click="emit('edit')"
+        >
+          <el-icon><Edit /></el-icon>
+          编辑
+        </button>
+        <PanelCollapseToggle
+          :collapsed="collapsed"
+          @toggle="toggle"
+        />
       </div>
-      <button
-        v-if="editable"
-        class="edit-btn"
-        @click="emit('edit')"
-      >
-        <el-icon><Edit /></el-icon>
-        编辑
-      </button>
     </div>
 
-    <div class="profile-list">
+    <div
+      v-show="!collapsed"
+      class="profile-list"
+    >
       <div
         v-for="item in items"
         :key="item.label"
@@ -60,7 +71,7 @@ const emit = defineEmits<{ (e: 'edit'): void }>()
 
 .side-panel__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 12px;
@@ -130,5 +141,12 @@ const emit = defineEmits<{ (e: 'edit'): void }>()
   max-width: 60%;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.side-panel__head-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

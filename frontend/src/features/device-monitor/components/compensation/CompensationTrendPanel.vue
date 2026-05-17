@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 import type { PropType } from 'vue'
 import type {
   CompensationTrendModel,
@@ -42,6 +44,12 @@ const emit = defineEmits<{
 }>()
 
 const chart = useECharts()
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:trend', false)
+
+watch(collapsed, (isCollapsed) => {
+  if (!isCollapsed) nextTick(() => chart.resize())
+})
 
 const segmentedOptions = computed(() =>
   props.tabs.map((tab) => ({ label: tab.label, value: tab.value })),
@@ -170,10 +178,19 @@ watch(() => chart.chartRef.value, async () => {
   <section class="trend-panel">
     <div class="trend-panel__head">
       <div class="trend-panel__intro">
-        <h3>历史趋势</h3>
+        <div class="panel-title-row">
+          <h3>历史趋势</h3>
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
+        </div>
         <span v-if="model.hint">{{ model.hint }}</span>
       </div>
-      <div class="trend-panel__toolbar">
+      <div
+        v-show="!collapsed"
+        class="trend-panel__toolbar"
+      >
         <div class="trend-panel__tab-wrapper">
           <div class="trend-panel__tab-switcher">
             <el-segmented
@@ -200,7 +217,10 @@ watch(() => chart.chartRef.value, async () => {
       </div>
     </div>
 
-    <div class="trend-panel__summary">
+    <div
+      v-show="!collapsed"
+      class="trend-panel__summary"
+    >
       <span
         v-for="item in model.summary"
         :key="item.label"
@@ -219,6 +239,7 @@ watch(() => chart.chartRef.value, async () => {
 
     <div
       v-if="model.legend.length"
+      v-show="!collapsed"
       class="trend-panel__legend"
     >
       <span
@@ -232,6 +253,7 @@ watch(() => chart.chartRef.value, async () => {
     </div>
 
     <div
+      v-show="!collapsed"
       :ref="chart.chartRef"
       v-loading="loading"
       class="trend-panel__chart"
@@ -421,5 +443,12 @@ watch(() => chart.chartRef.value, async () => {
   .trend-panel__chart--empty {
     height: 220px;
   }
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 </style>

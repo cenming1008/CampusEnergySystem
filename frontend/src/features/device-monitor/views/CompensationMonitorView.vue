@@ -9,7 +9,7 @@ import CompensationRealtimeOverview from '@/features/device-monitor/components/c
 import CompensationStatusSummary from '@/features/device-monitor/components/compensation/CompensationStatusSummary.vue'
 import CompensationSvgProfileEditDialog from '@/features/device-monitor/components/compensation/CompensationSvgProfileEditDialog.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
-import DeviceTemplateDiagnosticsPanel from '@/features/device-monitor/components/common/DeviceTemplateDiagnosticsPanel.vue'
+import CompensationDiagnosticsCollapsible from '@/features/device-monitor/components/compensation/CompensationDiagnosticsCollapsible.vue'
 import HarmonicSpectrumPanel from '@/features/device-monitor/components/compensation/HarmonicSpectrumPanel.vue'
 import MonitorViewShell from './MonitorViewShell.vue'
 import type { DeviceMonitorPageModel } from '@/features/device-monitor/composables/useDeviceMonitorPage'
@@ -45,6 +45,15 @@ defineProps<{
         :extended-hint="page.compensationExtendedHint"
       />
 
+      <CompensationDetailPanel
+        v-if="page.isSvgDevice || page.compensationSubtype === 'capacitor_bank_controller'"
+        v-model:active-tab="page.compensationDetailTab"
+        :svg-telemetry="page.compensationSvgTelemetry"
+        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
+        :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
+        :circuit-profile="page.compensationCircuitProfile"
+      />
+
       <CompensationTrendPanel
         v-model:active-tab="page.compensationTrendTab"
         v-model:time-range="page.timeRange"
@@ -61,15 +70,6 @@ defineProps<{
         :control-profile="page.compensationCapacitorBankControlProfile"
       />
 
-      <CompensationDetailPanel
-        v-if="page.isSvgDevice || page.compensationSubtype === 'capacitor_bank_controller'"
-        v-model:active-tab="page.compensationDetailTab"
-        :svg-telemetry="page.compensationSvgTelemetry"
-        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-        :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
-        :circuit-profile="page.compensationCircuitProfile"
-      />
-
       <CompensationAlarmTable
         :rows="page.alarms"
         :action-id="page.alarmActionId"
@@ -78,12 +78,8 @@ defineProps<{
     </template>
 
     <template #side>
-      <DeviceTemplateDiagnosticsPanel
-        v-if="page.templateDiagnostics"
-        :diagnostics="page.templateDiagnostics"
-      />
-      <CompensationStatusSummary :items="page.compensationStatusItems" />
       <CompensationEventTimeline :events="page.compensationEvents" />
+      <CompensationStatusSummary :items="page.compensationStatusItems" />
       <CompensationControlSummaryPanel
         v-if="page.compensationSubtype === 'capacitor_bank_controller'"
         :summary-items="page.capacitorBankControlSummaryView.summaryItems"
@@ -95,6 +91,10 @@ defineProps<{
         :items="page.compensationProfileItems"
         :editable="page.isSvgDevice && page.canControlDevices"
         @edit="page.svgProfileEditVisible = true"
+      />
+      <CompensationDiagnosticsCollapsible
+        v-if="page.templateDiagnostics"
+        :diagnostics="page.templateDiagnostics"
       />
     </template>
   </MonitorViewShell>

@@ -104,7 +104,8 @@ describe('CompensationTrendPanel', () => {
     await Promise.resolve()
 
     const option = setOptionsMock.mock.calls.at(-1)?.[0]
-    expect(option?.title?.text).toBe('')
+    expect(option?.title?.text ?? '').toBe('')
+    expect(option?.series).toEqual([])
     expect(wrapper.text()).not.toContain('当前时间范围内暂无可绘制数据')
     expect(wrapper.text()).toContain('当前 Q -')
   })

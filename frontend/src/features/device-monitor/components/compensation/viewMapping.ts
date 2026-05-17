@@ -135,6 +135,8 @@ export interface CompensationOverviewMetricsInput {
   cabinetTemperatureHealthText?: string | null
   cabinetTemperatureHealthHint?: string | null
   cabinetTemperatureHealthTone?: CompensationTone
+  gridFrequencyValue: string
+  gridFrequencyMissing: boolean
 }
 
 export interface CompensationModuleStatusInput {
@@ -834,6 +836,14 @@ export function buildCompensationOverviewMetrics(input: CompensationOverviewMetr
         hint: input.capacityUsageSource,
         tone: input.capacityUsageValue >= 90 ? 'warning' : 'success',
         state: input.capacityUsageState,
+      },
+      {
+        key: 'gridFrequency',
+        label: '电网频率',
+        value: input.gridFrequencyValue,
+        unit: 'Hz',
+        hint: input.gridFrequencyMissing ? '电网频率未采集' : '当前电网频率测量值',
+        state: input.gridFrequencyMissing ? 'missing' : 'live',
       },
       {
         key: 'controlMode',
