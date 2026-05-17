@@ -120,9 +120,9 @@ class TestCapacitorBankExtraction(unittest.TestCase):
 
     def test_running_count_and_control_mode_fields_extracted(self):
         result = extract_capacitor_bank_telemetry(self.data)
-        self.assertEqual(result["running_circuit_count"], 12)
-        self.assertEqual(result["split_circuit_running_count"], 6)
-        self.assertEqual(result["common_group_2_running_count"], 2)
+        self.assertEqual(result["running_circuit_count"], 8)
+        self.assertEqual(result["split_circuit_running_count"], 8)
+        self.assertEqual(result["common_group_2_running_count"], 0)
         self.assertEqual(result["control_mode"], "manual")
 
     def test_apparent_power_extracted_via_alias(self):
@@ -192,6 +192,25 @@ class TestCapacitorBankExtraction(unittest.TestCase):
         self.assertEqual(result["circuit_state_phase_b"], 0x05)
         self.assertEqual(result["circuit_state_phase_c"], 0x03)
         self.assertEqual(result["circuit_state_common_1"], 0x00)
+
+    def test_circuit_state_registers_override_gateway_phase_counts(self):
+        """现场回读以投切寄存器为准，避免网关派生统计与寄存器不一致。"""
+        result = extract_capacitor_bank_telemetry(
+            apply_field_aliases({
+                "circuit_state_1": 0x0C02,
+                "circuit_state_2": 0,
+                "circuit_state_3": 0,
+                "phase_a_circuit_running_count": 1,
+                "phase_b_circuit_running_count": 2,
+                "running_circuit_count": 3,
+            })
+        )
+
+        self.assertEqual(result["circuit_state_phase_a"], 0x0C)
+        self.assertEqual(result["circuit_state_phase_b"], 0x02)
+        self.assertEqual(result["phase_a_circuit_running_count"], 2)
+        self.assertEqual(result["phase_b_circuit_running_count"], 1)
+        self.assertEqual(result["running_circuit_count"], 3)
 
     def test_no_jkwf_fields_returns_none(self):
         minimal = {"voltage": 220.0, "consumption": 0.0}

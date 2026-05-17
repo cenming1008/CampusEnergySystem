@@ -53,6 +53,118 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
         session.add.assert_not_called()
         mock_publish.assert_not_called()
 
+    @patch("app.services.devices.compensation.capacitor_bank.control_command_service.publish_control_payload_async")
+    def test_submit_remote_control_command_rejects_pending_remote_command(self, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
+        pending_log = DeviceControlLog(
+            id=71,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="running",
+            reason="控制台手动投切 A 相 投入",
+        )
+        session.exec.return_value.first.side_effect = [device, pending_log]
+        session.add = MagicMock()
+
+        with self.assertRaises(ValueError) as ctx:
+            CapacitorBankControlCommandService.submit_remote_control_command(
+                session,
+                device,
+                action="manual_switch",
+                operator="operator",
+                reason="协议联调",
+                command_args={"manual_mode": "manual", "phase": "B", "switch_action": "on"},
+            )
+
+        self.assertIn("已有待完成的远程控制", str(ctx.exception))
+        session.add.assert_not_called()
+        mock_publish.assert_not_called()
+
+    def test_reconcile_failed_manual_switch_with_telemetry_marks_success_when_target_count_changes(self):
+        session = MagicMock()
+        failed_log = DeviceControlLog(
+            id=91,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="failed",
+            reason="控制台手动投切 A 相 投入 | 设备回执失败: timed out waiting for write/manual response",
+            created_at=datetime(2026, 5, 17, 14, 30, 26),
+        )
+        before = SimpleNamespace(phase_a_circuit_running_count=0)
+        after = SimpleNamespace(
+            timestamp=datetime(2026, 5, 17, 14, 30, 45),
+            phase_a_circuit_running_count=1,
+            phase_b_circuit_running_count=0,
+            phase_c_circuit_running_count=0,
+            common_circuit_running_count=0,
+        )
+        session.exec.return_value.all.return_value = [failed_log]
+        session.exec.return_value.first.return_value = before
+        session.add = MagicMock()
+        session.flush = MagicMock()
+        notifier = MagicMock()
+
+        reconciled = CapacitorBankControlCommandService.reconcile_failed_manual_switch_with_telemetry(
+            session,
+            device_id=16,
+            telemetry=after,
+            control_event_notifier=notifier,
+        )
+
+        self.assertEqual(reconciled, [failed_log])
+        self.assertEqual(failed_log.result, "success")
+        self.assertIn("遥测复核成功", failed_log.reason)
+        session.add.assert_called_once_with(failed_log)
+        session.flush.assert_called_once()
+        notifier.assert_called_once()
+
+    def test_reconcile_failed_manual_switch_ignores_unchanged_target_count(self):
+        session = MagicMock()
+        failed_log = DeviceControlLog(
+            id=92,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="failed",
+            reason="控制台手动投切 B 相 投入 | 设备回执失败: timed out waiting for write/manual response",
+            created_at=datetime(2026, 5, 17, 14, 30, 43),
+        )
+        before = SimpleNamespace(phase_b_circuit_running_count=1)
+        after = SimpleNamespace(
+            timestamp=datetime(2026, 5, 17, 14, 30, 50),
+            phase_a_circuit_running_count=1,
+            phase_b_circuit_running_count=1,
+            phase_c_circuit_running_count=0,
+            common_circuit_running_count=0,
+        )
+        session.exec.return_value.all.return_value = [failed_log]
+        session.exec.return_value.first.return_value = before
+        session.add = MagicMock()
+        session.flush = MagicMock()
+
+        reconciled = CapacitorBankControlCommandService.reconcile_failed_manual_switch_with_telemetry(
+            session,
+            device_id=16,
+            telemetry=after,
+        )
+
+        self.assertEqual(reconciled, [])
+        self.assertEqual(failed_log.result, "failed")
+        session.add.assert_not_called()
+        session.flush.assert_not_called()
+
     def test_receipt_status_and_timeout_live_in_command_layer(self):
         session = MagicMock()
         expired_log = DeviceControlLog(

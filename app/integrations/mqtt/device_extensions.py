@@ -86,6 +86,16 @@ def _persist_capacitor_bank_extension(
             timestamp,
             profile_data=cap_profile_fields,
         )
+        from app.services.devices.compensation.capacitor_bank.control_command_service import (
+            CapacitorBankControlCommandService,
+        )
+
+        CapacitorBankControlCommandService.reconcile_failed_manual_switch_with_telemetry(
+            session,
+            device_id=device_id,
+            telemetry=cap_telemetry,
+            control_event_notifier=CapacitorBankControlCommandService.publish_control_log_update_event,
+        )
 
     if cap_profile_fields:
         from app.services.devices.compensation.capacitor_bank.control_profile_service import (

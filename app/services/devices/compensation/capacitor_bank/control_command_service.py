@@ -113,6 +113,26 @@ class CapacitorBankControlCommandService:
         return CapacitorBankControlCommandService.normalize_control_result(result) in TERMINAL_CONTROL_RESULTS
 
     @staticmethod
+    def _lock_device_row(session: Session, device_id: int) -> Optional[Device]:
+        stmt = select(Device).where(Device.id == device_id)
+        if hasattr(stmt, "with_for_update"):
+            stmt = stmt.with_for_update()
+        return session.exec(stmt).first()
+
+    @staticmethod
+    def _get_pending_remote_control_log(session: Session, device_id: int) -> Optional[DeviceControlLog]:
+        stmt = (
+            select(DeviceControlLog)
+            .where(DeviceControlLog.device_id == device_id)
+            .where(DeviceControlLog.result.in_(tuple(PENDING_CONTROL_RESULTS)))
+            .where(DeviceControlLog.command_source == "remote-control-api")
+            .order_by(DeviceControlLog.created_at.desc())
+            .limit(1)
+        )
+        pending_log = session.exec(stmt).first()
+        return pending_log if isinstance(pending_log, DeviceControlLog) else None
+
+    @staticmethod
     def get_result_label(result: Optional[str]) -> str:
         return CapacitorBankControlCommandService.CONTROL_RESULT_LABELS.get(
             CapacitorBankControlCommandService.normalize_control_result(result),
@@ -265,6 +285,132 @@ class CapacitorBankControlCommandService:
         return expired_logs
 
     @staticmethod
+    def _manual_switch_target(reason: Optional[str]) -> Optional[tuple[str, str]]:
+        text = reason or ""
+        if "手动投切" not in text:
+            return None
+        if "A 相" in text or "A相" in text:
+            phase = "A"
+        elif "B 相" in text or "B相" in text:
+            phase = "B"
+        elif "C 相" in text or "C相" in text:
+            phase = "C"
+        elif "共补" in text or "COMMON" in text.upper():
+            phase = "COMMON"
+        else:
+            return None
+
+        if "投入" in text:
+            action = "on"
+        elif "切除" in text:
+            action = "off"
+        else:
+            return None
+        return phase, action
+
+    @staticmethod
+    def _manual_switch_count_field(phase: str) -> str:
+        return {
+            "A": "phase_a_circuit_running_count",
+            "B": "phase_b_circuit_running_count",
+            "C": "phase_c_circuit_running_count",
+            "COMMON": "common_circuit_running_count",
+        }[phase]
+
+    @staticmethod
+    def _numeric_count(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _latest_telemetry_before(session: Session, device_id: int, created_at: datetime):
+        from app.models.compensation import CapacitorBankTelemetry
+
+        stmt = (
+            select(CapacitorBankTelemetry)
+            .where(CapacitorBankTelemetry.device_id == device_id)
+            .where(CapacitorBankTelemetry.timestamp < created_at)
+            .order_by(CapacitorBankTelemetry.timestamp.desc())
+            .limit(1)
+        )
+        return session.exec(stmt).first()
+
+    @staticmethod
+    def reconcile_failed_manual_switch_with_telemetry(
+        session: Session,
+        *,
+        device_id: int,
+        telemetry: Any,
+        control_event_notifier: Optional[ControlEventNotifier] = None,
+    ) -> list[DeviceControlLog]:
+        """Use fresh circuit telemetry to correct false-negative manual switch receipts."""
+        telemetry_time = getattr(telemetry, "timestamp", None)
+        if telemetry_time is None:
+            return []
+
+        cutoff = telemetry_time - get_control_receipt_timeout()
+        stmt = (
+            select(DeviceControlLog)
+            .where(DeviceControlLog.device_id == device_id)
+            .where(DeviceControlLog.action == "manual_switch")
+            .where(DeviceControlLog.command_source == "remote-control-api")
+            .where(DeviceControlLog.result.in_((CONTROL_RESULT_FAILED, CONTROL_RESULT_TIMEOUT)))
+            .where(DeviceControlLog.created_at >= cutoff)
+            .where(DeviceControlLog.created_at <= telemetry_time)
+            .order_by(DeviceControlLog.created_at.asc())
+        )
+        candidates = list(session.exec(stmt).all())
+        reconciled: list[DeviceControlLog] = []
+
+        for log in candidates:
+            target = CapacitorBankControlCommandService._manual_switch_target(log.reason)
+            if target is None:
+                continue
+            phase, switch_action = target
+            count_field = CapacitorBankControlCommandService._manual_switch_count_field(phase)
+            before = CapacitorBankControlCommandService._latest_telemetry_before(session, device_id, log.created_at)
+            before_count = CapacitorBankControlCommandService._numeric_count(getattr(before, count_field, None))
+            after_count = CapacitorBankControlCommandService._numeric_count(getattr(telemetry, count_field, None))
+            if before_count is None or after_count is None:
+                continue
+
+            changed_as_requested = (
+                (switch_action == "on" and after_count > before_count)
+                or (switch_action == "off" and after_count < before_count)
+            )
+            if not changed_as_requested:
+                continue
+
+            suffix = f"遥测复核成功: {phase} {switch_action} {before_count}->{after_count}"
+            log.result = CONTROL_RESULT_SUCCESS
+            if log.reason:
+                if suffix not in log.reason:
+                    log.reason = f"{log.reason} | {suffix}"
+            else:
+                log.reason = suffix
+            session.add(log)
+            reconciled.append(log)
+            logger.info(
+                "manual switch false-negative receipt reconciled: device_id=%s command_id=%s phase=%s action=%s before=%s after=%s",
+                device_id,
+                log.id,
+                phase,
+                switch_action,
+                before_count,
+                after_count,
+            )
+
+        if reconciled:
+            session.flush()
+            for log in reconciled:
+                CapacitorBankControlCommandService._notify_control_log_update(log, control_event_notifier)
+        return reconciled
+
+    @staticmethod
     def submit_remote_control_command(
         session: Session,
         device: Device,
@@ -288,6 +434,19 @@ class CapacitorBankControlCommandService:
             normalized_command_args = CapacitorBankControlCommandService.build_manual_switch_command_args(command_args)
         elif action == "switch_control_mode":
             normalized_command_args = CapacitorBankControlCommandService.build_control_mode_switch_command_args(normalized_reason or log_reason)
+
+        CapacitorBankControlCommandService._lock_device_row(session, device.id)
+        CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device.id)
+        pending_log = CapacitorBankControlCommandService._get_pending_remote_control_log(session, device.id)
+        if pending_log is not None:
+            logger.warning(
+                "capacitor bank remote control rejected due to pending command: device_id=%s command_id=%s action=%s source=%s",
+                device.id,
+                pending_log.id,
+                pending_log.action,
+                "remote-control-api",
+            )
+            raise ValueError("当前设备已有待完成的远程控制，请等待设备回执或超时收口后再试。")
 
         control_log = DeviceControlLog(
             device_id=device.id,

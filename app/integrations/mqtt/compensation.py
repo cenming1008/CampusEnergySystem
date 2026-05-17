@@ -353,8 +353,36 @@ def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str,
     """从 payload 提取 CapacitorBankTelemetry 字段，并应用 JKWF-LCD 协议解码。"""
     from app.integrations.jkwf_lcd.decoder import decode_jkwf_payload
 
+    def active_bit_count(value: Any) -> int:
+        return bin(int(value or 0) & 0xFF).count("1")
+
     decoded = decode_jkwf_payload(data)
     merged = {**data, **{key: value for key, value in decoded.items() if key not in data}}
+    if decoded.get("circuit_state_phase_a") is not None:
+        merged["phase_a_circuit_running_count"] = active_bit_count(decoded["circuit_state_phase_a"])
+    if decoded.get("circuit_state_phase_b") is not None:
+        merged["phase_b_circuit_running_count"] = active_bit_count(decoded["circuit_state_phase_b"])
+    if decoded.get("circuit_state_phase_c") is not None:
+        merged["phase_c_circuit_running_count"] = active_bit_count(decoded["circuit_state_phase_c"])
+    common_masks = [
+        decoded.get("circuit_state_common_1"),
+        decoded.get("circuit_state_common_2"),
+        decoded.get("circuit_state_common_3"),
+    ]
+    if any(value is not None for value in common_masks):
+        common_counts = [active_bit_count(value) for value in common_masks]
+        merged["common_group_1_running_count"] = common_counts[0]
+        merged["common_group_2_running_count"] = common_counts[1]
+        merged["common_group_3_running_count"] = common_counts[2]
+        merged["common_circuit_running_count"] = sum(common_counts)
+    split_counts = [
+        merged.get("phase_a_circuit_running_count"),
+        merged.get("phase_b_circuit_running_count"),
+        merged.get("phase_c_circuit_running_count"),
+    ]
+    if any(value is not None for value in split_counts):
+        merged["split_circuit_running_count"] = sum(int(value or 0) for value in split_counts)
+        merged["running_circuit_count"] = int(merged["split_circuit_running_count"]) + int(merged.get("common_circuit_running_count") or 0)
     for kind in ("voltage", "current"):
         for phase in ("a", "b", "c"):
             field = f"{kind}_harmonics_{phase}"
