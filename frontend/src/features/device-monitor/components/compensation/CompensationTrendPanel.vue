@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
 import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
 import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
@@ -46,6 +46,10 @@ const emit = defineEmits<{
 const chart = useECharts()
 
 const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:trend', false)
+
+watch(collapsed, (isCollapsed) => {
+  if (!isCollapsed) nextTick(() => chart.resize())
+})
 
 const segmentedOptions = computed(() =>
   props.tabs.map((tab) => ({ label: tab.label, value: tab.value })),
