@@ -86,22 +86,28 @@ def replay_mqtt_ingestion_record_use_case(
         raise ValidationException("原始 payload 已损坏，无法重放")
 
     message = process_payload_dict(payload, topic=record.topic, raw_payload=record.raw_payload)
+
+    # mark_replayed 会原地自增 replay_count/retry_count，先快照重放前的状态用于审计与返回。
+    status_before = record.status
+    replay_count_before = record.replay_count
+    retry_count_before = record.retry_count
+
     MqttReliabilityService.mark_replayed(session, record)
     session.commit()
     audit_log(
         "mqtt.replay_record",
         operator_username,
         f"mqtt_ingestion_record:{record_id}",
-        status_before=record.status,
+        status_before=status_before,
         device_id=record.device_id,
-        replay_count=record.replay_count,
-        retry_count=record.retry_count,
+        replay_count=replay_count_before,
+        retry_count=retry_count_before,
     )
     return {
         "record_id": record_id,
         "replayed": True,
-        "status_before": record.status,
-        "replay_count": record.replay_count,
-        "retry_count": record.retry_count,
+        "status_before": status_before,
+        "replay_count": replay_count_before,
+        "retry_count": retry_count_before,
         "broadcast": message.to_dict() if message else None,
     }
