@@ -88,6 +88,7 @@ const isWaitingForTelemetry = computed(() => {
   return telemetryMetrics.length > 0 && telemetryMetrics.every((item) => item.state !== 'live')
 })
 
+// capacityUsage 由上方 Hero 进度条单独消费，指标条不再重复展示
 const stripMetrics = computed(() =>
   props.metrics.filter((item) => item.key !== 'capacityUsage'),
 )
