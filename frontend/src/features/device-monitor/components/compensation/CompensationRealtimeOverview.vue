@@ -87,6 +87,10 @@ const isWaitingForTelemetry = computed(() => {
   ]
   return telemetryMetrics.length > 0 && telemetryMetrics.every((item) => item.state !== 'live')
 })
+
+const stripMetrics = computed(() =>
+  props.metrics.filter((item) => item.key !== 'capacityUsage'),
+)
 </script>
 
 <template>
@@ -183,7 +187,7 @@ const isWaitingForTelemetry = computed(() => {
     <!-- BOTTOM STRIP: 6 指标 -->
     <div class="bento-strip">
       <div
-        v-for="item in metrics"
+        v-for="item in stripMetrics"
         :key="item.key"
         class="strip-cell"
         :class="{ 'strip-cell--waiting': isUnavailableState(item.state) }"

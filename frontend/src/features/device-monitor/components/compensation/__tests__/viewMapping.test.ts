@@ -246,12 +246,17 @@ describe('compensation view mapping', () => {
       cabinetTemperatureHealthText: '温度告警',
       cabinetTemperatureHealthHint: '实时温度告警位',
       cabinetTemperatureHealthTone: 'danger',
+      gridFrequencyValue: '50.02',
+      gridFrequencyMissing: false,
     })
 
     expect(overview.metrics.find((item) => item.key === 'capacityUsage')?.value).toBe('25.0')
     expect(overview.metrics.find((item) => item.key === 'capacityUsage')?.label).toBe('回路投入率')
     expect(overview.metrics.find((item) => item.key === 'cabinetTemperature')?.tone).toBe('danger')
     expect(overview.metrics.find((item) => item.key === 'cabinetTemperature')?.hint).toContain('温度告警')
+    expect(overview.metrics.find((item) => item.key === 'gridFrequency')?.value).toBe('50.02')
+    expect(overview.metrics.find((item) => item.key === 'gridFrequency')?.label).toBe('电网频率')
+    expect(overview.metrics.find((item) => item.key === 'gridFrequency')?.unit).toBe('Hz')
   })
 
   it('builds capacitor bank module status view from circuit summary', () => {

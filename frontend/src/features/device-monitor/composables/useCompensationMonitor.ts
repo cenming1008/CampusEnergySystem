@@ -269,6 +269,12 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     return '实时采集值'
   })
 
+  const gridFrequencyTelemetryValue = computed<number | null | undefined>(() =>
+    isSvgDevice.value
+      ? compensationSvgTelemetry.value?.frequency
+      : compensationCapacitorBankTelemetry.value?.frequency,
+  )
+
   const compensationOverviewView = computed(() => {
     const temperature = fallbackCompensation.value.cabinetTemperature
     return buildCompensationOverviewMetrics({
@@ -301,6 +307,8 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
       cabinetTemperatureHealthText: fallbackCompensation.value.cabinetTemperatureHealthText,
       cabinetTemperatureHealthHint: fallbackCompensation.value.cabinetTemperatureHealthHint,
       cabinetTemperatureHealthTone: fallbackCompensation.value.cabinetTemperatureHealthTone,
+      gridFrequencyValue: displayValueWithState(gridFrequencyTelemetryValue.value, '暂无数据', 2),
+      gridFrequencyMissing: gridFrequencyTelemetryValue.value == null,
     })
   })
 
