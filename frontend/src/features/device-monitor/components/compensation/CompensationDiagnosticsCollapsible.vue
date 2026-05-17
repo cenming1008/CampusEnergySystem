@@ -12,6 +12,7 @@ const props = defineProps<{
 const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:diagnostics', true)
 
 const statusLabel = computed(() => {
+  // 与 DeviceTemplateDiagnosticsPanel 的 statusMeta 映射保持一致，新增状态需同步
   const map: Record<string, string> = {
     passed: '接入完整',
     partial: '部分接入',
