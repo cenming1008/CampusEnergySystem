@@ -3,6 +3,35 @@ import { describe, expect, it } from 'vitest'
 import { resolveControlModeFromLog, resolveControlModeLabel } from '../resolveControlMode'
 
 describe('resolveControlModeLabel', () => {
+  it('prefers live monitor mode over stale profile or control logs', () => {
+    expect(resolveControlModeLabel({
+      device_id: 16,
+      terminal_assignment_scheme: '自动模式',
+      source_status: 'fresh',
+      is_stale: false,
+      split_capacity_expansion: { phase_a_groups: [], phase_b_groups: [], phase_c_groups: [] },
+      common_capacity_expansion: { common_1_groups: [], common_2_groups: [], common_3_groups: [] },
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: true,
+        write_status_message: '',
+        remote_control_status_message: '',
+        protocol_version: 'campus-control.v1',
+        command_message_type: 'control_command',
+        receipt_message_type: 'control_receipt',
+        control_topic_template: 'campus/control/{device_code}',
+        receipt_topic: 'campus/telemetry',
+        receipt_timeout_seconds: 120,
+        supported_results: ['accepted', 'running', 'success'],
+      },
+    }, [], {
+      value: '手动',
+      source: 'telemetry',
+      state: 'live',
+    })).toBe('手动')
+  })
+
   it('prefers control profile when terminal assignment already shows manual mode', () => {
     expect(resolveControlModeLabel({
       device_id: 16,

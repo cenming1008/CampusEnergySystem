@@ -203,6 +203,37 @@ describe('useControlConsoleActions', () => {
     scope.stop()
   })
 
+  it('uses live monitor control mode before profile mode for manual switch gating', () => {
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleActions({
+      deviceId: computed(() => 2),
+      canManageDevices: computed(() => true),
+      canControlDevices: computed(() => true),
+      currentRole: computed(() => 'admin'),
+      isAdmin: computed(() => true),
+      archive: computed(() => ({ name: '设备-CAP-001' })),
+      runtimeStatus: computed(() => ({ is_active: true, is_online: true })),
+      controlProfile: ref({
+        device_id: 2,
+        source_status: 'fresh',
+        capabilities: baseCapabilities,
+        terminal_assignment_scheme: '自动模式',
+      } as any),
+      controlCapabilities: computed(() => baseCapabilities),
+      controlLogs: ref([]),
+      monitorControlMode: computed(() => ({
+        value: '手动',
+        source: 'telemetry',
+        state: 'live',
+      })),
+      loadPage: vi.fn().mockResolvedValue(undefined),
+    }))
+
+    expect(state!.currentControlModeLabel.value).toBe('手动')
+    expect(state!.canRunManualSwitch.value).toBe(true)
+    scope.stop()
+  })
+
   it('sends switch_control_mode semantic command for mode switching', async () => {
     const loadPageMock = vi.fn().mockResolvedValue(undefined)
     sendRemoteCommandMock.mockResolvedValue({

@@ -1,5 +1,5 @@
 import type { CompensationCapacitorBankControlProfile } from '@/api/compensation'
-import type { DeviceControlLog } from '@/api/deviceMonitor'
+import type { CompensationMonitorControlMode, DeviceControlLog } from '@/api/deviceMonitor'
 
 function normalizeResult(result?: string | null) {
   const normalized = String(result || '').trim().toLowerCase()
@@ -29,7 +29,14 @@ export function resolveControlModeFromLog(log?: DeviceControlLog | null) {
 export function resolveControlModeLabel(
   profile?: CompensationCapacitorBankControlProfile | null,
   controlLogs: DeviceControlLog[] = [],
+  monitorControlMode?: CompensationMonitorControlMode | null,
 ) {
+  if (monitorControlMode?.state === 'live') {
+    if (monitorControlMode.value === '手动' || monitorControlMode.value === '自动') {
+      return monitorControlMode.value
+    }
+  }
+
   const profileMode = resolveFromProfile(profile)
   if (profileMode) return profileMode
 

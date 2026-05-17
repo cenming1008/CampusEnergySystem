@@ -35,6 +35,7 @@ export function useCapacitorBankControlConsole(input: {
     controlProfile: data.controlProfile,
     controlCapabilities: data.controlCapabilities,
     controlLogs: data.controlLogs,
+    monitorControlMode: computed(() => data.overview.value?.compensation_monitor?.control_mode),
     loadPage: data.loadPage,
   })
 

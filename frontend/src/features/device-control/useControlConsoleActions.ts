@@ -7,7 +7,7 @@ import {
   type CompensationCapacitorBankControlCapabilities,
   type CompensationCapacitorBankControlProfile,
 } from '@/api/compensation'
-import type { DeviceControlLog } from '@/api/deviceMonitor'
+import type { CompensationMonitorControlMode, DeviceControlLog } from '@/api/deviceMonitor'
 import { buildControlModeRemoteCommand } from '@/features/device-control/controlModeCommand'
 import { resolveControlModeLabel } from '@/features/device-control/resolveControlMode'
 import {
@@ -57,6 +57,7 @@ export function useControlConsoleActions(input: {
   controlProfile: Ref<CompensationCapacitorBankControlProfile | null>
   controlCapabilities: ComputedRef<CompensationCapacitorBankControlCapabilities | null | undefined>
   controlLogs: Ref<DeviceControlLog[]>
+  monitorControlMode?: ComputedRef<CompensationMonitorControlMode | null | undefined>
   loadPage: () => Promise<void>
 }) {
   const toggleSubmitting = ref(false)
@@ -152,7 +153,7 @@ export function useControlConsoleActions(input: {
     return undefined
   })
   const currentControlModeLabel = computed(() =>
-    resolveControlModeLabel(input.controlProfile.value, input.controlLogs.value)
+    resolveControlModeLabel(input.controlProfile.value, input.controlLogs.value, input.monitorControlMode?.value)
   )
   const isManualControlMode = computed(() => currentControlModeLabel.value === '手动')
   const canRunManualSwitch = computed(() => canRunRemoteAction.value && isManualControlMode.value)
