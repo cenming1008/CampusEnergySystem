@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
 import type { CompensationProfileItem } from './types'
+import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
+import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 
 defineProps({
   summaryItems: {
@@ -20,6 +22,8 @@ defineProps({
 const emit = defineEmits<{
   (event: 'open-console'): void
 }>()
+
+const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:control-summary', false)
 </script>
 
 <template>
@@ -38,11 +42,13 @@ const emit = defineEmits<{
         >
           打开控制台 →
         </el-button>
+        <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
       </div>
     </div>
 
     <div
       v-if="hasSummaryData"
+      v-show="!collapsed"
       class="profile-list"
     >
       <div
@@ -57,6 +63,7 @@ const emit = defineEmits<{
 
     <div
       v-if="capacityExpansionItems.length"
+      v-show="!collapsed"
       class="capacity-expansion-list"
     >
       <div class="capacity-expansion-list__head">
@@ -75,6 +82,7 @@ const emit = defineEmits<{
 
     <div
       v-else
+      v-show="!collapsed"
       class="control-summary-empty"
     >
       <strong>暂无参数</strong>
