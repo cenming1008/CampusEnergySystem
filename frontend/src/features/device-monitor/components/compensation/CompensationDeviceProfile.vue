@@ -34,11 +34,17 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
           <el-icon><Edit /></el-icon>
           编辑
         </button>
-        <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
+        <PanelCollapseToggle
+          :collapsed="collapsed"
+          @toggle="toggle"
+        />
       </div>
     </div>
 
-    <div v-show="!collapsed" class="profile-list">
+    <div
+      v-show="!collapsed"
+      class="profile-list"
+    >
       <div
         v-for="item in items"
         :key="item.label"

@@ -180,11 +180,17 @@ watch(() => chart.chartRef.value, async () => {
       <div class="trend-panel__intro">
         <div class="panel-title-row">
           <h3>历史趋势</h3>
-          <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
         </div>
         <span v-if="model.hint">{{ model.hint }}</span>
       </div>
-      <div v-show="!collapsed" class="trend-panel__toolbar">
+      <div
+        v-show="!collapsed"
+        class="trend-panel__toolbar"
+      >
         <div class="trend-panel__tab-wrapper">
           <div class="trend-panel__tab-switcher">
             <el-segmented
@@ -211,7 +217,10 @@ watch(() => chart.chartRef.value, async () => {
       </div>
     </div>
 
-    <div v-show="!collapsed" class="trend-panel__summary">
+    <div
+      v-show="!collapsed"
+      class="trend-panel__summary"
+    >
       <span
         v-for="item in model.summary"
         :key="item.label"
@@ -244,9 +253,9 @@ watch(() => chart.chartRef.value, async () => {
     </div>
 
     <div
+      v-show="!collapsed"
       :ref="chart.chartRef"
       v-loading="loading"
-      v-show="!collapsed"
       class="trend-panel__chart"
       :class="{ 'trend-panel__chart--empty': model.empty }"
     />

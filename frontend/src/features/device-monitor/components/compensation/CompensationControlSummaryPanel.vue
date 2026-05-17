@@ -42,7 +42,10 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:co
         >
           打开控制台 →
         </el-button>
-        <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
+        <PanelCollapseToggle
+          :collapsed="collapsed"
+          @toggle="toggle"
+        />
       </div>
     </div>
 

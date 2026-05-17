@@ -74,7 +74,10 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
       <div class="detail-panel__intro">
         <div class="panel-title-row">
           <h3>实时详查</h3>
-          <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
         </div>
         <span>三相电气量与回路投切状态</span>
       </div>
@@ -92,7 +95,10 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
       </div>
     </header>
 
-    <div v-show="!collapsed" class="detail-panel__body">
+    <div
+      v-show="!collapsed"
+      class="detail-panel__body"
+    >
       <CompensationThreePhasePanel
         v-show="resolvedTab === 'three-phase'"
         :svg-telemetry="svgTelemetry"

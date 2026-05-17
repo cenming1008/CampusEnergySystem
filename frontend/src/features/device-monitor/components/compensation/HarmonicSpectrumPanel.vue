@@ -139,11 +139,17 @@ watch(() => chart.chartRef.value, async () => {
       <div>
         <div class="panel-title-row">
           <h3>高次谐波频谱</h3>
-          <PanelCollapseToggle :collapsed="collapsed" @toggle="toggle" />
+          <PanelCollapseToggle
+            :collapsed="collapsed"
+            @toggle="toggle"
+          />
         </div>
         <span>展示最新采样的 2~31 次谐波分布。</span>
       </div>
-      <div v-show="!collapsed" class="spectrum-panel__controls">
+      <div
+        v-show="!collapsed"
+        class="spectrum-panel__controls"
+      >
         <el-segmented
           :model-value="activeKind"
           :options="kindOptions"
@@ -159,7 +165,10 @@ watch(() => chart.chartRef.value, async () => {
       </div>
     </div>
 
-    <div v-show="!collapsed" class="spectrum-panel__summary">
+    <div
+      v-show="!collapsed"
+      class="spectrum-panel__summary"
+    >
       <span>{{ model.summary.phaseLabel }} {{ model.summary.kindLabel }}</span>
       <span>最高 {{ model.summary.peakOrder ? `${model.summary.peakOrder}次` : '暂无数据' }}</span>
       <span>{{ formatNumber(model.summary.peakValue) }} {{ model.unit }}</span>
@@ -173,7 +182,10 @@ watch(() => chart.chartRef.value, async () => {
       </el-tag>
     </div>
 
-    <div v-show="!collapsed" class="spectrum-panel__chart-wrap">
+    <div
+      v-show="!collapsed"
+      class="spectrum-panel__chart-wrap"
+    >
       <div
         :ref="chart.chartRef"
         class="spectrum-panel__chart"
