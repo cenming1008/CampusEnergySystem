@@ -65,7 +65,7 @@ export function useDeviceMonitorPage() {
   const alarmFilter = ref<'all' | 'unresolved' | 'resolved'>('all')
   const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
   const compensationTrendTab = ref<CompensationTrendTab>('effect')
-  const compensationDetailTab = ref<'three-phase' | 'circuit'>('three-phase')
+  const compensationDetailTab = ref<'three-phase' | 'circuit'>('circuit')
   const storageTrendTab = ref<'soc' | 'power' | 'temperature' | 'energy'>('soc')
   const svgProfileEditVisible = ref(false)
   let refreshTimer: ReturnType<typeof setInterval> | null = null
