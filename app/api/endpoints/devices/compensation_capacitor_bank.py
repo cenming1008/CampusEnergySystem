@@ -173,6 +173,7 @@ def send_device_capacitor_bank_remote_command(
                     "manual_mode": body.manual_mode,
                     "phase": body.phase,
                     "switch_action": body.switch_action,
+                    "group": body.group,
                 }.items()
                 if value is not None
             } or None,

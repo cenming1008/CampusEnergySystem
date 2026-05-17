@@ -27,10 +27,39 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
         self.assertEqual(manual_args["manual_mode_code"], 1)
         self.assertEqual(manual_args["phase_code"], 0)
         self.assertEqual(manual_args["switch_action_code"], 17)
+        self.assertNotIn("common_group", manual_args)
         self.assertEqual(mode_args["manual_mode"], "auto")
+        self.assertEqual(mode_args["common_group"], 1)
+        self.assertEqual(mode_args["common_group_code"], 0)
         self.assertEqual(payload["protocol_version"], "campus-control.v1")
         self.assertEqual(payload["device_code"], "CAP-016")
         self.assertEqual(payload["command"], "manual_switch")
+
+    def test_manual_switch_common_phase_requires_group_and_carries_group_code(self):
+        common_args = CapacitorBankControlCommandService.build_manual_switch_command_args(
+            {"manual_mode": "manual", "phase": "COMMON", "switch_action": "on", "group": 2}
+        )
+        self.assertEqual(common_args["phase_code"], 3)
+        self.assertEqual(common_args["common_group"], 2)
+        self.assertEqual(common_args["common_group_code"], 1)
+
+        with self.assertRaises(ValueError) as ctx_missing:
+            CapacitorBankControlCommandService.build_manual_switch_command_args(
+                {"manual_mode": "manual", "phase": "COMMON", "switch_action": "on"}
+            )
+        self.assertIn("group=1/2/3", str(ctx_missing.exception))
+
+        with self.assertRaises(ValueError) as ctx_invalid:
+            CapacitorBankControlCommandService.build_manual_switch_command_args(
+                {"manual_mode": "manual", "phase": "COMMON", "switch_action": "on", "group": 4}
+            )
+        self.assertIn("1/2/3", str(ctx_invalid.exception))
+
+        with self.assertRaises(ValueError) as ctx_phase_a_with_group:
+            CapacitorBankControlCommandService.build_manual_switch_command_args(
+                {"manual_mode": "manual", "phase": "A", "switch_action": "on", "group": 1}
+            )
+        self.assertIn("不允许指定 group", str(ctx_phase_a_with_group.exception))
 
     @patch("app.services.devices.compensation.capacitor_bank.control_command_service.publish_control_payload_async")
     def test_submit_remote_control_command_rejects_unsupported_gateway_action(self, mock_publish):
@@ -85,6 +114,39 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
         session.add.assert_not_called()
         mock_publish.assert_not_called()
 
+    @patch("app.services.devices.compensation.capacitor_bank.control_command_service.publish_control_payload_async")
+    def test_submit_manual_switch_rejects_when_latest_mode_log_is_auto(self, mock_publish):
+        session = MagicMock()
+        device = SimpleNamespace(id=16, sn="CAP-016", is_active=True)
+        auto_mode_log = DeviceControlLog(
+            id=81,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="success",
+            reason="控制台控制模式切换 -> 自动模式 | 设备回执成功: 已切回自动模式",
+            created_at=datetime(2026, 5, 17, 21, 3, 43),
+        )
+        session.exec.return_value.first.side_effect = [device, None, auto_mode_log]
+        session.add = MagicMock()
+
+        with self.assertRaises(ValueError) as ctx:
+            CapacitorBankControlCommandService.submit_remote_control_command(
+                session,
+                device,
+                action="manual_switch",
+                operator="operator",
+                reason="控制台手动投切 A 相 切除",
+                command_args={"manual_mode": "manual", "phase": "A", "switch_action": "off"},
+            )
+
+        self.assertIn("当前为自动模式", str(ctx.exception))
+        session.add.assert_not_called()
+        mock_publish.assert_not_called()
+
     def test_reconcile_failed_manual_switch_with_telemetry_marks_success_when_target_count_changes(self):
         session = MagicMock()
         failed_log = DeviceControlLog(
@@ -126,6 +188,43 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
         session.add.assert_called_once_with(failed_log)
         session.flush.assert_called_once()
         notifier.assert_called_once()
+
+    def test_reconcile_failed_manual_switch_uses_common_group_count_when_group_present_in_reason(self):
+        session = MagicMock()
+        failed_log = DeviceControlLog(
+            id=93,
+            device_id=16,
+            action="manual_switch",
+            target_status=True,
+            previous_status=True,
+            operator="admin",
+            command_source="remote-control-api",
+            result="failed",
+            reason="控制台手动投切 共补 2 组 投入 | 设备回执失败: crc validation failed",
+            created_at=datetime(2026, 5, 17, 14, 30, 26),
+        )
+        before = SimpleNamespace(common_group_2_running_count=1)
+        after = SimpleNamespace(
+            timestamp=datetime(2026, 5, 17, 14, 30, 45),
+            common_group_1_running_count=0,
+            common_group_2_running_count=2,
+            common_group_3_running_count=0,
+            common_circuit_running_count=2,
+        )
+        session.exec.return_value.all.return_value = [failed_log]
+        session.exec.return_value.first.return_value = before
+        session.add = MagicMock()
+        session.flush = MagicMock()
+
+        reconciled = CapacitorBankControlCommandService.reconcile_failed_manual_switch_with_telemetry(
+            session,
+            device_id=16,
+            telemetry=after,
+        )
+
+        self.assertEqual(reconciled, [failed_log])
+        self.assertEqual(failed_log.result, "success")
+        self.assertIn("遥测复核成功: COMMON2 on 1->2", failed_log.reason)
 
     def test_reconcile_failed_manual_switch_ignores_unchanged_target_count(self):
         session = MagicMock()

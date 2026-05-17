@@ -133,6 +133,37 @@ class CapacitorBankControlCommandService:
         return pending_log if isinstance(pending_log, DeviceControlLog) else None
 
     @staticmethod
+    def _resolve_control_mode_from_log(log: Optional[DeviceControlLog]) -> Optional[str]:
+        if log is None:
+            return None
+        if CapacitorBankControlCommandService.normalize_control_result(log.result) != CONTROL_RESULT_SUCCESS:
+            return None
+        if log.action not in {"switch_control_mode", "manual_switch"}:
+            return None
+        reason = log.reason or ""
+        if "控制模式切换" not in reason:
+            return None
+        if "手动模式" in reason:
+            return "manual"
+        if "自动模式" in reason:
+            return "auto"
+        return None
+
+    @staticmethod
+    def _get_latest_control_mode_log(session: Session, device_id: int) -> Optional[DeviceControlLog]:
+        stmt = (
+            select(DeviceControlLog)
+            .where(DeviceControlLog.device_id == device_id)
+            .where(DeviceControlLog.command_source == "remote-control-api")
+            .where(DeviceControlLog.result == CONTROL_RESULT_SUCCESS)
+            .where(DeviceControlLog.action.in_(("manual_switch", "switch_control_mode")))
+            .order_by(DeviceControlLog.created_at.desc(), DeviceControlLog.id.desc())
+            .limit(1)
+        )
+        log = session.exec(stmt).first()
+        return log if isinstance(log, DeviceControlLog) else None
+
+    @staticmethod
     def get_result_label(result: Optional[str]) -> str:
         return CapacitorBankControlCommandService.CONTROL_RESULT_LABELS.get(
             CapacitorBankControlCommandService.normalize_control_result(result),
@@ -208,10 +239,17 @@ class CapacitorBankControlCommandService:
 
     @staticmethod
     def build_manual_switch_command_args(command_args: Optional[dict[str, Any]]) -> dict[str, Any]:
+        """构造 0x44 手动控制 extras。
+
+        - phase=A/B/C：分补，不允许指定 group。
+        - phase=COMMON：公补，必须指定 group=1/2/3，对应 JKWF-LCD 协议的公补 1/2/3 寄存器组。
+        - switch_action=none 仅在 manual_mode 切换（mode_change）场景使用，此时 phase=COMMON、group=1。
+        """
         args = dict(command_args or {})
         manual_mode = str(args.get("manual_mode") or "").strip().lower()
         phase = str(args.get("phase") or "").strip().upper()
         switch_action = str(args.get("switch_action") or "").strip().lower()
+        raw_group = args.get("group")
 
         if manual_mode not in {"manual", "auto"}:
             raise ValueError("手动投切必须指定 manual_mode=manual/auto。")
@@ -220,11 +258,30 @@ class CapacitorBankControlCommandService:
         if switch_action not in {"none", "on", "off"}:
             raise ValueError("手动投切必须指定 switch_action=none/on/off。")
 
+        group: Optional[int]
+        if phase == "COMMON":
+            try:
+                group = int(raw_group) if raw_group is not None else None
+            except (TypeError, ValueError) as exc:
+                raise ValueError("公补投切的 group 必须是 1/2/3。") from exc
+            if group is None:
+                if switch_action == "none":
+                    # 模式切换桥接：保持向后兼容，默认落到第 1 组寄存器。
+                    group = 1
+                else:
+                    raise ValueError("公补投切必须指定 group=1/2/3。")
+            if group not in {1, 2, 3}:
+                raise ValueError("公补投切的 group 必须是 1/2/3。")
+        else:
+            if raw_group is not None:
+                raise ValueError("分补投切（phase=A/B/C）不允许指定 group。")
+            group = None
+
         mode_code = 1 if manual_mode == "manual" else 0
         phase_code = {"A": 0, "B": 1, "C": 2, "COMMON": 3}[phase]
         switch_action_code = {"none": 0, "on": 0x11, "off": 0x22}[switch_action]
 
-        return {
+        extras: dict[str, Any] = {
             "manual_mode": manual_mode,
             "phase": phase,
             "switch_action": switch_action,
@@ -233,6 +290,10 @@ class CapacitorBankControlCommandService:
             "phase_code": phase_code,
             "switch_action_code": switch_action_code,
         }
+        if phase == "COMMON" and group is not None:
+            extras["common_group"] = group
+            extras["common_group_code"] = group - 1
+        return extras
 
     @staticmethod
     def build_control_mode_switch_command_args(reason: Optional[str]) -> dict[str, Any]:
@@ -243,6 +304,7 @@ class CapacitorBankControlCommandService:
                 "manual_mode": "auto" if switch_to_auto else "manual",
                 "phase": "COMMON",
                 "switch_action": "none",
+                "group": 1,
             }
         )
 
@@ -285,7 +347,7 @@ class CapacitorBankControlCommandService:
         return expired_logs
 
     @staticmethod
-    def _manual_switch_target(reason: Optional[str]) -> Optional[tuple[str, str]]:
+    def _manual_switch_target(reason: Optional[str]) -> Optional[tuple[str, str, Optional[int]]]:
         text = reason or ""
         if "手动投切" not in text:
             return None
@@ -295,7 +357,7 @@ class CapacitorBankControlCommandService:
             phase = "B"
         elif "C 相" in text or "C相" in text:
             phase = "C"
-        elif "共补" in text or "COMMON" in text.upper():
+        elif "共补" in text or "公补" in text or "COMMON" in text.upper():
             phase = "COMMON"
         else:
             return None
@@ -306,16 +368,35 @@ class CapacitorBankControlCommandService:
             action = "off"
         else:
             return None
-        return phase, action
+
+        group: Optional[int] = None
+        if phase == "COMMON":
+            normalized = text.replace(" ", "").replace("\u3000", "").lower()
+            for candidate in (1, 2, 3):
+                if (
+                    f"{candidate}组" in normalized
+                    or f"组{candidate}" in normalized
+                    or f"common_{candidate}" in normalized
+                    or f"common{candidate}" in normalized
+                ):
+                    group = candidate
+                    break
+        return phase, action, group
 
     @staticmethod
-    def _manual_switch_count_field(phase: str) -> str:
-        return {
-            "A": "phase_a_circuit_running_count",
-            "B": "phase_b_circuit_running_count",
-            "C": "phase_c_circuit_running_count",
-            "COMMON": "common_circuit_running_count",
-        }[phase]
+    def _manual_switch_count_field(phase: str, group: Optional[int] = None) -> Optional[str]:
+        if phase in {"A", "B", "C"}:
+            return {
+                "A": "phase_a_circuit_running_count",
+                "B": "phase_b_circuit_running_count",
+                "C": "phase_c_circuit_running_count",
+            }[phase]
+        if phase == "COMMON":
+            if group in {1, 2, 3}:
+                return f"common_group_{group}_running_count"
+            # 兼容旧日志：reason 里没有 1/2/3 组信息时，回退到公补总投入数。
+            return "common_circuit_running_count"
+        return None
 
     @staticmethod
     def _numeric_count(value: Any) -> Optional[int]:
@@ -370,8 +451,10 @@ class CapacitorBankControlCommandService:
             target = CapacitorBankControlCommandService._manual_switch_target(log.reason)
             if target is None:
                 continue
-            phase, switch_action = target
-            count_field = CapacitorBankControlCommandService._manual_switch_count_field(phase)
+            phase, switch_action, group = target
+            count_field = CapacitorBankControlCommandService._manual_switch_count_field(phase, group)
+            if count_field is None:
+                continue
             before = CapacitorBankControlCommandService._latest_telemetry_before(session, device_id, log.created_at)
             before_count = CapacitorBankControlCommandService._numeric_count(getattr(before, count_field, None))
             after_count = CapacitorBankControlCommandService._numeric_count(getattr(telemetry, count_field, None))
@@ -385,7 +468,8 @@ class CapacitorBankControlCommandService:
             if not changed_as_requested:
                 continue
 
-            suffix = f"遥测复核成功: {phase} {switch_action} {before_count}->{after_count}"
+            target_label = phase if group is None else f"{phase}{group}"
+            suffix = f"遥测复核成功: {target_label} {switch_action} {before_count}->{after_count}"
             log.result = CONTROL_RESULT_SUCCESS
             if log.reason:
                 if suffix not in log.reason:
@@ -395,10 +479,11 @@ class CapacitorBankControlCommandService:
             session.add(log)
             reconciled.append(log)
             logger.info(
-                "manual switch false-negative receipt reconciled: device_id=%s command_id=%s phase=%s action=%s before=%s after=%s",
+                "manual switch false-negative receipt reconciled: device_id=%s command_id=%s phase=%s group=%s action=%s before=%s after=%s",
                 device_id,
                 log.id,
                 phase,
+                group,
                 switch_action,
                 before_count,
                 after_count,
@@ -447,6 +532,13 @@ class CapacitorBankControlCommandService:
                 "remote-control-api",
             )
             raise ValueError("当前设备已有待完成的远程控制，请等待设备回执或超时收口后再试。")
+
+        if action == "manual_switch":
+            latest_mode = CapacitorBankControlCommandService._resolve_control_mode_from_log(
+                CapacitorBankControlCommandService._get_latest_control_mode_log(session, device.id)
+            )
+            if latest_mode == "auto":
+                raise ValueError("当前为自动模式，请先切换到手动模式后再执行手动投切。")
 
         control_log = DeviceControlLog(
             device_id=device.id,

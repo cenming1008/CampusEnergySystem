@@ -299,6 +299,7 @@ class CapacitorBankRemoteCommandRequest(BaseModel):
     manual_mode: Optional[str] = None
     phase: Optional[str] = None
     switch_action: Optional[str] = None
+    group: Optional[int] = None
     reason: Optional[str] = None
 
 

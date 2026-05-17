@@ -520,6 +520,8 @@ class TestCapacitorBankService(unittest.TestCase):
                 "manual_mode_code": 0,
                 "phase_code": 3,
                 "switch_action_code": 0,
+                "common_group": 1,
+                "common_group_code": 0,
             },
             device_code="CAP-016",
             worker_name="mqtt-remote-switch_control_mode",

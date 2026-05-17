@@ -11,8 +11,10 @@ defineProps<{
   manualSwitchDisabledReason: string
   manualPhaseOptions: Array<{ label: string; value: 'A' | 'B' | 'C' | 'COMMON' }>
   manualSwitchActionOptions: Array<{ label: string; value: 'none' | 'on' | 'off' }>
+  manualCommonGroupOptions: Array<{ label: string; value: 1 | 2 | 3 }>
   manualPhase: 'A' | 'B' | 'C' | 'COMMON'
   manualSwitchAction: 'none' | 'on' | 'off'
+  manualCommonGroup: 1 | 2 | 3
   remoteControlEnabled: boolean
 }>()
 
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   (e: 'actionCard', key: ControlConsoleActionCard['key']): void
   (e: 'update:manualPhase', value: 'A' | 'B' | 'C' | 'COMMON'): void
   (e: 'update:manualSwitchAction', value: 'none' | 'on' | 'off'): void
+  (e: 'update:manualCommonGroup', value: 1 | 2 | 3): void
   (e: 'manualSwitch'): void
 }>()
 
@@ -101,6 +104,22 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
           >
             <el-option
               v-for="item in manualPhaseOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </div>
+        <div v-if="manualPhase === 'COMMON'" class="manual-switch-field">
+          <label class="manual-switch-label">共补组</label>
+          <el-select
+            :model-value="manualCommonGroup"
+            :disabled="!canRunManualSwitch || toggleSubmitting"
+            class="manual-switch-select"
+            @update:model-value="emit('update:manualCommonGroup', $event)"
+          >
+            <el-option
+              v-for="item in manualCommonGroupOptions"
               :key="item.value"
               :label="item.label"
               :value="item.value"
@@ -255,9 +274,14 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 .manual-switch-row {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   align-items: end;
+}
+
+.manual-switch-submit {
+  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 .manual-switch-field {
@@ -341,10 +365,6 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 @media (max-width: 1200px) {
   .remote-actions {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-
-  .manual-switch-row {
-    grid-template-columns: 1fr 1fr;
   }
 }
 

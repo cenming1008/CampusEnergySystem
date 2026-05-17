@@ -41,6 +41,7 @@ const {
   editableParameterCards,
   manualPhaseOptions,
   manualSwitchActionOptions,
+  manualCommonGroupOptions,
   actionCards,
   readonlySectionView,
   readonlySummaryView,
@@ -165,12 +166,15 @@ const archiveShortCode = computed(() => (archive.value?.sn || 'CAP').slice(0, 3)
             :manual-switch-disabled-reason="manualSwitchDisabledReason"
             :manual-phase-options="manualPhaseOptions"
             :manual-switch-action-options="manualSwitchActionOptions"
+            :manual-common-group-options="manualCommonGroupOptions"
             :manual-phase="manualSwitchForm.phase"
             :manual-switch-action="manualSwitchForm.switch_action"
+            :manual-common-group="manualSwitchForm.group"
             :remote-control-enabled="controlCapabilities?.supports_remote_control === true"
             @action-card="handleActionCard"
             @update:manual-phase="manualSwitchForm.phase = $event"
             @update:manual-switch-action="manualSwitchForm.switch_action = $event"
+            @update:manual-common-group="manualSwitchForm.group = $event"
             @manual-switch="handleManualSwitchCommand"
           />
 

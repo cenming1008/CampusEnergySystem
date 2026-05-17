@@ -99,6 +99,7 @@ export function useCapacitorBankControlConsole(input: {
     editableParameterCards,
     manualPhaseOptions: actions.manualPhaseOptions,
     manualSwitchActionOptions: actions.manualSwitchActionOptions,
+    manualCommonGroupOptions: actions.manualCommonGroupOptions,
     actionCards,
     readonlySectionView,
     readonlySummaryView,

@@ -35,6 +35,12 @@ const manualSwitchActionOptions = [
   { label: '切除', value: 'off' as const },
 ]
 
+const manualCommonGroupOptions = [
+  { label: '共补 1 组', value: 1 as const },
+  { label: '共补 2 组', value: 2 as const },
+  { label: '共补 3 组', value: 3 as const },
+]
+
 const remoteCommandMeta = {
   reset_alarm: {
     label: '报警复位',
@@ -113,9 +119,11 @@ export function useControlConsoleActions(input: {
   const manualSwitchForm = ref<{
     phase: 'A' | 'B' | 'C' | 'COMMON'
     switch_action: 'none' | 'on' | 'off'
+    group: 1 | 2 | 3
   }>({
     phase: 'A',
     switch_action: 'on',
+    group: 1,
   })
 
   const canToggleRemotely = computed(() =>
@@ -264,13 +272,21 @@ export function useControlConsoleActions(input: {
     if (!input.deviceId.value || !canRunManualSwitch.value) return
     const phaseText = manualPhaseOptions.find((item) => item.value === manualSwitchForm.value.phase)?.label || manualSwitchForm.value.phase
     const actionText = manualSwitchActionOptions.find((item) => item.value === manualSwitchForm.value.switch_action)?.label || manualSwitchForm.value.switch_action
+    const isCommon = manualSwitchForm.value.phase === 'COMMON'
+    const groupText = isCommon
+      ? (manualCommonGroupOptions.find((item) => item.value === manualSwitchForm.value.group)?.label || `共补 ${manualSwitchForm.value.group} 组`)
+      : ''
+    const targetText = isCommon ? `${phaseText} ${manualSwitchForm.value.group} 组` : phaseText
+    const reasonText = isCommon
+      ? `控制台手动投切 ${groupText} ${actionText}`
+      : `控制台手动投切 ${phaseText} ${actionText}`
 
     try {
       await ElMessageBox.confirm(
         [
           '将按 JKWF-LCD 功能码 0x44 发送原生手动控制请求。',
           '模式：手动模式',
-          `相位：${phaseText}`,
+          `目标：${targetText}`,
           `动作：${actionText}`,
           '接口当前仅表示 accepted 入队，不代表设备端已执行成功。',
         ].join('\n'),
@@ -292,7 +308,8 @@ export function useControlConsoleActions(input: {
         manual_mode: 'manual',
         phase: manualSwitchForm.value.phase,
         switch_action: manualSwitchForm.value.switch_action,
-        reason: `控制台手动投切 ${phaseText} ${actionText}`,
+        ...(isCommon ? { group: manualSwitchForm.value.group } : {}),
+        reason: reasonText,
       })
       ElMessage.success(response.message || '手动投切指令已发送')
       await input.loadPage()
@@ -404,6 +421,7 @@ export function useControlConsoleActions(input: {
     writeRiskNotice,
     manualPhaseOptions,
     manualSwitchActionOptions,
+    manualCommonGroupOptions,
     handleManualSwitchCommand,
     openWriteDialog,
     submitParameterWrite,

@@ -265,6 +265,7 @@ export interface CompensationCapacitorBankRemoteCommandRequest {
   manual_mode?: 'manual' | 'auto'
   phase?: 'A' | 'B' | 'C' | 'COMMON'
   switch_action?: 'none' | 'on' | 'off'
+  group?: 1 | 2 | 3
   reason?: string
 }
 
