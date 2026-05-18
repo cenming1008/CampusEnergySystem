@@ -102,56 +102,58 @@ function isEditable(parameterKey: string) {
       {{ writeSectionView.alert.message }}
     </p>
 
-    <section
-      v-for="group in readonlySummaryView.groupedParameters"
-      :key="group.key"
-      class="param-section"
-      data-test="param-group-card"
-    >
-      <header class="param-section__head">
-        <h4>{{ group.label }}</h4>
-        <span>{{ group.items.length }} 个参数</span>
-      </header>
-      <table class="param-table">
-        <thead>
-          <tr>
-            <th>参数</th>
-            <th>当前值</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in group.items"
-            :key="item.key"
-            data-test="param-row"
-          >
-            <td :title="item.description">{{ item.label }}</td>
-            <td class="param-table__value">{{ item.currentValue }}</td>
-            <td>
-              <button
-                v-if="isEditable(item.key)"
-                type="button"
-                class="param-edit-button"
-                data-test="param-edit-button"
-                :disabled="!canWriteParameters"
-                :title="canWriteParameters ? '修改参数' : writeDisabledReason"
-                @click="emit('open-write-dialog', item.key)"
-              >
-                修改
-              </button>
-              <span
-                v-else
-                class="param-write-pending"
-                data-test="param-write-pending"
-              >
-                写入待开通
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <div class="param-section-grid">
+      <section
+        v-for="group in readonlySummaryView.groupedParameters"
+        :key="group.key"
+        class="param-section"
+        data-test="param-group-card"
+      >
+        <header class="param-section__head">
+          <h4>{{ group.label }}</h4>
+          <span>{{ group.items.length }} 个参数</span>
+        </header>
+        <table class="param-table">
+          <thead>
+            <tr>
+              <th>参数</th>
+              <th>当前值</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in group.items"
+              :key="item.key"
+              data-test="param-row"
+            >
+              <td :title="item.description">{{ item.label }}</td>
+              <td class="param-table__value">{{ item.currentValue }}</td>
+              <td>
+                <button
+                  v-if="isEditable(item.key)"
+                  type="button"
+                  class="param-edit-button"
+                  data-test="param-edit-button"
+                  :disabled="!canWriteParameters"
+                  :title="canWriteParameters ? '修改参数' : writeDisabledReason"
+                  @click="emit('open-write-dialog', item.key)"
+                >
+                  修改
+                </button>
+                <span
+                  v-else
+                  class="param-write-pending"
+                  data-test="param-write-pending"
+                >
+                  写入待开通
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
 
     <section
       v-if="sectionView.showCapacityExpansion"
@@ -291,6 +293,13 @@ function isEditable(parameterKey: string) {
   line-height: 1.5;
 }
 
+.param-section-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
 .param-section {
   border: 1px solid rgba(44, 65, 89, 0.7);
   border-radius: 10px;
@@ -325,7 +334,7 @@ function isEditable(parameterKey: string) {
 
 .param-table th {
   text-align: left;
-  padding: 7px 14px;
+  padding: 7px 10px;
   font-size: 11px;
   font-weight: 500;
   color: #6a84a2;
@@ -336,11 +345,11 @@ function isEditable(parameterKey: string) {
 .param-table th:last-child,
 .param-table td:last-child {
   text-align: right;
-  width: 96px;
+  width: 84px;
 }
 
 .param-table td {
-  padding: 8px 14px;
+  padding: 8px 10px;
   font-size: 12px;
   color: #91a5c2;
   border-bottom: 1px solid rgba(33, 52, 74, 0.6);
@@ -474,6 +483,12 @@ function isEditable(parameterKey: string) {
   font-size: 12px;
 }
 
+@media (max-width: 1280px) {
+  .param-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1100px) {
   .capacity-slot-grid--common {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -483,6 +498,10 @@ function isEditable(parameterKey: string) {
 @media (max-width: 720px) {
   .params-header__col--right {
     justify-content: flex-start;
+  }
+
+  .param-section-grid {
+    grid-template-columns: 1fr;
   }
 
   .capacity-slot-grid,
