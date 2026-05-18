@@ -122,41 +122,45 @@ function shouldShowSideTraceability() {
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'curves'">
-            <div
-              class="comp-workbench__subtabs"
-              role="tablist"
-              aria-label="曲线分析"
-            >
-              <button
-                v-for="tab in page.compensationTrendTabs"
-                :key="tab.value"
-                type="button"
-                class="comp-workbench__subtab"
-                :class="{ 'is-active': page.compensationTrendTab === tab.value }"
-                role="tab"
-                :aria-selected="page.compensationTrendTab === tab.value"
-                @click="page.compensationTrendTab = tab.value"
+            <section class="comp-workbench__analysis-block">
+              <div class="comp-workbench__analysis-title">实时分析</div>
+              <HarmonicSpectrumPanel
+                :telemetry="page.compensationCapacitorBankTelemetry"
+                :control-profile="page.compensationCapacitorBankControlProfile"
+              />
+            </section>
+
+            <section class="comp-workbench__analysis-block">
+              <div class="comp-workbench__analysis-title">历史数据</div>
+              <div
+                class="comp-workbench__subtabs"
+                role="tablist"
+                aria-label="历史数据"
               >
-                {{ tab.label }}
-              </button>
-            </div>
+                <button
+                  v-for="tab in page.compensationTrendTabs"
+                  :key="tab.value"
+                  type="button"
+                  class="comp-workbench__subtab"
+                  :class="{ 'is-active': page.compensationTrendTab === tab.value }"
+                  role="tab"
+                  :aria-selected="page.compensationTrendTab === tab.value"
+                  @click="page.compensationTrendTab = tab.value"
+                >
+                  {{ tab.label }}
+                </button>
+              </div>
 
-            <CompensationTrendPanel
-              v-if="page.compensationTrendTab !== 'harmonic_spectrum'"
-              v-model:active-tab="page.compensationTrendTab"
-              v-model:time-range="page.timeRange"
-              :tabs="[]"
-              :model="page.compensationTrendModel"
-              :shortcuts="page.timeShortcuts"
-              :loading="page.chartLoading"
-              @range-change="page.handleRangeChange"
-            />
-
-            <HarmonicSpectrumPanel
-              v-else
-              :telemetry="page.compensationCapacitorBankTelemetry"
-              :control-profile="page.compensationCapacitorBankControlProfile"
-            />
+              <CompensationTrendPanel
+                v-model:active-tab="page.compensationTrendTab"
+                v-model:time-range="page.timeRange"
+                :tabs="[]"
+                :model="page.compensationTrendModel"
+                :shortcuts="page.timeShortcuts"
+                :loading="page.chartLoading"
+                @range-change="page.handleRangeChange"
+              />
+            </section>
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'remote-control'">
@@ -395,6 +399,19 @@ function shouldShowSideTraceability() {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.comp-workbench__analysis-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.comp-workbench__analysis-title {
+  color: #d7e3f4;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .comp-workbench__subtabs {

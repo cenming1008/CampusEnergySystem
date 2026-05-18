@@ -697,20 +697,14 @@ describe('DeviceMonitor view', () => {
 
     const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
       compensationWorkbenchTab: string
-      compensationTrendTab: string
     }
     page.compensationWorkbenchTab = 'curves'
     await nextTick()
 
     const curvesTabText = wrapper.find('.comp-workbench__subtabs').text()
     expect(curvesTabText).toContain('谐波趋势')
-    expect(curvesTabText).toContain('高次谐波')
+    expect(curvesTabText).not.toContain('高次谐波')
     expect(wrapper.find('.compensation-trend-panel-spectrum-probe').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(false)
-
-    page.compensationTrendTab = 'harmonic_spectrum'
-    await nextTick()
-
     expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(true)
   })
 

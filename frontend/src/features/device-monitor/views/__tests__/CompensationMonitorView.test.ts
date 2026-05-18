@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick, reactive } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { shallowMount } from '@vue/test-utils'
 import CompensationMonitorView from '../CompensationMonitorView.vue'
 
@@ -110,7 +110,6 @@ function createPage(tab = 'runtime') {
     compensationTrendTabs: [
       { label: '补偿效果', value: 'effect' },
       { label: '谐波趋势', value: 'harmonic' },
-      { label: '高次谐波', value: 'harmonic_spectrum' },
     ],
     compensationTrendModel: {},
     timeShortcuts: [],
@@ -243,16 +242,11 @@ describe('CompensationMonitorView', () => {
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
   })
 
-  it('switches high-order harmonics through the curves local tabs', async () => {
+  it('shows realtime harmonics and historical trends together on the curves tab', () => {
     const { wrapper, page } = mountView('curves')
 
     expect(wrapper.find('.trend-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('.harmonic-panel-stub').exists()).toBe(false)
-
-    page.compensationTrendTab = 'harmonic_spectrum'
-    await nextTick()
-
     expect(wrapper.find('.harmonic-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('.trend-panel-stub').exists()).toBe(false)
+    expect(page.compensationTrendTab).toBe('effect')
   })
 })
