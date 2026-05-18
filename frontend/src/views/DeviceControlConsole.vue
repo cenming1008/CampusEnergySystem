@@ -6,8 +6,7 @@ import { toggleDeviceStatus } from '@/api/device'
 import { usePermissions } from '@/shared/composables/usePermissions'
 import ControlConsoleRemotePanel from '@/features/device-control/components/ControlConsoleRemotePanel.vue'
 import ControlConsoleLogPanel from '@/features/device-control/components/ControlConsoleLogPanel.vue'
-import ControlConsoleReadonlyParamsPanel from '@/features/device-control/components/ControlConsoleReadonlyParamsPanel.vue'
-import ControlConsoleWritableParamsPanel from '@/features/device-control/components/ControlConsoleWritableParamsPanel.vue'
+import ControlConsoleParametersPanel from '@/features/device-control/components/ControlConsoleParametersPanel.vue'
 import ControlConsoleWriteDialog from '@/features/device-control/components/ControlConsoleWriteDialog.vue'
 import { useCapacitorBankControlConsole } from '@/features/device-control/useCapacitorBankControlConsole'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
@@ -166,20 +165,11 @@ async function handleHeaderToggleDevice() {
           <MonitorSectionPanel
             shell="console"
             accent="teal"
-            title="参数管理"
+            title="参数设置"
           >
-            <ControlConsoleReadonlyParamsPanel
+            <ControlConsoleParametersPanel
               :section-view="readonlySectionView"
               :readonly-summary-view="readonlySummaryView"
-            />
-          </MonitorSectionPanel>
-
-          <MonitorSectionPanel
-            shell="console"
-            accent="amber"
-            title="参数修改"
-          >
-            <ControlConsoleWritableParamsPanel
               :write-section-view="writeSectionView"
               :can-write-parameters="canWriteParameters"
               :editable-parameter-cards="editableParameterCards"
