@@ -52,24 +52,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits<{
-  (event: 'update:activeTab', value: CompensationDetailTab): void
-}>()
-
 const showCircuitTab = computed(() => props.isCapacitorBank)
-
-const segmentedOptions = computed(() => {
-  const options: Array<{ label: string; value: CompensationDetailTab }> = []
-  if (showCircuitTab.value) {
-    options.push({ label: '回路状态', value: 'circuit' })
-  }
-  options.push({ label: '三相量测', value: 'three-phase' })
-  return options
-})
-
-const resolvedTab = computed<CompensationDetailTab>(() =>
-  showCircuitTab.value ? props.activeTab : 'three-phase',
-)
 </script>
 
 <template>
@@ -89,47 +72,49 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
         v-if="showCircuitTab"
         class="detail-panel__actions"
       >
-        <div
-          v-if="resolvedTab === 'circuit'"
-          class="detail-panel__legend"
-        >
+        <div class="detail-panel__legend">
           <span class="legend-item legend-item--on"><i />投入</span>
           <span class="legend-item legend-item--off"><i />切除</span>
           <span class="legend-item legend-item--unconfigured"><i />未配置</span>
           <span class="legend-item legend-item--na"><i />等待回读</span>
         </div>
-        <div class="detail-panel__tab-switcher">
-          <el-segmented
-            :model-value="resolvedTab"
-            :options="segmentedOptions"
-            size="small"
-            @change="emit('update:activeTab', $event as CompensationDetailTab)"
-          />
-        </div>
       </div>
     </header>
 
     <div class="detail-panel__body">
+      <template v-if="showCircuitTab">
+        <section class="detail-panel__section">
+          <h4 class="detail-panel__section-title">回路状态</h4>
+          <CompensationCircuitStatePanel
+            :capacitor-bank-telemetry="capacitorBankTelemetry"
+            :configured-split-circuit-count="circuitProfile?.splitCircuitCount"
+            :configured-common-circuit-count="circuitProfile?.commonCircuitCount"
+            :phase-a-circuit-total-count="circuitProfile?.phaseACircuitTotalCount"
+            :phase-b-circuit-total-count="circuitProfile?.phaseBCircuitTotalCount"
+            :phase-c-circuit-total-count="circuitProfile?.phaseCCircuitTotalCount"
+            :common1-circuit-total-count="circuitProfile?.common1CircuitTotalCount"
+            :common2-circuit-total-count="circuitProfile?.common2CircuitTotalCount"
+            :common3-circuit-total-count="circuitProfile?.common3CircuitTotalCount"
+          />
+        </section>
+
+        <section class="detail-panel__section">
+          <h4 class="detail-panel__section-title">三相量测</h4>
+          <CompensationThreePhasePanel
+            :svg-telemetry="svgTelemetry"
+            :capacitor-bank-telemetry="capacitorBankTelemetry"
+            :is-capacitor-bank="isCapacitorBank"
+            :measurement-metrics="measurementMetrics"
+          />
+        </section>
+      </template>
+
       <CompensationThreePhasePanel
-        v-show="resolvedTab === 'three-phase'"
+        v-else
         :svg-telemetry="svgTelemetry"
         :capacitor-bank-telemetry="capacitorBankTelemetry"
         :is-capacitor-bank="isCapacitorBank"
         :measurement-metrics="measurementMetrics"
-      />
-
-      <CompensationCircuitStatePanel
-        v-if="showCircuitTab"
-        v-show="resolvedTab === 'circuit'"
-        :capacitor-bank-telemetry="capacitorBankTelemetry"
-        :configured-split-circuit-count="circuitProfile?.splitCircuitCount"
-        :configured-common-circuit-count="circuitProfile?.commonCircuitCount"
-        :phase-a-circuit-total-count="circuitProfile?.phaseACircuitTotalCount"
-        :phase-b-circuit-total-count="circuitProfile?.phaseBCircuitTotalCount"
-        :phase-c-circuit-total-count="circuitProfile?.phaseCCircuitTotalCount"
-        :common1-circuit-total-count="circuitProfile?.common1CircuitTotalCount"
-        :common2-circuit-total-count="circuitProfile?.common2CircuitTotalCount"
-        :common3-circuit-total-count="circuitProfile?.common3CircuitTotalCount"
       />
     </div>
   </section>
@@ -290,6 +275,20 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
 .detail-panel__body {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+}
+
+.detail-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-panel__section-title {
+  margin: 0;
+  color: #e5edf7;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .detail-panel__body :deep(.threephase-panel),
