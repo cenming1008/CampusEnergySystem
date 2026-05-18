@@ -4,7 +4,7 @@ import { mount } from '@vue/test-utils'
 import CompensationDetailPanel from '../CompensationDetailPanel.vue'
 
 describe('CompensationDetailPanel', () => {
-  it('places three-phase measurements under circuit state for capacitor banks', () => {
+  it('switches capacitor banks between circuit state and three-phase measurements', async () => {
     const wrapper = mount(CompensationDetailPanel, {
       props: {
         isCapacitorBank: true,
@@ -19,10 +19,18 @@ describe('CompensationDetailPanel', () => {
             template: '<section class="circuit-probe">回路状态</section>',
           },
           'el-segmented': {
-            props: ['options'],
+            props: ['options', 'modelValue'],
+            emits: ['change'],
             template: `
               <div class="tab-probe">
-                <span v-for="option in options" :key="option.value">{{ option.label }}</span>
+                <button
+                  v-for="option in options"
+                  :key="option.value"
+                  type="button"
+                  @click="$emit('change', option.value)"
+                >
+                  {{ option.label }}
+                </button>
               </div>
             `,
           },
@@ -31,14 +39,22 @@ describe('CompensationDetailPanel', () => {
     })
 
     const headerText = wrapper.find('.detail-panel__head').text()
-    const bodyText = wrapper.find('.detail-panel__body').text()
 
     expect(wrapper.find('.detail-panel__intro h3').text()).toBe('实时监测')
     expect(headerText).not.toContain('三相电气量与回路投切状态')
     expect(headerText.indexOf('投入')).toBeGreaterThanOrEqual(0)
-    expect(headerText).not.toContain('三相量测')
-    expect(wrapper.find('.tab-probe').exists()).toBe(false)
-    expect(bodyText.indexOf('回路状态')).toBeLessThan(bodyText.indexOf('三相量测'))
+    expect(wrapper.find('.tab-probe').exists()).toBe(true)
+    expect(wrapper.find('.tab-probe').text()).toContain('回路状态')
+    expect(wrapper.find('.tab-probe').text()).toContain('三相量测')
+    expect(wrapper.find('.circuit-probe').exists()).toBe(true)
+    expect(wrapper.find('.threephase-probe').exists()).toBe(false)
+
+    await wrapper.findAll('.tab-probe button')[1].trigger('click')
+    await wrapper.setProps({ activeTab: 'three-phase' })
+
+    expect(wrapper.emitted('update:activeTab')?.[0]).toEqual(['three-phase'])
+    expect(wrapper.find('.circuit-probe').exists()).toBe(false)
+    expect(wrapper.find('.threephase-probe').exists()).toBe(true)
   })
 
   it('keeps non-capacitor devices on the three-phase measurement path', () => {

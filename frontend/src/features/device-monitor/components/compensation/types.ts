@@ -3,7 +3,6 @@ export type CompensationDataState = 'live' | 'mock' | 'missing' | 'offline' | 'u
 export type CompensationWorkbenchTab =
   | 'runtime'
   | 'curves'
-  | 'remote-control'
   | 'parameter-settings'
   | 'event-records'
 export type CompensationTrendTab =

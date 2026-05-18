@@ -289,7 +289,7 @@ export const capacitorBankControlGroupLabels = {
   strategy: '投切策略',
   circuits: '回路配置',
   protection: '保护门限',
-  device: '设备配置',
+  device: '通讯参数',
 } as const
 
 export const capacitorBankEditableParameterMeta = capacitorBankControlParameterMeta

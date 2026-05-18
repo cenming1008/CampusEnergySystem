@@ -60,6 +60,8 @@ export interface ControlConsoleReadonlySectionView {
   showCapacityExpansion: boolean
 }
 
+const readonlyParameterGroupOrder = ['strategy', 'circuits', 'protection', 'device']
+
 export interface ControlConsoleWriteSectionView {
   title: string
   sectionLabel: string
@@ -262,18 +264,23 @@ export function buildControlConsoleReadonlySummaryView(input: {
     }
   }
 
-  const groupedParameters = Array.from(groups.entries()).map(([key, items]) => ({
-    key,
-    label: capacitorBankControlGroupLabels[key as keyof typeof capacitorBankControlGroupLabels],
-    items: items.map((item) => ({
-      key: String(item.key),
-      label: item.label,
-      description: item.description,
-      currentValue: formatCapacitorBankControlValue(profile, item),
-      register: item.register,
-      readWrite: item.readWrite,
-    })),
-  }))
+  const groupedParameters: ControlConsoleParameterGroup[] = []
+  for (const key of readonlyParameterGroupOrder) {
+    const items = groups.get(key)
+    if (!items?.length) continue
+    groupedParameters.push({
+      key,
+      label: capacitorBankControlGroupLabels[key as keyof typeof capacitorBankControlGroupLabels],
+      items: items.map((item) => ({
+        key: String(item.key),
+        label: item.label,
+        description: item.description,
+        currentValue: formatCapacitorBankControlValue(profile, item),
+        register: item.register,
+        readWrite: item.readWrite,
+      })),
+    })
+  }
 
   return {
     summaryItems,

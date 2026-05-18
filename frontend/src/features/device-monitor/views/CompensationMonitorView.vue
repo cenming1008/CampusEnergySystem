@@ -35,7 +35,7 @@ function switchWorkbenchTab(tab: DeviceMonitorPageModel['compensationWorkbenchTa
 
 function openControlWorkbench() {
   if (isCapacitorBankController()) {
-    switchWorkbenchTab('remote-control')
+    switchWorkbenchTab('runtime')
     return
   }
 
@@ -119,6 +119,33 @@ function shouldShowSideTraceability() {
               :module-status="page.moduleStatusModel"
               :measurement-metrics="page.compensationMeasurementMetrics"
             />
+
+            <MonitorInlineAlert
+              v-if="page.controlConsoleLoadError"
+              title="远程控制暂不可用"
+              :message="page.controlConsoleLoadError"
+              tone="danger"
+            />
+
+            <ControlConsoleRemotePanel
+              v-else
+              :action-cards="page.controlConsoleActionCards"
+              :toggle-submitting="page.controlConsoleToggleSubmitting"
+              :current-control-mode-label="page.controlConsoleCurrentControlModeLabel"
+              :can-run-manual-switch="page.controlConsoleCanRunManualSwitch"
+              :manual-switch-disabled-reason="page.controlConsoleManualSwitchDisabledReason"
+              :manual-phase-options="page.controlConsoleManualPhaseOptions"
+              :manual-switch-action-options="page.controlConsoleManualSwitchActionOptions"
+              :manual-common-group-options="page.controlConsoleManualCommonGroupOptions"
+              :manual-phase="page.controlConsoleManualSwitchForm.phase"
+              :manual-switch-action="page.controlConsoleManualSwitchForm.switch_action"
+              :manual-common-group="page.controlConsoleManualSwitchForm.group"
+              @action-card="page.handleControlConsoleActionCard"
+              @update:manual-phase="page.controlConsoleManualSwitchForm.phase = $event"
+              @update:manual-switch-action="page.controlConsoleManualSwitchForm.switch_action = $event"
+              @update:manual-common-group="page.controlConsoleManualSwitchForm.group = $event"
+              @manual-switch="page.handleControlConsoleManualSwitchCommand"
+            />
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'curves'">
@@ -161,35 +188,6 @@ function shouldShowSideTraceability() {
                 @range-change="page.handleRangeChange"
               />
             </section>
-          </template>
-
-          <template v-else-if="page.compensationWorkbenchTab === 'remote-control'">
-            <MonitorInlineAlert
-              v-if="page.controlConsoleLoadError"
-              title="远程控制暂不可用"
-              :message="page.controlConsoleLoadError"
-              tone="danger"
-            />
-
-            <ControlConsoleRemotePanel
-              v-else
-              :action-cards="page.controlConsoleActionCards"
-              :toggle-submitting="page.controlConsoleToggleSubmitting"
-              :current-control-mode-label="page.controlConsoleCurrentControlModeLabel"
-              :can-run-manual-switch="page.controlConsoleCanRunManualSwitch"
-              :manual-switch-disabled-reason="page.controlConsoleManualSwitchDisabledReason"
-              :manual-phase-options="page.controlConsoleManualPhaseOptions"
-              :manual-switch-action-options="page.controlConsoleManualSwitchActionOptions"
-              :manual-common-group-options="page.controlConsoleManualCommonGroupOptions"
-              :manual-phase="page.controlConsoleManualSwitchForm.phase"
-              :manual-switch-action="page.controlConsoleManualSwitchForm.switch_action"
-              :manual-common-group="page.controlConsoleManualSwitchForm.group"
-              @action-card="page.handleControlConsoleActionCard"
-              @update:manual-phase="page.controlConsoleManualSwitchForm.phase = $event"
-              @update:manual-switch-action="page.controlConsoleManualSwitchForm.switch_action = $event"
-              @update:manual-common-group="page.controlConsoleManualSwitchForm.group = $event"
-              @manual-switch="page.handleControlConsoleManualSwitchCommand"
-            />
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'parameter-settings'">

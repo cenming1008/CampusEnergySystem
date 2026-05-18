@@ -158,6 +158,12 @@ describe('device control view mapping', () => {
       label: 'A相分补',
       value: '5.0 kvar / 5.0 kvar / 10.0 kvar',
     })
+    expect(view.groupedParameters.map((group) => group.label)).toEqual([
+      '投切策略',
+      '回路配置',
+      '保护门限',
+      '通讯参数',
+    ])
     expect(view.groupedParameters[0]?.items[0]).toMatchObject({
       label: '投入功率因数',
       register: '0xD2',

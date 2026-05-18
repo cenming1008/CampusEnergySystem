@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Lock, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import { Setting } from '@element-plus/icons-vue'
 import type { ControlConsoleActionCard } from '@/features/device-control/viewMapping'
 import MonitorSectionPanel from '@/shared/components/MonitorSectionPanel.vue'
 
-defineProps<{
+const props = defineProps<{
   actionCards: ControlConsoleActionCard[]
   toggleSubmitting: boolean
   currentControlModeLabel: string
@@ -25,11 +26,7 @@ const emit = defineEmits<{
   (e: 'manualSwitch'): void
 }>()
 
-function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
-  if (iconKey === 'switch') return SwitchButton
-  if (iconKey === 'refresh') return Refresh
-  return Setting
-}
+const modeSwitchCard = computed(() => props.actionCards.find((card) => card.key === 'switch_control_mode'))
 </script>
 
 <template>
@@ -38,54 +35,37 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
     accent="amber"
     title="远程控制"
   >
-    <div class="remote-actions">
-      <button
-        v-for="card in actionCards"
-        :key="card.title"
-        class="remote-card"
-        :class="card.enabled ? 'remote-card--enabled' : 'remote-card--locked'"
-        type="button"
-        :disabled="!card.enabled || toggleSubmitting"
-        @click="emit('actionCard', card.key)"
-      >
-        <div class="remote-card__top">
-          <span class="remote-card__icon-wrap">
-            <component
-              :is="resolveActionIcon(card.iconKey)"
-              class="remote-card__icon"
-            />
+    <div class="remote-control-compact">
+      <div class="mode-switch-tile">
+        <div class="mode-switch-tile__meta">
+          <span class="mode-switch-tile__icon">
+            <Setting />
           </span>
-          <component
-            :is="Lock"
-            v-if="!card.enabled"
-            class="remote-card__lock-icon"
-          />
-        </div>
-        <strong>{{ card.title }}</strong>
-        <em v-if="card.enabled">{{ card.actionLabel }}</em>
-        <em v-else-if="card.disabledReason" class="remote-card__reason">{{ card.disabledReason }}</em>
-      </button>
-    </div>
-    <div class="manual-switch-box">
-      <div class="manual-switch-box__head">
-        <el-tooltip content="先切到手动模式，再执行投切指令" placement="top">
-          <strong>手动投切控制</strong>
-        </el-tooltip>
-      </div>
-      <div class="manual-switch-row">
-        <div class="manual-switch-field">
-          <label class="manual-switch-label">当前模式</label>
-          <div class="manual-switch-mode-indicator">
-            <el-tag
-              :type="currentControlModeLabel === '手动' ? 'warning' : 'info'"
-              effect="dark"
-            >
-              {{ currentControlModeLabel }}
-            </el-tag>
+          <div>
+            <strong>控制模式切换</strong>
+            <small>当前模式：{{ currentControlModeLabel }}</small>
           </div>
         </div>
+        <button
+          v-if="modeSwitchCard"
+          type="button"
+          class="mode-switch-action"
+          data-test="mode-switch-action"
+          :disabled="!modeSwitchCard.enabled || toggleSubmitting"
+          :title="modeSwitchCard.disabledReason"
+          @click="emit('actionCard', modeSwitchCard.key)"
+        >
+          {{ toggleSubmitting ? '切换中...' : modeSwitchCard.actionLabel }}
+        </button>
+      </div>
+
+      <div class="manual-switch-inline">
+        <div class="manual-switch-title">
+          <strong>手动投切控制</strong>
+          <small>选择目标与动作后发送</small>
+        </div>
         <div class="manual-switch-field">
-          <label class="manual-switch-label">目标相位</label>
+          <label class="manual-switch-label">相位</label>
           <el-select
             :model-value="manualPhase"
             :disabled="!canRunManualSwitch || toggleSubmitting"
@@ -101,7 +81,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
           </el-select>
         </div>
         <div v-if="manualPhase === 'COMMON'" class="manual-switch-field">
-          <label class="manual-switch-label">共补组</label>
+          <label class="manual-switch-label">组</label>
           <el-select
             :model-value="manualCommonGroup"
             :disabled="!canRunManualSwitch || toggleSubmitting"
@@ -117,7 +97,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
           </el-select>
         </div>
         <div class="manual-switch-field">
-          <label class="manual-switch-label">投切动作</label>
+          <label class="manual-switch-label">动作</label>
           <el-select
             :model-value="manualSwitchAction"
             :disabled="!canRunManualSwitch || toggleSubmitting"
@@ -141,7 +121,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
           :title="manualSwitchDisabledReason"
           @click="emit('manualSwitch')"
         >
-          {{ toggleSubmitting ? '指令发送中...' : '发送手动投切指令' }}
+          {{ toggleSubmitting ? '发送中...' : '发送指令' }}
         </button>
       </div>
     </div>
@@ -149,161 +129,119 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 </template>
 
 <style scoped>
-.remote-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.remote-card {
-  min-height: 136px;
-  padding: 16px;
-  border-radius: 12px;
+.remote-control-compact {
+  padding: 12px;
+  border-radius: 10px;
   border: 1px solid rgba(48, 70, 95, 0.72);
   background:
-    linear-gradient(180deg, rgba(31, 48, 70, 0.62), rgba(12, 24, 39, 0.78)),
-    rgba(19, 34, 53, 0.78);
-  text-align: left;
-  color: #a7b7cb;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+    linear-gradient(180deg, rgba(251, 191, 36, 0.035), rgba(12, 24, 39, 0.78)),
+    rgba(16, 28, 44, 0.72);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 2.2fr);
+  gap: 10px;
+  align-items: stretch;
 }
 
-.remote-card--locked {
-  cursor: not-allowed;
-  opacity: 0.45;
-  filter: grayscale(0.3);
+.mode-switch-tile,
+.manual-switch-inline {
+  min-width: 0;
+  border: 1px solid rgba(48, 70, 95, 0.58);
+  border-radius: 8px;
+  background: rgba(8, 17, 30, 0.34);
 }
 
-.remote-card--enabled {
-  cursor: pointer;
-  opacity: 1;
-  border-color: rgba(251, 191, 36, 0.4);
-  background:
-    linear-gradient(180deg, rgba(251, 191, 36, 0.08), rgba(12, 24, 39, 0.8)),
-    rgba(19, 34, 53, 0.78);
-}
-
-.remote-card--enabled:hover {
-  border-color: rgba(251, 191, 36, 0.65);
-  transform: translateY(-1px);
-}
-
-.remote-card--enabled:active { transform: translateY(1px); }
-
-.remote-card__top {
+.mode-switch-tile {
+  padding: 10px;
   display: flex;
   justify-content: space-between;
+  gap: 10px;
   align-items: center;
-  min-height: 36px;
 }
 
-.remote-card__icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(251, 191, 36, 0.18);
+.mode-switch-tile__meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mode-switch-tile__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.22);
   background: rgba(251, 191, 36, 0.1);
   display: grid;
   place-items: center;
-}
-
-.remote-card__icon {
-  width: 18px;
-  height: 18px;
   color: #fbbf24;
+  flex: 0 0 auto;
 }
 
-.remote-card__lock-icon {
+.mode-switch-tile__icon svg {
   width: 16px;
   height: 16px;
-  color: #fca5a5;
 }
 
-.remote-card strong {
+.mode-switch-tile strong,
+.manual-switch-title strong {
   display: block;
-  margin: 16px 0 6px;
-  font-size: 15px;
   color: #f7fbff;
+  font-size: 13px;
   line-height: 1.35;
 }
 
-.remote-card em {
-  margin-top: auto;
-  display: inline-block;
-  font-size: 13px;
-  color: #fcd34d;
-  font-style: normal;
-  line-height: 1.45;
-}
-
-.remote-card__reason {
-  color: #7a90ab;
-  font-size: 11px;
-}
-
-.manual-switch-box {
-  margin-top: 12px;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(48, 70, 95, 0.72);
-  background:
-    linear-gradient(180deg, rgba(251, 191, 36, 0.045), rgba(12, 24, 39, 0.8)),
-    rgba(19, 34, 53, 0.76);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-}
-
-.manual-switch-box__head {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.manual-switch-box__head strong {
-  font-size: 14px;
-  color: #fef3c7;
-  letter-spacing: 0;
-}
-
-.manual-switch-box__head span {
-  color: #b7c6da;
+.mode-switch-tile small,
+.manual-switch-title small {
+  display: block;
+  margin-top: 2px;
+  color: #8da2bf;
   font-size: 12px;
+  line-height: 1.35;
 }
 
-.manual-switch-row {
-  position: relative;
+.mode-switch-action {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  background: rgba(120, 53, 15, 0.18);
+  color: #fde68a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode-switch-action:hover:not(:disabled),
+.manual-switch-submit:hover:not(:disabled) {
+  background: rgba(120, 53, 15, 0.3);
+  border-color: rgba(245, 158, 11, 0.62);
+}
+
+.mode-switch-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.manual-switch-inline {
+  padding: 10px;
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) repeat(3, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(128px, 0.8fr) repeat(2, minmax(120px, 1fr)) minmax(112px, 0.85fr);
+  gap: 10px;
   align-items: end;
-}
-
-.manual-switch-submit {
-  grid-column: auto;
-  justify-self: end;
 }
 
 .manual-switch-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .manual-switch-label {
-  font-size: 12px;
+  font-size: 11px;
   color: #93a7c4;
-}
-
-.manual-switch-mode-indicator {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
 }
 
 .manual-switch-select { width: 100%; }
@@ -313,7 +251,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   align-items: center;
   justify-content: center;
   min-height: 34px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-radius: 8px;
   border: 1px solid rgba(245, 158, 11, 0.42);
   background: rgba(120, 53, 15, 0.18);
@@ -327,74 +265,63 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   transition: border-color 0.16s ease, background 0.16s ease;
 }
 
-.manual-switch-submit:hover:not(:disabled) {
-  background: rgba(120, 53, 15, 0.3);
-  border-color: rgba(245, 158, 11, 0.62);
-}
-
 .manual-switch-submit:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
 
-.manual-switch-box :deep(.el-select__wrapper),
-.manual-switch-box :deep(.el-select .el-input__wrapper) {
+.remote-control-compact :deep(.el-select__wrapper),
+.remote-control-compact :deep(.el-select .el-input__wrapper) {
   background: rgba(9, 18, 29, 0.84);
   border: 1px solid rgba(251, 191, 36, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   border-radius: 10px;
 }
 
-.manual-switch-box :deep(.el-select__wrapper.is-hovering),
-.manual-switch-box :deep(.el-select .el-input__wrapper:hover) {
+.remote-control-compact :deep(.el-select__wrapper.is-hovering),
+.remote-control-compact :deep(.el-select .el-input__wrapper:hover) {
   border-color: rgba(251, 191, 36, 0.32);
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.08);
 }
 
-.manual-switch-box :deep(.el-select__wrapper.is-focused),
-.manual-switch-box :deep(.el-select .el-input__wrapper.is-focus) {
+.remote-control-compact :deep(.el-select__wrapper.is-focused),
+.remote-control-compact :deep(.el-select .el-input__wrapper.is-focus) {
   border-color: rgba(251, 191, 36, 0.5);
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.16);
 }
 
-.manual-switch-box :deep(.el-select__selected-item),
-.manual-switch-box :deep(.el-select__placeholder),
-.manual-switch-box :deep(.el-input__inner) {
+.remote-control-compact :deep(.el-select__selected-item),
+.remote-control-compact :deep(.el-select__placeholder),
+.remote-control-compact :deep(.el-input__inner) {
   color: #eef4fd;
 }
 
-.manual-switch-box :deep(.el-select__caret) {
+.remote-control-compact :deep(.el-select__caret) {
   color: #8ea0bc;
 }
 
 @media (max-width: 1200px) {
-  .remote-actions {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  .remote-control-compact {
+    grid-template-columns: 1fr;
   }
 
-  .manual-switch-row {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  }
-
-  .manual-switch-submit {
-    grid-column: 1 / -1;
-    justify-self: end;
-    width: auto;
+  .manual-switch-inline {
+    grid-template-columns: minmax(128px, 0.8fr) repeat(2, minmax(120px, 1fr)) minmax(112px, 0.85fr);
   }
 }
 
 @media (max-width: 768px) {
-  .manual-switch-box__head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .manual-switch-row,
-  .remote-actions {
+  .manual-switch-inline {
     grid-template-columns: 1fr;
   }
 
+  .mode-switch-tile {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mode-switch-action,
   .manual-switch-submit {
     width: 100%;
   }

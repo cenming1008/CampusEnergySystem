@@ -79,7 +79,6 @@ function createPage(tab = 'runtime') {
     compensationWorkbenchTabs: [
       { label: '运行监视', value: 'runtime' },
       { label: '曲线分析', value: 'curves' },
-      { label: '远程控制', value: 'remote-control' },
       { label: '参数设置', value: 'parameter-settings' },
       { label: '事件记录', value: 'event-records' },
     ],
@@ -202,26 +201,29 @@ function mountView(tab = 'runtime') {
 }
 
 describe('CompensationMonitorView', () => {
-  it('renders capacitor bank workbench tabs and switches header action to remote control', async () => {
+  it('renders remote control as a runtime module instead of a workbench tab', async () => {
     const { wrapper, page } = mountView()
 
     expect(wrapper.text()).toContain('运行监视')
     expect(wrapper.text()).toContain('曲线分析')
-    expect(wrapper.text()).toContain('远程控制')
+    expect(wrapper.find('.comp-workbench__tabs').text()).not.toContain('远程控制')
     expect(wrapper.text()).toContain('参数设置')
     expect(wrapper.text()).toContain('事件记录')
+    expect(wrapper.find('.runtime-overview-stub').exists()).toBe(true)
+    expect(wrapper.find('.detail-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.remote-panel-stub').exists()).toBe(true)
 
     await wrapper.find('.header-console-action').trigger('click')
 
-    expect(page.compensationWorkbenchTab).toBe('remote-control')
+    expect(page.compensationWorkbenchTab).toBe('runtime')
     expect(page.router.push).not.toHaveBeenCalled()
   })
 
-  it('shows the remote control panel on the remote-control tab', () => {
-    const { wrapper } = mountView('remote-control')
+  it('keeps the remote control module out of non-runtime workbench tabs', () => {
+    const { wrapper } = mountView('parameter-settings')
 
-    expect(wrapper.find('.remote-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('.readonly-params-stub').exists()).toBe(false)
+    expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
+    expect(wrapper.find('.readonly-params-stub').exists()).toBe(true)
   })
 
   it('shows readonly and writable parameter panels on the parameter-settings tab', () => {

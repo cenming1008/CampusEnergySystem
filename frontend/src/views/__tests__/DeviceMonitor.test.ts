@@ -589,7 +589,7 @@ describe('DeviceMonitor view', () => {
     expect(getCompensationCapBankHistoryMock).toHaveBeenCalledTimes(1)
   })
 
-  it('opens capacitor-bank workbench on remote-control tab from query', async () => {
+  it('normalizes legacy remote-control query to the runtime workbench', async () => {
     routeParams.id = '8'
     routeState.query.tab = 'remote-control'
     getDeviceMonitorOverviewMock.mockResolvedValueOnce({
@@ -652,7 +652,7 @@ describe('DeviceMonitor view', () => {
       compensationWorkbenchTab: string
       compensationTrendTab: string
     }
-    expect(page.compensationWorkbenchTab).toBe('remote-control')
+    expect(page.compensationWorkbenchTab).toBe('runtime')
   })
 
   it('syncs capacitor-bank workbench tab when route query changes', async () => {

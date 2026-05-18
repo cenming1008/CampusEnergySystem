@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type {
   ControlConsoleReadonlySectionView,
   ControlConsoleReadonlySummaryView,
@@ -11,15 +11,32 @@ const props = defineProps<{
   readonlySummaryView: ControlConsoleReadonlySummaryView
 }>()
 
-const capacityExpanded = ref(false)
-const parametersExpanded = ref(false)
-
 const compactSummaryItems = computed(() => props.readonlySummaryView.summaryItems.slice(0, 6))
 const snapshotTimeText = computed(() => {
   const marker = '快照：'
   const value = props.sectionView.metaText || ''
   return value.includes(marker) ? value.split(marker).pop()?.trim() || '' : value
 })
+
+function capacitySlotLabel(groupLabel: string, index: number) {
+  const range = groupLabel.match(/(\d+)\s*-\s*(\d+)/)
+  if (range) return `${Number(range[1]) + index}路`
+  const phase = groupLabel.match(/^([ABC])相/)
+  if (phase) return `${phase[1]}${index + 1}`
+  return `${index + 1}路`
+}
+
+function capacitySlots(item: { label: string; value: string }) {
+  return item.value
+    .split('/')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value, index) => ({
+      key: `${item.label}-${index}`,
+      label: capacitySlotLabel(item.label, index),
+      value,
+    }))
+}
 </script>
 
 <template>
@@ -41,30 +58,8 @@ const snapshotTimeText = computed(() => {
       </div>
     </div>
 
-    <div class="readonly-detail-actions">
-      <button
-        v-if="sectionView.showCapacityExpansion"
-        type="button"
-        class="readonly-detail-toggle"
-        data-test="toggle-capacity"
-        @click="capacityExpanded = !capacityExpanded"
-      >
-        <span>容量展开详情</span>
-        <strong>{{ capacityExpanded ? '收起' : '展开' }}</strong>
-      </button>
-      <button
-        type="button"
-        class="readonly-detail-toggle"
-        data-test="toggle-parameters"
-        @click="parametersExpanded = !parametersExpanded"
-      >
-        <span>全部参数明细</span>
-        <strong>{{ parametersExpanded ? '收起' : '展开' }}</strong>
-      </button>
-    </div>
-
     <div
-      v-if="sectionView.showCapacityExpansion && capacityExpanded"
+      v-if="sectionView.showCapacityExpansion"
       class="capacity-expansion-panel"
     >
       <div class="capacity-expansion-panel__head">
@@ -77,46 +72,44 @@ const snapshotTimeText = computed(() => {
           class="capacity-expansion-card"
         >
           <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
+          <div class="capacity-slot-grid">
+            <div
+              v-for="slot in capacitySlots(item)"
+              :key="slot.key"
+              class="capacity-slot"
+              data-test="capacity-slot"
+            >
+              <small>{{ slot.label }}</small>
+              <strong>{{ slot.value }}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <div
-      v-if="parametersExpanded"
-      class="param-groups"
-    >
-      <section
-        v-for="group in readonlySummaryView.groupedParameters"
-        :key="group.key"
-        class="param-group"
-      >
-        <header class="param-group__head">
-          <h4>{{ group.label }}</h4>
-          <span>{{ group.items.length }} 个参数</span>
-        </header>
-        <div class="param-table">
-          <div class="param-table__row param-table__row--head">
-            <span>参数 / 说明</span>
-            <span>当前值</span>
-            <span class="param-table__meta-col">寄存器 · 读写</span>
-          </div>
-          <div
-            v-for="item in group.items"
-            :key="item.key"
-            class="param-table__row"
-          >
-            <div class="param-table__label">
-              <strong>{{ item.label }}</strong>
-              <small>{{ item.description }}</small>
-            </div>
-            <span class="param-table__value">{{ item.currentValue }}</span>
-            <div class="param-table__meta param-table__meta-col">
-              <span>{{ item.register }}</span>
-              <small>{{ item.readWrite }}</small>
+    <div class="param-groups">
+      <div class="param-group-grid">
+        <section
+          v-for="group in readonlySummaryView.groupedParameters"
+          :key="group.key"
+          class="param-group"
+          data-test="param-group-card"
+        >
+          <header class="param-group__head">
+            <h4>{{ group.label }}</h4>
+            <span>{{ group.items.length }} 个参数</span>
+          </header>
+          <div class="param-list">
+            <div
+              v-for="item in group.items"
+              :key="item.key"
+              class="param-list__row"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ item.currentValue }}</strong>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   </ControlConsoleParameterSection>
 </template>
@@ -152,41 +145,6 @@ const snapshotTimeText = computed(() => {
   font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
-}
-
-.readonly-detail-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.readonly-detail-toggle {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(71, 100, 135, 0.4);
-  background: rgba(12, 22, 38, 0.62);
-  color: #c8d8ee;
-  font: inherit;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.readonly-detail-toggle:hover {
-  border-color: rgba(45, 212, 191, 0.42);
-}
-
-.readonly-detail-toggle span {
-  font-size: 12px;
-}
-
-.readonly-detail-toggle strong {
-  color: #5eead4;
-  font-size: 12px;
 }
 
 .capacity-expansion-panel {
@@ -225,7 +183,7 @@ const snapshotTimeText = computed(() => {
   background: rgba(16, 28, 44, 0.68);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .capacity-expansion-card span {
@@ -233,28 +191,58 @@ const snapshotTimeText = computed(() => {
   font-size: 11px;
 }
 
-.capacity-expansion-card strong {
+.capacity-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.capacity-slot {
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(48, 70, 95, 0.62);
+  background: rgba(8, 17, 30, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.capacity-slot small {
+  color: #6ddbd0;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.capacity-slot strong {
   color: #f7fbff;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .param-groups {
   margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+}
+
+.param-group-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
 }
 
 .param-group {
   border: 1px solid rgba(44, 65, 89, 0.7);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(12, 22, 38, 0.7);
   overflow: hidden;
 }
 
 .param-group__head {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(44, 65, 89, 0.7);
   display: flex;
   justify-content: space-between;
@@ -273,85 +261,54 @@ const snapshotTimeText = computed(() => {
   font-size: 11px;
 }
 
-.param-table {
+.param-list {
   display: flex;
   flex-direction: column;
 }
 
-.param-table__row {
+.param-list__row {
   display: grid;
-  grid-template-columns: 1fr 160px 120px;
-  gap: 12px;
-  padding: 12px 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 9px 14px;
   border-bottom: 1px solid rgba(33, 52, 74, 0.6);
   align-items: center;
 }
 
-.param-table__row:last-child {
+.param-list__row:last-child {
   border-bottom: none;
 }
 
-.param-table__row--head {
-  background: rgba(20, 36, 57, 0.9);
-  color: #6a84a2;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.param-table__label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.param-table__label strong {
-  color: #eef5ff;
-  font-size: 13px;
-}
-
-.param-table__label small {
-  color: #7a90ab;
+.param-list__row span {
+  color: #91a5c2;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.param-table__value {
-  color: #c8d8ee;
+.param-list__row strong {
+  color: #f7fbff;
   font-size: 13px;
-  line-height: 1.5;
-}
-
-.param-table__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.param-table__meta span {
-  color: #8ca0ba;
-  font-size: 12px;
-}
-
-.param-table__meta small {
-  color: #5d7699;
-  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 800px) {
   .readonly-summary-grid,
-  .readonly-detail-actions,
   .summary-strip,
   .capacity-expansion-grid {
     grid-template-columns: 1fr;
   }
 
-  .param-table__row {
-    grid-template-columns: minmax(0, 1fr) 120px;
+  .param-group-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
-  .param-table__meta-col {
-    display: none;
+@media (max-width: 520px) {
+  .param-group-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -52,7 +52,15 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits<{
+  'update:activeTab': [value: CompensationDetailTab]
+}>()
+
 const showCircuitTab = computed(() => props.isCapacitorBank)
+const detailTabOptions = [
+  { label: '回路状态', value: 'circuit' },
+  { label: '三相量测', value: 'three-phase' },
+]
 </script>
 
 <template>
@@ -72,18 +80,31 @@ const showCircuitTab = computed(() => props.isCapacitorBank)
         v-if="showCircuitTab"
         class="detail-panel__actions"
       >
-        <div class="detail-panel__legend">
+        <div
+          v-if="activeTab === 'circuit'"
+          class="detail-panel__legend"
+        >
           <span class="legend-item legend-item--on"><i />投入</span>
           <span class="legend-item legend-item--off"><i />切除</span>
           <span class="legend-item legend-item--unconfigured"><i />未配置</span>
           <span class="legend-item legend-item--na"><i />等待回读</span>
+        </div>
+        <div class="detail-panel__tab-switcher">
+          <el-segmented
+            :model-value="activeTab"
+            :options="detailTabOptions"
+            @change="emit('update:activeTab', $event as CompensationDetailTab)"
+          />
         </div>
       </div>
     </header>
 
     <div class="detail-panel__body">
       <template v-if="showCircuitTab">
-        <section class="detail-panel__section">
+        <section
+          v-if="activeTab === 'circuit'"
+          class="detail-panel__section"
+        >
           <h4 class="detail-panel__section-title">回路状态</h4>
           <CompensationCircuitStatePanel
             :capacitor-bank-telemetry="capacitorBankTelemetry"
@@ -98,7 +119,10 @@ const showCircuitTab = computed(() => props.isCapacitorBank)
           />
         </section>
 
-        <section class="detail-panel__section">
+        <section
+          v-else
+          class="detail-panel__section"
+        >
           <h4 class="detail-panel__section-title">三相量测</h4>
           <CompensationThreePhasePanel
             :svg-telemetry="svgTelemetry"

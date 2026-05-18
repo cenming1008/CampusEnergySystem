@@ -53,7 +53,6 @@ const LIVE_RANGE_TOLERANCE_MS = REFRESH_INTERVAL_MS * 2
 const compensationWorkbenchTabs: CompensationWorkbenchTabOption[] = [
   { label: '运行监视', value: 'runtime' },
   { label: '曲线分析', value: 'curves' },
-  { label: '远程控制', value: 'remote-control', tone: 'danger' },
   { label: '参数设置', value: 'parameter-settings', tone: 'warning' },
   { label: '事件记录', value: 'event-records' },
 ]
@@ -61,7 +60,6 @@ const compensationWorkbenchTabs: CompensationWorkbenchTabOption[] = [
 function normalizeWorkbenchTab(value: unknown): CompensationWorkbenchTab {
   const raw = Array.isArray(value) ? value[0] : value
   if (raw === 'curves') return 'curves'
-  if (raw === 'remote-control') return 'remote-control'
   if (raw === 'parameter-settings') return 'parameter-settings'
   if (raw === 'event-records') return 'event-records'
   return 'runtime'
