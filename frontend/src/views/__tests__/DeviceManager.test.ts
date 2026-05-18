@@ -301,7 +301,7 @@ describe('DeviceManager view', () => {
     }
 
     vm.openDeviceConsole({ id: 16 })
-    expect(routerPushMock).toHaveBeenCalledWith('/device-console/16')
+    expect(routerPushMock).toHaveBeenCalledWith('/devices/16/monitor?tab=remote-control')
   })
 
   it('labels the device switch as management state instead of runtime state', async () => {

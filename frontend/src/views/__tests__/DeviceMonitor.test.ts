@@ -1,4 +1,4 @@
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, nextTick, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 
@@ -692,6 +692,12 @@ describe('DeviceMonitor view', () => {
 
     const wrapper = mountViewWithSpectrumTabProbe()
     await flushAsync()
+
+    const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
+      compensationWorkbenchTab: string
+    }
+    page.compensationWorkbenchTab = 'curves'
+    await nextTick()
 
     const trendProbeText = wrapper.find('.compensation-trend-panel-spectrum-probe').text()
     expect(trendProbeText).toContain('谐波趋势')

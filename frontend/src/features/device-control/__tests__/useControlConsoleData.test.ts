@@ -163,14 +163,21 @@ describe('useControlConsoleData', () => {
       archive: {
         id: 2,
         name: '测试补偿柜',
+        sn: 'CAP-002',
         device_type: 'capacitor_bank_controller',
         device_subtype: 'capacitor_bank_controller',
       },
       runtime_status: {
         device_id: 2,
+        code: 'running',
+        label: '运行中',
+        is_active: true,
         is_online: true,
+        unresolved_alarm_count: 0,
       },
-      realtime: null,
+      realtime: {
+        device_id: 2,
+      },
       recent_alarms: [],
       recent_control_logs: [],
       ingestion_health: {},

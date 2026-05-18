@@ -421,7 +421,7 @@
         ElMessage.warning(pendingArchiveMessage)
         return
       }
-      router.push(`/device-console/${row.id}`)
+      router.push(`/devices/${row.id}/monitor?tab=remote-control`)
     }
     
     // --- 获取设备类型列表 ---
