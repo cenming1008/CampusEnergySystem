@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import ControlConsoleLogPanel from '@/features/device-control/components/ControlConsoleLogPanel.vue'
-import ControlConsoleReadonlyParamsPanel from '@/features/device-control/components/ControlConsoleReadonlyParamsPanel.vue'
+import ControlConsoleParametersPanel from '@/features/device-control/components/ControlConsoleParametersPanel.vue'
 import ControlConsoleRemotePanel from '@/features/device-control/components/ControlConsoleRemotePanel.vue'
-import ControlConsoleWritableParamsPanel from '@/features/device-control/components/ControlConsoleWritableParamsPanel.vue'
 import ControlConsoleWriteDialog from '@/features/device-control/components/ControlConsoleWriteDialog.vue'
 import CompensationAlarmSummaryPanel from '@/features/device-monitor/components/compensation/CompensationAlarmSummaryPanel.vue'
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
@@ -201,20 +200,11 @@ function shouldShowSideTraceability() {
             <MonitorSectionPanel
               shell="console"
               accent="teal"
-              title="参数管理"
+              title="参数设置"
             >
-              <ControlConsoleReadonlyParamsPanel
+              <ControlConsoleParametersPanel
                 :section-view="page.controlConsoleReadonlySectionView"
                 :readonly-summary-view="page.controlConsoleReadonlySummaryView"
-              />
-            </MonitorSectionPanel>
-
-            <MonitorSectionPanel
-              shell="console"
-              accent="amber"
-              title="参数修改"
-            >
-              <ControlConsoleWritableParamsPanel
                 :write-section-view="page.controlConsoleWriteSectionView"
                 :can-write-parameters="page.controlConsoleCanWriteParameters"
                 :editable-parameter-cards="page.controlConsoleEditableParameterCards"

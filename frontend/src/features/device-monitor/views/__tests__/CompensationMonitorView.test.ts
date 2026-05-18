@@ -188,8 +188,7 @@ function mountView(tab = 'runtime') {
         CompensationSvgProfileEditDialog: namedStub('svg-dialog-stub', 'SVG 档案弹窗'),
         ControlConsoleRemotePanel: namedStub('remote-panel-stub', '远程面板'),
         ControlConsoleLogPanel: namedStub('log-panel-stub', '控制日志'),
-        ControlConsoleReadonlyParamsPanel: namedStub('readonly-params-stub', '只读参数'),
-        ControlConsoleWritableParamsPanel: namedStub('writable-params-stub', '可写参数'),
+        ControlConsoleParametersPanel: namedStub('params-panel-stub', '参数面板'),
         ControlConsoleWriteDialog: namedStub('write-dialog-stub', '写入弹窗'),
         MonitorInlineAlert: namedStub('inline-alert-stub', '提示'),
         MonitorSectionPanel: SectionStub,
@@ -223,14 +222,14 @@ describe('CompensationMonitorView', () => {
     const { wrapper } = mountView('parameter-settings')
 
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
-    expect(wrapper.find('.readonly-params-stub').exists()).toBe(true)
+    expect(wrapper.find('.params-panel-stub').exists()).toBe(true)
   })
 
-  it('shows readonly and writable parameter panels on the parameter-settings tab', () => {
+  it('shows the merged parameters panel on the parameter-settings tab', () => {
     const { wrapper } = mountView('parameter-settings')
 
-    expect(wrapper.find('.readonly-params-stub').exists()).toBe(true)
-    expect(wrapper.find('.writable-params-stub').exists()).toBe(true)
+    expect(wrapper.find('.params-panel-stub').exists()).toBe(true)
+    expect(wrapper.findAll('.params-panel-stub')).toHaveLength(1)
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
   })
 
