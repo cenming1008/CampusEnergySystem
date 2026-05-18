@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.integrations.mqtt.compensation import (
+    extract_capacitor_bank_alarm_fields,
     extract_capacitor_bank_control_profile,
     extract_capacitor_bank_telemetry,
     extract_svg_telemetry,
@@ -129,6 +130,7 @@ def _persist_capacitor_bank_extension(
     raw_data: dict[str, Any],
 ) -> None:
     cap_fields = extract_capacitor_bank_telemetry(raw_data)
+    cap_alarm_fields = extract_capacitor_bank_alarm_fields(raw_data)
     cap_profile_fields = extract_capacitor_bank_control_profile(raw_data)
     if cap_fields:
         from app.services.alarm_service import AlarmService
@@ -149,10 +151,11 @@ def _persist_capacitor_bank_extension(
             else:
                 for field, value in cap_fields.items():
                     setattr(cap_telemetry, field, value)
+        alarm_fields = {**cap_fields, **cap_alarm_fields}
         AlarmService.check_capacitor_bank_faults(
             session,
             device_id,
-            cap_fields,
+            alarm_fields,
             timestamp,
             profile_data=cap_profile_fields,
         )
@@ -165,6 +168,16 @@ def _persist_capacitor_bank_extension(
             device_id=device_id,
             telemetry=cap_telemetry,
             control_event_notifier=CapacitorBankControlCommandService.publish_control_log_update_event,
+        )
+    elif cap_alarm_fields:
+        from app.services.alarm_service import AlarmService
+
+        AlarmService.check_capacitor_bank_faults(
+            session,
+            device_id,
+            cap_alarm_fields,
+            timestamp,
+            profile_data=cap_profile_fields,
         )
 
     if cap_profile_fields:

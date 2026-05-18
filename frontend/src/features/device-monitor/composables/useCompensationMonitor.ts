@@ -60,6 +60,84 @@ export interface UseCompensationMonitorInput {
 export const REALTIME_FRESH_THRESHOLD_MS = 120_000
 const EVENT_TIMELINE_LIMIT = 20
 
+/** 电容补偿告警次数看板：把后端按类别统计的累计告警归并成展示分块。 */
+const ALARM_COUNT_BUCKETS: ReadonlyArray<{
+  key: string
+  label: string
+  hint: string
+  match: (category: string) => boolean
+}> = [
+  {
+    key: 'alarm_power_factor',
+    label: '功率因数异常次数',
+    hint: '累计功率因数异常告警次数',
+    match: (c) =>
+      c === 'power_factor_out_of_range'
+      || c === 'power_factor_abnormal'
+      || c === 'cap_power_factor_abnormal'
+      || c.startsWith('cap_power_factor_'),
+  },
+  {
+    key: 'alarm_overvoltage',
+    label: '过压欠压告警次数',
+    hint: '累计过压 / 欠压相关告警次数',
+    match: (c) =>
+      c.startsWith('cap_overvoltage_')
+      || c.startsWith('cap_undervoltage_')
+      || c === 'voltage_out_of_range',
+  },
+  {
+    key: 'alarm_harmonic',
+    label: '谐波超限次数',
+    hint: '累计电压 / 电流谐波告警次数',
+    match: (c) => c.startsWith('cap_voltage_thd_') || c.startsWith('cap_current_thd_'),
+  },
+  {
+    key: 'alarm_overcomp',
+    label: '过补欠补偿次数',
+    hint: '累计过补偿 / 欠补偿告警次数',
+    match: (c) => c === 'cap_overcompensation' || c === 'cap_undercompensation',
+  },
+  {
+    key: 'alarm_temp',
+    label: '温度告警次数',
+    hint: '累计柜内温度告警次数',
+    match: (c) => c === 'cap_temp_alarm',
+  },
+  {
+    key: 'alarm_current',
+    label: '电流异常次数',
+    hint: '累计过流 / 欠流告警次数',
+    match: (c) => c === 'current_overload' || c.startsWith('cap_undercurrent_') || c.startsWith('cap_overcurrent_'),
+  },
+  {
+    key: 'alarm_comm',
+    label: '通讯告警次数',
+    hint: '累计平台通讯告警次数',
+    match: (c) => c === 'platform_comm' || c === 'communication_offline',
+  },
+]
+
+export function buildCompensationAlarmCountMetrics(
+  counts: Record<string, number> = {},
+): CompensationMetric[] {
+  return ALARM_COUNT_BUCKETS.map((bucket) => {
+    let total = 0
+    for (const [category, count] of Object.entries(counts)) {
+      if (bucket.match(category)) total += count
+    }
+    return {
+      key: bucket.key,
+      label: bucket.label,
+      value: String(total),
+      unit: '次',
+      hint: bucket.hint,
+      tone: total > 0 ? 'warning' : undefined,
+      state: 'live',
+    }
+  })
+}
+
 export function isTimestampFresh(
   timestamp: string | null | undefined,
   thresholdMs: number = REALTIME_FRESH_THRESHOLD_MS,
@@ -413,6 +491,16 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
   }))
   const compensationMetrics = computed<CompensationMetric[]>(() => compensationOverviewView.value.metrics)
 
+  // 母线测量指标（回路投入率已并入实时监测面板，不在测量指标条展示）
+  const compensationMeasurementMetrics = computed<CompensationMetric[]>(() =>
+    compensationMetrics.value.filter((item) => item.key !== 'capacityUsage'),
+  )
+
+  const compensationAlarmCountMetrics = computed<CompensationMetric[]>(() => {
+    const counts = input.overview.value?.alarm_category_counts || {}
+    return buildCompensationAlarmCountMetrics(counts)
+  })
+
   const moduleStatusModel = computed<ModuleStatusModel>(() =>
     buildCompensationModuleStatusView({
       subtype: isSvgDevice.value ? 'svg' : compensationSubtype.value === 'capacitor_bank_controller' ? 'capacitor_bank_controller' : 'unknown',
@@ -455,12 +543,12 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
 
   const compensationPowerFactorTrend = computed<CompensationPowerFactorTrend>(() => {
     const points = input.trend.value?.points || []
-    const values = points
-      .map((point) => point.power_factor)
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    const trendPoints = points
+      .filter((point) => typeof point.power_factor === 'number' && Number.isFinite(point.power_factor))
     const target = fallbackCompensation.value.targetPowerFactor
     return {
-      values,
+      values: trendPoints.map((point) => point.power_factor as number),
+      timestamps: trendPoints.map((point) => point.timestamp),
       target: typeof target === 'number' && Number.isFinite(target) ? target : null,
     }
   })
@@ -623,6 +711,8 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     compensationCoreMetric,
     compensationPfMetric,
     compensationMetrics,
+    compensationMeasurementMetrics,
+    compensationAlarmCountMetrics,
     moduleStatusModel,
     compensationExtendedHint,
     compensationTrendModel,

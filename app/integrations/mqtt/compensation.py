@@ -92,6 +92,13 @@ COMPENSATION_FIELD_ALIASES = {
     "thd_ia": "current_harmonic_a",
     "thd_ib": "current_harmonic_b",
     "thd_ic": "current_harmonic_c",
+    # 补偿控制器扩展告警位 / 门限
+    "uv_alarm_a": "undervoltage_alarm_a",
+    "uv_alarm_b": "undervoltage_alarm_b",
+    "uv_alarm_c": "undervoltage_alarm_c",
+    "oc_alarm_a": "overcurrent_alarm_a",
+    "oc_alarm_b": "overcurrent_alarm_b",
+    "oc_alarm_c": "overcurrent_alarm_c",
     # JKWF-LCD 状态标志位寄存器原始值
     "jkwf_status": "jkwf_status_flags",
     # JKWF-LCD 电容回路投切状态寄存器（0x01~0x03）
@@ -118,6 +125,8 @@ COMPENSATION_FIELD_ALIASES = {
     "split_capacity_step": "split_step_capacity_kvar",
     "ct_ratio_primary": "ct_primary_current",
     "overvoltage_threshold_v": "overvoltage_threshold",
+    "undervoltage_threshold_v": "undervoltage_threshold",
+    "current_upper_limit": "overcurrent_threshold",
     "voltage_thd_threshold": "voltage_harmonic_threshold",
     "current_thd_threshold": "current_harmonic_threshold",
     "temperature_limit": "temperature_upper_limit",
@@ -301,6 +310,11 @@ _CAPACITOR_BANK_TELEMETRY_FIELDS = (
     "control_mode", "auto_on_elapsed_seconds", "auto_off_elapsed_seconds", "last_auto_action",
 )
 
+_CAPACITOR_BANK_ALARM_FIELDS = (
+    "undervoltage_alarm_a", "undervoltage_alarm_b", "undervoltage_alarm_c",
+    "overcurrent_alarm_a", "overcurrent_alarm_b", "overcurrent_alarm_c",
+)
+
 _CAPACITOR_BANK_CONTROL_PROFILE_FIELDS = (
     "switch_on_power_factor",
     "switch_off_power_factor",
@@ -339,6 +353,8 @@ _CAPACITOR_BANK_CONTROL_PROFILE_FIELDS = (
     "split_step_capacity_kvar",
     "ct_primary_current",
     "overvoltage_threshold",
+    "undervoltage_threshold",
+    "overcurrent_threshold",
     "voltage_harmonic_threshold",
     "current_harmonic_threshold",
     "temperature_upper_limit",
@@ -400,6 +416,15 @@ def extract_capacitor_bank_telemetry(data: dict[str, Any]) -> Optional[dict[str,
         if field in merged and merged[field] is not None
     }
     return extracted if extracted else None
+
+
+def extract_capacitor_bank_alarm_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """提取暂不入库但参与补偿控制器告警判定的扩展状态位。"""
+    return {
+        field: data[field]
+        for field in _CAPACITOR_BANK_ALARM_FIELDS
+        if field in data and data[field] is not None
+    }
 
 
 def extract_capacitor_bank_control_profile(data: dict[str, Any]) -> Optional[dict[str, Any]]:

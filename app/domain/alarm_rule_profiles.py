@@ -139,9 +139,18 @@ def resolve_capacitor_bank_profile(
         thresholds=CapacitorThresholds(
             temperature_upper_limit=_to_optional_float(merged.get("temperature_upper_limit")),
             overvoltage_threshold=_to_optional_float(merged.get("overvoltage_threshold")),
+            undervoltage_threshold=_to_optional_float(
+                merged.get("undervoltage_threshold", merged.get("voltage_lower_limit"))
+            ),
+            overcurrent_threshold=_to_optional_float(
+                merged.get("overcurrent_threshold", merged.get("current_upper_limit"))
+            ),
             voltage_harmonic_threshold=_to_optional_float(merged.get("voltage_harmonic_threshold")),
             voltage_harmonic_trigger_margin=_to_float(merged.get("voltage_harmonic_trigger_margin"), 0.0),
             current_harmonic_threshold=_to_optional_float(merged.get("current_harmonic_threshold")),
+            power_factor_lower_limit=_normalize_power_factor_limit(
+                merged.get("power_factor_lower_limit", merged.get("switch_on_power_factor"))
+            ),
         ),
     )
 
@@ -263,3 +272,14 @@ def _to_optional_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _normalize_power_factor_limit(value: Any) -> Optional[float]:
+    numeric = _to_optional_float(value)
+    if numeric is None:
+        return None
+    if numeric > 2:
+        numeric = numeric / 100
+    if numeric <= 0:
+        return None
+    return numeric

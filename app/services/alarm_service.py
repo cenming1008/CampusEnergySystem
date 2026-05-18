@@ -89,6 +89,16 @@ class AlarmService:
             resolved=resolved,
         )
 
+    @staticmethod
+    def get_unresolved_category_counts(session: Session, device_id: int) -> dict[str, int]:
+        """按类别统计设备未处理告警数量。"""
+        return AlarmRepository.count_unresolved_by_category(session, device_id)
+
+    @staticmethod
+    def get_category_counts(session: Session, device_id: int) -> dict[str, int]:
+        """按类别统计设备累计告警数量。"""
+        return AlarmRepository.count_by_category(session, device_id)
+
     # ==================== 编排：人工处理 ====================
 
     @staticmethod

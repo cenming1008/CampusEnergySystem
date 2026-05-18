@@ -4,7 +4,7 @@ import type {
   CompensationCapacitorBankTelemetry,
   CompensationSvgTelemetry,
 } from '@/api/compensation'
-import type { ModuleStatusModel } from './types'
+import type { CompensationMetric, ModuleStatusModel } from './types'
 import CompensationThreePhasePanel from './CompensationThreePhasePanel.vue'
 import CompensationCircuitStatePanel from './CompensationCircuitStatePanel.vue'
 
@@ -45,6 +45,10 @@ const props = defineProps({
   moduleStatus: {
     type: Object as PropType<ModuleStatusModel | null>,
     default: null,
+  },
+  measurementMetrics: {
+    type: Array as PropType<CompensationMetric[]>,
+    default: () => [],
   },
 })
 
@@ -111,6 +115,7 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
         :svg-telemetry="svgTelemetry"
         :capacitor-bank-telemetry="capacitorBankTelemetry"
         :is-capacitor-bank="isCapacitorBank"
+        :measurement-metrics="measurementMetrics"
       />
 
       <CompensationCircuitStatePanel

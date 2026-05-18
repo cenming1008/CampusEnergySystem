@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.tables import Alarm, Device
@@ -169,6 +170,27 @@ class AlarmRepository(BaseRepository):
         if resolved is not None:
             statement = statement.where(Alarm.is_resolved == resolved)
         return len(list(session.exec(statement).all()))
+
+    @staticmethod
+    def count_unresolved_by_category(session: Session, device_id: int) -> dict[str, int]:
+        """按类别统计设备未处理告警数量。"""
+        statement = (
+            select(Alarm.category, func.count(Alarm.id))
+            .where(Alarm.device_id == device_id)
+            .where(Alarm.is_resolved == False)  # noqa: E712
+            .group_by(Alarm.category)
+        )
+        return {category: int(count) for category, count in session.exec(statement).all()}
+
+    @staticmethod
+    def count_by_category(session: Session, device_id: int) -> dict[str, int]:
+        """按类别统计设备累计告警数量。"""
+        statement = (
+            select(Alarm.category, func.count(Alarm.id))
+            .where(Alarm.device_id == device_id)
+            .group_by(Alarm.category)
+        )
+        return {category: int(count) for category, count in session.exec(statement).all()}
 
     @staticmethod
     def get_device_rated_capacity(session: Session, device_id: int) -> Optional[float]:

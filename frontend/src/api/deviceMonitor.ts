@@ -198,6 +198,7 @@ export interface MonitorOverview {
   recent_control_logs: DeviceControlLog[]
   compensation_monitor?: CompensationMonitor | null
   storage_monitor?: import('@/api/storage').StorageMonitor | null
+  alarm_category_counts?: Record<string, number>
   monitor_template?: MonitorTemplate
   metric_cards?: MonitorMetricCard[]
   trend_fields?: MonitorTrendField[]

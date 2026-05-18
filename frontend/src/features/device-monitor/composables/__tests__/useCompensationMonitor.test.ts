@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCompensationAlarmCountMetrics,
   buildCompensationEventTimeline,
   isTimestampFresh,
   REALTIME_FRESH_THRESHOLD_MS,
@@ -30,6 +31,33 @@ describe('isTimestampFresh', () => {
   it('treats exact threshold as fresh', () => {
     const edge = new Date(now - REALTIME_FRESH_THRESHOLD_MS).toISOString()
     expect(isTimestampFresh(edge, REALTIME_FRESH_THRESHOLD_MS, now)).toBe(true)
+  })
+})
+
+describe('buildCompensationAlarmCountMetrics', () => {
+  it('shows the power factor bucket first and uses updated compensation alarm labels', () => {
+    const metrics = buildCompensationAlarmCountMetrics({
+      cap_power_factor_abnormal: 2,
+      cap_undervoltage_a: 1,
+      cap_overvoltage_b: 3,
+      cap_undercompensation: 4,
+      cap_overcompensation: 5,
+      cap_overcurrent_b: 6,
+    })
+
+    expect(metrics.map((item) => item.label)).toEqual([
+      '功率因数异常次数',
+      '过压欠压告警次数',
+      '谐波超限次数',
+      '过补欠补偿次数',
+      '温度告警次数',
+      '电流异常次数',
+      '通讯告警次数',
+    ])
+    expect(metrics[0]).toMatchObject({ key: 'alarm_power_factor', value: '2', unit: '次' })
+    expect(metrics[1]).toMatchObject({ key: 'alarm_overvoltage', value: '4', unit: '次' })
+    expect(metrics[3]).toMatchObject({ key: 'alarm_overcomp', value: '9', unit: '次' })
+    expect(metrics[5]).toMatchObject({ key: 'alarm_current', value: '6', unit: '次' })
   })
 })
 

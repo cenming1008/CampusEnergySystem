@@ -46,6 +46,7 @@ defineProps<{
         :pf-trend="page.compensationPowerFactorTrend"
         :status-text="page.compensationStatusText"
         :status-tone="page.compensationStatusTone"
+        :alarm-counts="page.compensationAlarmCountMetrics"
       />
 
       <CompensationDetailPanel
@@ -56,6 +57,7 @@ defineProps<{
         :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
         :circuit-profile="page.compensationCircuitProfile"
         :module-status="page.moduleStatusModel"
+        :measurement-metrics="page.compensationMeasurementMetrics"
       />
 
       <HarmonicSpectrumPanel

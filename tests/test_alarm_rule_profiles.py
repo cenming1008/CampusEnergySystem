@@ -85,6 +85,8 @@ def test_resolve_capacitor_bank_profile_merges_device_profile_and_rule_overrides
                             "enabled": True,
                             "temperature_upper_limit": 55.0,
                             "overvoltage_threshold": 245.0,
+                            "undervoltage_threshold": 190.0,
+                            "overcurrent_threshold": 120.0,
                         },
                         "devices": {
                             "7": {
@@ -104,15 +106,19 @@ def test_resolve_capacitor_bank_profile_merges_device_profile_and_rule_overrides
             "temperature_upper_limit": 50.0,
             "voltage_harmonic_threshold": 4.5,
             "current_harmonic_threshold": 2.8,
+            "switch_on_power_factor": 95,
         },
     )
 
     assert profile.platform_rules_enabled is True
     assert profile.thresholds.temperature_upper_limit == 60.0
     assert profile.thresholds.overvoltage_threshold == 245.0
+    assert profile.thresholds.undervoltage_threshold == 190.0
+    assert profile.thresholds.overcurrent_threshold == 120.0
     assert profile.thresholds.voltage_harmonic_threshold == 4.5
     assert profile.thresholds.current_harmonic_threshold == 2.8
     assert profile.thresholds.voltage_harmonic_trigger_margin == 0.0
+    assert profile.thresholds.power_factor_lower_limit == 0.95
 
 
 def test_resolve_capacitor_bank_profile_uses_vendor_aligned_defaults_when_no_device_values():

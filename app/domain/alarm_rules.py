@@ -28,9 +28,12 @@ class CapacitorThresholds:
     """电容补偿控制器阈值配置。"""
     temperature_upper_limit: Optional[float] = None
     overvoltage_threshold: Optional[float] = None
+    undervoltage_threshold: Optional[float] = None
+    overcurrent_threshold: Optional[float] = None
     voltage_harmonic_threshold: Optional[float] = None
     voltage_harmonic_trigger_margin: float = 0.0
     current_harmonic_threshold: Optional[float] = None
+    power_factor_lower_limit: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -231,8 +234,26 @@ def evaluate_capacitor_bank_faults(
             source=SOURCE_PLATFORM_RULE,
         ))
 
+    # 功率因数异常：使用控制器参数快照或规则配置里的投入功率因数作为下限。
+    power_factor = _to_float(cap_data.get("power_factor"))
+    power_factor_lower_limit = thresholds.power_factor_lower_limit
+    if (
+        platform_rules_enabled
+        and power_factor is not None
+        and power_factor_lower_limit is not None
+        and power_factor < power_factor_lower_limit
+    ):
+        faults.append(FaultDetection(
+            category="cap_power_factor_abnormal",
+            severity="warning",
+            message=f"功率因数异常：PF={power_factor:.3f}（下限 {power_factor_lower_limit:.3f}）",
+            source=SOURCE_PLATFORM_RULE,
+        ))
+
     # 各相检测
     overvoltage_limit = thresholds.overvoltage_threshold
+    undervoltage_limit = thresholds.undervoltage_threshold
+    overcurrent_limit = thresholds.overcurrent_threshold
     voltage_harmonic_limit = _effective_harmonic_limit("voltage", thresholds.voltage_harmonic_threshold)
     voltage_harmonic_trigger_limit = (
         voltage_harmonic_limit + thresholds.voltage_harmonic_trigger_margin
@@ -262,6 +283,47 @@ def evaluate_capacitor_bank_faults(
                 category=f"cap_overvoltage_{phase}",
                 severity="warning",
                 message=f"{phase_upper} 相过压告警：{detail}{limit_text}",
+                source=SOURCE_PLATFORM_RULE,
+            ))
+
+        # 欠压
+        if cap_data.get(f"undervoltage_alarm_{phase}") is True:
+            detail = f"{phase_voltage:.1f}V" if phase_voltage is not None else "状态位触发"
+            limit_text = f"（门限 {undervoltage_limit:.1f}V）" if undervoltage_limit is not None else ""
+            faults.append(FaultDetection(
+                category=f"cap_undervoltage_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相欠压告警：{detail}{limit_text}",
+                source=SOURCE_DEVICE_NATIVE,
+            ))
+        elif platform_rules_enabled and phase_voltage is not None and undervoltage_limit is not None and phase_voltage <= undervoltage_limit:
+            detail = f"{phase_voltage:.1f}V"
+            limit_text = f"（门限 {undervoltage_limit:.1f}V）"
+            faults.append(FaultDetection(
+                category=f"cap_undervoltage_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相欠压告警：{detail}{limit_text}",
+                source=SOURCE_PLATFORM_RULE,
+            ))
+
+        # 过流
+        phase_current = _to_float(cap_data.get(f"current_{phase}"))
+        if cap_data.get(f"overcurrent_alarm_{phase}") is True:
+            detail = f"{phase_current:.1f}A" if phase_current is not None else "状态位触发"
+            limit_text = f"（门限 {overcurrent_limit:.1f}A）" if overcurrent_limit is not None else ""
+            faults.append(FaultDetection(
+                category=f"cap_overcurrent_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相过流告警：{detail}{limit_text}",
+                source=SOURCE_DEVICE_NATIVE,
+            ))
+        elif platform_rules_enabled and phase_current is not None and overcurrent_limit is not None and phase_current >= overcurrent_limit:
+            detail = f"{phase_current:.1f}A"
+            limit_text = f"（门限 {overcurrent_limit:.1f}A）"
+            faults.append(FaultDetection(
+                category=f"cap_overcurrent_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相过流告警：{detail}{limit_text}",
                 source=SOURCE_PLATFORM_RULE,
             ))
 
@@ -341,6 +403,18 @@ def evaluate_capacitor_bank_faults(
             category="cap_overcompensation",
             severity="warning",
             message=f"电容补偿器过补偿：Q={reactive_power:.2f}kVar，{leading_count} 相超前",
+            source=SOURCE_PLATFORM_RULE,
+        ))
+    lagging_count = sum(
+        1
+        for f in ("leading_a", "leading_b", "leading_c")
+        if cap_data.get(f) is False
+    )
+    if platform_rules_enabled and reactive_power is not None and reactive_power >= overcomp_limit and lagging_count >= 2:
+        faults.append(FaultDetection(
+            category="cap_undercompensation",
+            severity="warning",
+            message=f"电容补偿器欠补偿：Q={reactive_power:.2f}kVar，{lagging_count} 相滞后",
             source=SOURCE_PLATFORM_RULE,
         ))
 
@@ -576,8 +650,12 @@ def get_capacitor_bank_managed_categories() -> set[str]:
     """返回电容补偿控制器故障检测管理的告警类别集合。"""
     return {
         "cap_temp_alarm",
+        "cap_power_factor_abnormal",
         "cap_overcompensation",
+        "cap_undercompensation",
         *(f"cap_overvoltage_{phase}" for phase in ("a", "b", "c")),
+        *(f"cap_undervoltage_{phase}" for phase in ("a", "b", "c")),
+        *(f"cap_overcurrent_{phase}" for phase in ("a", "b", "c")),
         *(f"cap_voltage_thd_{phase}" for phase in ("a", "b", "c")),
         *(f"cap_current_thd_{phase}" for phase in ("a", "b", "c")),
         *(f"cap_undercurrent_{phase}" for phase in ("a", "b", "c")),

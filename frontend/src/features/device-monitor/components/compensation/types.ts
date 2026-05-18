@@ -33,6 +33,7 @@ export interface CompensationMetric {
 
 export interface CompensationPowerFactorTrend {
   values: number[]
+  timestamps?: string[]
   target: number | null
 }
 

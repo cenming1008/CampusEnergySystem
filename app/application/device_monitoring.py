@@ -99,6 +99,7 @@ def get_device_monitor_overview_use_case(
         ],
         "compensation_monitor": compensation_monitor,
         "storage_monitor": storage_monitor,
+        "alarm_category_counts": AlarmService.get_category_counts(session, device_id),
     }
     overview.update(
         MonitorTemplateService.build_overview_template(

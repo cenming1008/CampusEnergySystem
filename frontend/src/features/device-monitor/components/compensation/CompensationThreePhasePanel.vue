@@ -4,6 +4,8 @@ import type {
   CompensationCapacitorBankTelemetry,
   CompensationSvgTelemetry,
 } from '@/api/compensation'
+import type { CompensationMetric } from './types'
+import CompensationMetricStrip from './CompensationMetricStrip.vue'
 
 const props = defineProps({
   svgTelemetry: {
@@ -17,6 +19,10 @@ const props = defineProps({
   isCapacitorBank: {
     type: Boolean,
     default: false,
+  },
+  measurementMetrics: {
+    type: Array as PropType<CompensationMetric[]>,
+    default: () => [],
   },
 })
 
@@ -51,6 +57,17 @@ const phaseRows = computed(() => {
     <div class="threephase-panel__head">
       <h3>三相电气快照</h3>
       <span>{{ subtitle() }}</span>
+    </div>
+
+    <div
+      v-if="measurementMetrics.length"
+      class="threephase-panel__measurements"
+    >
+      <span class="threephase-panel__section-label">母线测量值</span>
+      <CompensationMetricStrip
+        :items="measurementMetrics"
+        :columns="6"
+      />
     </div>
 
     <div
@@ -111,6 +128,18 @@ const phaseRows = computed(() => {
   margin-top: 4px;
   color: #8ea0bc;
   font-size: 12px;
+}
+
+.threephase-panel__measurements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.threephase-panel__section-label {
+  font-size: 12px;
+  color: #8ea0bc;
 }
 
 .phase-table {

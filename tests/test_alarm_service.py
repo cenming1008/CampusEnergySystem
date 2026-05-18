@@ -394,6 +394,30 @@ class TestAlarmService(unittest.TestCase):
             self.assertEqual(unresolved_count, 1)
             self.assertEqual(resolved_count, 1)
 
+    def test_get_category_counts_counts_resolved_and_recovered_history(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-007B")
+            alarm_a = AlarmService.create_alarm(session, device.id, "A-告警", category="cap_temp_alarm", auto_commit=False)
+            alarm_b = AlarmService.create_alarm(
+                session,
+                device.id,
+                "B-告警",
+                category="cap_temp_alarm",
+                recovered_at=datetime(2026, 5, 18, 10, 0, 0),
+                auto_commit=False,
+            )
+            alarm_c = AlarmService.create_alarm(session, device.id, "C-告警", category="cap_overvoltage_a", auto_commit=False)
+            alarm_a.is_resolved = True
+            session.add(alarm_a)
+            session.commit()
+
+            counts = AlarmService.get_category_counts(session, device.id)
+
+            self.assertEqual(counts["cap_temp_alarm"], 2)
+            self.assertEqual(counts["cap_overvoltage_a"], 1)
+            self.assertIsNotNone(alarm_b.id)
+            self.assertIsNotNone(alarm_c.id)
+
     def test_mark_recovered_alarms_backfills_instance_key_and_marks_recovery(self):
         with Session(self.engine) as session:
             device = self._create_device(session, "ALARM-008")
@@ -611,6 +635,120 @@ class TestAlarmService(unittest.TestCase):
             self.assertEqual(len(native_status), 1)
             self.assertEqual(native_status[0].category, "cap_voltage_thd_a")
             self.assertEqual(native_status[0].source, "device_native")
+
+    def test_check_capacitor_bank_faults_creates_power_factor_abnormal_from_profile_limit(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-010C",
+                sn="ALARM-010C",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={"power_factor": 0.91},
+                timestamp=datetime(2026, 5, 18, 11, 10, 0),
+                profile_data={"switch_on_power_factor": 95},
+            )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].category, "cap_power_factor_abnormal")
+            self.assertEqual(created[0].source, "platform_rule")
+            self.assertIn("功率因数异常", created[0].message)
+
+    def test_check_capacitor_bank_faults_creates_undervoltage_overcurrent_and_undercompensation(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-010D",
+                sn="ALARM-010D",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "voltage_a": 180.0,
+                    "current_b": 121.0,
+                    "reactive_power": 18.0,
+                    "leading_a": False,
+                    "leading_b": False,
+                    "leading_c": True,
+                },
+                timestamp=datetime(2026, 5, 18, 11, 20, 0),
+                profile_data={
+                    "undervoltage_threshold": 190.0,
+                    "overcurrent_threshold": 120.0,
+                },
+            )
+
+            self.assertEqual({alarm.category for alarm in created}, {
+                "cap_undervoltage_a",
+                "cap_overcurrent_b",
+                "cap_undercompensation",
+            })
+            self.assertEqual({alarm.source for alarm in created}, {"platform_rule"})
+
+    def test_check_capacitor_bank_faults_keeps_native_undervoltage_and_overcurrent_when_platform_rules_disabled(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-010E",
+                sn="ALARM-010E",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "capacitor_bank": {
+                                "default": {"enabled": False},
+                            },
+                        },
+                    },
+                },
+            ):
+                created = AlarmService.check_capacitor_bank_faults(
+                    session=session,
+                    device_id=device.id,
+                    cap_data={
+                        "undervoltage_alarm_a": True,
+                        "overcurrent_alarm_b": True,
+                        "voltage_a": 181.0,
+                        "current_b": 122.0,
+                    },
+                    timestamp=datetime(2026, 5, 18, 11, 25, 0),
+                )
+
+            self.assertEqual({alarm.category for alarm in created}, {
+                "cap_undervoltage_a",
+                "cap_overcurrent_b",
+            })
+            self.assertEqual({alarm.source for alarm in created}, {"device_native"})
 
     def test_check_capacitor_bank_faults_treats_current_harmonic_threshold_29_as_disabled(self):
         with Session(self.engine) as session:
