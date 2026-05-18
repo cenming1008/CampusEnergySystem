@@ -96,43 +96,46 @@ export function useControlConsoleData(input: {
   const isCapacitorBankController = computed(() => compensationSubtype.value === 'capacitor_bank_controller')
   const controlCapabilities = computed(() => controlProfile.value?.capabilities)
 
-  async function loadPage() {
-    if (!input.deviceId.value) return
-    loading.value = true
+  async function loadFromOverview(overviewResponse: MonitorOverview) {
     loadError.value = ''
     profileWarning.value = ''
+    overview.value = overviewResponse
+    if (overviewResponse.archive?.archive_status === 'pending') {
+      loadError.value = '请先补全设备档案后再进入监控或控制台。'
+      controlProfile.value = null
+      controlLogs.value = []
+      return
+    }
+    const resolvedSubtype = resolveCompensationSubtype(
+      overviewResponse.archive?.device_type,
+      overviewResponse.archive?.device_subtype,
+    )
+    if (resolvedSubtype !== 'capacitor_bank_controller') {
+      loadError.value = '当前设备不是电容补偿控制器，暂不支持进入控制台。'
+      controlProfile.value = null
+      controlLogs.value = []
+      return
+    }
+
+    const logs = await getDeviceMonitorControlLogs(input.deviceId.value, { limit: 10, hours: 168 })
+    controlLogs.value = logs.items
+
     try {
-      const overviewResponse = await getDeviceMonitorOverview(input.deviceId.value)
-      overview.value = overviewResponse
-      if (overviewResponse.archive?.archive_status === 'pending') {
-        loadError.value = '请先补全设备档案后再进入监控或控制台。'
-        controlProfile.value = null
-        controlLogs.value = []
-        return
-      }
-      const resolvedSubtype = resolveCompensationSubtype(
-        overviewResponse.archive?.device_type,
-        overviewResponse.archive?.device_subtype,
+      controlProfile.value = await getCompensationCapacitorBankControlProfile(input.deviceId.value)
+    } catch (error) {
+      controlProfile.value = buildDegradedControlProfile(input.deviceId.value)
+      profileWarning.value = extractControlConsoleErrorMessage(
+        error,
+        '参数档案暂时不可用，当前已切换为降级视图：参数快照与参数写入区域会被锁定，但概览、日志和远程控制仍可继续使用。',
       )
-      if (resolvedSubtype !== 'capacitor_bank_controller') {
-        loadError.value = '当前设备不是电容补偿控制器，暂不支持进入控制台。'
-        controlProfile.value = null
-        controlLogs.value = []
-        return
-      }
+    }
+  }
 
-      const logs = await getDeviceMonitorControlLogs(input.deviceId.value, { limit: 10, hours: 168 })
-      controlLogs.value = logs.items
-
-      try {
-        controlProfile.value = await getCompensationCapacitorBankControlProfile(input.deviceId.value)
-      } catch (error) {
-        controlProfile.value = buildDegradedControlProfile(input.deviceId.value)
-        profileWarning.value = extractControlConsoleErrorMessage(
-          error,
-          '参数档案暂时不可用，当前已切换为降级视图：参数快照与参数写入区域会被锁定，但概览、日志和远程控制仍可继续使用。',
-        )
-      }
+  async function loadPageWithOverview(overviewResponse: MonitorOverview) {
+    if (!input.deviceId.value) return
+    loading.value = true
+    try {
+      await loadFromOverview(overviewResponse)
     } catch (error) {
       controlProfile.value = null
       controlLogs.value = []
@@ -142,9 +145,20 @@ export function useControlConsoleData(input: {
     }
   }
 
-  watch(() => input.deviceId.value, () => {
-    void loadPage()
-  })
+  async function loadPage() {
+    if (!input.deviceId.value) return
+    loading.value = true
+    try {
+      const overviewResponse = await getDeviceMonitorOverview(input.deviceId.value)
+      await loadFromOverview(overviewResponse)
+    } catch (error) {
+      controlProfile.value = null
+      controlLogs.value = []
+      loadError.value = extractControlConsoleErrorMessage(error, '控制台数据加载失败，请稍后重试。')
+    } finally {
+      loading.value = false
+    }
+  }
 
   watch(
     () => socketMessage.value,
@@ -156,6 +170,10 @@ export function useControlConsoleData(input: {
   )
 
   if (input.enableLifecycle !== false) {
+    watch(() => input.deviceId.value, () => {
+      void loadPage()
+    })
+
     onMounted(() => {
       void loadPage().then(scheduleRefresh)
     })
@@ -178,5 +196,6 @@ export function useControlConsoleData(input: {
     isCapacitorBankController,
     controlCapabilities,
     loadPage,
+    loadPageWithOverview,
   }
 }

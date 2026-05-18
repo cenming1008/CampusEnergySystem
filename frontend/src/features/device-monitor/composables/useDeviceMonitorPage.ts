@@ -19,11 +19,16 @@ import {
   type MonitorTrendField,
   type TrendPoint,
 } from '@/api/deviceMonitor'
+import { useCapacitorBankControlConsole } from '@/features/device-control/useCapacitorBankControlConsole'
 import { useECharts } from '@/shared/composables/useECharts'
 import { usePermissions } from '@/shared/composables/usePermissions'
 import { useCompensationMonitor } from './useCompensationMonitor'
 import { useStorageMonitor } from './useStorageMonitor'
-import type { CompensationTrendTab } from '@/features/device-monitor/components/compensation/types'
+import type {
+  CompensationTrendTab,
+  CompensationWorkbenchTab,
+  CompensationWorkbenchTabOption,
+} from '@/features/device-monitor/components/compensation/types'
 
 type SupportedTrendMetric = 'flow_rate' | 'voltage' | 'current' | 'reactive_power' | 'power_factor' | 'consumption'
 
@@ -45,11 +50,33 @@ const fallbackChartMetricOptions = [
 const REFRESH_INTERVAL_MS = 5000
 const LIVE_RANGE_TOLERANCE_MS = REFRESH_INTERVAL_MS * 2
 
+const compensationWorkbenchTabs: CompensationWorkbenchTabOption[] = [
+  { label: '运行监视', value: 'runtime' },
+  { label: '曲线分析', value: 'curves' },
+  { label: '远程控制', value: 'remote-control', tone: 'danger' },
+  { label: '参数设置', value: 'parameter-settings', tone: 'warning' },
+  { label: '事件记录', value: 'event-records' },
+]
+
+function normalizeWorkbenchTab(value: unknown): CompensationWorkbenchTab {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (raw === 'curves') return 'curves'
+  if (raw === 'remote-control') return 'remote-control'
+  if (raw === 'parameter-settings') return 'parameter-settings'
+  if (raw === 'event-records') return 'event-records'
+  return 'runtime'
+}
+
 export function useDeviceMonitorPage() {
   const route = useRoute()
   const router = useRouter()
   const chart = useECharts()
-  const { canControlDevices } = usePermissions()
+  const {
+    canManageDevices,
+    canControlDevices,
+    currentRole,
+    isAdmin,
+  } = usePermissions()
 
   const deviceId = computed(() => Number(route.params.id))
   const loading = ref(false)
@@ -65,6 +92,9 @@ export function useDeviceMonitorPage() {
   const alarmFilter = ref<'all' | 'unresolved' | 'resolved'>('all')
   const timeRange = ref<[Date, Date] | null>(defaultTimeRange())
   const compensationTrendTab = ref<CompensationTrendTab>('effect')
+  const compensationWorkbenchTab = ref<CompensationWorkbenchTab>(
+    normalizeWorkbenchTab(route.query.tab),
+  )
   const compensationDetailTab = ref<'three-phase' | 'circuit'>('circuit')
   const storageTrendTab = ref<'soc' | 'power' | 'temperature' | 'energy'>('soc')
   const svgProfileEditVisible = ref(false)
@@ -86,6 +116,15 @@ export function useDeviceMonitorPage() {
     timeRange,
     compensationTrendTab,
     canControlDevices,
+  })
+
+  const capacitorBankControlConsole = useCapacitorBankControlConsole({
+    deviceId,
+    canManageDevices,
+    canControlDevices,
+    currentRole,
+    isAdmin,
+    enableLifecycle: false,
   })
 
   const storage = useStorageMonitor({ deviceId, overview, timeRange })
@@ -187,6 +226,13 @@ export function useDeviceMonitorPage() {
       if (!chart.chartRef.value || compensation.isCompensationDevice.value) return
       await chart.initChart()
       await renderTrendChart()
+    },
+  )
+
+  watch(
+    () => route.query.tab,
+    (tab) => {
+      compensationWorkbenchTab.value = normalizeWorkbenchTab(tab)
     },
   )
 
@@ -321,13 +367,18 @@ export function useDeviceMonitorPage() {
 
     try {
       overview.value = await getDeviceMonitorOverview(deviceId.value)
+      const currentOverview = overview.value
       const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory(), loadAlarms()]
       if (compensation.isSvgDevice.value) {
         extraTasks.push(compensation.loadSVGTelemetry(), compensation.loadSVGProfile())
         compensation.compensationCapacitorBankControlProfile.value = null
       }
       if (compensation.compensationSubtype.value === 'capacitor_bank_controller') {
-        extraTasks.push(compensation.loadCapBankTelemetry(), compensation.loadCapBankControlProfile())
+        extraTasks.push(
+          compensation.loadCapBankTelemetry(),
+          compensation.loadCapBankControlProfile(),
+          capacitorBankControlConsole.loadPageWithOverview(currentOverview),
+        )
         compensation.compensationSvgProfile.value = null
       }
       if (!compensation.isCompensationDevice.value) {
@@ -398,13 +449,17 @@ export function useDeviceMonitorPage() {
 
   async function handleRangeChange() {
     if (!overview.value) return
+    const currentOverview = overview.value
     try {
       const tasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
       if (compensation.isSvgDevice.value) {
         tasks.push(compensation.loadSVGTelemetry())
       }
       if (compensation.compensationSubtype.value === 'capacitor_bank_controller') {
-        tasks.push(compensation.loadCapBankTelemetry())
+        tasks.push(
+          compensation.loadCapBankTelemetry(),
+          capacitorBankControlConsole.loadPageWithOverview(currentOverview),
+        )
       }
       if (storage.isStorageDevice.value) {
         tasks.push(storage.loadTelemetryHistory())
@@ -569,6 +624,8 @@ export function useDeviceMonitorPage() {
     alarmFilter,
     timeRange,
     compensationTrendTab,
+    compensationWorkbenchTabs,
+    compensationWorkbenchTab,
     compensationDetailTab,
     compensationCircuitProfile,
     storageTrendTab,
@@ -580,6 +637,33 @@ export function useDeviceMonitorPage() {
     templateDiagnostics,
     isPendingArchiveDevice,
     ...compensation,
+    capacitorBankControlConsole,
+    controlConsoleLoadError: capacitorBankControlConsole.loadError,
+    controlConsoleProfileWarning: capacitorBankControlConsole.profileWarning,
+    controlConsoleWriteDialogVisible: capacitorBankControlConsole.writeDialogVisible,
+    controlConsoleControlProfile: capacitorBankControlConsole.controlProfile,
+    controlConsoleWriteForm: capacitorBankControlConsole.writeForm,
+    controlConsoleManualSwitchForm: capacitorBankControlConsole.manualSwitchForm,
+    controlConsoleWriteSubmitting: capacitorBankControlConsole.writeSubmitting,
+    controlConsoleToggleSubmitting: capacitorBankControlConsole.toggleSubmitting,
+    controlConsoleCurrentControlModeLabel: capacitorBankControlConsole.currentControlModeLabel,
+    controlConsoleCanRunManualSwitch: capacitorBankControlConsole.canRunManualSwitch,
+    controlConsoleManualSwitchDisabledReason: capacitorBankControlConsole.manualSwitchDisabledReason,
+    controlConsoleCanWriteParameters: capacitorBankControlConsole.canWriteParameters,
+    controlConsoleSelectedWriteMeta: capacitorBankControlConsole.selectedWriteMeta,
+    controlConsoleEditableParameterCards: capacitorBankControlConsole.editableParameterCards,
+    controlConsoleManualPhaseOptions: capacitorBankControlConsole.manualPhaseOptions,
+    controlConsoleManualSwitchActionOptions: capacitorBankControlConsole.manualSwitchActionOptions,
+    controlConsoleManualCommonGroupOptions: capacitorBankControlConsole.manualCommonGroupOptions,
+    controlConsoleActionCards: capacitorBankControlConsole.actionCards,
+    controlConsoleReadonlySectionView: capacitorBankControlConsole.readonlySectionView,
+    controlConsoleReadonlySummaryView: capacitorBankControlConsole.readonlySummaryView,
+    controlConsoleWriteSectionView: capacitorBankControlConsole.writeSectionView,
+    controlConsoleLogView: capacitorBankControlConsole.logView,
+    handleControlConsoleManualSwitchCommand: capacitorBankControlConsole.handleManualSwitchCommand,
+    openControlConsoleWriteDialog: capacitorBankControlConsole.openWriteDialog,
+    submitControlConsoleParameterWrite: capacitorBankControlConsole.submitParameterWrite,
+    handleControlConsoleActionCard: capacitorBankControlConsole.handleActionCard,
     storageTelemetry: storage.latestTelemetry,
     storageTelemetryHistory: storage.telemetryHistory,
     isStorageDevice: storage.isStorageDevice,

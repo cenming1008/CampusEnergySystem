@@ -1,6 +1,6 @@
-import { defineComponent } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { shallowMount } from '@vue/test-utils'
+import { flushPromises, shallowMount } from '@vue/test-utils'
 
 const {
   getDeviceMonitorOverviewMock,
@@ -18,6 +18,9 @@ const {
   getStorageTelemetryLatestMock,
   getStorageTelemetryHistoryMock,
   initChartMock,
+  routeParams,
+  routeState,
+  routerPushMock,
 } = vi.hoisted(() => ({
   getDeviceMonitorOverviewMock: vi.fn(),
   getDeviceMonitorRealtimeMock: vi.fn(),
@@ -34,23 +37,30 @@ const {
   getStorageTelemetryLatestMock: vi.fn(),
   getStorageTelemetryHistoryMock: vi.fn(),
   initChartMock: vi.fn(),
+  routeParams: { id: '2' },
+  routeState: {
+    query: {} as Record<string, string>,
+  },
+  routerPushMock: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
-    params: {
-      id: '2',
-    },
+    params: routeParams,
+    query: routeState.query,
   }),
   useRouter: () => ({
     back: vi.fn(),
-    push: vi.fn(),
+    push: routerPushMock,
   }),
 }))
 
 vi.mock('@/shared/composables/usePermissions', () => ({
   usePermissions: () => ({
-    canControlDevices: true,
+    canManageDevices: { value: true },
+    canControlDevices: { value: true },
+    currentRole: { value: 'admin' },
+    isAdmin: { value: true },
   }),
 }))
 
@@ -128,6 +138,7 @@ function mountView() {
         DeviceTrendPanel: DeviceTrendPanelProbe,
         DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
         DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        CompensationDiagnosticsCollapsible: DeviceTemplateDiagnosticsPanelProbe,
         StorageHeader: true,
         StorageRealtimeOverview: true,
         StorageTrendPanel: true,
@@ -136,6 +147,7 @@ function mountView() {
         MonitorPageHeader: MonitorPageHeaderProbe,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
+        CompensationDetailPanel: true,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
         GenericMonitorView: false,
@@ -164,10 +176,10 @@ const RealtimeOverviewProbe = defineComponent({
   props: {
     moduleStatus: {
       type: Object,
-      required: true,
+      required: false,
     },
   },
-  template: '<div class="realtime-overview-probe">{{ moduleStatus.runningModuleCount }}/{{ moduleStatus.totalModuleCount }}</div>',
+  template: '<div class="realtime-overview-probe">{{ moduleStatus?.runningModuleCount }}/{{ moduleStatus?.totalModuleCount }}</div>',
 })
 
 const MonitorSectionPanelProbe = defineComponent({
@@ -297,7 +309,7 @@ function mountViewWithRealtimeProbe() {
       stubs: {
         CompensationHeader: true,
         CompensationMonitorView: false,
-        CompensationRealtimeOverview: RealtimeOverviewProbe,
+        CompensationRealtimeOverview: true,
         CompensationTrendPanel: true,
         CompensationEventTimeline: true,
         CompensationStatusSummary: true,
@@ -307,6 +319,7 @@ function mountViewWithRealtimeProbe() {
         DeviceTrendPanel: DeviceTrendPanelProbe,
         DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
         DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        CompensationDiagnosticsCollapsible: DeviceTemplateDiagnosticsPanelProbe,
         StorageHeader: true,
         StorageRealtimeOverview: true,
         StorageTrendPanel: true,
@@ -315,6 +328,7 @@ function mountViewWithRealtimeProbe() {
         MonitorPageHeader: MonitorPageHeaderProbe,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
+        CompensationDetailPanel: RealtimeOverviewProbe,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
         GenericMonitorView: false,
@@ -355,6 +369,7 @@ function mountViewWithSpectrumTabProbe() {
         DeviceTrendPanel: DeviceTrendPanelProbe,
         DeviceDiagnosticsSummary: DeviceDiagnosticsSummaryProbe,
         DeviceTemplateDiagnosticsPanel: DeviceTemplateDiagnosticsPanelProbe,
+        CompensationDiagnosticsCollapsible: DeviceTemplateDiagnosticsPanelProbe,
         StorageHeader: true,
         StorageRealtimeOverview: true,
         StorageTrendPanel: true,
@@ -363,6 +378,7 @@ function mountViewWithSpectrumTabProbe() {
         MonitorPageHeader: MonitorPageHeaderProbe,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
+        CompensationDetailPanel: true,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
         GenericMonitorView: false,
@@ -388,14 +404,15 @@ function mountViewWithSpectrumTabProbe() {
 }
 
 async function flushAsync() {
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
+  await flushPromises()
+  await flushPromises()
 }
 
 describe('DeviceMonitor view', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeParams.id = '2'
+    routeState.query = reactive({})
 
     getDeviceMonitorOverviewMock.mockResolvedValue({
       archive: {
@@ -570,6 +587,86 @@ describe('DeviceMonitor view', () => {
     expect(wrapper.exists()).toBe(true)
     expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(1)
     expect(getCompensationCapBankHistoryMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens capacitor-bank workbench on remote-control tab from query', async () => {
+    routeParams.id = '8'
+    routeState.query.tab = 'remote-control'
+    getDeviceMonitorOverviewMock.mockResolvedValueOnce({
+      archive: {
+        id: 8,
+        name: '无功补偿控制器',
+        sn: 'CAP-001',
+        device_type: 'compensation',
+        device_subtype: 'capacitor_bank_controller',
+        archive_status: 'active',
+      },
+      runtime_status: {
+        device_id: 8,
+        code: 'running',
+        label: '运行中',
+        is_active: true,
+        is_online: true,
+        unresolved_alarm_count: 0,
+      },
+      realtime: {
+        device_id: 8,
+        timestamp: '2026-04-21T17:09:39',
+        reactive_power: -28,
+        power_factor: 0.9034,
+      },
+      ingestion_health: {},
+      recent_alarms: [],
+      recent_control_logs: [],
+      compensation_monitor: {
+        subtype: 'capacitor_bank_controller',
+        control_mode: {
+          value: '手动',
+          source: 'telemetry',
+          state: 'live',
+        },
+        circuit_summary: {
+          running_count: 6,
+          total_count: 24,
+          has_realtime_state: true,
+          source: 'telemetry',
+          state: 'live',
+        },
+        profile_status: {
+          source_status: 'fresh',
+          is_stale: false,
+        },
+        key_metrics: {},
+        capabilities_summary: {
+          supports_read: true,
+          supports_write: true,
+          supports_remote_control: true,
+        },
+      },
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
+      compensationWorkbenchTab: string
+    }
+    expect(page.compensationWorkbenchTab).toBe('remote-control')
+  })
+
+  it('syncs capacitor-bank workbench tab when route query changes', async () => {
+    const wrapper = mountView()
+    await flushAsync()
+
+    const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
+      compensationWorkbenchTab: string
+    }
+    expect(page.compensationWorkbenchTab).toBe('runtime')
+
+    routeState.query.tab = 'parameter-settings'
+    await flushAsync()
+
+    expect(page.compensationWorkbenchTab).toBe('parameter-settings')
   })
 
   it('keeps compensation devices on the dedicated path instead of generic metric fallback', async () => {

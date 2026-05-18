@@ -13,6 +13,7 @@ import {
 } from '@/features/device-control/viewMapping'
 import { useControlConsoleActions } from '@/features/device-control/useControlConsoleActions'
 import { useControlConsoleData } from '@/features/device-control/useControlConsoleData'
+import type { MonitorOverview } from '@/api/deviceMonitor'
 
 export function useCapacitorBankControlConsole(input: {
   deviceId: ComputedRef<number>
@@ -20,9 +21,11 @@ export function useCapacitorBankControlConsole(input: {
   canControlDevices: ComputedRef<boolean>
   currentRole: ComputedRef<string>
   isAdmin: ComputedRef<boolean>
+  enableLifecycle?: boolean
 }) {
   const data = useControlConsoleData({
     deviceId: input.deviceId,
+    enableLifecycle: input.enableLifecycle,
   })
   const actions = useControlConsoleActions({
     deviceId: input.deviceId,
@@ -106,6 +109,7 @@ export function useCapacitorBankControlConsole(input: {
     writeSectionView,
     logView,
     loadPage: data.loadPage,
+    loadPageWithOverview: (overview: MonitorOverview) => data.loadPageWithOverview(overview),
     handleManualSwitchCommand: actions.handleManualSwitchCommand,
     openWriteDialog: actions.openWriteDialog,
     submitParameterWrite: actions.submitParameterWrite,

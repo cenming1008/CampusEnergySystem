@@ -21,6 +21,7 @@ vi.mock('@/api/compensation', () => ({
 }))
 
 import { useControlConsoleData } from '../useControlConsoleData'
+import type { MonitorOverview } from '@/api/deviceMonitor'
 
 describe('useControlConsoleData', () => {
   beforeEach(() => {
@@ -126,6 +127,79 @@ describe('useControlConsoleData', () => {
     expect(state!.controlProfile.value?.capabilities.supports_remote_control).toBe(true)
     expect(state!.controlProfile.value?.capabilities.supports_write).toBe(false)
     expect(state!.controlProfile.value?.source_status).toBe('unknown')
+    scope.stop()
+  })
+
+  it('loads embedded console data from an existing overview without fetching overview again', async () => {
+    getCompensationCapBankControlProfileMock.mockResolvedValue({
+      device_id: 2,
+      source_status: 'fresh',
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: true,
+      },
+      split_capacity_expansion: {
+        phase_a_groups: [],
+        phase_b_groups: [],
+        phase_c_groups: [],
+      },
+      common_capacity_expansion: {
+        common_1_groups: [],
+        common_2_groups: [],
+        common_3_groups: [],
+      },
+    })
+    getDeviceMonitorControlLogsMock.mockResolvedValue({ items: [{ id: 1, result: 'success' }] })
+
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => 2),
+      enableLifecycle: false,
+    }))
+
+    expect(state).toBeTruthy()
+    const overview: MonitorOverview = {
+      archive: {
+        id: 2,
+        name: '测试补偿柜',
+        device_type: 'capacitor_bank_controller',
+        device_subtype: 'capacitor_bank_controller',
+      },
+      runtime_status: {
+        device_id: 2,
+        is_online: true,
+      },
+      realtime: null,
+      recent_alarms: [],
+      recent_control_logs: [],
+      ingestion_health: {},
+      compensation_monitor: null,
+    }
+    await state!.loadPageWithOverview(overview)
+
+    expect(getDeviceMonitorOverviewMock).not.toHaveBeenCalled()
+    expect(getDeviceMonitorControlLogsMock).toHaveBeenCalledWith(2, { limit: 10, hours: 168 })
+    expect(state!.loadError.value).toBe('')
+    expect(state!.controlLogs.value).toEqual([{ id: 1, result: 'success' }])
+    expect(state!.isCapacitorBankController.value).toBe(true)
+    scope.stop()
+  })
+
+  it('does not auto load on device id changes when lifecycle is disabled', async () => {
+    const deviceId = ref(2)
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleData({
+      deviceId: computed(() => deviceId.value),
+      enableLifecycle: false,
+    }))
+
+    expect(state).toBeTruthy()
+    deviceId.value = 3
+    await nextTick()
+    await Promise.resolve()
+
+    expect(getDeviceMonitorOverviewMock).not.toHaveBeenCalled()
     scope.stop()
   })
 
