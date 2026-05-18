@@ -4,6 +4,7 @@ import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 import type { CompensationMetric, CompensationPowerFactorTrend, CompensationTone } from './types'
 import { getFlagGroups, hasAnyActiveFlag } from './circuitStateUtils'
+import CompensationMetricStrip from './CompensationMetricStrip.vue'
 
 const props = defineProps({
   coreMetric: {
@@ -38,11 +39,18 @@ const props = defineProps({
     type: String as PropType<CompensationTone>,
     default: 'neutral',
   },
+  alarmCounts: {
+    type: Array as PropType<CompensationMetric[]>,
+    default: () => [],
+  },
 })
 
 const SPARK_WIDTH = 100
-const SPARK_HEIGHT = 36
-const SPARK_PADDING = 6
+const SPARK_HEIGHT = 48
+const SPARK_PLOT_LEFT = 2
+const SPARK_PLOT_RIGHT = 2
+const SPARK_PLOT_TOP = 5
+const SPARK_PLOT_BOTTOM = 15
 
 const hasSparkline = computed(() => props.pfTrend.values.length >= 2)
 
@@ -54,17 +62,40 @@ const sparkGeometry = computed(() => {
   const min = Math.min(...rangeSource)
   const max = Math.max(...rangeSource)
   const span = max - min || 1
-  const innerHeight = SPARK_HEIGHT - SPARK_PADDING * 2
+  const plotRight = SPARK_WIDTH - SPARK_PLOT_RIGHT
+  const plotBottom = SPARK_HEIGHT - SPARK_PLOT_BOTTOM
+  const plotWidth = plotRight - SPARK_PLOT_LEFT
+  const innerHeight = plotBottom - SPARK_PLOT_TOP
   const lastIndex = values.length - 1
-  const toY = (value: number) => SPARK_PADDING + (1 - (value - min) / span) * innerHeight
+  const xAxisTicks = Array.from({ length: 25 }, (_, hour) => {
+    const x = SPARK_PLOT_LEFT + (hour / 24) * plotWidth
+    return {
+      hour,
+      x,
+    }
+  })
+  const xAxisLabels = xAxisTicks
+    .filter((tick) => tick.hour % 6 === 0)
+    .map((tick) => ({
+      hour: tick.hour,
+      label: `${String(tick.hour).padStart(2, '0')}:00`,
+      leftPct: (tick.x / SPARK_WIDTH) * 100,
+    }))
+  const toY = (value: number) => SPARK_PLOT_TOP + (1 - (value - min) / span) * innerHeight
   const line = values
-    .map((value, index) => `${((index / lastIndex) * SPARK_WIDTH).toFixed(2)},${toY(value).toFixed(2)}`)
+    .map((value, index) => `${(SPARK_PLOT_LEFT + (index / lastIndex) * plotWidth).toFixed(2)},${toY(value).toFixed(2)}`)
     .join(' ')
   return {
     line,
-    area: `0,${SPARK_HEIGHT} ${line} ${SPARK_WIDTH},${SPARK_HEIGHT}`,
+    area: `${SPARK_PLOT_LEFT},${plotBottom} ${line} ${plotRight},${plotBottom}`,
     targetY: target != null ? toY(target) : null,
     dotTopPct: (toY(values[lastIndex]) / SPARK_HEIGHT) * 100,
+    dotLeftPct: ((SPARK_PLOT_LEFT + plotWidth) / SPARK_WIDTH) * 100,
+    plotLeft: SPARK_PLOT_LEFT,
+    plotRight,
+    plotBottom,
+    xAxisTicks,
+    xAxisLabels,
   }
 })
 
@@ -133,11 +164,6 @@ const isWaitingForTelemetry = computed(() => {
 
 const pfValueColor = computed(() =>
   isWaitingForTelemetry.value ? '#d8e4f4' : progressColor(props.pfMetric.value),
-)
-
-// capacityUsage（回路投入率）已并入「实时监测」面板，指标条不重复展示
-const stripMetrics = computed(() =>
-  props.metrics.filter((item) => item.key !== 'capacityUsage'),
 )
 </script>
 
@@ -212,7 +238,7 @@ const stripMetrics = computed(() =>
             class="bento-hero__spark"
           >
             <div class="bento-hero__spark-caption">
-              <span>近期功率因数趋势</span>
+              <span>近一天功率因数趋势</span>
               <span class="bento-hero__spark-meta">
                 <span v-if="sparkRangeLabel">{{ sparkRangeLabel }}</span>
                 <span
@@ -254,11 +280,37 @@ const stripMetrics = computed(() =>
                   :points="sparkGeometry.area"
                 />
                 <line
+                  class="bento-hero__spark-axis"
+                  :x1="sparkGeometry.plotLeft"
+                  :y1="SPARK_PLOT_TOP"
+                  :x2="sparkGeometry.plotLeft"
+                  :y2="sparkGeometry.plotBottom"
+                />
+                <line
+                  class="bento-hero__spark-axis"
+                  :x1="sparkGeometry.plotLeft"
+                  :y1="sparkGeometry.plotBottom"
+                  :x2="sparkGeometry.plotRight"
+                  :y2="sparkGeometry.plotBottom"
+                />
+                <g
+                  v-for="tick in sparkGeometry.xAxisTicks"
+                  :key="tick.hour"
+                >
+                  <line
+                    class="bento-hero__spark-tick"
+                    :x1="tick.x"
+                    :y1="sparkGeometry.plotBottom"
+                    :x2="tick.x"
+                    :y2="sparkGeometry.plotBottom + (tick.hour % 6 === 0 ? 2.6 : 1.5)"
+                  />
+                </g>
+                <line
                   v-if="sparkGeometry.targetY != null"
                   class="bento-hero__spark-target"
-                  x1="0"
+                  :x1="sparkGeometry.plotLeft"
                   :y1="sparkGeometry.targetY"
-                  :x2="SPARK_WIDTH"
+                  :x2="sparkGeometry.plotRight"
                   :y2="sparkGeometry.targetY"
                 />
                 <polyline
@@ -269,43 +321,35 @@ const stripMetrics = computed(() =>
               </svg>
               <span
                 class="bento-hero__spark-dot"
-                :style="{ top: `${sparkGeometry.dotTopPct}%`, background: pfValueColor }"
+                :style="{ top: `${sparkGeometry.dotTopPct}%`, left: `${sparkGeometry.dotLeftPct}%`, background: pfValueColor }"
               />
+              <div class="bento-hero__spark-x-labels">
+                <span
+                  v-for="(label, index) in sparkGeometry.xAxisLabels"
+                  :key="label.hour"
+                  class="bento-hero__spark-x-label"
+                  :class="{
+                    'bento-hero__spark-x-label--first': index === 0,
+                    'bento-hero__spark-x-label--last': index === sparkGeometry.xAxisLabels.length - 1,
+                  }"
+                  :style="{ left: `${label.leftPct}%` }"
+                >{{ label.label }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- BOTTOM STRIP: 6 指标 -->
-    <div class="bento-strip">
-      <div
-        v-for="item in stripMetrics"
-        :key="item.key"
-        class="strip-cell"
-        :class="{ 'strip-cell--waiting': isUnavailableState(item.state) }"
-      >
-        <div class="metric-label-row metric-label-row--compact">
-          <el-tooltip :content="item.hint" placement="top" :disabled="!item.hint">
-            <span class="strip-cell__label">{{ item.label }}</span>
-          </el-tooltip>
-          <el-tag
-            v-if="item.state && item.state !== 'live' && !isWaitingForTelemetry"
-            size="small"
-            effect="plain"
-            :type="stateTagType(item.state)"
-          >
-            {{ stateTagText(item.state) }}
-          </el-tag>
-        </div>
-        <div
-          class="strip-cell__value"
-          :class="item.tone ? `tone-${item.tone}` : ''"
-        >
-          <strong>{{ displayMetricValue(item) }}</strong>
-          <small v-if="item.unit && !isUnavailableState(item.state)">{{ item.unit }}</small>
-        </div>
-      </div>
+    <!-- BOTTOM STRIP: 累计告警次数 -->
+    <div
+      v-if="alarmCounts.length"
+      class="bento-alarms"
+    >
+      <CompensationMetricStrip
+        :items="alarmCounts"
+        :columns="7"
+      />
     </div>
   </section>
 
@@ -416,10 +460,6 @@ const stripMetrics = computed(() =>
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-}
-
-.metric-label-row--compact {
-  align-items: flex-start;
 }
 
 .bento-reactive__value {
@@ -570,9 +610,21 @@ const stripMetrics = computed(() =>
 
 .bento-hero__spark-svg {
   width: 100%;
-  height: 48px;
+  height: 62px;
   display: block;
   overflow: visible;
+}
+
+.bento-hero__spark-axis {
+  stroke: rgba(148, 163, 184, 0.35);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.bento-hero__spark-tick {
+  stroke: rgba(148, 163, 184, 0.38);
+  stroke-width: 0.65;
+  vector-effect: non-scaling-stroke;
 }
 
 .bento-hero__spark-line {
@@ -596,73 +648,44 @@ const stripMetrics = computed(() =>
 
 .bento-hero__spark-dot {
   position: absolute;
-  right: 0;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  transform: translate(50%, -50%);
+  transform: translate(-50%, -50%);
   box-shadow: 0 0 0 2.5px rgba(13, 22, 35, 0.9);
 }
 
-/* ── Bottom strip: 6 metric cards ────────────────────────────── */
-.bento-strip {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
+.bento-hero__spark-x-labels {
+  position: relative;
+  height: 12px;
+  margin-top: -8px;
+  color: #8ea0bc;
+  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
+  font-size: 12px;
+  line-height: 1;
 }
 
-.strip-cell {
-  background: linear-gradient(180deg, rgba(18, 32, 50, 0.95), rgba(13, 22, 35, 0.98));
-  border: 1px solid rgba(53, 72, 97, 0.88);
-  border-top: 3px solid rgba(59, 130, 246, 0.25);
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  padding: 12px 14px;
+.bento-hero__spark-x-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.bento-hero__spark-x-label--first {
+  transform: translateX(0);
+}
+
+.bento-hero__spark-x-label--last {
+  transform: translateX(-100%);
+}
+
+/* ── Bottom strip: 累计告警次数 ─────────────────────────────── */
+.bento-alarms {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 88px;
+  gap: 8px;
 }
-
-.strip-cell--waiting {
-  border-top-color: rgba(100, 116, 139, 0.22);
-}
-
-.strip-cell__label {
-  font-size: 11px;
-  color: #8ea0bc;
-  line-height: 1.3;
-}
-
-.strip-cell__value {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.strip-cell__value strong {
-  font-size: 20px;
-  line-height: 1;
-  color: #f5f7fb;
-  font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
-}
-
-.strip-cell__value small {
-  font-size: 10px;
-  color: #7f93b2;
-}
-
-.strip-cell--waiting .strip-cell__value strong {
-  color: #a8b6ca;
-}
-
-
-/* Tone modifiers */
-.tone-success .strip-cell__value strong { color: #4ade80; }
-.tone-warning .strip-cell__value strong { color: #fbbf24; }
-.tone-danger  .strip-cell__value strong { color: #fb7185; }
-.tone-info    .strip-cell__value strong { color: #60a5fa; }
 
 /* Alarm flags bar */
 .alarm-flags {
@@ -744,16 +767,6 @@ const stripMetrics = computed(() =>
 @media (max-width: 1380px) {
   .bento-top {
     grid-template-columns: 1fr;
-  }
-
-  .bento-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .bento-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

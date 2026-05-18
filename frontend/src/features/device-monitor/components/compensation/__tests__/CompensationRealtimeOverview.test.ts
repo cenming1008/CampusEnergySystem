@@ -61,7 +61,60 @@ describe('CompensationRealtimeOverview', () => {
     expect(wrapper.text()).toContain('等待设备上报实时遥测')
     expect(wrapper.text()).toContain('收到首包数据后将自动显示补偿效果')
     expect(wrapper.find('.bento-hero__value').text()).toContain('等待采集')
-    expect(wrapper.findAll('.strip-cell__value strong').map((node) => node.text())).toContain('--')
     expect(wrapper.text()).not.toContain('✕ 缺测')
+  })
+
+  it('renders PF trend axes as a one-day power factor view', () => {
+    const wrapper = mount(CompensationRealtimeOverview, {
+      props: {
+        coreMetric: {
+          key: 'reactivePower',
+          label: '当前无功功率',
+          value: '-12.0',
+          unit: 'kVar',
+          hint: '',
+          state: 'live',
+        },
+        pfMetric: {
+          key: 'powerFactor',
+          label: '功率因数',
+          value: '0.96',
+          unit: 'PF',
+          hint: '',
+          state: 'live',
+        },
+        metrics: [
+          { key: 'voltage', label: '母线电压', value: '220.0', unit: 'V', hint: '', state: 'live' },
+        ],
+        pfTrend: {
+          values: [0.91, 0.96, 0.94],
+          timestamps: ['2026-05-18T09:00:00+08:00', '2026-05-18T09:10:00+08:00', '2026-05-18T09:20:00+08:00'],
+          target: 0.95,
+        },
+        extendedHint: '',
+      },
+      global: {
+        stubs: {
+          'el-tooltip': {
+            template: '<span><slot /></span>',
+          },
+          'el-tag': {
+            template: '<span class="tag-probe"><slot /></span>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.findAll('.bento-hero__spark-axis')).toHaveLength(2)
+    expect(wrapper.findAll('.bento-hero__spark-x-labels span').map((node) => node.text())).toEqual([
+      '00:00',
+      '06:00',
+      '12:00',
+      '18:00',
+      '24:00',
+    ])
+    expect(wrapper.findAll('.bento-hero__spark-tick')).toHaveLength(25)
+    expect(wrapper.find('.bento-hero__spark-y-title').exists()).toBe(false)
+    expect(wrapper.text()).toContain('近一天功率因数趋势')
   })
 })
