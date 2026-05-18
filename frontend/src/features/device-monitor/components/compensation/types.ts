@@ -1,5 +1,11 @@
 export type CompensationTone = 'success' | 'info' | 'warning' | 'danger' | 'neutral'
 export type CompensationDataState = 'live' | 'mock' | 'missing' | 'offline' | 'unconfigured' | 'na'
+export type CompensationWorkbenchTab =
+  | 'runtime'
+  | 'curves'
+  | 'remote-control'
+  | 'parameter-settings'
+  | 'event-records'
 export type CompensationTrendTab =
   | 'effect'
   | 'voltage'
@@ -58,6 +64,12 @@ export interface CompensationHeaderModel {
 export interface CompensationTrendOption {
   label: string
   value: CompensationTrendTab
+}
+
+export interface CompensationWorkbenchTabOption {
+  label: string
+  value: CompensationWorkbenchTab
+  tone?: 'normal' | 'warning' | 'danger'
 }
 
 export interface CompensationTrendAxis {

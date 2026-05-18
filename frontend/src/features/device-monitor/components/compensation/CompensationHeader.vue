@@ -30,7 +30,7 @@ defineProps({
   },
   consoleEntryLabel: {
     type: String,
-    default: '控制台',
+    default: '远程控制',
   },
 })
 

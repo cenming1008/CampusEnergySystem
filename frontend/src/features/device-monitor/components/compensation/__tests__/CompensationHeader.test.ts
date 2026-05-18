@@ -13,7 +13,7 @@ const model = {
 }
 
 describe('CompensationHeader', () => {
-  it('uses a concise console label and settings icon for the console entry', () => {
+  it('uses the remote control label as the default secondary entry label', () => {
     const wrapper = mount(CompensationHeader, {
       props: {
         model,
@@ -33,12 +33,41 @@ describe('CompensationHeader', () => {
       },
     })
 
-    const consoleButton = wrapper.find('button[aria-label="控制台"]')
+    const consoleButton = wrapper.find('button[aria-label="远程控制"]')
 
     expect(consoleButton.exists()).toBe(true)
-    expect(consoleButton.attributes('title')).toBe('控制台')
-    expect(consoleButton.text()).toContain('控制台')
-    expect(consoleButton.text()).not.toContain('进入控制台')
+    expect(consoleButton.attributes('title')).toBe('远程控制')
+    expect(consoleButton.text()).toContain('远程控制')
+    expect(consoleButton.text()).not.toContain('控制台')
+  })
+
+  it('uses the provided workbench action label and settings icon for the secondary entry', () => {
+    const wrapper = mount(CompensationHeader, {
+      props: {
+        model,
+        toggleActionLabel: '停用设备',
+        toggleButtonType: 'danger',
+        canControlDevices: true,
+        showConsoleEntry: true,
+        consoleEntryLabel: '参数设置',
+      },
+      global: {
+        stubs: {
+          'el-icon': { template: '<span class="icon-probe"><slot /></span>' },
+          ArrowLeft: true,
+          Refresh: true,
+          SwitchButton: true,
+          Setting: { template: '<i class="setting-icon-probe" />' },
+        },
+      },
+    })
+
+    const consoleButton = wrapper.find('button[aria-label="参数设置"]')
+
+    expect(consoleButton.exists()).toBe(true)
+    expect(consoleButton.attributes('title')).toBe('参数设置')
+    expect(consoleButton.text()).toContain('参数设置')
+    expect(consoleButton.text()).not.toContain('控制台')
     expect(consoleButton.find('.setting-icon-probe').exists()).toBe(true)
   })
 })
