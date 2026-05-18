@@ -47,6 +47,7 @@ wheels/
 /.claude/worktrees/
 /.claude/settings.local.json
 /.cursor/
+/.superpowers/
 
 # ============================================
 # 环境配置和敏感信息
