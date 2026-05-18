@@ -37,6 +37,7 @@ import type {
   CompensationEventItem,
   CompensationHeaderModel,
   CompensationMetric,
+  CompensationPowerFactorTrend,
   CompensationProfileItem,
   CompensationStatusItem,
   CompensationTone,
@@ -452,6 +453,18 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     }),
   )
 
+  const compensationPowerFactorTrend = computed<CompensationPowerFactorTrend>(() => {
+    const points = input.trend.value?.points || []
+    const values = points
+      .map((point) => point.power_factor)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    const target = fallbackCompensation.value.targetPowerFactor
+    return {
+      values,
+      target: typeof target === 'number' && Number.isFinite(target) ? target : null,
+    }
+  })
+
   const compensationEvents = computed<CompensationEventItem[]>(() => {
     return buildCompensationEventTimeline(input.statusHistory.value)
   })
@@ -613,6 +626,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     moduleStatusModel,
     compensationExtendedHint,
     compensationTrendModel,
+    compensationPowerFactorTrend,
     compensationEvents,
     compensationStatusItems,
     compensationProfileItems,

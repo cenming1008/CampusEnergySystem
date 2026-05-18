@@ -31,6 +31,11 @@ export interface CompensationMetric {
   emphasized?: boolean
 }
 
+export interface CompensationPowerFactorTrend {
+  values: number[]
+  target: number | null
+}
+
 export interface ModuleStatusModel {
   title: string
   unitLabel: string

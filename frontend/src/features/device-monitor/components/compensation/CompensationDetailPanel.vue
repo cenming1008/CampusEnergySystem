@@ -4,6 +4,7 @@ import type {
   CompensationCapacitorBankTelemetry,
   CompensationSvgTelemetry,
 } from '@/api/compensation'
+import type { ModuleStatusModel } from './types'
 import CompensationThreePhasePanel from './CompensationThreePhasePanel.vue'
 import CompensationCircuitStatePanel from './CompensationCircuitStatePanel.vue'
 
@@ -41,6 +42,10 @@ const props = defineProps({
     type: String as PropType<CompensationDetailTab>,
     default: 'three-phase',
   },
+  moduleStatus: {
+    type: Object as PropType<ModuleStatusModel | null>,
+    default: null,
+  },
 })
 
 const emit = defineEmits<{
@@ -68,6 +73,13 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
     <header class="detail-panel__head">
       <div class="detail-panel__intro">
         <h3>实时监测</h3>
+        <span
+          v-if="moduleStatus && moduleStatus.totalModuleCount > 0"
+          class="circuit-run-badge"
+          :class="moduleStatus.runningModuleCount > 0 ? 'circuit-run-badge--running' : 'circuit-run-badge--standby'"
+        >
+          {{ moduleStatus.runningModuleCount }}/{{ moduleStatus.totalModuleCount }} {{ moduleStatus.unitLabel }}运行
+        </span>
       </div>
       <div
         v-if="showCircuitTab"
@@ -140,12 +152,38 @@ const resolvedTab = computed<CompensationDetailTab>(() =>
 
 .detail-panel__intro {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .detail-panel__intro h3 {
   margin: 0;
   font-size: 16px;
   color: #f5f7fb;
+}
+
+.circuit-run-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.circuit-run-badge--running {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.circuit-run-badge--standby {
+  background: rgba(76, 97, 126, 0.2);
+  border-color: rgba(76, 97, 126, 0.4);
+  color: #9fb1cc;
 }
 
 .detail-panel__actions {

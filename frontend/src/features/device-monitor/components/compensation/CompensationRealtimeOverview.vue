@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
-import type { CompensationMetric, ModuleStatusModel } from './types'
+import type { CompensationMetric, CompensationPowerFactorTrend, CompensationTone } from './types'
 import { getFlagGroups, hasAnyActiveFlag } from './circuitStateUtils'
 
 const props = defineProps({
@@ -18,10 +18,6 @@ const props = defineProps({
     type: Array as PropType<CompensationMetric[]>,
     default: () => [],
   },
-  moduleStatus: {
-    type: Object as PropType<ModuleStatusModel>,
-    required: true,
-  },
   extendedHint: {
     type: String,
     default: '',
@@ -30,6 +26,60 @@ const props = defineProps({
     type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
     default: null,
   },
+  pfTrend: {
+    type: Object as PropType<CompensationPowerFactorTrend>,
+    default: () => ({ values: [], target: null }),
+  },
+  statusText: {
+    type: String,
+    default: '',
+  },
+  statusTone: {
+    type: String as PropType<CompensationTone>,
+    default: 'neutral',
+  },
+})
+
+const SPARK_WIDTH = 100
+const SPARK_HEIGHT = 36
+const SPARK_PADDING = 6
+
+const hasSparkline = computed(() => props.pfTrend.values.length >= 2)
+
+const sparkGeometry = computed(() => {
+  const values = props.pfTrend.values
+  if (values.length < 2) return null
+  const target = props.pfTrend.target
+  const rangeSource = target != null ? [...values, target] : values
+  const min = Math.min(...rangeSource)
+  const max = Math.max(...rangeSource)
+  const span = max - min || 1
+  const innerHeight = SPARK_HEIGHT - SPARK_PADDING * 2
+  const lastIndex = values.length - 1
+  const toY = (value: number) => SPARK_PADDING + (1 - (value - min) / span) * innerHeight
+  const line = values
+    .map((value, index) => `${((index / lastIndex) * SPARK_WIDTH).toFixed(2)},${toY(value).toFixed(2)}`)
+    .join(' ')
+  return {
+    line,
+    area: `0,${SPARK_HEIGHT} ${line} ${SPARK_WIDTH},${SPARK_HEIGHT}`,
+    targetY: target != null ? toY(target) : null,
+    dotTopPct: (toY(values[lastIndex]) / SPARK_HEIGHT) * 100,
+  }
+})
+
+const sparkTargetLabel = computed(() => {
+  const target = props.pfTrend.target
+  return target != null ? `目标 ${target.toFixed(2)}` : ''
+})
+
+const sparkRangeLabel = computed(() => {
+  const values = props.pfTrend.values
+  if (values.length === 0) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  if (max - min < 0.005) return `稳定 ${min.toFixed(2)}`
+  return `区间 ${min.toFixed(2)}–${max.toFixed(2)}`
 })
 
 const flagGroups = computed(() =>
@@ -39,16 +89,10 @@ const anyActiveFlag = computed(() => hasAnyActiveFlag(flagGroups.value))
 
 function progressColor(value: string) {
   const numeric = Number(value)
-  if (Number.isNaN(numeric)) return '#64748b'
+  if (Number.isNaN(numeric)) return '#e8eef7'
   if (numeric >= 0.96) return '#22c55e'
   if (numeric >= 0.9) return '#f59e0b'
   return '#ef4444'
-}
-
-function progressValue(value: string) {
-  const numeric = Number(value)
-  if (Number.isNaN(numeric)) return 0
-  return Math.max(0, Math.min(100, numeric * 100))
 }
 
 function stateTagText(state: CompensationMetric['state']) {
@@ -67,18 +111,6 @@ function stateTagType(state: CompensationMetric['state']) {
   if (state === 'unconfigured') return 'info'
   return 'info'
 }
-
-const capacityUsagePct = computed(() => {
-  const found = props.metrics.find(m => m.key === 'capacityUsage')
-  if (!found) return 0
-  const n = Number(found.value)
-  return Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n))
-})
-
-const capacityUsageLabel = computed(() => {
-  const found = props.metrics.find(m => m.key === 'capacityUsage')
-  return found?.label || '容量利用率'
-})
 
 function isUnavailableState(state: CompensationMetric['state']) {
   return state === 'missing' || state === 'offline'
@@ -99,7 +131,11 @@ const isWaitingForTelemetry = computed(() => {
   return telemetryMetrics.length > 0 && telemetryMetrics.every((item) => item.state !== 'live')
 })
 
-// capacityUsage 由上方 Hero 进度条单独消费，指标条不再重复展示
+const pfValueColor = computed(() =>
+  isWaitingForTelemetry.value ? '#d8e4f4' : progressColor(props.pfMetric.value),
+)
+
+// capacityUsage（回路投入率）已并入「实时监测」面板，指标条不重复展示
 const stripMetrics = computed(() =>
   props.metrics.filter((item) => item.key !== 'capacityUsage'),
 )
@@ -115,40 +151,35 @@ const stripMetrics = computed(() =>
       <span>当前仅展示档案、模板诊断和可接入字段，收到首包数据后将自动显示补偿效果、三相快照、回路状态和趋势。</span>
     </div>
 
-    <!-- TOP: PF 仪表盘 | 无功功率 Hero -->
+    <!-- TOP: 无功功率 小卡 | 功率因数 Hero + 趋势 -->
     <div class="bento-top">
       <div
-        class="bento-pf"
-        :class="{ 'bento-pf--waiting': isWaitingForTelemetry }"
+        class="bento-reactive"
+        :class="{ 'bento-reactive--waiting': isWaitingForTelemetry }"
       >
+        <span
+          v-if="statusText && !isWaitingForTelemetry"
+          class="bento-reactive__status"
+          :class="`status-${statusTone}`"
+        >
+          {{ statusText }}
+        </span>
         <div class="metric-label-row">
-          <el-tooltip :content="pfMetric.hint" placement="top" :disabled="!pfMetric.hint">
-            <span class="bento-pf__label">{{ pfMetric.label }}</span>
+          <el-tooltip :content="coreMetric.hint" placement="top" :disabled="!coreMetric.hint">
+            <span class="bento-reactive__label">{{ coreMetric.label }}</span>
           </el-tooltip>
           <el-tag
-            v-if="pfMetric.state && pfMetric.state !== 'live' && !isWaitingForTelemetry"
+            v-if="coreMetric.state && coreMetric.state !== 'live' && !isWaitingForTelemetry"
             size="small"
             effect="plain"
-            :type="stateTagType(pfMetric.state)"
+            :type="stateTagType(coreMetric.state)"
           >
-            {{ stateTagText(pfMetric.state) }}
+            {{ stateTagText(coreMetric.state) }}
           </el-tag>
         </div>
-        <div class="bento-pf__gauge">
-          <el-progress
-            type="dashboard"
-            :percentage="progressValue(pfMetric.value)"
-            :stroke-width="11"
-            :color="progressColor(pfMetric.value)"
-            :width="140"
-          >
-            <template #default>
-              <div class="bento-pf__inner">
-                <strong>{{ displayMetricValue(pfMetric) }}</strong>
-                <small>PF</small>
-              </div>
-            </template>
-          </el-progress>
+        <div class="bento-reactive__value">
+          <strong>{{ isWaitingForTelemetry ? '等待采集' : displayMetricValue(coreMetric) }}</strong>
+          <small v-if="!isWaitingForTelemetry">{{ coreMetric.unit }}</small>
         </div>
       </div>
 
@@ -158,40 +189,90 @@ const stripMetrics = computed(() =>
       >
         <div class="bento-hero__top">
           <div class="metric-label-row">
-            <el-tooltip :content="coreMetric.hint" placement="top" :disabled="!coreMetric.hint">
-              <span class="bento-hero__label">{{ coreMetric.label }}</span>
+            <el-tooltip :content="pfMetric.hint" placement="top" :disabled="!pfMetric.hint">
+              <span class="bento-hero__label">{{ pfMetric.label }}</span>
             </el-tooltip>
             <el-tag
-              v-if="coreMetric.state && coreMetric.state !== 'live' && !isWaitingForTelemetry"
+              v-if="pfMetric.state && pfMetric.state !== 'live' && !isWaitingForTelemetry"
               size="small"
               effect="plain"
-              :type="stateTagType(coreMetric.state)"
+              :type="stateTagType(pfMetric.state)"
             >
-              {{ stateTagText(coreMetric.state) }}
+              {{ stateTagText(pfMetric.state) }}
             </el-tag>
           </div>
         </div>
-        <div class="bento-hero__value">
-          <strong>{{ isWaitingForTelemetry ? '等待采集' : displayMetricValue(coreMetric) }}</strong>
-          <small v-if="!isWaitingForTelemetry">{{ coreMetric.unit }}</small>
-        </div>
-        <div class="bento-hero__bar-row">
-          <span class="bento-hero__bar-label">{{ capacityUsageLabel }}</span>
-          <div class="bento-hero__bar-track">
-            <div
-              class="bento-hero__bar-fill"
-              :style="{ width: `${capacityUsagePct}%` }"
-            />
+        <div class="bento-hero__main">
+          <div class="bento-hero__value">
+            <strong :style="{ color: pfValueColor }">{{ isWaitingForTelemetry ? '等待采集' : displayMetricValue(pfMetric) }}</strong>
+            <small v-if="!isWaitingForTelemetry">PF</small>
           </div>
-          <span class="bento-hero__bar-pct">{{ capacityUsagePct.toFixed(1) }}%</span>
-        </div>
-        <div class="bento-hero__pills">
-          <span
-            class="module-pill"
-            :class="moduleStatus.runningModuleCount > 0 ? 'module-pill--running' : 'module-pill--standby'"
+          <div
+            v-if="hasSparkline && sparkGeometry"
+            class="bento-hero__spark"
           >
-            {{ moduleStatus.runningModuleCount }}/{{ moduleStatus.totalModuleCount }} {{ moduleStatus.unitLabel }}运行
-          </span>
+            <div class="bento-hero__spark-caption">
+              <span>近期功率因数趋势</span>
+              <span class="bento-hero__spark-meta">
+                <span v-if="sparkRangeLabel">{{ sparkRangeLabel }}</span>
+                <span
+                  v-if="sparkTargetLabel"
+                  class="bento-hero__spark-target-label"
+                >{{ sparkTargetLabel }}</span>
+              </span>
+            </div>
+            <div class="bento-hero__spark-chart">
+              <svg
+                class="bento-hero__spark-svg"
+                :viewBox="`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient
+                    id="pfSparkFill"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0"
+                      :stop-color="pfValueColor"
+                      stop-opacity="0.24"
+                    />
+                    <stop
+                      offset="1"
+                      :stop-color="pfValueColor"
+                      stop-opacity="0"
+                    />
+                  </linearGradient>
+                </defs>
+                <polygon
+                  class="bento-hero__spark-area"
+                  fill="url(#pfSparkFill)"
+                  :points="sparkGeometry.area"
+                />
+                <line
+                  v-if="sparkGeometry.targetY != null"
+                  class="bento-hero__spark-target"
+                  x1="0"
+                  :y1="sparkGeometry.targetY"
+                  :x2="SPARK_WIDTH"
+                  :y2="sparkGeometry.targetY"
+                />
+                <polyline
+                  class="bento-hero__spark-line"
+                  :style="{ stroke: pfValueColor }"
+                  :points="sparkGeometry.line"
+                />
+              </svg>
+              <span
+                class="bento-hero__spark-dot"
+                :style="{ top: `${sparkGeometry.dotTopPct}%`, background: pfValueColor }"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -298,7 +379,7 @@ const stripMetrics = computed(() =>
   line-height: 1.55;
 }
 
-/* ── Top zone: PF gauge | Hero ───────────────────────────────── */
+/* ── Top zone: 无功功率 小卡 | PF Hero ───────────────────────── */
 .bento-top {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -306,7 +387,7 @@ const stripMetrics = computed(() =>
   min-height: 200px;
 }
 
-.bento-pf,
+.bento-reactive,
 .bento-hero {
   background: linear-gradient(180deg, rgba(18, 32, 50, 0.95), rgba(13, 22, 35, 0.98));
   border: 1px solid rgba(53, 72, 97, 0.88);
@@ -314,18 +395,17 @@ const stripMetrics = computed(() =>
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* PF panel */
-.bento-pf {
-  padding: 20px 18px;
+/* 无功功率 小卡 */
+.bento-reactive {
+  position: relative;
+  padding: 22px 20px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 10px;
-  text-align: center;
+  gap: 14px;
 }
 
-.bento-pf__label {
+.bento-reactive__label {
   font-size: 13px;
   color: #c5d2e7;
 }
@@ -342,42 +422,74 @@ const stripMetrics = computed(() =>
   align-items: flex-start;
 }
 
-.bento-pf__gauge {
+.bento-reactive__value {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
 }
 
-.bento-pf__inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.bento-pf__inner strong {
-  font-size: 26px;
-  color: #f8fafc;
+.bento-reactive__value strong {
+  font-size: 56px;
   line-height: 1;
+  color: #3dd5f3;
+  letter-spacing: 0.02em;
   font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
 }
 
-.bento-pf__inner small {
-  font-size: 11px;
+.bento-reactive__value small {
+  font-size: 16px;
   color: #8ea0bc;
 }
 
-.bento-pf--waiting :deep(.el-progress-circle__path) {
-  stroke: rgba(100, 116, 139, 0.55);
+.bento-reactive--waiting .bento-reactive__value strong {
+  color: #d8e4f4;
+  font-size: 34px;
+  letter-spacing: 0;
 }
 
-/* Hero panel */
+.bento-reactive__status {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.status-success {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.status-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.32);
+  color: #fbbf24;
+}
+
+.status-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: #fb7185;
+}
+
+.status-info,
+.status-neutral {
+  background: rgba(76, 97, 126, 0.2);
+  border-color: rgba(76, 97, 126, 0.4);
+  color: #9fb1cc;
+}
+
+/* PF Hero panel */
 .bento-hero {
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
+  gap: 16px;
 }
 
 .bento-hero__top {
@@ -391,16 +503,22 @@ const stripMetrics = computed(() =>
   color: #c5d2e7;
 }
 
+.bento-hero__main {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
 .bento-hero__value {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .bento-hero__value strong {
   font-size: 56px;
   line-height: 1;
-  color: #3dd5f3;
   letter-spacing: 0.02em;
   font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
 }
@@ -411,73 +529,79 @@ const stripMetrics = computed(() =>
 }
 
 .bento-hero--waiting .bento-hero__value strong {
-  color: #d8e4f4;
   font-size: 34px;
   letter-spacing: 0;
 }
 
-/* Capacity bar */
-.bento-hero__bar-row {
+/* PF 趋势 sparkline */
+.bento-hero__spark {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.bento-hero__bar-label {
+.bento-hero__spark-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   color: #7f93b2;
+}
+
+.bento-hero__spark-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.bento-hero__bar-track {
-  flex: 1;
-  height: 4px;
-  background: rgba(53, 72, 97, 0.5);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.bento-hero__bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #06b6d4);
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
-
-.bento-hero__bar-pct {
-  font-size: 11px;
-  color: #8ea0bc;
-  white-space: nowrap;
-  flex-shrink: 0;
   font-family: 'DIN Alternate', 'DIN', 'SFMono-Regular', monospace;
 }
 
-/* Module pill */
-.bento-hero__pills {
-  display: flex;
-  gap: 8px;
+.bento-hero__spark-target-label {
+  color: #9fb1cc;
 }
 
-.module-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
+.bento-hero__spark-chart {
+  position: relative;
+  overflow: visible;
 }
 
-.module-pill--running {
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #4ade80;
+.bento-hero__spark-svg {
+  width: 100%;
+  height: 48px;
+  display: block;
+  overflow: visible;
 }
 
-.module-pill--standby {
-  background: rgba(76, 97, 126, 0.2);
-  border: 1px solid rgba(76, 97, 126, 0.4);
-  color: #8ea0bc;
+.bento-hero__spark-line {
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.bento-hero__spark-area {
+  stroke: none;
+}
+
+.bento-hero__spark-target {
+  stroke: rgba(148, 163, 184, 0.55);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.bento-hero__spark-dot {
+  position: absolute;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(50%, -50%);
+  box-shadow: 0 0 0 2.5px rgba(13, 22, 35, 0.9);
 }
 
 /* ── Bottom strip: 6 metric cards ────────────────────────────── */

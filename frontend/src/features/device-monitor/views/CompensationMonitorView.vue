@@ -41,9 +41,11 @@ defineProps<{
         :core-metric="page.compensationCoreMetric"
         :pf-metric="page.compensationPfMetric"
         :metrics="page.compensationMetrics"
-        :module-status="page.moduleStatusModel"
         :extended-hint="page.compensationExtendedHint"
         :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
+        :pf-trend="page.compensationPowerFactorTrend"
+        :status-text="page.compensationStatusText"
+        :status-tone="page.compensationStatusTone"
       />
 
       <CompensationDetailPanel
@@ -53,6 +55,7 @@ defineProps<{
         :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
         :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
         :circuit-profile="page.compensationCircuitProfile"
+        :module-status="page.moduleStatusModel"
       />
 
       <HarmonicSpectrumPanel
