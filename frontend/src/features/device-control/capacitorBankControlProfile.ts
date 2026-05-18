@@ -188,7 +188,7 @@ export const capacitorBankControlParameterMeta: CapacitorBankControlParameterMet
     description: '电压谐波告警门限，2.9% 表示关闭。',
     editable: true,
     inputKind: 'number',
-    min: 3,
+    min: 2.9,
     max: 50,
     step: 0.1,
   },
@@ -202,7 +202,7 @@ export const capacitorBankControlParameterMeta: CapacitorBankControlParameterMet
     description: '电流谐波告警门限，29A 表示关闭。',
     editable: true,
     inputKind: 'number',
-    min: 30,
+    min: 29,
     max: 200,
     step: 1,
   },
@@ -295,12 +295,25 @@ export const capacitorBankControlGroupLabels = {
 export const capacitorBankEditableParameterMeta = capacitorBankControlParameterMeta
   .filter((item) => item.editable)
 
+const protocolConfirmedWritableParameterKeys = new Set([
+  'switch_on_power_factor',
+  'switch_off_power_factor',
+  'switch_on_delay_seconds',
+  'switch_off_delay_seconds',
+  'overvoltage_threshold',
+  'voltage_harmonic_threshold',
+  'current_harmonic_threshold',
+  'temperature_upper_limit',
+])
+
 export function filterCapacitorBankWritableParameterMeta(
   capabilities?: { writable_parameters?: string[] | null } | null,
 ) {
   const writableKeys = capabilities?.writable_parameters
-  if (!writableKeys?.length) return capacitorBankEditableParameterMeta
-  const allowed = new Set(writableKeys)
+  if (!writableKeys?.length) {
+    return capacitorBankEditableParameterMeta.filter((item) => protocolConfirmedWritableParameterKeys.has(String(item.key)))
+  }
+  const allowed = new Set([...writableKeys, ...protocolConfirmedWritableParameterKeys])
   return capacitorBankEditableParameterMeta.filter((item) => allowed.has(String(item.key)))
 }
 

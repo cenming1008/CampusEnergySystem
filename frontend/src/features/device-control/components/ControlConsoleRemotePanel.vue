@@ -15,7 +15,6 @@ defineProps<{
   manualPhase: 'A' | 'B' | 'C' | 'COMMON'
   manualSwitchAction: 'none' | 'on' | 'off'
   manualCommonGroup: 1 | 2 | 3
-  remoteControlEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -39,15 +38,6 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
     accent="amber"
     title="远程控制"
   >
-    <template #headerExtra>
-      <el-tag
-        :type="remoteControlEnabled ? 'success' : 'info'"
-        effect="dark"
-        size="small"
-      >
-        {{ remoteControlEnabled ? '已开通' : '未开通' }}
-      </el-tag>
-    </template>
     <div class="remote-actions">
       <button
         v-for="card in actionCards"
@@ -161,22 +151,25 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 <style scoped>
 .remote-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .remote-card {
-  min-height: 150px;
-  padding: 18px 20px;
+  min-height: 136px;
+  padding: 16px;
   border-radius: 12px;
-  border: 1px solid rgba(48, 70, 95, 0.6);
-  background: rgba(19, 34, 53, 0.7);
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background:
+    linear-gradient(180deg, rgba(31, 48, 70, 0.62), rgba(12, 24, 39, 0.78)),
+    rgba(19, 34, 53, 0.78);
   text-align: left;
   color: #a7b7cb;
   display: flex;
   flex-direction: column;
   gap: 0;
-  transition: border-color 0.18s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
 .remote-card--locked {
@@ -189,10 +182,16 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   cursor: pointer;
   opacity: 1;
   border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(19, 34, 53, 0.7);
+  background:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.08), rgba(12, 24, 39, 0.8)),
+    rgba(19, 34, 53, 0.78);
 }
 
-.remote-card--enabled:hover { border-color: rgba(251, 191, 36, 0.65); }
+.remote-card--enabled:hover {
+  border-color: rgba(251, 191, 36, 0.65);
+  transform: translateY(-1px);
+}
+
 .remote-card--enabled:active { transform: translateY(1px); }
 
 .remote-card__top {
@@ -203,10 +202,11 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 }
 
 .remote-card__icon-wrap {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.1);
   display: grid;
   place-items: center;
 }
@@ -225,9 +225,10 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 
 .remote-card strong {
   display: block;
-  margin: 18px 0 6px;
+  margin: 16px 0 6px;
   font-size: 15px;
   color: #f7fbff;
+  line-height: 1.35;
 }
 
 .remote-card em {
@@ -236,6 +237,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   font-size: 13px;
   color: #fcd34d;
   font-style: normal;
+  line-height: 1.45;
 }
 
 .remote-card__reason {
@@ -244,11 +246,14 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 }
 
 .manual-switch-box {
-  margin-top: 14px;
-  padding: 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(251, 191, 36, 0.18);
-  background: rgba(19, 34, 53, 0.74);
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 70, 95, 0.72);
+  background:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.045), rgba(12, 24, 39, 0.8)),
+    rgba(19, 34, 53, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .manual-switch-box__head {
@@ -262,8 +267,8 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 
 .manual-switch-box__head strong {
   font-size: 14px;
-  letter-spacing: 0.2px;
   color: #fef3c7;
+  letter-spacing: 0;
 }
 
 .manual-switch-box__head span {
@@ -274,13 +279,13 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 .manual-switch-row {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: minmax(120px, 0.8fr) repeat(3, minmax(140px, 1fr));
   gap: 12px;
   align-items: end;
 }
 
 .manual-switch-submit {
-  grid-column: 1 / -1;
+  grid-column: auto;
   justify-self: end;
 }
 
@@ -292,7 +297,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
 
 .manual-switch-label {
   font-size: 12px;
-  color: #e7eef8;
+  color: #93a7c4;
 }
 
 .manual-switch-mode-indicator {
@@ -318,6 +323,7 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  width: 100%;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
 
@@ -366,24 +372,31 @@ function resolveActionIcon(iconKey: ControlConsoleActionCard['iconKey']) {
   .remote-actions {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
+
+  .manual-switch-row {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .manual-switch-submit {
+    grid-column: 1 / -1;
+    justify-self: end;
+    width: auto;
+  }
 }
 
 @media (max-width: 768px) {
-  .manual-switch-box__head,
-  .capability-note {
+  .manual-switch-box__head {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .capability-note__text,
-  .capability-note__row {
-    text-align: left;
-    justify-content: flex-start;
   }
 
   .manual-switch-row,
   .remote-actions {
     grid-template-columns: 1fr;
+  }
+
+  .manual-switch-submit {
+    width: 100%;
   }
 }
 </style>

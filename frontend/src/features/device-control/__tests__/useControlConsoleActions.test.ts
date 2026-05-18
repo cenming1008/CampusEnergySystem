@@ -62,6 +62,8 @@ const baseCapabilities = {
     'switch_on_delay_seconds',
     'switch_off_delay_seconds',
     'overvoltage_threshold',
+    'voltage_harmonic_threshold',
+    'current_harmonic_threshold',
     'temperature_upper_limit',
   ],
   remote_commands: [
@@ -231,6 +233,48 @@ describe('useControlConsoleActions', () => {
 
     expect(state!.currentControlModeLabel.value).toBe('手动')
     expect(state!.canRunManualSwitch.value).toBe(true)
+    scope.stop()
+  })
+
+  it('blocks manual switch when latest successful mode log switched back to auto', () => {
+    const scope = effectScope()
+    const state = scope.run(() => useControlConsoleActions({
+      deviceId: computed(() => 2),
+      canManageDevices: computed(() => true),
+      canControlDevices: computed(() => true),
+      currentRole: computed(() => 'admin'),
+      isAdmin: computed(() => true),
+      archive: computed(() => ({ name: '设备-CAP-001' })),
+      runtimeStatus: computed(() => ({ is_active: true, is_online: true })),
+      controlProfile: ref({
+        device_id: 2,
+        source_status: 'fresh',
+        capabilities: baseCapabilities,
+        terminal_assignment_scheme: '手动模式',
+      } as any),
+      controlCapabilities: computed(() => baseCapabilities),
+      controlLogs: ref([
+        {
+          id: 81,
+          device_id: 2,
+          action: 'manual_switch',
+          target_status: true,
+          created_at: '2026-05-17T21:03:43',
+          result: 'success',
+          reason: '控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式',
+        },
+      ] as any),
+      monitorControlMode: computed(() => ({
+        value: '手动',
+        source: 'telemetry',
+        state: 'live',
+      })),
+      loadPage: vi.fn().mockResolvedValue(undefined),
+    }))
+
+    expect(state!.currentControlModeLabel.value).toBe('自动')
+    expect(state!.canRunManualSwitch.value).toBe(false)
+    expect(state!.manualSwitchDisabledReason.value).toContain('当前为自动模式')
     scope.stop()
   })
 

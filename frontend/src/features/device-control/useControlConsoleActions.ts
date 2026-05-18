@@ -288,7 +288,7 @@ export function useControlConsoleActions(input: {
           '模式：手动模式',
           `目标：${targetText}`,
           `动作：${actionText}`,
-          '接口当前仅表示 accepted 入队，不代表设备端已执行成功。',
+          '接口当前仅表示 accepted 入队，不代表设备端已处理完成。',
         ].join('\n'),
         '协议手动控制确认',
         {
@@ -363,7 +363,7 @@ export function useControlConsoleActions(input: {
           `确定要写入参数【${meta.label}】吗？`,
           `当前值：${previousValue}`,
           `目标值：${nextValueText}`,
-          '接口当前只表示 accepted 入队，不代表设备端已执行成功。',
+          '接口当前只表示 accepted 入队，不代表设备端已处理完成。',
         ].join('\n'),
         '参数写入确认',
         {

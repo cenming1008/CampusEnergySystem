@@ -75,6 +75,7 @@ const RemotePanelProbe = defineComponent({
   },
   template: `
     <div class="remote-panel-probe">
+      远程控制
       {{ actionCards[2]?.actionLabel }}
     </div>
   `,
@@ -89,6 +90,7 @@ const LogPanelProbe = defineComponent({
   },
   template: `
     <div class="log-panel-probe">
+      操作日志
       {{ logView.entries[0]?.title }}|{{ logView.entries[0]?.statusText }}|{{ logView.latestLogText }}
     </div>
   `,
@@ -141,8 +143,22 @@ const WriteDialogProbe = defineComponent({
 })
 
 const MonitorSectionPanelProbe = defineComponent({
+  props: {
+    title: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    subtitle: {
+      type: String,
+      required: false,
+      default: '',
+    },
+  },
   template: `
     <section class="monitor-section-panel-probe">
+      <h3 v-if="title">{{ title }}</h3>
+      <p v-if="subtitle">{{ subtitle }}</p>
       <slot name="headerExtra" />
       <slot />
     </section>
@@ -179,6 +195,33 @@ const ConsoleOverviewGridProbe = defineComponent({
   `,
 })
 
+const CompensationHeaderProbe = defineComponent({
+  props: {
+    model: {
+      type: Object,
+      required: true,
+    },
+    consoleEntryLabel: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    toggleActionLabel: {
+      type: String,
+      required: true,
+    },
+    canControlDevices: {
+      type: Boolean,
+      required: true,
+    },
+  },
+  template: `
+    <header class="compensation-header-probe">
+      {{ model.title }}|{{ model.serial }}|{{ model.location }}|{{ model.deviceStatus }}|{{ consoleEntryLabel }}|{{ toggleActionLabel }}|{{ canControlDevices ? 'enabled' : 'disabled' }}
+    </header>
+  `,
+})
+
 function mountView() {
   return shallowMount(DeviceControlConsole, {
     global: {
@@ -190,6 +233,7 @@ function mountView() {
         ControlConsoleWriteDialog: WriteDialogProbe,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        CompensationHeader: CompensationHeaderProbe,
         ConsoleOverviewGrid: ConsoleOverviewGridProbe,
         'el-button': true,
         'el-tag': true,
@@ -302,16 +346,72 @@ describe('DeviceControlConsole view', () => {
     })
   })
 
-  it('renders mapper-driven overview, action and log texts', async () => {
+  it('renders mapper-driven action and parameter texts', async () => {
     const wrapper = mountView()
     await flushAsync()
 
     const text = wrapper.text()
-    expect(text).toContain('设备名称')
     expect(wrapper.find('.remote-panel-probe').text()).toContain('切到手动')
-    expect(wrapper.find('.log-panel-probe').text()).toContain('控制模式切换|执行成功')
-    expect(wrapper.find('.log-panel-probe').text()).toContain('执行成功 · 2026-04-22 18:01:00')
     expect(wrapper.find('.readonly-params-probe').text()).toContain('参数可能过期|投入功率因数')
     expect(wrapper.find('.writable-params-probe').text()).toContain('管理员，可发起受控写入|投入功率因数')
+    expect(text).not.toContain('设备概览')
+    expect(wrapper.find('.log-panel-probe').text()).toContain('控制模式切换|已处理')
+    expect(wrapper.find('.log-panel-probe').text()).toContain('已处理 · 2026-04-22 18:01:00')
+    expect(text).not.toContain('已开通')
+    expect(text).not.toContain('未开通')
+  })
+
+  it('uses the monitor header module and points the middle action back to the monitor page', async () => {
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.find('.compensation-header-probe').text()).toContain('设备-CAP-001|CAP-001|111|在线采集|监控页|停用设备')
+    expect(wrapper.text()).not.toContain('前往监控页')
+  })
+
+  it('removes overview while keeping control, parameter and log modules', async () => {
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.find('.console-monitor-layout').exists()).toBe(true)
+    expect(wrapper.find('.console-monitor-layout--equal-height').exists()).toBe(true)
+    expect(wrapper.find('.console-monitor-layout__main').exists()).toBe(true)
+    expect(wrapper.find('.console-monitor-layout__side').exists()).toBe(true)
+    expect(wrapper.find('.console-monitor-layout__side--fixed-scroll').exists()).toBe(false)
+    expect(wrapper.find('.console-overview-grid-probe').exists()).toBe(false)
+    expect(wrapper.find('.log-panel-probe').exists()).toBe(true)
+    expect(wrapper.text()).toContain('远程控制')
+    expect(wrapper.text()).toContain('参数管理')
+    expect(wrapper.text()).toContain('参数修改')
+    expect(wrapper.text()).not.toContain('accepted 仅表示指令入队')
+    expect(wrapper.text()).toContain('操作日志')
+  })
+
+  it('keeps the header device toggle enabled even when console remote actions are unavailable', async () => {
+    getCompensationCapBankControlProfileMock.mockResolvedValueOnce({
+      device_id: 2,
+      source_status: 'live',
+      is_stale: false,
+      source: 'telemetry',
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: false,
+        write_status_message: '',
+        remote_control_status_message: '远程控制能力待接入',
+        protocol_version: 'campus-control.v1',
+        command_message_type: 'control_command',
+        receipt_message_type: 'control_receipt',
+        control_topic_template: 'campus/control/{device_code}',
+        receipt_topic: 'campus/telemetry',
+        receipt_timeout_seconds: 120,
+        supported_results: ['accepted', 'running', 'success', 'failed', 'timeout', 'rejected'],
+      },
+    })
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    expect(wrapper.find('.compensation-header-probe').text()).toContain('停用设备|enabled')
   })
 })

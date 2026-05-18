@@ -40,6 +40,8 @@ GATEWAY_UAT_WRITABLE_PARAMETERS = (
     "switch_on_delay_seconds",
     "switch_off_delay_seconds",
     "overvoltage_threshold",
+    "voltage_harmonic_threshold",
+    "current_harmonic_threshold",
     "temperature_upper_limit",
 )
 
@@ -74,8 +76,8 @@ PARAMETER_WRITE_SPECS: dict[str, CapacitorBankControlParameterSpec] = {
     "split_step_capacity_kvar": CapacitorBankControlParameterSpec("split_step_capacity_kvar", "0xDB", "分补阶梯容量", "float", 0.1, 50.0),
     "ct_primary_current": CapacitorBankControlParameterSpec("ct_primary_current", "0xDC", "互感器一次值", "int", 1, 1600),
     "overvoltage_threshold": CapacitorBankControlParameterSpec("overvoltage_threshold", "0xDD", "过压保护门限", "float", 230.0, 265.0),
-    "voltage_harmonic_threshold": CapacitorBankControlParameterSpec("voltage_harmonic_threshold", "0xDE", "电压谐波门限", "float", 0.0, 50.0),
-    "current_harmonic_threshold": CapacitorBankControlParameterSpec("current_harmonic_threshold", "0xDF", "电流谐波门限", "float", 0.0, 200.0),
+    "voltage_harmonic_threshold": CapacitorBankControlParameterSpec("voltage_harmonic_threshold", "0xDE", "电压谐波门限", "float", 2.9, 50.0),
+    "current_harmonic_threshold": CapacitorBankControlParameterSpec("current_harmonic_threshold", "0xDF", "电流谐波门限", "float", 29.0, 200.0),
     "temperature_upper_limit": CapacitorBankControlParameterSpec("temperature_upper_limit", "0xE0", "温度上限门限", "float", 50.0, 100.0),
     "alarm_drive_event": CapacitorBankControlParameterSpec("alarm_drive_event", "0xE1", "报警驱动事件", "int", 0, 4),
     "baud_rate": CapacitorBankControlParameterSpec(

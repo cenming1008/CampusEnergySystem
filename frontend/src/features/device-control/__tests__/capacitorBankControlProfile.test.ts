@@ -40,6 +40,8 @@ const baseProfile = {
       'switch_on_delay_seconds',
       'switch_off_delay_seconds',
       'overvoltage_threshold',
+      'voltage_harmonic_threshold',
+      'current_harmonic_threshold',
       'temperature_upper_limit',
     ],
     remote_commands: [],
@@ -87,18 +89,42 @@ describe('capacitorBankControlProfile helpers', () => {
       'switch_on_delay_seconds',
       'switch_off_delay_seconds',
       'overvoltage_threshold',
+      'voltage_harmonic_threshold',
+      'current_harmonic_threshold',
+      'temperature_upper_limit',
+    ])
+  })
+
+  it('keeps protocol-confirmed harmonic thresholds visible when backend capability cache is stale', () => {
+    expect(filterCapacitorBankWritableParameterMeta({
+      writable_parameters: [
+        'switch_on_power_factor',
+        'switch_off_power_factor',
+        'switch_on_delay_seconds',
+        'switch_off_delay_seconds',
+        'overvoltage_threshold',
+        'temperature_upper_limit',
+      ],
+    }).map((item) => item.key)).toEqual([
+      'switch_on_power_factor',
+      'switch_off_power_factor',
+      'switch_on_delay_seconds',
+      'switch_off_delay_seconds',
+      'overvoltage_threshold',
+      'voltage_harmonic_threshold',
+      'current_harmonic_threshold',
       'temperature_upper_limit',
     ])
   })
 
   it('uses protocol minimum effective values for harmonic threshold metadata', () => {
     expect(getCapacitorBankControlParameterMeta('voltage_harmonic_threshold')).toMatchObject({
-      min: 3,
+      min: 2.9,
       max: 50,
       step: 0.1,
     })
     expect(getCapacitorBankControlParameterMeta('current_harmonic_threshold')).toMatchObject({
-      min: 30,
+      min: 29,
       max: 200,
       step: 1,
     })

@@ -127,7 +127,7 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
             operator="admin",
             command_source="remote-control-api",
             result="success",
-            reason="控制台控制模式切换 -> 自动模式 | 设备回执成功: 已切回自动模式",
+            reason="控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式",
             created_at=datetime(2026, 5, 17, 21, 3, 43),
         )
         session.exec.return_value.first.side_effect = [device, None, auto_mode_log]
@@ -184,7 +184,7 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
 
         self.assertEqual(reconciled, [failed_log])
         self.assertEqual(failed_log.result, "success")
-        self.assertIn("遥测复核成功", failed_log.reason)
+        self.assertIn("遥测复核已处理", failed_log.reason)
         session.add.assert_called_once_with(failed_log)
         session.flush.assert_called_once()
         notifier.assert_called_once()
@@ -224,7 +224,7 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
 
         self.assertEqual(reconciled, [failed_log])
         self.assertEqual(failed_log.result, "success")
-        self.assertIn("遥测复核成功: COMMON2 on 1->2", failed_log.reason)
+        self.assertIn("遥测复核已处理: COMMON2 on 1->2", failed_log.reason)
 
     def test_reconcile_failed_manual_switch_ignores_unchanged_target_count(self):
         session = MagicMock()
@@ -286,6 +286,7 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
 
         self.assertEqual(CapacitorBankControlCommandService.normalize_control_result("bad-value"), "failed")
         self.assertEqual(CapacitorBankControlCommandService.get_result_label("running"), "设备执行中")
+        self.assertEqual(CapacitorBankControlCommandService.get_result_label("success"), "已处理")
         self.assertEqual(len(logs), 1)
         self.assertEqual(expired_log.result, "timeout")
         self.assertIn("设备回执超时", expired_log.reason)
@@ -358,6 +359,8 @@ class TestCapacitorBankControlCommandServiceBoundary(unittest.TestCase):
                 )
 
         self.assertEqual(updated.result, "success")
+        self.assertIn("设备回执已处理", updated.reason)
+        self.assertNotIn("网关已执行报警复位", updated.reason)
         session.flush.assert_called_once()
         notifier.assert_called_once()
         event = notifier.call_args[0][0]

@@ -31,6 +31,16 @@ export function resolveControlModeLabel(
   controlLogs: DeviceControlLog[] = [],
   monitorControlMode?: CompensationMonitorControlMode | null,
 ) {
+  const latestLogMode = [...controlLogs]
+    .sort((a, b) => {
+      const timeDiff = Date.parse(b.created_at || '') - Date.parse(a.created_at || '')
+      if (Number.isFinite(timeDiff) && timeDiff !== 0) return timeDiff
+      return Number(b.id || 0) - Number(a.id || 0)
+    })
+    .map((log) => resolveControlModeFromLog(log))
+    .find(Boolean)
+  if (latestLogMode) return latestLogMode
+
   if (monitorControlMode?.state === 'live') {
     if (monitorControlMode.value === '手动' || monitorControlMode.value === '自动') {
       return monitorControlMode.value
@@ -39,11 +49,6 @@ export function resolveControlModeLabel(
 
   const profileMode = resolveFromProfile(profile)
   if (profileMode) return profileMode
-
-  for (const log of controlLogs) {
-    const logMode = resolveControlModeFromLog(log)
-    if (logMode) return logMode
-  }
 
   return '自动'
 }

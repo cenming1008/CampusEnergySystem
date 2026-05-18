@@ -62,6 +62,8 @@ class TestCapacitorBankService(unittest.TestCase):
                 "switch_on_delay_seconds",
                 "switch_off_delay_seconds",
                 "overvoltage_threshold",
+                "voltage_harmonic_threshold",
+                "current_harmonic_threshold",
                 "temperature_upper_limit",
             ],
         )
@@ -234,8 +236,8 @@ class TestCapacitorBankService(unittest.TestCase):
             )
 
         self.assertEqual(updated.result, "success")
-        self.assertIn("设备回执成功", updated.reason)
-        self.assertIn("网关已执行报警复位", updated.reason)
+        self.assertIn("设备回执已处理", updated.reason)
+        self.assertNotIn("网关已执行报警复位", updated.reason)
         session.add.assert_called_once_with(control_log)
         session.flush.assert_called_once()
 
@@ -415,7 +417,7 @@ class TestCapacitorBankService(unittest.TestCase):
             operator="admin",
             command_source="remote-control-api",
             result="success",
-            reason="设备回执成功：已按协议手动投切",
+            reason="设备回执已处理：已按协议手动投切",
         )
         session.add = MagicMock()
         session.flush = MagicMock()

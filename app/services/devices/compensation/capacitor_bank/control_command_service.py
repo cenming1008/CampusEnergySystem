@@ -65,7 +65,7 @@ class CapacitorBankControlCommandService:
     CONTROL_RESULT_LABELS = {
         CONTROL_RESULT_ACCEPTED: "已入队",
         CONTROL_RESULT_RUNNING: "设备执行中",
-        CONTROL_RESULT_SUCCESS: "执行成功",
+        CONTROL_RESULT_SUCCESS: "已处理",
         CONTROL_RESULT_FAILED: "执行失败",
         CONTROL_RESULT_TIMEOUT: "设备回执超时",
         CONTROL_RESULT_REJECTED: "设备拒绝执行",
@@ -469,7 +469,7 @@ class CapacitorBankControlCommandService:
                 continue
 
             target_label = phase if group is None else f"{phase}{group}"
-            suffix = f"遥测复核成功: {target_label} {switch_action} {before_count}->{after_count}"
+            suffix = f"遥测复核已处理: {target_label} {switch_action} {before_count}->{after_count}"
             log.result = CONTROL_RESULT_SUCCESS
             if log.reason:
                 if suffix not in log.reason:
@@ -644,10 +644,15 @@ class CapacitorBankControlCommandService:
 
         control_log.result = normalized_result
         detail_text = (detail or "").strip()
-        if detail_text:
-            if normalized_result == CONTROL_RESULT_SUCCESS:
-                prefix = "设备回执成功"
-            elif normalized_result == CONTROL_RESULT_RUNNING:
+        if normalized_result == CONTROL_RESULT_SUCCESS:
+            suffix = "设备回执已处理"
+            if control_log.reason:
+                if suffix not in control_log.reason:
+                    control_log.reason = f"{control_log.reason} | {suffix}"
+            else:
+                control_log.reason = suffix
+        elif detail_text:
+            if normalized_result == CONTROL_RESULT_RUNNING:
                 prefix = "设备执行中"
             elif normalized_result == CONTROL_RESULT_TIMEOUT:
                 prefix = "设备回执超时"

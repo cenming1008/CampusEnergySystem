@@ -1,26 +1,70 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type {
   ControlConsoleReadonlySectionView,
   ControlConsoleReadonlySummaryView,
 } from '@/features/device-control/viewMapping'
 import ControlConsoleParameterSection from '@/features/device-control/components/ControlConsoleParameterSection.vue'
 
-defineProps<{
+const props = defineProps<{
   sectionView: ControlConsoleReadonlySectionView
   readonlySummaryView: ControlConsoleReadonlySummaryView
 }>()
+
+const capacityExpanded = ref(false)
+const parametersExpanded = ref(false)
+
+const compactSummaryItems = computed(() => props.readonlySummaryView.summaryItems.slice(0, 6))
+const snapshotTimeText = computed(() => {
+  const marker = '快照：'
+  const value = props.sectionView.metaText || ''
+  return value.includes(marker) ? value.split(marker).pop()?.trim() || '' : value
+})
 </script>
 
 <template>
   <ControlConsoleParameterSection
-    :title="sectionView.title"
+    title=""
     :section-label="sectionView.sectionLabel"
     :tone="sectionView.tone"
     :tags="sectionView.tags"
-    :meta-text="sectionView.metaText"
+    :meta-text="snapshotTimeText"
   >
+    <div class="readonly-summary-grid">
+      <div
+        v-for="item in compactSummaryItems"
+        :key="item.label"
+        class="readonly-summary-card"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+      </div>
+    </div>
+
+    <div class="readonly-detail-actions">
+      <button
+        v-if="sectionView.showCapacityExpansion"
+        type="button"
+        class="readonly-detail-toggle"
+        data-test="toggle-capacity"
+        @click="capacityExpanded = !capacityExpanded"
+      >
+        <span>容量展开详情</span>
+        <strong>{{ capacityExpanded ? '收起' : '展开' }}</strong>
+      </button>
+      <button
+        type="button"
+        class="readonly-detail-toggle"
+        data-test="toggle-parameters"
+        @click="parametersExpanded = !parametersExpanded"
+      >
+        <span>全部参数明细</span>
+        <strong>{{ parametersExpanded ? '收起' : '展开' }}</strong>
+      </button>
+    </div>
+
     <div
-      v-if="sectionView.showCapacityExpansion"
+      v-if="sectionView.showCapacityExpansion && capacityExpanded"
       class="capacity-expansion-panel"
     >
       <div class="capacity-expansion-panel__head">
@@ -37,7 +81,10 @@ defineProps<{
         </div>
       </div>
     </div>
-    <div class="param-groups">
+    <div
+      v-if="parametersExpanded"
+      class="param-groups"
+    >
       <section
         v-for="group in readonlySummaryView.groupedParameters"
         :key="group.key"
@@ -75,9 +122,75 @@ defineProps<{
 </template>
 
 <style scoped>
+.readonly-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.readonly-summary-card {
+  min-height: 72px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(48, 70, 95, 0.68);
+  background:
+    linear-gradient(180deg, rgba(45, 212, 191, 0.035), rgba(12, 24, 39, 0.74)),
+    rgba(16, 28, 44, 0.72);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.readonly-summary-card span {
+  color: #91a5c2;
+  font-size: 11px;
+}
+
+.readonly-summary-card strong {
+  color: #f7fbff;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.readonly-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.readonly-detail-toggle {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 100, 135, 0.4);
+  background: rgba(12, 22, 38, 0.62);
+  color: #c8d8ee;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.readonly-detail-toggle:hover {
+  border-color: rgba(45, 212, 191, 0.42);
+}
+
+.readonly-detail-toggle span {
+  font-size: 12px;
+}
+
+.readonly-detail-toggle strong {
+  color: #5eead4;
+  font-size: 12px;
+}
 
 .capacity-expansion-panel {
-  margin-bottom: 16px;
+  margin-top: 12px;
   padding: 14px;
   border-radius: 12px;
   border: 1px solid rgba(48, 70, 95, 0.72);
@@ -127,6 +240,7 @@ defineProps<{
 }
 
 .param-groups {
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -225,6 +339,8 @@ defineProps<{
 }
 
 @media (max-width: 800px) {
+  .readonly-summary-grid,
+  .readonly-detail-actions,
   .summary-strip,
   .capacity-expansion-grid {
     grid-template-columns: 1fr;

@@ -65,7 +65,7 @@ withDefaults(defineProps<{
 
 <style scoped>
 .control-console-parameter-section {
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
   border: 1px solid transparent;
@@ -120,8 +120,11 @@ withDefaults(defineProps<{
 
 .control-console-parameter-section--readonly,
 .control-console-parameter-section--writable {
-  background: rgba(20, 38, 58, 0.22);
-  border-color: rgba(71, 100, 135, 0.28);
+  background:
+    linear-gradient(180deg, rgba(45, 212, 191, 0.035), rgba(12, 24, 39, 0.56)),
+    rgba(20, 38, 58, 0.22);
+  border-color: rgba(71, 100, 135, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .control-console-parameter-section--readonly .control-console-parameter-section__label,

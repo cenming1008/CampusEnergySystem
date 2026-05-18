@@ -150,7 +150,7 @@ function resolveLogStatusText(log: DeviceControlLog) {
   const normalized = normalizeControlResult(log.result)
   if (normalized === 'accepted') return '已入队'
   if (normalized === 'running') return '设备执行中'
-  if (normalized === 'success') return '执行成功'
+  if (normalized === 'success') return '已处理'
   if (normalized === 'timeout') return '设备回执超时'
   if (normalized === 'rejected') return '设备拒绝执行'
   return '执行失败'

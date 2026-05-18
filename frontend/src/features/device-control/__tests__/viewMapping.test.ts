@@ -57,6 +57,8 @@ const baseProfile = {
       'switch_on_delay_seconds',
       'switch_off_delay_seconds',
       'overvoltage_threshold',
+      'voltage_harmonic_threshold',
+      'current_harmonic_threshold',
       'temperature_upper_limit',
     ],
     remote_commands: [
@@ -238,7 +240,7 @@ describe('device control view mapping', () => {
     })
 
     expect(view.latestLogStatusLabel).toBe('控制模式切换')
-    expect(view.latestLogText).toBe('执行成功 · 2026-04-22 18:01:00')
+    expect(view.latestLogText).toBe('已处理 · 2026-04-22 18:01:00')
     expect(view.latestTimeoutAlertText).toContain('报警复位 在 2026-04-22 18:02:00')
     expect(view.entries[1]).toMatchObject({
       title: '报警复位',

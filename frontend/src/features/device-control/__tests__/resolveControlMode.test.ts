@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { resolveControlModeFromLog, resolveControlModeLabel } from '../resolveControlMode'
 
 describe('resolveControlModeLabel', () => {
-  it('prefers live monitor mode over stale profile or control logs', () => {
+  it('prefers live monitor mode over stale profile or non-terminal control logs', () => {
     expect(resolveControlModeLabel({
       device_id: 16,
       terminal_assignment_scheme: '自动模式',
@@ -25,11 +25,39 @@ describe('resolveControlModeLabel', () => {
         receipt_timeout_seconds: 120,
         supported_results: ['accepted', 'running', 'success'],
       },
-    }, [], {
+    }, [
+      {
+        id: 1,
+        device_id: 16,
+        action: 'manual_switch',
+        target_status: true,
+        created_at: '2026-05-17T21:03:43',
+        result: 'accepted',
+        reason: '控制台控制模式切换 -> 自动模式',
+      },
+    ], {
       value: '手动',
       source: 'telemetry',
       state: 'live',
     })).toBe('手动')
+  })
+
+  it('uses latest successful control-mode log over stale live monitor mode after auto switch succeeds', () => {
+    expect(resolveControlModeLabel(null, [
+      {
+        id: 2,
+        device_id: 16,
+        action: 'manual_switch',
+        target_status: true,
+        created_at: '2026-05-17T21:03:43',
+        result: 'success',
+        reason: '控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式',
+      },
+    ], {
+      value: '手动',
+      source: 'telemetry',
+      state: 'live',
+    })).toBe('自动')
   })
 
   it('prefers control profile when terminal assignment already shows manual mode', () => {
@@ -87,9 +115,53 @@ describe('resolveControlModeLabel', () => {
         target_status: true,
         created_at: '2026-04-22T11:13:19',
         result: 'success',
-        reason: '控制台控制模式切换 -> 手动模式 | 设备回执成功: 已按协议手动投切: COMMON 相 保持',
+        reason: '控制台控制模式切换 -> 手动模式 | 设备回执已处理: 已按协议手动投切: COMMON 相 保持',
       },
     ])).toBe('手动')
+  })
+
+  it('uses latest successful control-mode log over profile when mode was just switched back to auto', () => {
+    expect(resolveControlModeLabel({
+      device_id: 16,
+      terminal_assignment_scheme: '手动模式',
+      source_status: 'fresh',
+      is_stale: false,
+      split_capacity_expansion: { phase_a_groups: [], phase_b_groups: [], phase_c_groups: [] },
+      common_capacity_expansion: { common_1_groups: [], common_2_groups: [], common_3_groups: [] },
+      capabilities: {
+        supports_read: true,
+        supports_write: true,
+        supports_remote_control: true,
+        write_status_message: '',
+        remote_control_status_message: '',
+        protocol_version: 'campus-control.v1',
+        command_message_type: 'control_command',
+        receipt_message_type: 'control_receipt',
+        control_topic_template: 'campus/control/{device_code}',
+        receipt_topic: 'campus/telemetry',
+        receipt_timeout_seconds: 120,
+        supported_results: ['accepted', 'running', 'success'],
+      },
+    }, [
+      {
+        id: 2,
+        device_id: 16,
+        action: 'manual_switch',
+        target_status: true,
+        created_at: '2026-05-17T21:03:43',
+        result: 'success',
+        reason: '控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式',
+      },
+      {
+        id: 1,
+        device_id: 16,
+        action: 'manual_switch',
+        target_status: true,
+        created_at: '2026-05-17T20:51:20',
+        result: 'success',
+        reason: '控制台控制模式切换 -> 手动模式 | 设备回执已处理: 已按协议手动投切',
+      },
+    ])).toBe('自动')
   })
 
   it('treats numeric terminal scheme values as non-display mode fields', () => {
@@ -122,7 +194,7 @@ describe('resolveControlModeLabel', () => {
         target_status: true,
         created_at: '2026-04-22T11:13:19',
         result: 'success',
-        reason: '控制台控制模式切换 -> 自动模式 | 设备回执成功: 已切回自动模式',
+        reason: '控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式',
       },
     ])).toBe('自动')
   })
