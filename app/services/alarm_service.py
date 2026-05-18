@@ -19,9 +19,14 @@ from app.domain import alarm_rules
 from app.domain.alarm_rules import (
     ActiveAlarmState,
     AlarmCreateFields,
-    CapacitorThresholds,
     FaultDetection,
-    ThresholdConfig,
+)
+from app.domain.alarm_rule_profiles import (
+    DeviceRuleIdentity,
+    resolve_capacitor_bank_profile,
+    resolve_generic_threshold_profile,
+    resolve_media_threshold_profile,
+    resolve_storage_threshold_profile,
 )
 from app.models.tables import Alarm
 from app.repositories.alarm_repository import AlarmRepository
@@ -180,19 +185,15 @@ class AlarmService:
         """检查电容补偿控制器专属状态位/阈值并触发或恢复告警。"""
         profile_data = profile_data or {}
 
-        def _to_float(value: Any) -> Optional[float]:
-            if value is None:
-                return None
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return None
-
-        thresholds = CapacitorThresholds(
-            temperature_upper_limit=_to_float(profile_data.get("temperature_upper_limit")),
-            overvoltage_threshold=_to_float(profile_data.get("overvoltage_threshold")),
-            voltage_harmonic_threshold=_to_float(profile_data.get("voltage_harmonic_threshold")),
-            current_harmonic_threshold=_to_float(profile_data.get("current_harmonic_threshold")),
+        device_category, device_subtype = AlarmRepository.get_device_rule_identity(session, device_id)
+        rule_profile = resolve_capacitor_bank_profile(
+            AlarmService.load_thresholds(),
+            DeviceRuleIdentity(
+                device_id=device_id,
+                device_category=device_category,
+                device_subtype=device_subtype,
+            ),
+            profile_data,
         )
         rated_capacity = float(
             AlarmRepository.get_device_rated_capacity(session, device_id) or 0
@@ -200,8 +201,9 @@ class AlarmService:
 
         faults = alarm_rules.evaluate_capacitor_bank_faults(
             cap_data=cap_data,
-            thresholds=thresholds,
+            thresholds=rule_profile.thresholds,
             rated_capacity=rated_capacity,
+            platform_rules_enabled=rule_profile.platform_rules_enabled,
         )
         managed_categories = alarm_rules.get_capacitor_bank_managed_categories()
 
@@ -216,6 +218,50 @@ class AlarmService:
         )
 
     @staticmethod
+    def check_storage_faults(
+        session: Session,
+        device_id: int,
+        storage_data: dict[str, Any],
+        timestamp: datetime,
+    ) -> list[Alarm]:
+        """检查储能平台规则并触发或恢复告警。"""
+        device_category, device_subtype = AlarmRepository.get_device_rule_identity(session, device_id)
+        rule_profile = resolve_storage_threshold_profile(
+            AlarmService.load_thresholds(),
+            DeviceRuleIdentity(
+                device_id=device_id,
+                device_category=device_category,
+                device_subtype=device_subtype,
+            ),
+        )
+        if not rule_profile.enabled:
+            return []
+
+        faults = alarm_rules.evaluate_storage_threshold_faults(
+            storage_data,
+            rule_profile.thresholds,
+        )
+        managed_categories: set[str] = set()
+        if storage_data.get("soc") is not None:
+            managed_categories.update({"storage_soc_low", "storage_soc_out_of_range"})
+        if storage_data.get("soh") is not None:
+            managed_categories.add("storage_soh_low")
+        if storage_data.get("cell_temp_max") is not None:
+            managed_categories.add("storage_cell_temp_high")
+        if storage_data.get("active_power") is not None:
+            managed_categories.add("storage_active_power_out_of_range")
+
+        return AlarmService._apply_fault_detection(
+            session=session,
+            device_id=device_id,
+            faults=faults,
+            timestamp=timestamp,
+            managed_categories=managed_categories,
+            sources={alarm_rules.SOURCE_PLATFORM_RULE},
+            log_prefix=None,
+        )
+
+    @staticmethod
     def check_and_create_alarm(
         session: Session,
         device_id: int,
@@ -223,20 +269,25 @@ class AlarmService:
         timestamp: datetime,
     ) -> list:
         """检查通用阈值数据（电压/电流）并创建/恢复告警。"""
-        device_category = AlarmRepository.get_device_category(session, device_id)
+        device_category, device_subtype = AlarmRepository.get_device_rule_identity(session, device_id)
         if device_category == "compensation":
             return []
 
-        cfg = AlarmService.load_thresholds()
-        defaults = cfg.get("default", {})
-        dev_cfg = cfg.get("device_thresholds", {}).get(str(device_id), {})
-
-        thresholds = ThresholdConfig(
-            current_max=dev_cfg.get("current_max", defaults.get("current_max", 45.0)),
-            voltage_max=dev_cfg.get("voltage_max", defaults.get("voltage_max", 250.0)),
-            voltage_min=dev_cfg.get("voltage_min", defaults.get("voltage_min", 190.0)),
+        raw_rules = AlarmService.load_thresholds()
+        identity = DeviceRuleIdentity(
+            device_id=device_id,
+            device_category=device_category,
+            device_subtype=device_subtype,
         )
-        faults = alarm_rules.evaluate_threshold_faults(data, thresholds, device_category)
+        rule_profile = resolve_generic_threshold_profile(raw_rules, identity)
+
+        faults: list[FaultDetection] = []
+        if rule_profile.enabled:
+            faults.extend(alarm_rules.evaluate_threshold_faults(data, rule_profile.thresholds, device_category))
+
+        media_profile = resolve_media_threshold_profile(raw_rules, identity)
+        if media_profile.enabled:
+            faults.extend(alarm_rules.evaluate_media_threshold_faults(data, media_profile.thresholds))
 
         # 仅对本次检测的字段做 recover 管理（保持原行为）
         managed_categories: set[str] = set()
@@ -244,6 +295,12 @@ class AlarmService:
             managed_categories.add("current_overload")
         if "voltage" in data and data["voltage"] is not None:
             managed_categories.add("voltage_out_of_range")
+        if "flow_rate" in data and data["flow_rate"] is not None:
+            managed_categories.add("flow_rate_out_of_range")
+        if "pressure" in data and data["pressure"] is not None:
+            managed_categories.add("pressure_out_of_range")
+        if "temperature" in data and data["temperature"] is not None:
+            managed_categories.add("temperature_out_of_range")
 
         new_alarms = AlarmService._apply_fault_detection(
             session=session,
@@ -259,7 +316,7 @@ class AlarmService:
         for fault in faults:
             if fault.category == "current_overload":
                 logger.warning(
-                    f"设备 {device_id} 电流过载: {data.get('current')}A > {thresholds.current_max}A"
+                    f"设备 {device_id} 电流过载: {data.get('current')}A > {rule_profile.thresholds.current_max}A"
                 )
             elif fault.category == "voltage_out_of_range":
                 logger.warning(f"设备 {device_id} 电压异常: {data.get('voltage')}V")

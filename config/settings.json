@@ -1,9 +1,57 @@
 {
-  "_comment": "设备告警阈值配置。default 为全局默认值，device_thresholds 为按设备 ID 覆盖；未配置设备覆盖时使用 default。",
+  "_comment": "设备告警阈值配置。保留 default/device_thresholds 兼容旧配置；新规则优先使用 alarm_rules.platform_rules.generic_thresholds，覆盖顺序为 default -> device_categories -> device_subtypes -> devices。",
   "default": {
     "voltage_min": 190.0,
     "voltage_max": 250.0,
     "current_max": 45.0
   },
-  "device_thresholds": {}
+  "device_thresholds": {},
+  "alarm_rules": {
+    "platform_rules": {
+      "generic_thresholds": {
+        "default": {
+          "enabled": true,
+          "voltage_min": 190.0,
+          "voltage_max": 250.0,
+          "current_max": 45.0
+        },
+        "device_categories": {
+          "compensation": {
+            "enabled": false
+          }
+        },
+        "device_subtypes": {},
+        "devices": {}
+      },
+      "capacitor_bank": {
+        "default": {
+          "enabled": true,
+          "temperature_upper_limit": 65.0,
+          "overvoltage_threshold": 250.0,
+          "voltage_harmonic_threshold": 5.0,
+          "voltage_harmonic_trigger_margin": 0.2,
+          "current_harmonic_threshold": 80.0
+        },
+        "device_categories": {},
+        "device_subtypes": {},
+        "devices": {}
+      },
+      "media_thresholds": {
+        "default": {
+          "enabled": false
+        },
+        "device_categories": {},
+        "device_subtypes": {},
+        "devices": {}
+      },
+      "storage": {
+        "default": {
+          "enabled": false
+        },
+        "device_categories": {},
+        "device_subtypes": {},
+        "devices": {}
+      }
+    }
+  }
 }

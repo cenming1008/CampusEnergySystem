@@ -18,7 +18,34 @@ from app.integrations.mqtt.compensation import (
     extract_capacitor_bank_telemetry,
     extract_svg_telemetry,
 )
+from app.models.storage import StorageTelemetry
 from app.models.tables import CapacitorBankTelemetry, Device, SVGTelemetry
+
+
+_STORAGE_NUMERIC_FIELDS = (
+    "soc",
+    "soh",
+    "active_power",
+    "reactive_power",
+    "dc_voltage",
+    "dc_current",
+    "ac_voltage_a",
+    "ac_voltage_b",
+    "ac_voltage_c",
+    "ac_current_a",
+    "ac_current_b",
+    "ac_current_c",
+    "frequency",
+    "cell_temp_max",
+    "cell_temp_min",
+    "cell_temp_avg",
+    "charge_energy_today",
+    "discharge_energy_today",
+    "charge_energy_total",
+    "discharge_energy_total",
+)
+_STORAGE_TEXT_FIELDS = ("run_state", "control_mode")
+_STORAGE_INT_FIELDS = ("fault_code", "alarm_code", "cycle_count")
 
 
 def _compensation_subtype(device_id: int, session: Session) -> Optional[str]:
@@ -29,6 +56,49 @@ def _compensation_subtype(device_id: int, session: Session) -> Optional[str]:
         getattr(device, "device_type", None),
         getattr(device, "device_subtype", None),
     )
+
+
+def _device_category(device_id: int, session: Session) -> Optional[str]:
+    device = session.get(Device, device_id)
+    return getattr(device, "device_category", None) if device else None
+
+
+def _to_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_storage_telemetry(raw_data: dict[str, Any]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    for field in _STORAGE_NUMERIC_FIELDS:
+        value = raw_data.get(field)
+        if field == "active_power" and value is None:
+            value = raw_data.get("power")
+        parsed = _to_float(value)
+        if parsed is not None:
+            fields[field] = parsed
+    for field in _STORAGE_TEXT_FIELDS:
+        value = raw_data.get(field)
+        if value is not None:
+            fields[field] = str(value)
+    for field in _STORAGE_INT_FIELDS:
+        parsed = _to_int(raw_data.get(field))
+        if parsed is not None:
+            fields[field] = parsed
+    return fields
 
 
 def _persist_svg_extension(
@@ -111,6 +181,37 @@ def _persist_capacitor_bank_extension(
         )
 
 
+def _persist_storage_extension(
+    session: Session,
+    device_id: int,
+    timestamp: datetime,
+    raw_data: dict[str, Any],
+) -> None:
+    storage_fields = _extract_storage_telemetry(raw_data)
+    if not storage_fields:
+        return
+
+    from app.services.alarm_service import AlarmService
+
+    with session.no_autoflush:
+        telemetry = session.exec(
+            select(StorageTelemetry)
+            .where(StorageTelemetry.device_id == device_id)
+            .where(StorageTelemetry.timestamp == timestamp)
+        ).first()
+        if telemetry is None:
+            telemetry = StorageTelemetry(
+                device_id=device_id,
+                timestamp=timestamp,
+                **storage_fields,
+            )
+            session.add(telemetry)
+        else:
+            for field, value in storage_fields.items():
+                setattr(telemetry, field, value)
+    AlarmService.check_storage_faults(session, device_id, storage_fields, timestamp)
+
+
 def persist_device_extensions(
     session: Session,
     device_id: int,
@@ -126,6 +227,8 @@ def persist_device_extensions(
         _persist_svg_extension(session, device_id, timestamp, raw_data)
     elif subtype == "capacitor_bank_controller":
         _persist_capacitor_bank_extension(session, device_id, timestamp, raw_data)
+    elif _device_category(device_id, session) == "storage":
+        _persist_storage_extension(session, device_id, timestamp, raw_data)
 
 
 __all__ = ["persist_device_extensions"]

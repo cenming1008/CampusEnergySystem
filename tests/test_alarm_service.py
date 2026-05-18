@@ -98,6 +98,68 @@ class TestAlarmService(unittest.TestCase):
             self.assertEqual(len(created), 1)
             self.assertEqual(created[0].source, "platform_rule")
 
+    def test_general_threshold_rule_can_be_disabled_by_device_category_profile(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-014")
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "generic_thresholds": {
+                                "default": {"enabled": True, "current_max": 10.0},
+                                "device_categories": {
+                                    "load": {"enabled": False},
+                                },
+                            },
+                        },
+                    },
+                },
+            ):
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"current": 99.0},
+                    datetime(2026, 5, 18, 9, 0, 0),
+                )
+
+            self.assertEqual(created, [])
+            self.assertEqual(session.exec(select(Alarm)).all(), [])
+
+    def test_general_threshold_rule_prefers_device_override_over_category_and_default(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-015")
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "generic_thresholds": {
+                                "default": {"enabled": True, "current_max": 45.0},
+                                "device_categories": {
+                                    "load": {"current_max": 20.0},
+                                },
+                                "devices": {
+                                    str(device.id): {"current_max": 10.0},
+                                },
+                            },
+                        },
+                    },
+                },
+            ):
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"current": 12.0},
+                    datetime(2026, 5, 18, 9, 5, 0),
+                )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].category, "current_overload")
+            self.assertEqual(created[0].source, "platform_rule")
+
     def test_general_threshold_alarm_skips_compensation_devices(self):
         with Session(self.engine) as session:
             device = Device(
@@ -127,6 +189,118 @@ class TestAlarmService(unittest.TestCase):
 
             self.assertEqual(created, [])
             self.assertEqual(session.exec(select(Alarm)).all(), [])
+
+    def test_media_threshold_rule_creates_and_recovers_pressure_alarm_for_water_meter(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="水表-ALARM-018",
+                sn="ALARM-018",
+                device_type="water_meter",
+                device_category="water_meter",
+                energy_type="water",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "media_thresholds": {
+                                "default": {"enabled": False},
+                                "device_categories": {
+                                    "water_meter": {
+                                        "enabled": True,
+                                        "pressure_max": 0.6,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            ):
+                triggered_at = datetime(2026, 5, 18, 11, 0, 0)
+                recovered_at = triggered_at + timedelta(minutes=3)
+
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"pressure": 0.7},
+                    triggered_at,
+                )
+                self.assertEqual(len(created), 1)
+                self.assertEqual(created[0].category, "pressure_out_of_range")
+                self.assertEqual(created[0].source, "platform_rule")
+
+                AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"pressure": 0.5},
+                    recovered_at,
+                )
+
+            alarm = session.exec(select(Alarm)).one()
+            self.assertEqual(alarm.recovered_at, recovered_at)
+
+    def test_storage_threshold_rule_creates_and_recovers_soc_alarm(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="储能-ALARM-019",
+                sn="ALARM-019",
+                device_type="storage",
+                device_category="storage",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "storage": {
+                                "default": {"enabled": False},
+                                "device_categories": {
+                                    "storage": {
+                                        "enabled": True,
+                                        "soc_min": 20.0,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            ):
+                triggered_at = datetime(2026, 5, 18, 12, 0, 0)
+                recovered_at = triggered_at + timedelta(minutes=3)
+
+                created = AlarmService.check_storage_faults(
+                    session,
+                    device.id,
+                    {"soc": 18.5},
+                    triggered_at,
+                )
+                self.assertEqual(len(created), 1)
+                self.assertEqual(created[0].category, "storage_soc_low")
+                self.assertEqual(created[0].source, "platform_rule")
+
+                AlarmService.check_storage_faults(
+                    session,
+                    device.id,
+                    {"soc": 45.0},
+                    recovered_at,
+                )
+
+            alarm = session.exec(select(Alarm)).one()
+            self.assertEqual(alarm.recovered_at, recovered_at)
 
     def test_manual_handle_is_separate_from_system_recovery(self):
         with Session(self.engine) as session:
@@ -386,6 +560,58 @@ class TestAlarmService(unittest.TestCase):
             })
             self.assertEqual({alarm.source for alarm in created}, {"platform_rule"})
 
+    def test_check_capacitor_bank_faults_uses_voltage_harmonic_margin_for_platform_rule_only(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-010B",
+                sn="ALARM-010B",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "capacitor_bank": {
+                                "default": {
+                                    "voltage_harmonic_threshold": 5.0,
+                                    "voltage_harmonic_trigger_margin": 0.2,
+                                },
+                            },
+                        },
+                    },
+                },
+            ):
+                near_threshold = AlarmService.check_capacitor_bank_faults(
+                    session=session,
+                    device_id=device.id,
+                    cap_data={"voltage_thd_a": 5.1},
+                    timestamp=datetime(2026, 5, 18, 11, 0, 0),
+                )
+                native_status = AlarmService.check_capacitor_bank_faults(
+                    session=session,
+                    device_id=device.id,
+                    cap_data={
+                        "voltage_thd_a": 5.1,
+                        "voltage_thd_alarm_a": True,
+                    },
+                    timestamp=datetime(2026, 5, 18, 11, 0, 5),
+                )
+
+            self.assertEqual(near_threshold, [])
+            self.assertEqual(len(native_status), 1)
+            self.assertEqual(native_status[0].category, "cap_voltage_thd_a")
+            self.assertEqual(native_status[0].source, "device_native")
+
     def test_check_capacitor_bank_faults_treats_current_harmonic_threshold_29_as_disabled(self):
         with Session(self.engine) as session:
             device = Device(
@@ -414,6 +640,97 @@ class TestAlarmService(unittest.TestCase):
             )
 
             self.assertEqual(created, [])
+
+    def test_check_capacitor_bank_faults_uses_unified_rule_overrides_for_platform_thresholds(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-016",
+                sn="ALARM-016",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "capacitor_bank": {
+                                "default": {"temperature_upper_limit": 60.0},
+                                "devices": {str(device.id): {"temperature_upper_limit": 55.0}},
+                            },
+                        },
+                    },
+                },
+            ):
+                created = AlarmService.check_capacitor_bank_faults(
+                    session=session,
+                    device_id=device.id,
+                    cap_data={"temperature": 56.0},
+                    timestamp=datetime(2026, 5, 18, 10, 0, 0),
+                    profile_data={"temperature_upper_limit": 65.0},
+                )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].category, "cap_temp_alarm")
+            self.assertEqual(created[0].source, "platform_rule")
+
+    def test_check_capacitor_bank_faults_can_disable_platform_rules_without_masking_native_bits(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-017",
+                sn="ALARM-017",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value={
+                    "alarm_rules": {
+                        "platform_rules": {
+                            "capacitor_bank": {
+                                "default": {"enabled": False},
+                            },
+                        },
+                    },
+                },
+            ):
+                created = AlarmService.check_capacitor_bank_faults(
+                    session=session,
+                    device_id=device.id,
+                    cap_data={
+                        "temperature": 90.0,
+                        "temp_alarm": True,
+                        "voltage_a": 270.0,
+                        "reactive_power": -99.0,
+                        "leading_a": True,
+                        "leading_b": True,
+                    },
+                    timestamp=datetime(2026, 5, 18, 10, 5, 0),
+                    profile_data={
+                        "temperature_upper_limit": 55.0,
+                        "overvoltage_threshold": 245.0,
+                    },
+                )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].category, "cap_temp_alarm")
+            self.assertEqual(created[0].source, "device_native")
 
     def test_sync_platform_comm_alarm_creates_and_recovers_offline_instance(self):
         with Session(self.engine) as session:

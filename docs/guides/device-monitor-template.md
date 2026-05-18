@@ -72,6 +72,25 @@
 
 平台通讯告警同时由接入健康读取路径和定时任务同步：读取单设备健康状态时可即时创建 / 恢复 `platform_comm/communication_offline`，默认 scheduler 也会每分钟扫描所有接入健康记录，避免只在打开页面时才发现离线。历史旧告警若仍使用 `source=telemetry`，前端按“历史遥测”展示，不做数据迁移。
 
+### 平台规则配置层
+
+统一告警框架第一阶段采用“统一生命周期 + 设备差异化规则配置”的方式推进：
+
+- 告警表、生命周期、来源、实例键和前端展示保持统一。
+- 设备差异先通过 `config/settings.json` 中的 `alarm_rules.platform_rules.generic_thresholds` 声明。
+- 通用阈值规则覆盖顺序固定为：`default -> device_categories -> device_subtypes -> devices`。
+- `enabled=false` 可关闭某一层规则；更具体层级可覆盖更通用层级。
+- 旧 `default/device_thresholds` 配置仍兼容，但新增规则优先使用 `alarm_rules` 结构。
+
+当前已接入配置层：
+
+- `generic_thresholds`：非补偿类设备通用电压 / 电流阈值规则。
+- `capacitor_bank`：电容补偿控制器平台推导规则，包括温度门限、过压门限、谐波门限和过补偿推导。
+- `media_thresholds`：水表、气表、冷热量表等介质表计可复用公共字段规则，包括 `flow_rate`、`pressure`、`temperature` 的上下限。
+- `storage`：储能设备平台规则，包括 `soc`、`soh`、`cell_temp_max` 和 `active_power` 的基础阈值。
+
+补偿设备仍默认关闭通用电压 / 电流阈值规则；补偿类设备原生状态位、故障码、告警码继续作为 `device_native` 告警，不受平台规则 `enabled=false` 影响。`media_thresholds` 和 `storage` 默认关闭，必须按 `device_categories`、`device_subtypes` 或 `devices` 显式启用并配置门限后才生成告警，避免未知现场口径导致误报。后续新增设备族平台规则时，应优先扩展规则声明层，而不是在页面或 endpoint 中临时判断。
+
 ## 模板覆盖矩阵
 
 | 模板 key | 适用设备族 | 核心指标 | 趋势字段 | 专属面板 | 控制能力 |

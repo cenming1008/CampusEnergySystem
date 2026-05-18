@@ -4,6 +4,7 @@
 - 当前主主题：`设备监控统一模板 V4 后续结构收敛`
 - 当前执行依据：
   - 用户提供的《设备监控模块下一阶段收敛计划》
+  - `docs/plans/PLAN-20260518-unified-alarm-rule-framework.md`
 
 ---
 
@@ -41,6 +42,16 @@
 - 告警中心与补偿监控告警表已展示来源标签。
 - 默认 scheduler 每分钟执行 `sync_platform_comm_alarms` 全量扫描接入健康记录，避免通讯告警只在页面读取时才同步。
 - 旧 `source=telemetry` 告警在前端显示为“历史遥测”，本轮不迁移历史数据。
+- 统一告警规则框架第一阶段已落地：
+  - 新增 `app/domain/alarm_rule_profiles.py`，负责解析设备告警规则 profile。
+  - 非补偿类通用电压 / 电流阈值规则支持 `default -> device_categories -> device_subtypes -> devices` 覆盖。
+  - `enabled=false` 可关闭某一层通用阈值规则。
+  - 旧 `config/settings.json` 的 `default/device_thresholds` 结构仍兼容；新增配置优先使用 `alarm_rules.platform_rules.generic_thresholds`。
+  - 补偿设备仍不套用通用电压 / 电流阈值告警。
+  - 电容补偿控制器平台推导规则已接入 `alarm_rules.platform_rules.capacitor_bank`，支持同样的覆盖顺序；`enabled=false` 只关闭平台推导，不屏蔽设备原生状态位告警。
+  - 水表、气表、冷热量表等介质表计公共字段规则已接入 `alarm_rules.platform_rules.media_thresholds`，支持 `flow_rate/pressure/temperature` 上下限；默认关闭，需显式启用。
+  - 储能设备基础平台规则已接入 `alarm_rules.platform_rules.storage`，支持 `soc/soh/cell_temp_max/active_power` 阈值；默认关闭，需显式启用。
+- MQTT 设备扩展链路已支持储能专属遥测落库到 `StorageTelemetry`，并在写入后调用 `AlarmService.check_storage_faults()`。
 - 电容补偿控制器已新增 2~31 次逐次谐波谱线接入：
   - 后端 `CapacitorBankTelemetry` 支持 `voltage_harmonics_a/b/c` 与 `current_harmonics_a/b/c` JSON 字段。
   - MQTT payload 接受 `{ "order": 2..31, "value": finite number }` 数组，非法阶次或非数值项会被丢弃，不影响整条遥测。
@@ -72,6 +83,7 @@
   - 后续如需要，可把诊断面板扩展为接入验收 checklist 或独立报告。
   - 告警相关 UI 只展示 `Alarm.source/category/message` 等后端返回语义，不在页面根据实时值制造核心告警。
   - 逐次谐波第一版只展示最新采样谱线；历史回放仍在 `谐波趋势` tab 看 THD / 谐波电流聚合趋势。
+  - 告警规则配置第一阶段没有前端改动；后续如做规则管理页，应只编辑后端规则配置，不在页面侧复刻判定逻辑。
 
 ## 已验证
 - `./venv/bin/python -m pytest tests/test_device_monitor_plugin_registry.py tests/test_device_monitor_service.py tests/test_mqtt_contracts.py -q` 通过：`34 passed, 2 warnings`。
@@ -81,6 +93,7 @@
 - `cd frontend && npm run test:unit -- sourceLabels.test.ts DeviceMonitor.test.ts` 通过：`2 files / 13 tests passed`。
 - `cd frontend && npm run typecheck` 通过。
 - `./venv/bin/python -m pytest tests/test_scheduler_jobs.py tests/test_ingestion_health_service.py -q` 通过：`11 passed, 1 warning`。
+- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py tests/test_alarm_endpoints.py tests/test_ingestion_health_service.py tests/test_capacitor_bank_ingestion.py tests/test_compensation_device_nested_api.py tests/test_storage_device_nested_api.py tests/test_storage_ingestion.py tests/test_mqtt_contracts.py -q` 通过：`72 passed, 2 warnings`。
 - `./venv/bin/python -m pytest tests/test_capacitor_bank_ingestion.py tests/test_device_monitor_service.py tests/test_compensation_device_nested_api.py -q` 通过：`54 passed, 1 warning`。
 - `cd frontend && npm run test:unit -- viewMapping.test.ts DeviceTemplateDiagnosticsPanel.test.ts DeviceMonitor.test.ts` 通过：`4 files / 47 tests passed`。
 - `cd frontend && npm run typecheck` 通过。
@@ -99,5 +112,7 @@
 - `useDeviceMonitorPage` 是本轮低风险收口的页面级 view model；若后续继续膨胀，应按数据加载、通用趋势、告警控制等更细粒度继续拆分。
 - 现场真实协议如果上报非 `GJ/kW/degC` 口径，仍需在设备接入层做单位换算后再进入当前监控模板。
 - 历史旧告警仍可能保留 `source=telemetry`，当前按“历史遥测”兼容显示，不做历史数据迁移。
+- 告警规则配置已迁入非补偿类通用阈值、电容补偿控制器平台推导规则、介质表计公共字段规则和储能基础平台规则；更多设备族规则可后续继续按设备族逐步迁入。
+- 储能专属遥测扩展只按已有 `StorageTelemetry` 字段落库；真实网关若使用其它厂商字段名，仍需在接入层补 alias 或协议映射。
 - 逐次谐波频谱依赖网关上报最新谱线；历史接口当前不做 2~31 次长周期谱线回放。
 - `192.168.1.46` 来自当前本机 `en0` 地址；现场网络切换、DHCP 重新分配或改用固定 IP 后，需要同步更新网关侧配置与协议文档现场入口。

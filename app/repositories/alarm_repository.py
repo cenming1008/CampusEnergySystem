@@ -182,3 +182,11 @@ class AlarmRepository(BaseRepository):
         """获取设备类别。"""
         device = session.get(Device, device_id)
         return getattr(device, "device_category", None) if device else None
+
+    @staticmethod
+    def get_device_rule_identity(session: Session, device_id: int) -> tuple[Optional[str], Optional[str]]:
+        """获取告警规则解析所需的设备分类身份。"""
+        device = session.get(Device, device_id)
+        if not device:
+            return None, None
+        return getattr(device, "device_category", None), getattr(device, "device_subtype", None)
