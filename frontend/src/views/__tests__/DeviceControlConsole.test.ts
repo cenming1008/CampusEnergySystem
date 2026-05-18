@@ -96,22 +96,12 @@ const LogPanelProbe = defineComponent({
   `,
 })
 
-const ReadonlyParamsProbe = defineComponent({
+const ParametersPanelProbe = defineComponent({
   props: {
     readonlySummaryView: {
       type: Object,
       required: true,
     },
-  },
-  template: `
-    <div class="readonly-params-probe">
-      {{ readonlySummaryView.sourceStatusText }}|{{ readonlySummaryView.summaryItems[0]?.label }}
-    </div>
-  `,
-})
-
-const WritableParamsProbe = defineComponent({
-  props: {
     writeSectionView: {
       type: Object,
       required: true,
@@ -122,8 +112,8 @@ const WritableParamsProbe = defineComponent({
     },
   },
   template: `
-    <div class="writable-params-probe">
-      {{ writeSectionView.roleSummaryText }}|{{ editableParameterCards[0]?.label }}
+    <div class="parameters-panel-probe">
+      {{ readonlySummaryView.sourceStatusText }}|{{ readonlySummaryView.summaryItems[0]?.label }}|{{ writeSectionView.roleSummaryText }}|{{ editableParameterCards[0]?.label }}
     </div>
   `,
 })
@@ -228,8 +218,7 @@ function mountView() {
       stubs: {
         ControlConsoleRemotePanel: RemotePanelProbe,
         ControlConsoleLogPanel: LogPanelProbe,
-        ControlConsoleReadonlyParamsPanel: ReadonlyParamsProbe,
-        ControlConsoleWritableParamsPanel: WritableParamsProbe,
+        ControlConsoleParametersPanel: ParametersPanelProbe,
         ControlConsoleWriteDialog: WriteDialogProbe,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
@@ -352,8 +341,8 @@ describe('DeviceControlConsole view', () => {
 
     const text = wrapper.text()
     expect(wrapper.find('.remote-panel-probe').text()).toContain('切到手动')
-    expect(wrapper.find('.readonly-params-probe').text()).toContain('参数可能过期|投入功率因数')
-    expect(wrapper.find('.writable-params-probe').text()).toContain('管理员，可发起受控写入|投入功率因数')
+    expect(wrapper.find('.parameters-panel-probe').text()).toContain('参数可能过期|投入功率因数')
+    expect(wrapper.find('.parameters-panel-probe').text()).toContain('管理员，可发起受控写入|投入功率因数')
     expect(text).not.toContain('设备概览')
     expect(wrapper.find('.log-panel-probe').text()).toContain('控制模式切换|已处理')
     expect(wrapper.find('.log-panel-probe').text()).toContain('已处理 · 2026-04-22 18:01:00')
@@ -381,8 +370,7 @@ describe('DeviceControlConsole view', () => {
     expect(wrapper.find('.console-overview-grid-probe').exists()).toBe(false)
     expect(wrapper.find('.log-panel-probe').exists()).toBe(true)
     expect(wrapper.text()).toContain('远程控制')
-    expect(wrapper.text()).toContain('参数管理')
-    expect(wrapper.text()).toContain('参数修改')
+    expect(wrapper.text()).toContain('参数设置')
     expect(wrapper.text()).not.toContain('accepted 仅表示指令入队')
     expect(wrapper.text()).toContain('操作日志')
   })
