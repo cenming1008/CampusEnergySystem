@@ -269,7 +269,7 @@ class DeviceMonitorService:
                         "timestamp": alarm.resolved_at,
                         "event_type": "alarm_resolution",
                         "status": "resolved",
-                        "title": f"报警已处理: {alarm.message}",
+                        "title": f"告警已处理: {alarm.message}",
                         "detail": alarm.resolved_by or "系统/未知用户",
                     }
                 )

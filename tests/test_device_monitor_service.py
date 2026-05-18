@@ -1120,14 +1120,18 @@ class TestDeviceMonitorService(unittest.TestCase):
             session.commit()
             session.refresh(device)
 
-            AlarmService.create_alarm(session, device.id, "通讯中断", timestamp=now - timedelta(hours=2), severity="critical")
+            alarm = AlarmService.create_alarm(session, device.id, "通讯中断", timestamp=now - timedelta(hours=2), severity="critical")
+            AlarmService.resolve_alarm(session, alarm.id, resolved_by="tester")
             DeviceService.toggle_device_status(session, device.id, False, operator="tester")
 
             items = DeviceMonitorService.get_status_history(session, device.id, hours=24, limit=10)
 
             event_types = {item["event_type"] for item in items}
             self.assertIn("alarm", event_types)
+            self.assertIn("alarm_resolution", event_types)
             self.assertIn("control", event_types)
+            resolution_event = next(item for item in items if item["event_type"] == "alarm_resolution")
+            self.assertTrue(resolution_event["title"].startswith("告警已处理: "))
 
     def test_status_history_uses_precise_control_titles_and_pending_states(self):
         now = datetime.now()

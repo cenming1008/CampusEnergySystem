@@ -258,7 +258,7 @@ async function confirmResolve() {
   resolveDialogVisible.value = false
   try {
     await resolveAlarm(resolveTarget.value.id, handlingNote.value || undefined)
-    ElMessage.success('报警已处理')
+    ElMessage.success('告警已处理')
     await loadAlarms()
   } finally {
     resolving.value = null
