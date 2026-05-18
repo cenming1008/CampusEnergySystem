@@ -90,6 +90,11 @@ class AlarmService:
         )
 
     @staticmethod
+    def get_active_alarm_count(session: Session, device_id: int = None) -> int:
+        """统计当前仍在触发中的告警数量。"""
+        return AlarmRepository.count_active_alarms(session, device_id)
+
+    @staticmethod
     def get_unresolved_category_counts(session: Session, device_id: int) -> dict[str, int]:
         """按类别统计设备未处理告警数量。"""
         return AlarmRepository.count_unresolved_by_category(session, device_id)

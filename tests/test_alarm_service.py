@@ -584,6 +584,71 @@ class TestAlarmService(unittest.TestCase):
             })
             self.assertEqual({alarm.source for alarm in created}, {"platform_rule"})
 
+    def test_check_capacitor_bank_faults_prefers_voltage_spectrum_when_available(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-SPECTRUM",
+                sn="ALARM-SPECTRUM",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "voltage_thd_a": 26.8,
+                    "voltage_harmonics_a": [
+                        {"order": 3, "value": 2.7},
+                        {"order": 5, "value": 2.9},
+                    ],
+                },
+                timestamp=datetime(2026, 5, 18, 16, 5, 0),
+                profile_data={"voltage_harmonic_threshold": 5.0},
+            )
+
+            self.assertEqual(created, [])
+
+    def test_check_capacitor_bank_faults_uses_voltage_spectrum_peak_for_alarm(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿柜-ALARM-SPECTRUM-HIGH",
+                sn="ALARM-SPECTRUM-HIGH",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            created = AlarmService.check_capacitor_bank_faults(
+                session=session,
+                device_id=device.id,
+                cap_data={
+                    "voltage_thd_a": 4.5,
+                    "voltage_harmonics_a": [
+                        {"order": 3, "value": 2.7},
+                        {"order": 5, "value": 6.4},
+                    ],
+                },
+                timestamp=datetime(2026, 5, 18, 16, 5, 0),
+                profile_data={"voltage_harmonic_threshold": 5.0},
+            )
+
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].category, "cap_voltage_thd_a")
+            self.assertIn("5 次", created[0].message)
+            self.assertIn("6.40%", created[0].message)
+
     def test_check_capacitor_bank_faults_uses_voltage_harmonic_margin_for_platform_rule_only(self):
         with Session(self.engine) as session:
             device = Device(

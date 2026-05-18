@@ -172,6 +172,18 @@ class AlarmRepository(BaseRepository):
         return len(list(session.exec(statement).all()))
 
     @staticmethod
+    def count_active_alarms(session: Session, device_id: Optional[int] = None) -> int:
+        """统计当前仍在触发中的告警数量。"""
+        statement = (
+            select(Alarm)
+            .where(Alarm.is_resolved == False)  # noqa: E712
+            .where(Alarm.recovered_at == None)  # noqa: E711
+        )
+        if device_id is not None:
+            statement = statement.where(Alarm.device_id == device_id)
+        return len(list(session.exec(statement).all()))
+
+    @staticmethod
     def count_unresolved_by_category(session: Session, device_id: int) -> dict[str, int]:
         """按类别统计设备未处理告警数量。"""
         statement = (

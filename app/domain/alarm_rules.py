@@ -212,6 +212,24 @@ def evaluate_capacitor_bank_faults(
             return None
         return value
 
+    def _spectrum_peak(value: Any) -> Optional[tuple[int, float]]:
+        if not isinstance(value, list):
+            return None
+        peak: Optional[tuple[int, float]] = None
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            try:
+                order = int(item.get("order"))
+            except (TypeError, ValueError):
+                continue
+            magnitude = _to_float(item.get("value"))
+            if not 2 <= order <= 31 or magnitude is None:
+                continue
+            if peak is None or magnitude > peak[1]:
+                peak = (order, magnitude)
+        return peak
+
     # 温度超限
     temperature = _to_float(cap_data.get("temperature"))
     temp_limit = thresholds.temperature_upper_limit
@@ -329,6 +347,7 @@ def evaluate_capacitor_bank_faults(
 
         # 电压谐波超限
         phase_voltage_thd = _to_float(cap_data.get(f"voltage_thd_{phase}"))
+        phase_voltage_spectrum_peak = _spectrum_peak(cap_data.get(f"voltage_harmonics_{phase}"))
         if cap_data.get(f"voltage_thd_alarm_{phase}") is True:
             detail = f"{phase_voltage_thd:.2f}%" if phase_voltage_thd is not None else "状态位触发"
             limit_text = f"（门限 {voltage_harmonic_limit:.2f}%）" if voltage_harmonic_limit is not None else ""
@@ -340,6 +359,23 @@ def evaluate_capacitor_bank_faults(
             ))
         elif (
             platform_rules_enabled
+            and phase_voltage_spectrum_peak is not None
+            and voltage_harmonic_limit is not None
+            and phase_voltage_spectrum_peak[1] >= voltage_harmonic_limit
+        ):
+            order, magnitude = phase_voltage_spectrum_peak
+            detail = f"最高 {order} 次 {magnitude:.2f}%"
+            limit_text = f"（门限 {voltage_harmonic_limit:.2f}%）"
+            faults.append(FaultDetection(
+                category=f"cap_voltage_thd_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相电压谐波超限：{detail}{limit_text}",
+                source=SOURCE_PLATFORM_RULE,
+            ))
+        elif (
+            platform_rules_enabled
+            and
+            phase_voltage_spectrum_peak is None
             and
             phase_voltage_thd is not None
             and voltage_harmonic_trigger_limit is not None
@@ -356,6 +392,7 @@ def evaluate_capacitor_bank_faults(
 
         # 电流谐波超限
         phase_current_harmonic = _to_float(cap_data.get(f"current_harmonic_{phase}"))
+        phase_current_spectrum_peak = _spectrum_peak(cap_data.get(f"current_harmonics_{phase}"))
         if cap_data.get(f"current_thd_alarm_{phase}") is True:
             detail = f"{phase_current_harmonic:.2f}A" if phase_current_harmonic is not None else "状态位触发"
             limit_text = f"（门限 {current_harmonic_limit:.2f}A）" if current_harmonic_limit is not None else ""
@@ -367,6 +404,23 @@ def evaluate_capacitor_bank_faults(
             ))
         elif (
             platform_rules_enabled
+            and phase_current_spectrum_peak is not None
+            and current_harmonic_limit is not None
+            and phase_current_spectrum_peak[1] >= current_harmonic_limit
+        ):
+            order, magnitude = phase_current_spectrum_peak
+            detail = f"最高 {order} 次 {magnitude:.2f}A"
+            limit_text = f"（门限 {current_harmonic_limit:.2f}A）"
+            faults.append(FaultDetection(
+                category=f"cap_current_thd_{phase}",
+                severity="warning",
+                message=f"{phase_upper} 相电流谐波超限：{detail}{limit_text}",
+                source=SOURCE_PLATFORM_RULE,
+            ))
+        elif (
+            platform_rules_enabled
+            and
+            phase_current_spectrum_peak is None
             and
             phase_current_harmonic is not None
             and current_harmonic_limit is not None

@@ -131,7 +131,7 @@ class DeviceMonitorService:
     def get_runtime_status(session: Session, device_id: int) -> dict[str, Any]:
         device = DeviceService.get_device_by_id(session, device_id)
         ingestion = IngestionHealthService.get_device_health(session, device_id)
-        unresolved_count = AlarmService.get_alarm_count(session, device_id=device_id, resolved=False)
+        active_alarm_count = AlarmService.get_active_alarm_count(session, device_id=device_id)
         latest = DeviceMonitorService.get_latest_realtime(session, device_id)
 
         if not device.is_active:
@@ -140,7 +140,7 @@ class DeviceMonitorService:
         elif ingestion["status"] == "offline":
             code = "offline"
             label = "离线"
-        elif unresolved_count > 0:
+        elif active_alarm_count > 0:
             code = "alarm"
             label = "告警中"
         elif ingestion["status"] == "degraded":
@@ -160,7 +160,7 @@ class DeviceMonitorService:
             "is_active": device.is_active,
             "is_online": ingestion.get("is_online", False),
             "ingestion_status": ingestion.get("status"),
-            "unresolved_alarm_count": unresolved_count,
+            "unresolved_alarm_count": active_alarm_count,
             "last_message_at": ingestion.get("last_message_at"),
             "last_success_at": ingestion.get("last_success_at"),
             "latest_timestamp": latest.get("timestamp"),
@@ -254,15 +254,26 @@ class DeviceMonitorService:
 
         events: list[dict[str, Any]] = []
         for alarm in alarms:
+            alarm_status = "resolved" if alarm.is_resolved or alarm.recovered_at else "active"
             events.append(
                 {
                     "timestamp": alarm.timestamp,
                     "event_type": "alarm",
-                    "status": "resolved" if alarm.is_resolved else "active",
+                    "status": alarm_status,
                     "title": alarm.message,
                     "detail": f"级别: {alarm.severity}",
                 }
             )
+            if alarm.recovered_at:
+                events.append(
+                    {
+                        "timestamp": alarm.recovered_at,
+                        "event_type": "alarm_recovery",
+                        "status": "resolved",
+                        "title": f"告警已恢复: {alarm.message}",
+                        "detail": "系统检测到告警条件已解除",
+                    }
+                )
             if alarm.is_resolved and alarm.resolved_at:
                 events.append(
                     {

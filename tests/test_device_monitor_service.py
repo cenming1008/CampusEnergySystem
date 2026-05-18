@@ -487,6 +487,51 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(metric_by_key["pressure"]["value"], 0.33)
             self.assertEqual(metric_by_key["temperature"]["value"], 21.5)
 
+    def test_runtime_status_ignores_system_recovered_alarms(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器恢复态",
+                sn="CAP-RECOVERED-001",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            DeviceService.report_device_data(
+                session,
+                device.id,
+                data={
+                    "consumption": 1.0,
+                    "voltage": 220.0,
+                    "current": 8.0,
+                    "power_factor": 0.96,
+                    "reactive_power": 3.2,
+                },
+                timestamp=now - timedelta(minutes=1),
+            )
+            IngestionHealthService.mark_ingestion_success(session, device.id, now)
+            AlarmService.create_alarm(
+                session,
+                device.id,
+                "A 相电压谐波超限：15.80%（门限 5.00%）",
+                timestamp=now - timedelta(minutes=5),
+                severity="warning",
+                category="cap_voltage_thd_a",
+                source="platform_rule",
+                recovered_at=now - timedelta(minutes=4),
+            )
+
+            status = DeviceMonitorService.get_runtime_status(session, device.id)
+
+            self.assertEqual(status["code"], "running")
+            self.assertEqual(status["unresolved_alarm_count"], 0)
+
     def test_monitor_overview_preserves_device_subtype_for_compensation_devices(self):
         with Session(self.engine) as session:
             device = Device(
@@ -1132,6 +1177,40 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertIn("control", event_types)
             resolution_event = next(item for item in items if item["event_type"] == "alarm_resolution")
             self.assertTrue(resolution_event["title"].startswith("告警已处理: "))
+
+    def test_status_history_marks_system_recovered_alarm_as_recovered(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器恢复历史",
+                sn="CAP-HISTORY-RECOVERED",
+                device_type="capacitor_bank_controller",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            AlarmService.create_alarm(
+                session,
+                device.id,
+                "A 相电压谐波超限：15.80%（门限 5.00%）",
+                timestamp=now - timedelta(minutes=10),
+                severity="warning",
+                category="cap_voltage_thd_a",
+                source="platform_rule",
+                recovered_at=now - timedelta(minutes=9),
+            )
+
+            items = DeviceMonitorService.get_status_history(session, device.id, hours=24, limit=10)
+
+            alarm_event = next(item for item in items if item["event_type"] == "alarm")
+            recovery_event = next(item for item in items if item["event_type"] == "alarm_recovery")
+            self.assertEqual(alarm_event["status"], "resolved")
+            self.assertTrue(recovery_event["title"].startswith("告警已恢复: "))
 
     def test_status_history_uses_precise_control_titles_and_pending_states(self):
         now = datetime.now()
