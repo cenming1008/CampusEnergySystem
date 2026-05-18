@@ -90,28 +90,55 @@ class CompensationMonitorService:
         *,
         is_device_active: bool,
     ) -> dict[str, str]:
+        latest_log_mode = ""
+        latest_log_created_at = None
+        for log in control_logs:
+            latest_log_mode = CompensationMonitorService._resolve_control_mode_from_log(log)
+            if latest_log_mode:
+                latest_log_created_at = getattr(log, "created_at", None)
+                break
+
+        def _log_is_newer_than(evidence_timestamp: Any) -> bool:
+            return (
+                bool(latest_log_mode)
+                and latest_log_created_at is not None
+                and evidence_timestamp is not None
+                and latest_log_created_at > evidence_timestamp
+            )
+
         telemetry_mode = str(getattr(telemetry, "control_mode", "") or "").strip().lower()
         if telemetry_mode == "manual":
+            if _log_is_newer_than(getattr(telemetry, "timestamp", None)):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "手动", "source": "telemetry", "state": "live"}
         if telemetry_mode == "auto":
+            if _log_is_newer_than(getattr(telemetry, "timestamp", None)):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "自动", "source": "telemetry", "state": "live"}
 
+        profile_timestamp = getattr(profile, "snapshot_timestamp", None)
         profile_mode = str(getattr(profile, "control_mode", "") or "").strip().lower()
         if profile_mode in {"manual", "手动"}:
+            if _log_is_newer_than(profile_timestamp):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "手动", "source": "profile", "state": "live"}
         if profile_mode in {"auto", "自动"}:
+            if _log_is_newer_than(profile_timestamp):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "自动", "source": "profile", "state": "live"}
 
         scheme = (getattr(profile, "terminal_assignment_scheme", None) or "").strip()
         if "手动" in scheme:
+            if _log_is_newer_than(profile_timestamp):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "手动", "source": "profile", "state": "live"}
         if "自动" in scheme:
+            if _log_is_newer_than(profile_timestamp):
+                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
             return {"value": "自动", "source": "profile", "state": "live"}
 
-        for log in control_logs:
-            log_mode = CompensationMonitorService._resolve_control_mode_from_log(log)
-            if log_mode:
-                return {"value": log_mode, "source": "control_log", "state": "live"}
+        if latest_log_mode:
+            return {"value": latest_log_mode, "source": "control_log", "state": "live"}
 
         return {
             "value": "自动" if is_device_active else "待确认",

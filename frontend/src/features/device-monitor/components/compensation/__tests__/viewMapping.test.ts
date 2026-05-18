@@ -297,7 +297,7 @@ describe('compensation view mapping', () => {
     expect(moduleStatus.moduleStates).toEqual(['running', 'running', 'alarm', 'fault'])
   })
 
-  it('builds extended hint from non-live semantic sources and capacitor bank extras', () => {
+  it('builds extended hint from non-live semantic sources', () => {
     const hint = buildCompensationExtendedHint({
       capacityUsageSource: '按额定容量估算',
       capacityUsageState: 'mock',
@@ -310,7 +310,6 @@ describe('compensation view mapping', () => {
     expect(hint).toContain('容量利用率来源：按额定容量估算。')
     expect(hint).toContain('控制模式当前来源：参数回读。')
     expect(hint).toContain('柜内温度当前缺测')
-    expect(hint).toContain('JKWF-LCD 专属快照与历史曲线')
   })
 
   it('builds svg-specific status items from svg telemetry', () => {

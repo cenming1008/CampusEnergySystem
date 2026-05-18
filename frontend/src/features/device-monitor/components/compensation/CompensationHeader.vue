@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Refresh, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowLeft, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
 import type { PropType } from 'vue'
 import type { CompensationHeaderModel } from './types'
 
@@ -27,6 +27,10 @@ defineProps({
   showConsoleEntry: {
     type: Boolean,
     default: false,
+  },
+  consoleEntryLabel: {
+    type: String,
+    default: '控制台',
   },
 })
 
@@ -123,14 +127,14 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
           v-if="showConsoleEntry"
           type="button"
           class="comp-header__action comp-header__action--warning"
-          aria-label="进入控制台"
-          title="进入控制台"
+          :aria-label="consoleEntryLabel"
+          :title="consoleEntryLabel"
           @click="$emit('openConsole')"
         >
           <el-icon :size="14">
-            <SwitchButton />
+            <Setting />
           </el-icon>
-          <span>进入控制台</span>
+          <span>{{ consoleEntryLabel }}</span>
         </button>
         <button
           type="button"
@@ -305,7 +309,8 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 92px;
+  width: 112px;
+  flex: 0 0 112px;
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
@@ -353,7 +358,8 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
 
 @media (max-width: 1400px) {
   .comp-header__action {
-    min-width: var(--touch-target);
+    width: var(--touch-target);
+    flex-basis: var(--touch-target);
     min-height: var(--touch-target);
     padding: 0 10px;
   }

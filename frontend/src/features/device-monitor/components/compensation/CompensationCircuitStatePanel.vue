@@ -4,9 +4,7 @@ import type { PropType } from 'vue'
 import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 import {
   countOnSlots,
-  getFlagGroups,
   getCircuitGroups,
-  hasAnyActiveFlag,
   resolvedConfiguredCounts,
   toBits,
 } from './circuitStateUtils'
@@ -132,40 +130,6 @@ const renderedCircuitGroups = computed(() =>
             {{ capacitorBankTelemetry ? stepLabel(gi, bi) : '-' }}
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- 分组告警标志 -->
-    <div
-      v-if="capacitorBankTelemetry"
-      class="flags-section"
-    >
-      <div
-        v-for="group in getFlagGroups(capacitorBankTelemetry)"
-        :key="group.label"
-        class="flag-group"
-        :title="group.title"
-      >
-        <span
-          class="flag-group__label"
-          :class="{ 'flag-group__label--active': group.flags.some(f => f.active) }"
-        >{{ group.label }}</span>
-        <div class="flag-group__chips">
-          <span
-            v-for="flag in group.flags"
-            :key="flag.key || group.label"
-            class="flag-chip"
-            :class="flag.active ? 'flag-chip--active' : 'flag-chip--ok'"
-          >
-            {{ flag.key || '！' }}
-          </span>
-        </div>
-      </div>
-      <div
-        v-if="!hasAnyActiveFlag(getFlagGroups(capacitorBankTelemetry))"
-        class="flags-all-ok"
-      >
-        所有标志正常
       </div>
     </div>
   </section>
@@ -395,69 +359,6 @@ const renderedCircuitGroups = computed(() =>
   border: 1px dashed rgba(140, 155, 180, 0.35);
   color: #8294b3;
   opacity: 0.85;
-}
-
-/* Grouped flags */
-.flags-section {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--divider);
-}
-
-.flag-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.flag-group__label {
-  font-size: var(--font-caption);
-  color: var(--text-label);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.flag-group__label--active {
-  color: #fbbf24;
-}
-
-.flag-group__chips {
-  display: flex;
-  gap: 4px;
-}
-
-.flag-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--touch-target);
-  height: var(--touch-target);
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: var(--font-caption);
-  font-weight: 600;
-}
-
-.flag-chip--active {
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.45);
-  color: #fcd34d;
-}
-
-.flag-chip--ok {
-  background: rgba(30, 48, 70, 0.35);
-  border: 1px solid rgba(74, 96, 128, 0.4);
-  color: var(--text-label);
-}
-
-.flags-all-ok {
-  margin-left: auto;
-  font-size: var(--font-caption);
-  color: #6ee7a4;
 }
 
 </style>

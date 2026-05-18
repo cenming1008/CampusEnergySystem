@@ -57,6 +57,7 @@ export interface UseCompensationMonitorInput {
 }
 
 export const REALTIME_FRESH_THRESHOLD_MS = 120_000
+const EVENT_TIMELINE_LIMIT = 20
 
 export function isTimestampFresh(
   timestamp: string | null | undefined,
@@ -139,15 +140,107 @@ function historyTone(status?: string, eventType?: string): CompensationTone {
   return 'warning'
 }
 
-function historyTag(status?: string) {
+function historyTag(status?: string, eventType?: string) {
+  if (eventType === 'alarm_resolution') return '已处理'
   if (status === 'resolved') return '已恢复'
-  if (status === 'success') return '成功'
+  if (status === 'success') return '已处理'
   if (status === 'running') return '执行中'
   if (status === 'accepted') return '已入队'
   if (status === 'timeout') return '超时'
   if (status === 'rejected') return '拒绝'
   if (status === 'active') return '告警'
   return '事件'
+}
+
+function severityText(detail?: string | null) {
+  const normalized = detail || ''
+  if (normalized.includes('critical')) return '严重'
+  if (normalized.includes('warning')) return '警告'
+  if (normalized.includes('info')) return '提示'
+  return '事件'
+}
+
+function alarmTitleBase(title: string) {
+  return title
+    .replace(/^告警已处理[:：]\s*/, '')
+    .replace(/^报警已处理[:：]\s*/, '')
+    .replace(/[:：].*$/, '')
+    .trim()
+}
+
+function alarmGroupKey(item: DeviceStatusEvent) {
+  return `${item.event_type}:${item.status}:${alarmTitleBase(item.title)}:${severityText(item.detail)}`
+}
+
+function durationText(start: string, end: string) {
+  const startAt = Date.parse(start)
+  const endAt = Date.parse(end)
+  if (Number.isNaN(startAt) || Number.isNaN(endAt) || endAt <= startAt) return '不足 1 分钟'
+  const minutes = Math.max(1, Math.round((endAt - startAt) / 60_000))
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`
+}
+
+function compareTimestampDesc(a: string, b: string) {
+  return Date.parse(b) - Date.parse(a)
+}
+
+export function buildCompensationEventTimeline(history: DeviceStatusEvent[]): CompensationEventItem[] {
+  if (!history.length) {
+    return [
+      {
+        time: '--:--',
+        title: '当前时间范围内暂无真实运行事件',
+        detail: '尚未采集到补偿器控制/告警事件，页面不再用示例事件替代真实记录。',
+        tone: 'info' as CompensationTone,
+        tag: '待采集',
+        isMock: true,
+      },
+    ]
+  }
+
+  const groupedAlarms = new Map<string, DeviceStatusEvent[]>()
+  const nonAlarmEvents: DeviceStatusEvent[] = []
+  for (const item of history) {
+    if (item.event_type === 'alarm') {
+      const key = alarmGroupKey(item)
+      groupedAlarms.set(key, [...(groupedAlarms.get(key) || []), item])
+    } else {
+      nonAlarmEvents.push(item)
+    }
+  }
+
+  const alarmEvents = Array.from(groupedAlarms.values()).map((items) => {
+    const ordered = [...items].sort((a, b) => compareTimestampDesc(a.timestamp, b.timestamp))
+    const latest = ordered[0]
+    const earliest = ordered[ordered.length - 1]
+    const tone = historyTone(latest.status, latest.event_type)
+    const countText = ordered.length > 1 ? `，累计 ${ordered.length} 次` : ''
+    return {
+      time: formatTimeOnly(latest.timestamp),
+      title: alarmTitleBase(latest.title),
+      detail: `级别：${severityText(latest.detail)} · 首次 ${formatTimeOnly(earliest.timestamp)} · 最近 ${formatTimeOnly(latest.timestamp)} · 持续 ${durationText(earliest.timestamp, latest.timestamp)}${countText}`,
+      tone: tone === 'danger' ? 'warning' : tone,
+      tag: latest.status === 'active' ? '持续中' : historyTag(latest.status, latest.event_type),
+      sortAt: latest.timestamp,
+    }
+  })
+
+  const otherEvents = nonAlarmEvents.map((item) => ({
+    time: formatTimeOnly(item.timestamp),
+    title: item.title,
+    detail: item.detail || '无附加说明',
+    tone: historyTone(item.status, item.event_type),
+    tag: historyTag(item.status, item.event_type),
+    sortAt: item.timestamp,
+  }))
+
+  return [...alarmEvents, ...otherEvents]
+    .sort((a, b) => compareTimestampDesc(a.sortAt, b.sortAt))
+    .slice(0, EVENT_TIMELINE_LIMIT)
+    .map(({ sortAt: _sortAt, ...item }) => item)
 }
 
 export function useCompensationMonitor(input: UseCompensationMonitorInput) {
@@ -360,25 +453,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
   )
 
   const compensationEvents = computed<CompensationEventItem[]>(() => {
-    if (input.statusHistory.value.length) {
-      return input.statusHistory.value.slice(0, 6).map((item) => ({
-        time: formatTimeOnly(item.timestamp),
-        title: item.title,
-        detail: item.detail || '无附加说明',
-        tone: historyTone(item.status, item.event_type),
-        tag: historyTag(item.status),
-      }))
-    }
-    return [
-      {
-        time: '--:--',
-        title: '当前时间范围内暂无真实运行事件',
-        detail: '尚未采集到补偿器控制/告警事件，页面不再用示例事件替代真实记录。',
-        tone: 'info' as CompensationTone,
-        tag: '待采集',
-        isMock: true,
-      },
-    ]
+    return buildCompensationEventTimeline(input.statusHistory.value)
   })
 
   const compensationStatusItems = computed<CompensationStatusItem[]>(() =>

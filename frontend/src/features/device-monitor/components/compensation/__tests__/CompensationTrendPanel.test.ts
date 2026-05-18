@@ -109,4 +109,116 @@ describe('CompensationTrendPanel', () => {
     expect(wrapper.text()).not.toContain('当前时间范围内暂无可绘制数据')
     expect(wrapper.text()).toContain('当前 Q -')
   })
+
+  it('applies unified static y-axis bounds based on the unit so different time ranges share scale', async () => {
+    const baseProps = {
+      tabs: [
+        { label: '三相电流', value: 'phase_current' as const },
+        { label: '三相有功', value: 'phase_active_power' as const },
+      ],
+      activeTab: 'phase_current' as const,
+      model: {
+        labels: [],
+        legend: ['A相电流'],
+        // viewMapping declares `{ name: 'A' }` without explicit min/max for phase_current
+        axes: [{ name: 'A' }],
+        series: [
+          {
+            name: 'A相电流',
+            data: [
+              ['2026-04-17T00:00:00', 12] as [string, number],
+              ['2026-04-17T00:30:00', 18] as [string, number],
+            ],
+            color: '#f59e0b',
+          },
+        ],
+        summary: [],
+        empty: false,
+        emptyText: '',
+        isMock: false,
+        xAxisType: 'time' as const,
+        xAxisMin: '2026-04-17T00:00:00',
+        xAxisMax: '2026-04-17T01:00:00',
+      },
+    }
+
+    const wrapper = mount(CompensationTrendPanel, {
+      props: baseProps,
+      global: {
+        stubs: { 'el-segmented': true, 'el-date-picker': true, 'el-tag': true },
+        directives: { loading: () => undefined },
+      },
+    })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const firstOption = setOptionsMock.mock.calls.at(-1)?.[0]
+    expect(firstOption?.yAxis?.[0]?.min).toBe(0)
+    expect(firstOption?.yAxis?.[0]?.max).toBe(200)
+
+    // Switch to data with a much smaller value range; the y-axis must stay unified.
+    await wrapper.setProps({
+      ...baseProps,
+      model: {
+        ...baseProps.model,
+        series: [
+          {
+            ...baseProps.model.series[0],
+            data: [
+              ['2026-04-17T00:00:00', 1] as [string, number],
+              ['2026-04-17T00:30:00', 3] as [string, number],
+            ],
+          },
+        ],
+      },
+    })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const secondOption = setOptionsMock.mock.calls.at(-1)?.[0]
+    expect(secondOption?.yAxis?.[0]?.min).toBe(0)
+    expect(secondOption?.yAxis?.[0]?.max).toBe(200)
+  })
+
+  it('honours explicit axis bounds set by viewMapping over unit-based fallback', async () => {
+    const wrapper = mount(CompensationTrendPanel, {
+      props: {
+        tabs: [{ label: '三相电压', value: 'phase_voltage' }],
+        activeTab: 'phase_voltage',
+        model: {
+          labels: [],
+          legend: ['A相电压'],
+          axes: [{ name: 'V', min: 200, max: 240 }],
+          series: [
+            {
+              name: 'A相电压',
+              data: [['2026-04-17T00:00:00', 220] as [string, number]],
+              color: '#38bdf8',
+            },
+          ],
+          summary: [],
+          empty: false,
+          emptyText: '',
+          isMock: false,
+          xAxisType: 'time',
+          xAxisMin: '2026-04-17T00:00:00',
+          xAxisMax: '2026-04-17T01:00:00',
+        },
+      },
+      global: {
+        stubs: { 'el-segmented': true, 'el-date-picker': true, 'el-tag': true },
+        directives: { loading: () => undefined },
+      },
+    })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const option = setOptionsMock.mock.calls.at(-1)?.[0]
+    expect(option?.yAxis?.[0]?.min).toBe(200)
+    expect(option?.yAxis?.[0]?.max).toBe(240)
+    void wrapper
+  })
 })

@@ -283,16 +283,9 @@ export function useDeviceMonitorPage() {
     chartLoading.value = true
     try {
       const params = buildRangeParams()
-      const resolved =
-        alarmFilter.value === 'all'
-          ? undefined
-          : alarmFilter.value === 'resolved'
-            ? true
-            : false
 
-      const [trendRes, alarmsRes, logsRes] = await Promise.all([
+      const [trendRes, logsRes] = await Promise.all([
         getDeviceMonitorTrend(deviceId.value, params),
-        getDeviceMonitorAlarms(deviceId.value, { ...params, resolved }),
         getDeviceMonitorControlLogs(deviceId.value, params),
       ])
 
@@ -302,12 +295,24 @@ export function useDeviceMonitorPage() {
           (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         ),
       }
-      alarms.value = alarmsRes.items
       controlLogs.value = logsRes.items
       await renderTrendChart()
     } finally {
       chartLoading.value = false
     }
+  }
+
+  // 告警记录独立加载：按设备维度取最新记录，不受历史趋势时间范围影响
+  async function loadAlarms() {
+    if (!deviceId.value) return
+    const resolved =
+      alarmFilter.value === 'all'
+        ? undefined
+        : alarmFilter.value === 'resolved'
+          ? true
+          : false
+    const alarmsRes = await getDeviceMonitorAlarms(deviceId.value, { resolved })
+    alarms.value = alarmsRes.items
   }
 
   async function loadPage(showLoading: boolean = true) {
@@ -316,7 +321,7 @@ export function useDeviceMonitorPage() {
 
     try {
       overview.value = await getDeviceMonitorOverview(deviceId.value)
-      const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory()]
+      const extraTasks: Promise<unknown>[] = [loadTrendAndTables(), loadStatusHistory(), loadAlarms()]
       if (compensation.isSvgDevice.value) {
         extraTasks.push(compensation.loadSVGTelemetry(), compensation.loadSVGProfile())
         compensation.compensationCapacitorBankControlProfile.value = null
@@ -383,6 +388,7 @@ export function useDeviceMonitorPage() {
       }
       await renderTrendChart()
       await loadStatusHistory()
+      await loadAlarms()
       await compensation.refreshCompensationData()
       if (storage.isStorageDevice.value) await storage.refreshStorageData()
     } catch {

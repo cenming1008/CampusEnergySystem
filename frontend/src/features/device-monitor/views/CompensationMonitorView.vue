@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CompensationAlarmSummaryPanel from '@/features/device-monitor/components/compensation/CompensationAlarmSummaryPanel.vue'
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
 import CompensationControlSummaryPanel from '@/features/device-monitor/components/compensation/CompensationControlSummaryPanel.vue'
 import CompensationDetailPanel from '@/features/device-monitor/components/compensation/CompensationDetailPanel.vue'
@@ -6,7 +7,6 @@ import CompensationDeviceProfile from '@/features/device-monitor/components/comp
 import CompensationEventTimeline from '@/features/device-monitor/components/compensation/CompensationEventTimeline.vue'
 import CompensationHeader from '@/features/device-monitor/components/compensation/CompensationHeader.vue'
 import CompensationRealtimeOverview from '@/features/device-monitor/components/compensation/CompensationRealtimeOverview.vue'
-import CompensationStatusSummary from '@/features/device-monitor/components/compensation/CompensationStatusSummary.vue'
 import CompensationSvgProfileEditDialog from '@/features/device-monitor/components/compensation/CompensationSvgProfileEditDialog.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
 import CompensationDiagnosticsCollapsible from '@/features/device-monitor/components/compensation/CompensationDiagnosticsCollapsible.vue'
@@ -43,6 +43,7 @@ defineProps<{
         :metrics="page.compensationMetrics"
         :module-status="page.moduleStatusModel"
         :extended-hint="page.compensationExtendedHint"
+        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
       />
 
       <CompensationDetailPanel
@@ -52,6 +53,12 @@ defineProps<{
         :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
         :is-capacitor-bank="page.compensationSubtype === 'capacitor_bank_controller'"
         :circuit-profile="page.compensationCircuitProfile"
+      />
+
+      <HarmonicSpectrumPanel
+        v-if="page.compensationSubtype === 'capacitor_bank_controller'"
+        :telemetry="page.compensationCapacitorBankTelemetry"
+        :control-profile="page.compensationCapacitorBankControlProfile"
       />
 
       <CompensationTrendPanel
@@ -64,12 +71,6 @@ defineProps<{
         @range-change="page.handleRangeChange"
       />
 
-      <HarmonicSpectrumPanel
-        v-if="page.compensationSubtype === 'capacitor_bank_controller'"
-        :telemetry="page.compensationCapacitorBankTelemetry"
-        :control-profile="page.compensationCapacitorBankControlProfile"
-      />
-
       <CompensationAlarmTable
         :rows="page.alarms"
         :action-id="page.alarmActionId"
@@ -79,7 +80,11 @@ defineProps<{
 
     <template #side>
       <CompensationEventTimeline :events="page.compensationEvents" />
-      <CompensationStatusSummary :items="page.compensationStatusItems" />
+      <CompensationAlarmSummaryPanel
+        :rows="page.alarms"
+        :action-id="page.alarmActionId"
+        @resolve="page.handleResolveAlarm"
+      />
       <CompensationControlSummaryPanel
         v-if="page.compensationSubtype === 'capacitor_bank_controller'"
         :summary-items="page.capacitorBankControlSummaryView.summaryItems"

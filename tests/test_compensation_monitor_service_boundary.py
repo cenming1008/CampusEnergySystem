@@ -6,7 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device
+from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog
 from app.services.devices.compensation.monitor_service import CompensationMonitorService
 
 
@@ -63,6 +63,55 @@ class TestCompensationMonitorServiceBoundary(unittest.TestCase):
         self.assertEqual(monitor["circuit_summary"]["running_count"], 6)
         self.assertEqual(monitor["key_metrics"]["capacity_utilization"]["value"], 25.0)
         self.assertEqual(monitor["key_metrics"]["cabinet_temperature"]["value"], 38.8)
+
+    def test_build_monitor_uses_successful_mode_log_over_stale_manual_telemetry(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿控制模式日志优先测试",
+                sn="CAP-BND-002",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=120.0,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            session.add(
+                CapacitorBankTelemetry(
+                    device_id=device.id,
+                    timestamp=now - timedelta(seconds=10),
+                    control_mode="manual",
+                    running_circuit_count=6,
+                )
+            )
+            session.add(
+                DeviceControlLog(
+                    device_id=device.id,
+                    action="manual_switch",
+                    target_status=True,
+                    previous_status=True,
+                    operator="admin",
+                    command_source="remote-control-api",
+                    result="success",
+                    reason="控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式",
+                    created_at=now,
+                )
+            )
+            session.commit()
+
+            monitor = CompensationMonitorService.build_monitor(
+                session,
+                device,
+                {},
+            )
+
+        self.assertEqual(monitor["control_mode"]["value"], "自动")
+        self.assertEqual(monitor["control_mode"]["source"], "control_log")
 
     def test_build_monitor_marks_svg_as_read_only_capability(self):
         now = datetime.now()

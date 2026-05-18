@@ -13,6 +13,8 @@ const props = defineProps<{
   page: DeviceMonitorPageModel
 }>()
 
+const GENERIC_EVENT_LIMIT = 20
+
 /** 通用设备档案信息（不使用补偿设备专属的 profileItems） */
 const genericProfileItems = computed(() => {
   const archive = props.page.archive
@@ -34,7 +36,7 @@ const genericProfileItems = computed(() => {
 const genericEvents = computed(() => {
   const history = props.page.statusHistory
   if (!history || !history.length) return []
-  return history.slice(0, 6).map((item) => ({
+  return history.slice(0, GENERIC_EVENT_LIMIT).map((item) => ({
     time: item.timestamp,
     title: item.title,
     detail: item.detail || '',
@@ -166,17 +168,6 @@ const genericEvents = computed(() => {
             <template #default="{ row }">
               <el-tag :type="row.severity === 'critical' ? 'danger' : row.severity === 'warning' ? 'warning' : 'info'">
                 {{ row.severity || 'info' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="is_resolved"
-            label="状态"
-            width="100"
-          >
-            <template #default="{ row }">
-              <el-tag :type="row.is_resolved ? 'success' : 'danger'">
-                {{ row.is_resolved ? '已处理' : '未处理' }}
               </el-tag>
             </template>
           </el-table-column>

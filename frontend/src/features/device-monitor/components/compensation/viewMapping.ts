@@ -378,9 +378,10 @@ function toShortTimeInRange(timestamp: string | null | undefined, range: [Date, 
   const date = new Date(timestamp)
   const [start, end] = range
   const crossesDay =
-    start.getFullYear() !== end.getFullYear()
-    || start.getMonth() !== end.getMonth()
-    || start.getDate() !== end.getDate()
+    (start.getFullYear() !== end.getFullYear()
+      || start.getMonth() !== end.getMonth()
+      || start.getDate() !== end.getDate())
+    && end.getTime() - start.getTime() > 60 * 60 * 1000
 
   return crossesDay
     ? `${`${date.getMonth() + 1}`.padStart(2, '0')}/${`${date.getDate()}`.padStart(2, '0')} ${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`
@@ -934,9 +935,6 @@ export function buildCompensationExtendedHint(input: CompensationExtendedHintInp
   }
   if (input.cabinetTemperature == null) {
     messages.push('柜内温度当前缺测，暂不展示默认温度。')
-  }
-  if (!input.isSvgDevice) {
-    messages.push('当前已接入 JKWF-LCD 专属快照与历史曲线，可查看三相功率、谐波与投切回放。')
   }
   return messages.join(' ')
 }

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
-import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
-import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 import type {
   CompensationCapacitorBankControlProfile,
   CompensationCapacitorBankTelemetry,
@@ -24,12 +22,6 @@ const props = defineProps<{
 const chart = useECharts()
 const activeKind = ref<HarmonicSpectrumKind>('voltage')
 const activePhase = ref<HarmonicSpectrumPhase>('a')
-
-const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:harmonic', true)
-
-watch(collapsed, (isCollapsed) => {
-  if (!isCollapsed) nextTick(() => chart.resize())
-})
 
 const kindOptions = [
   { label: '电压谐波', value: 'voltage' },
@@ -77,7 +69,7 @@ async function renderChart() {
         return `${data.order}次<br/>${model.value.summary.phaseLabel}${model.value.summary.kindLabel}: ${Number(data.value).toFixed(2)} ${model.value.unit}`
       },
     },
-    grid: { left: 48, right: 24, top: 30, bottom: 34 },
+    grid: { left: 12, right: 16, top: 32, bottom: 8, containLabel: true },
     xAxis: {
       type: 'category',
       data: model.value.bars.map((bar) => `${bar.order}次`),
@@ -112,7 +104,7 @@ async function renderChart() {
           ? {
               symbol: 'none',
               animation: false,
-              label: { color: '#fbbf24', formatter: '门限' },
+              label: { color: '#fbbf24', formatter: '门限', position: 'insideEndBottom' },
               lineStyle: { color: '#fbbf24', type: 'dashed' },
               data: [{ yAxis: model.value.threshold }],
             }
@@ -137,19 +129,10 @@ watch(() => chart.chartRef.value, async () => {
   <section class="spectrum-panel">
     <div class="spectrum-panel__head">
       <div>
-        <div class="panel-title-row">
-          <h3>高次谐波频谱</h3>
-          <PanelCollapseToggle
-            :collapsed="collapsed"
-            @toggle="toggle"
-          />
-        </div>
+        <h3>高次谐波频谱</h3>
         <span>展示最新采样的 2~31 次谐波分布。</span>
       </div>
-      <div
-        v-show="!collapsed"
-        class="spectrum-panel__controls"
-      >
+      <div class="spectrum-panel__controls">
         <el-segmented
           :model-value="activeKind"
           :options="kindOptions"
@@ -165,10 +148,7 @@ watch(() => chart.chartRef.value, async () => {
       </div>
     </div>
 
-    <div
-      v-show="!collapsed"
-      class="spectrum-panel__summary"
-    >
+    <div class="spectrum-panel__summary">
       <span>{{ model.summary.phaseLabel }} {{ model.summary.kindLabel }}</span>
       <span>最高 {{ model.summary.peakOrder ? `${model.summary.peakOrder}次` : '暂无数据' }}</span>
       <span>{{ formatNumber(model.summary.peakValue) }} {{ model.unit }}</span>
@@ -182,10 +162,7 @@ watch(() => chart.chartRef.value, async () => {
       </el-tag>
     </div>
 
-    <div
-      v-show="!collapsed"
-      class="spectrum-panel__chart-wrap"
-    >
+    <div class="spectrum-panel__chart-wrap">
       <div
         :ref="chart.chartRef"
         class="spectrum-panel__chart"
@@ -294,12 +271,5 @@ watch(() => chart.chartRef.value, async () => {
   .spectrum-panel__controls {
     justify-content: flex-start;
   }
-}
-
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 </style>

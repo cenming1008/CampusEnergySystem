@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PropType } from 'vue'
+import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 import type { CompensationMetric, ModuleStatusModel } from './types'
+import { getFlagGroups, hasAnyActiveFlag } from './circuitStateUtils'
 
 const props = defineProps({
   coreMetric: {
@@ -24,7 +26,16 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  capacitorBankTelemetry: {
+    type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
+    default: null,
+  },
 })
+
+const flagGroups = computed(() =>
+  props.capacitorBankTelemetry ? getFlagGroups(props.capacitorBankTelemetry) : [],
+)
+const anyActiveFlag = computed(() => hasAnyActiveFlag(flagGroups.value))
 
 function progressColor(value: string) {
   const numeric = Number(value)
@@ -216,6 +227,39 @@ const stripMetrics = computed(() =>
       </div>
     </div>
   </section>
+
+  <div
+    v-if="capacitorBankTelemetry"
+    class="alarm-flags"
+  >
+    <div
+      v-for="group in flagGroups"
+      :key="group.label"
+      class="flag-group"
+      :title="group.title"
+    >
+      <span
+        class="flag-group__label"
+        :class="{ 'flag-group__label--active': group.flags.some(f => f.active) }"
+      >{{ group.label }}</span>
+      <div class="flag-group__chips">
+        <span
+          v-for="flag in group.flags"
+          :key="flag.key || group.label"
+          class="flag-chip"
+          :class="flag.active ? 'flag-chip--active' : 'flag-chip--ok'"
+        >
+          {{ flag.key || '！' }}
+        </span>
+      </div>
+    </div>
+    <div
+      v-if="!anyActiveFlag"
+      class="flags-all-ok"
+    >
+      所有标志正常
+    </div>
+  </div>
 
   <div
     v-if="extendedHint"
@@ -495,6 +539,71 @@ const stripMetrics = computed(() =>
 .tone-warning .strip-cell__value strong { color: #fbbf24; }
 .tone-danger  .strip-cell__value strong { color: #fb7185; }
 .tone-info    .strip-cell__value strong { color: #60a5fa; }
+
+/* Alarm flags bar */
+.alarm-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(72, 96, 130, 0.58);
+  background: rgba(13, 21, 34, 0.72);
+}
+
+.flag-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flag-group__label {
+  font-size: var(--font-caption);
+  color: var(--text-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.flag-group__label--active {
+  color: #fbbf24;
+}
+
+.flag-group__chips {
+  display: flex;
+  gap: 4px;
+}
+
+.flag-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.flag-chip--active {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fcd34d;
+}
+
+.flag-chip--ok {
+  background: rgba(30, 48, 70, 0.35);
+  border: 1px solid rgba(74, 96, 128, 0.4);
+  color: var(--text-label);
+}
+
+.flags-all-ok {
+  margin-left: auto;
+  font-size: var(--font-caption);
+  color: #6ee7a4;
+}
 
 /* Extended hint */
 .extended-hint {

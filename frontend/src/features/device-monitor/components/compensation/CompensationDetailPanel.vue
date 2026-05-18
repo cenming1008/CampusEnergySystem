@@ -6,8 +6,6 @@ import type {
 } from '@/api/compensation'
 import CompensationThreePhasePanel from './CompensationThreePhasePanel.vue'
 import CompensationCircuitStatePanel from './CompensationCircuitStatePanel.vue'
-import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
-import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 
 export type CompensationDetailTab = 'three-phase' | 'circuit'
 
@@ -52,53 +50,50 @@ const emit = defineEmits<{
 const showCircuitTab = computed(() => props.isCapacitorBank)
 
 const segmentedOptions = computed(() => {
-  const options: Array<{ label: string; value: CompensationDetailTab }> = [
-    { label: '三相量测', value: 'three-phase' },
-  ]
+  const options: Array<{ label: string; value: CompensationDetailTab }> = []
   if (showCircuitTab.value) {
     options.push({ label: '回路状态', value: 'circuit' })
   }
+  options.push({ label: '三相量测', value: 'three-phase' })
   return options
 })
 
 const resolvedTab = computed<CompensationDetailTab>(() =>
   showCircuitTab.value ? props.activeTab : 'three-phase',
 )
-
-const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:detail', false)
 </script>
 
 <template>
   <section class="detail-panel">
     <header class="detail-panel__head">
       <div class="detail-panel__intro">
-        <div class="panel-title-row">
-          <h3>实时详查</h3>
-          <PanelCollapseToggle
-            :collapsed="collapsed"
-            @toggle="toggle"
-          />
-        </div>
-        <span>三相电气量与回路投切状态</span>
+        <h3>实时监测</h3>
       </div>
       <div
         v-if="showCircuitTab"
-        v-show="!collapsed"
-        class="detail-panel__tab-switcher"
+        class="detail-panel__actions"
       >
-        <el-segmented
-          :model-value="resolvedTab"
-          :options="segmentedOptions"
-          size="small"
-          @change="emit('update:activeTab', $event as CompensationDetailTab)"
-        />
+        <div
+          v-if="resolvedTab === 'circuit'"
+          class="detail-panel__legend"
+        >
+          <span class="legend-item legend-item--on"><i />投入</span>
+          <span class="legend-item legend-item--off"><i />切除</span>
+          <span class="legend-item legend-item--unconfigured"><i />未配置</span>
+          <span class="legend-item legend-item--na"><i />等待回读</span>
+        </div>
+        <div class="detail-panel__tab-switcher">
+          <el-segmented
+            :model-value="resolvedTab"
+            :options="segmentedOptions"
+            size="small"
+            @change="emit('update:activeTab', $event as CompensationDetailTab)"
+          />
+        </div>
       </div>
     </header>
 
-    <div
-      v-show="!collapsed"
-      class="detail-panel__body"
-    >
+    <div class="detail-panel__body">
       <CompensationThreePhasePanel
         v-show="resolvedTab === 'three-phase'"
         :svg-telemetry="svgTelemetry"
@@ -153,16 +148,76 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
   color: #f5f7fb;
 }
 
-.detail-panel__intro span {
-  display: block;
-  margin-top: 5px;
+.detail-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.detail-panel__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: var(--font-caption);
-  color: var(--text-label);
+  color: #c5d2e7;
+  white-space: nowrap;
+}
+
+.legend-item i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-style: normal;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  font-family: 'SFMono-Regular', monospace;
+  flex-shrink: 0;
+}
+
+.legend-item--on i {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: #6ee7a4;
+}
+.legend-item--on i::before { content: '✓'; }
+
+.legend-item--off i {
+  background: rgba(30, 48, 70, 0.4);
+  border: 1px solid rgba(74, 96, 128, 0.65);
+  color: #8aa0bf;
+}
+.legend-item--off i::before { content: '–'; }
+
+.legend-item--unconfigured i {
+  background: rgba(33, 42, 55, 0.24);
+  border: 1px dashed rgba(140, 155, 180, 0.35);
+  color: #8294b3;
+}
+.legend-item--unconfigured i::before { content: '·'; }
+
+.legend-item--na i {
+  background: rgba(30, 48, 70, 0.2);
+  border: 1px dashed rgba(74, 96, 128, 0.5);
+  color: #6b82a4;
 }
 
 .detail-panel__tab-switcher {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .detail-panel__tab-switcher :deep(.el-segmented) {
@@ -203,19 +258,12 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
   box-shadow: none;
 }
 
-/* 嵌入 DetailPanel 后避免双层标题：三相头整体隐藏；回路只隐藏 h3（保留图例） */
+/* 嵌入 DetailPanel 后避免双层标题：三相头和回路头整体隐藏，回路图例上提到主标题右侧 */
 .detail-panel__body :deep(.threephase-panel__head) {
   display: none;
 }
 
-.detail-panel__body :deep(.circuit-panel__head > h3) {
+.detail-panel__body :deep(.circuit-panel__head) {
   display: none;
-}
-
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 </style>

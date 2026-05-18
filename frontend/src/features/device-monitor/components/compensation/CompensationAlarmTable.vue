@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Warning } from '@element-plus/icons-vue'
+import { CircleCheck, Warning } from '@element-plus/icons-vue'
 import type { PropType } from 'vue'
 import type { DeviceAlarmRecord } from '@/api/deviceMonitor'
-import { alarmSourceLabel } from '@/features/alarm/sourceLabels'
 
 const props = defineProps({
   rows: {
@@ -20,11 +19,12 @@ defineEmits<{
   resolve: [row: DeviceAlarmRecord]
 }>()
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [10, 50, 100]
 
 const severityFilter = ref<string>('')
 const resolvedFilter = ref<string>('')
 const currentPage = ref(1)
+const pageSize = ref(50)
 
 const filteredRows = computed(() => {
   let result = props.rows
@@ -40,19 +40,34 @@ const filteredRows = computed(() => {
 })
 
 const pagedRows = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filteredRows.value.slice(start, start + PAGE_SIZE)
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredRows.value.slice(start, start + pageSize.value)
 })
 
-const showPagination = computed(() => filteredRows.value.length > PAGE_SIZE)
+const showPagination = computed(() => filteredRows.value.length > pageSize.value)
 
 const unresolvedCount = computed(() => props.rows.filter(r => !r.is_resolved).length)
 
-function severityTagType(severity?: string) {
-  if (severity === 'critical') return 'danger'
-  if (severity === 'warning') return 'warning'
-  if (severity === 'info') return 'primary'
-  return 'info'
+function severityToneClass(severity?: string) {
+  if (severity === 'critical') return 'severity-pill--critical'
+  if (severity === 'warning') return 'severity-pill--warning'
+  if (severity === 'info') return 'severity-pill--info'
+  return 'severity-pill--unknown'
+}
+
+function severityLabel(severity?: string) {
+  if (severity === 'critical') return '紧急'
+  if (severity === 'warning') return '警告'
+  if (severity === 'info') return '信息'
+  return severity || '未知'
+}
+
+function actionLabel(row: DeviceAlarmRecord) {
+  return row.is_resolved ? '已处理' : '处理'
+}
+
+function actionToneClass(row: DeviceAlarmRecord) {
+  return row.is_resolved ? 'alarm-action-pill--resolved' : 'alarm-action-pill--pending'
 }
 
 function formatTime(value?: string | null) {
@@ -63,6 +78,17 @@ function formatTime(value?: string | null) {
 function resetPage() {
   currentPage.value = 1
 }
+
+function handlePageSizeChange() {
+  resetPage()
+}
+
+defineExpose({
+  actionLabel,
+  actionToneClass,
+  severityLabel,
+  severityToneClass,
+})
 </script>
 
 <template>
@@ -79,6 +105,16 @@ function resetPage() {
       </div>
 
       <div class="alarm-filters">
+        <div class="page-size-tabs">
+          <span>每页</span>
+          <el-segmented
+            v-model="pageSize"
+            aria-label="每页条数"
+            :options="PAGE_SIZE_OPTIONS"
+            size="small"
+            @change="handlePageSizeChange"
+          />
+        </div>
         <el-select
           v-model="severityFilter"
           placeholder="全部级别"
@@ -109,6 +145,7 @@ function resetPage() {
       :data="pagedRows"
       class="dark-table"
       empty-text="当前暂无匹配告警记录"
+      max-height="520"
     >
       <el-table-column
         prop="timestamp"
@@ -130,55 +167,38 @@ function resetPage() {
         width="110"
       >
         <template #default="{ row }">
-          <el-tag :type="severityTagType(row.severity)">
-            {{ row.severity || 'info' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="source"
-        label="来源"
-        width="110"
-      >
-        <template #default="{ row }">
-          <el-tag type="info" effect="plain">
-            {{ alarmSourceLabel(row.source) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="is_resolved"
-        label="状态"
-        width="110"
-      >
-        <template #default="{ row }">
-          <el-tag :type="row.is_resolved ? 'success' : 'danger'">
-            {{ row.is_resolved ? '已处理' : '未处理' }}
-          </el-tag>
+          <span
+            class="severity-pill"
+            :class="severityToneClass(row.severity)"
+          >
+            <i />
+            {{ severityLabel(row.severity) }}
+          </span>
         </template>
       </el-table-column>
       <el-table-column
         label="操作"
-        width="120"
-        fixed="right"
+        width="132"
+        align="center"
       >
         <template #default="{ row }">
           <el-button
             v-if="!row.is_resolved"
             class="alarm-action-button"
-            type="warning"
-            link
+            :class="actionToneClass(row)"
             :icon="Warning"
             :loading="actionId === row.id"
             @click="$emit('resolve', row)"
           >
-            标记处理
+            {{ actionLabel(row) }}
           </el-button>
           <span
             v-else
-            class="muted-text"
+            class="alarm-action-state"
+            :class="actionToneClass(row)"
           >
-            已关闭
+            <el-icon><CircleCheck /></el-icon>
+            {{ actionLabel(row) }}
           </span>
         </template>
       </el-table-column>
@@ -190,7 +210,7 @@ function resetPage() {
     >
       <el-pagination
         v-model:current-page="currentPage"
-        :page-size="PAGE_SIZE"
+        :page-size="pageSize"
         :total="filteredRows.length"
         layout="prev, pager, next, total"
         small
@@ -244,9 +264,40 @@ function resetPage() {
 
 .alarm-filters {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+.page-size-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8ea0bc;
+  font-size: 12px;
+}
+
+.page-size-tabs :deep(.el-segmented) {
+  --el-segmented-bg-color: rgba(7, 15, 26, 0.72);
+  --el-segmented-item-selected-color: #eff6ff;
+  --el-segmented-item-selected-bg-color: rgba(37, 99, 235, 0.56);
+  --el-border-radius-base: 8px;
+  height: 30px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(72, 96, 130, 0.72);
+}
+
+.page-size-tabs :deep(.el-segmented__item) {
+  min-height: 24px;
+  padding: 0 8px;
+  color: #9fb3d1;
+}
+
+.page-size-tabs :deep(.el-segmented__item-label) {
+  line-height: 24px;
 }
 
 .alarm-filters :deep(.el-select__wrapper) {
@@ -272,17 +323,100 @@ function resetPage() {
   color: #7f93b2;
 }
 
-.alarm-action-button {
-  color: #fbbf24;
+.severity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 72px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.7);
 }
 
-.alarm-action-button:hover {
+.severity-pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px currentColor;
+  opacity: 0.55;
+}
+
+.severity-pill--critical {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.28);
+  border-color: rgba(248, 113, 113, 0.48);
+}
+
+.severity-pill--warning {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.28);
+  border-color: rgba(251, 191, 36, 0.46);
+}
+
+.severity-pill--info {
+  color: #bfdbfe;
+  background: rgba(30, 64, 175, 0.24);
+  border-color: rgba(96, 165, 250, 0.42);
+}
+
+.severity-pill--unknown {
+  color: #cbd5e1;
+  background: rgba(51, 65, 85, 0.35);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+.alarm-action-button {
+  height: 28px;
+  min-width: 74px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0;
+  border: 1px solid rgba(251, 191, 36, 0.46);
+  background: rgba(120, 53, 15, 0.18);
+  color: #fbbf24;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.alarm-action-button:hover,
+.alarm-action-button:focus {
+  border-color: rgba(251, 191, 36, 0.72);
+  background: rgba(120, 53, 15, 0.32);
   color: #fde68a;
 }
 
-.muted-text {
-  color: #8ea0bc;
+.alarm-action-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 74px;
+  padding: 0 12px;
+  border-radius: 999px;
   font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.alarm-action-pill--pending {
+  color: #fbbf24;
+}
+
+.alarm-action-pill--resolved {
+  color: #9fb3d1;
+  background: rgba(51, 65, 85, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.alarm-action-state :deep(.el-icon) {
+  font-size: 13px;
 }
 
 .alarm-pagination {

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useECharts } from '@/shared/composables/useECharts'
-import { usePanelCollapse } from '@/shared/composables/usePanelCollapse'
-import PanelCollapseToggle from '@/shared/components/PanelCollapseToggle.vue'
 import type { PropType } from 'vue'
 import type {
   CompensationTrendModel,
@@ -45,12 +43,6 @@ const emit = defineEmits<{
 
 const chart = useECharts()
 
-const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:trend', false)
-
-watch(collapsed, (isCollapsed) => {
-  if (!isCollapsed) nextTick(() => chart.resize())
-})
-
 const segmentedOptions = computed(() =>
   props.tabs.map((tab) => ({ label: tab.label, value: tab.value })),
 )
@@ -67,7 +59,7 @@ async function renderChart() {
     legend: {
       show: false,
     },
-    grid: { left: 48, right: 48, top: 36, bottom: 30, containLabel: true },
+    grid: { left: 12, right: 16, top: 32, bottom: 8, containLabel: true },
     xAxis: {
       type: props.model.xAxisType || 'category',
       data: props.model.xAxisType === 'time' ? undefined : props.model.labels,
@@ -86,8 +78,8 @@ async function renderChart() {
       type: 'value',
       name: axis.name,
       position: axis.position || (index === 1 ? 'right' : 'left'),
-      min: axis.min ?? 0,
-      max: axis.max ?? (props.model.empty ? fallbackMaxByUnit(axis.name) : undefined),
+      min: axis.min ?? fallbackMinByUnit(axis.name) ?? 0,
+      max: axis.max ?? fallbackMaxByUnit(axis.name),
       nameGap: 10,
       nameTextStyle: {
         color: '#8ea0bc',
@@ -131,13 +123,33 @@ async function renderChart() {
 function fallbackMaxByUnit(name: string): number | undefined {
   const map: Record<string, number> = {
     kW: 100,
-    kVar: 100,
     kvar: 100,
+    kVar: 100,
+    'kW / kvar': 100,
     V: 280,
     A: 200,
     PF: 1.1,
     '%': 10,
+    Hz: 55,
+    '°C': 100,
     路数: 20,
+  }
+  return map[name]
+}
+
+function fallbackMinByUnit(name: string): number | undefined {
+  const map: Record<string, number> = {
+    kW: 0,
+    kvar: 0,
+    kVar: 0,
+    'kW / kvar': 0,
+    V: 0,
+    A: 0,
+    PF: 0,
+    '%': 0,
+    Hz: 45,
+    '°C': 0,
+    路数: 0,
   }
   return map[name]
 }
@@ -147,9 +159,10 @@ function formatTimeAxisLabel(value: number, min?: string, max?: string) {
   const start = min ? new Date(min) : null
   const end = max ? new Date(max) : null
   const crossesDay = start && end
-    ? start.getFullYear() !== end.getFullYear()
-      || start.getMonth() !== end.getMonth()
-      || start.getDate() !== end.getDate()
+    ? (start.getFullYear() !== end.getFullYear()
+        || start.getMonth() !== end.getMonth()
+        || start.getDate() !== end.getDate())
+      && end.getTime() - start.getTime() > 60 * 60 * 1000
     : false
 
   const month = `${date.getMonth() + 1}`.padStart(2, '0')
@@ -177,29 +190,9 @@ watch(() => chart.chartRef.value, async () => {
 <template>
   <section class="trend-panel">
     <div class="trend-panel__head">
-      <div class="trend-panel__intro">
-        <div class="panel-title-row">
+      <div class="trend-panel__top">
+        <div class="trend-panel__intro">
           <h3>历史趋势</h3>
-          <PanelCollapseToggle
-            :collapsed="collapsed"
-            @toggle="toggle"
-          />
-        </div>
-        <span v-if="model.hint">{{ model.hint }}</span>
-      </div>
-      <div
-        v-show="!collapsed"
-        class="trend-panel__toolbar"
-      >
-        <div class="trend-panel__tab-wrapper">
-          <div class="trend-panel__tab-switcher">
-            <el-segmented
-              :model-value="activeTab"
-              :options="segmentedOptions"
-              size="small"
-              @change="$emit('update:activeTab', $event as CompensationTrendTab)"
-            />
-          </div>
         </div>
         <div class="trend-panel__range-picker">
           <el-date-picker
@@ -215,12 +208,17 @@ watch(() => chart.chartRef.value, async () => {
           />
         </div>
       </div>
+      <div class="trend-panel__tab-switcher">
+        <el-segmented
+          :model-value="activeTab"
+          :options="segmentedOptions"
+          size="small"
+          @change="$emit('update:activeTab', $event as CompensationTrendTab)"
+        />
+      </div>
     </div>
 
-    <div
-      v-show="!collapsed"
-      class="trend-panel__summary"
-    >
+    <div class="trend-panel__summary">
       <span
         v-for="item in model.summary"
         :key="item.label"
@@ -239,7 +237,6 @@ watch(() => chart.chartRef.value, async () => {
 
     <div
       v-if="model.legend.length"
-      v-show="!collapsed"
       class="trend-panel__legend"
     >
       <span
@@ -252,13 +249,13 @@ watch(() => chart.chartRef.value, async () => {
       </span>
     </div>
 
-    <div
-      v-show="!collapsed"
-      :ref="chart.chartRef"
-      v-loading="loading"
-      class="trend-panel__chart"
-      :class="{ 'trend-panel__chart--empty': model.empty }"
-    />
+    <div class="trend-panel__chart-wrap">
+      <div
+        :ref="chart.chartRef"
+        v-loading="loading"
+        class="trend-panel__chart"
+      />
+    </div>
   </section>
 </template>
 
@@ -278,6 +275,7 @@ watch(() => chart.chartRef.value, async () => {
 }
 
 .trend-panel__intro {
+  flex: 1;
   min-width: 0;
 }
 
@@ -287,27 +285,12 @@ watch(() => chart.chartRef.value, async () => {
   color: #f5f7fb;
 }
 
-.trend-panel__head span {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.trend-panel__toolbar {
+.trend-panel__top {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-.trend-panel__tab-wrapper {
-  flex: 0 1 auto;
-  min-width: 0;
-  position: relative;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .trend-panel__tab-switcher {
@@ -405,28 +388,18 @@ watch(() => chart.chartRef.value, async () => {
   box-shadow: 0 0 8px currentColor;
 }
 
-.trend-panel__chart {
-  width: 100%;
-  min-height: 320px;
-  height: clamp(320px, 38vh, 520px);
+.trend-panel__chart-wrap {
+  position: relative;
 }
 
-.trend-panel__chart--empty {
-  min-height: 220px;
-  height: 220px;
+.trend-panel__chart {
+  width: 100%;
+  height: 280px;
 }
 
 @media (max-width: 1360px) {
-  .trend-panel__toolbar {
-    justify-content: flex-start;
-  }
-
-  .trend-panel__tab-switcher,
   .trend-panel__range-picker {
     flex-basis: 100%;
-  }
-
-  .trend-panel__range-picker {
     min-width: 0;
   }
 }
@@ -435,20 +408,6 @@ watch(() => chart.chartRef.value, async () => {
   .trend-panel {
     padding: 16px;
   }
-
-  .trend-panel__chart {
-    height: 320px;
-  }
-
-  .trend-panel__chart--empty {
-    height: 220px;
-  }
 }
 
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
 </style>
