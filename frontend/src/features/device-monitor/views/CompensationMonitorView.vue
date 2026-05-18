@@ -45,6 +45,10 @@ function openControlWorkbench() {
 function openParameterWorkbench() {
   switchWorkbenchTab('parameter-settings')
 }
+
+function shouldShowSideTraceability() {
+  return !(isCapacitorBankController() && props.page.compensationWorkbenchTab === 'event-records')
+}
 </script>
 
 <template>
@@ -118,10 +122,30 @@ function openParameterWorkbench() {
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'curves'">
+            <div
+              class="comp-workbench__subtabs"
+              role="tablist"
+              aria-label="曲线分析"
+            >
+              <button
+                v-for="tab in page.compensationTrendTabs"
+                :key="tab.value"
+                type="button"
+                class="comp-workbench__subtab"
+                :class="{ 'is-active': page.compensationTrendTab === tab.value }"
+                role="tab"
+                :aria-selected="page.compensationTrendTab === tab.value"
+                @click="page.compensationTrendTab = tab.value"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
             <CompensationTrendPanel
+              v-if="page.compensationTrendTab !== 'harmonic_spectrum'"
               v-model:active-tab="page.compensationTrendTab"
               v-model:time-range="page.timeRange"
-              :tabs="page.compensationTrendTabs"
+              :tabs="[]"
               :model="page.compensationTrendModel"
               :shortcuts="page.timeShortcuts"
               :loading="page.chartLoading"
@@ -129,6 +153,7 @@ function openParameterWorkbench() {
             />
 
             <HarmonicSpectrumPanel
+              v-else
               :telemetry="page.compensationCapacitorBankTelemetry"
               :control-profile="page.compensationCapacitorBankControlProfile"
             />
@@ -204,6 +229,13 @@ function openParameterWorkbench() {
             />
 
             <ControlConsoleLogPanel :log-view="page.controlConsoleLogView" />
+
+            <CompensationEventTimeline :events="page.compensationEvents" />
+
+            <CompensationDiagnosticsCollapsible
+              v-if="page.templateDiagnostics"
+              :diagnostics="page.templateDiagnostics"
+            />
           </template>
         </div>
       </div>
@@ -251,7 +283,10 @@ function openParameterWorkbench() {
     </template>
 
     <template #side>
-      <CompensationEventTimeline :events="page.compensationEvents" />
+      <CompensationEventTimeline
+        v-if="shouldShowSideTraceability()"
+        :events="page.compensationEvents"
+      />
       <CompensationAlarmSummaryPanel
         :rows="page.alarms"
         :action-id="page.alarmActionId"
@@ -270,7 +305,7 @@ function openParameterWorkbench() {
         @edit="page.svgProfileEditVisible = true"
       />
       <CompensationDiagnosticsCollapsible
-        v-if="page.templateDiagnostics"
+        v-if="page.templateDiagnostics && shouldShowSideTraceability()"
         :diagnostics="page.templateDiagnostics"
       />
     </template>
@@ -360,6 +395,31 @@ function openParameterWorkbench() {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.comp-workbench__subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.comp-workbench__subtab {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(58, 76, 102, 0.72);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #9fb0c8;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.comp-workbench__subtab.is-active {
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(37, 99, 235, 0.2);
+  color: #eff6ff;
 }
 
 @media (max-width: 720px) {

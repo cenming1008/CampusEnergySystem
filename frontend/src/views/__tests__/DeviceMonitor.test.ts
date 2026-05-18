@@ -650,6 +650,7 @@ describe('DeviceMonitor view', () => {
 
     const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
       compensationWorkbenchTab: string
+      compensationTrendTab: string
     }
     expect(page.compensationWorkbenchTab).toBe('remote-control')
   })
@@ -660,6 +661,7 @@ describe('DeviceMonitor view', () => {
 
     const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
       compensationWorkbenchTab: string
+      compensationTrendTab: string
     }
     expect(page.compensationWorkbenchTab).toBe('runtime')
 
@@ -695,13 +697,20 @@ describe('DeviceMonitor view', () => {
 
     const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
       compensationWorkbenchTab: string
+      compensationTrendTab: string
     }
     page.compensationWorkbenchTab = 'curves'
     await nextTick()
 
-    const trendProbeText = wrapper.find('.compensation-trend-panel-spectrum-probe').text()
-    expect(trendProbeText).toContain('谐波趋势')
-    expect(trendProbeText).not.toContain('高次谐波')
+    const curvesTabText = wrapper.find('.comp-workbench__subtabs').text()
+    expect(curvesTabText).toContain('谐波趋势')
+    expect(curvesTabText).toContain('高次谐波')
+    expect(wrapper.find('.compensation-trend-panel-spectrum-probe').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(false)
+
+    page.compensationTrendTab = 'harmonic_spectrum'
+    await nextTick()
+
     expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(true)
   })
 
@@ -1216,6 +1225,7 @@ describe('DeviceMonitor view', () => {
     await flushAsync()
 
     expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(2)
+    expect(getDeviceMonitorControlLogsMock).toHaveBeenCalledTimes(3)
     expect(wrapper.find('.realtime-overview-probe').text()).toBe('20/20')
   })
 

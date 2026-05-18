@@ -358,6 +358,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
         { label: '三相电压', value: 'phase_voltage' },
         { label: '三相电流', value: 'phase_current' },
         { label: '谐波趋势', value: 'harmonic' },
+        { label: '高次谐波', value: 'harmonic_spectrum' },
         { label: '投切回放', value: 'switching' },
         { label: '温度/健康度', value: 'health' },
       ]

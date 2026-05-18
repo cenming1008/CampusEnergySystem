@@ -18,6 +18,7 @@ export type CompensationTrendTab =
   | 'phase_voltage'
   | 'phase_current'
   | 'harmonic'
+  | 'harmonic_spectrum'
   | 'switching'
 export type ModuleStateTone = 'running' | 'standby' | 'alarm' | 'fault'
 

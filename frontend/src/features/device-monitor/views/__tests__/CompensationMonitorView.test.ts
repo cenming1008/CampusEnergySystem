@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, nextTick, reactive } from 'vue'
 import { shallowMount } from '@vue/test-utils'
 import CompensationMonitorView from '../CompensationMonitorView.vue'
 
@@ -107,7 +107,11 @@ function createPage(tab = 'runtime') {
     compensationCapacitorBankControlProfile: null,
     compensationTrendTab: 'effect',
     timeRange: null,
-    compensationTrendTabs: [],
+    compensationTrendTabs: [
+      { label: '补偿效果', value: 'effect' },
+      { label: '谐波趋势', value: 'harmonic' },
+      { label: '高次谐波', value: 'harmonic_spectrum' },
+    ],
     compensationTrendModel: {},
     timeShortcuts: [],
     chartLoading: false,
@@ -123,7 +127,10 @@ function createPage(tab = 'runtime') {
     },
     compensationProfileItems: [],
     svgProfileEditVisible: false,
-    templateDiagnostics: null,
+    templateDiagnostics: {
+      template_key: 'capacitor_bank_controller',
+      overall_status: 'passed',
+    },
     compensationSvgProfile: null,
     loadSVGProfile: vi.fn(),
     controlConsoleLoadError: '',
@@ -231,6 +238,21 @@ describe('CompensationMonitorView', () => {
 
     expect(wrapper.find('.alarm-table-stub').exists()).toBe(true)
     expect(wrapper.find('.log-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.event-timeline-stub').exists()).toBe(true)
+    expect(wrapper.find('.diagnostics-stub').exists()).toBe(true)
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
+  })
+
+  it('switches high-order harmonics through the curves local tabs', async () => {
+    const { wrapper, page } = mountView('curves')
+
+    expect(wrapper.find('.trend-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.harmonic-panel-stub').exists()).toBe(false)
+
+    page.compensationTrendTab = 'harmonic_spectrum'
+    await nextTick()
+
+    expect(wrapper.find('.harmonic-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.trend-panel-stub').exists()).toBe(false)
   })
 })

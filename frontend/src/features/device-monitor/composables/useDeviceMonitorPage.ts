@@ -441,6 +441,9 @@ export function useDeviceMonitorPage() {
       await loadStatusHistory()
       await loadAlarms()
       await compensation.refreshCompensationData()
+      if (compensation.compensationSubtype.value === 'capacitor_bank_controller' && overview.value) {
+        await capacitorBankControlConsole.loadPageWithOverview(overview.value)
+      }
       if (storage.isStorageDevice.value) await storage.refreshStorageData()
     } catch {
       // axios 统一处理
