@@ -45,12 +45,20 @@ const pfLines = [
 const pfLineGeometry = computed(() =>
   pfLines.map((l) => {
     const ang = Math.acos(l.pf)
-    const x1 = CX + Math.cos(ang) * SCALE
-    const yLag = CY - Math.sin(ang) * SCALE
-    const yLead = CY + Math.sin(ang) * SCALE
+    const k = (P_MAX / Q_MAX) * Math.tan(ang)
+    const norm = Math.sqrt(1 + k * k)
+    const x1 = CX + SCALE / norm
+    const yLag = CY - (k * SCALE) / norm
+    const yLead = CY + (k * SCALE) / norm
     return { ...l, x1, yLag, yLead }
   }),
 )
+
+const targetZonePath = computed(() => {
+  const t = pfLineGeometry.value.find((l) => l.pf === 0.95)
+  if (!t) return ''
+  return `M ${CX} ${CY} L ${t.x1.toFixed(1)} ${t.yLag.toFixed(1)} L ${t.x1.toFixed(1)} ${t.yLead.toFixed(1)} Z`
+})
 </script>
 
 <template>
@@ -79,10 +87,7 @@ const pfLineGeometry = computed(() =>
         <rect x="0" y="0" :width="W" :height="CY" fill="#0e1828" fill-opacity="0.4" />
         <circle v-for="r in [0.33, 0.66, 1]" :key="r" :cx="CX" :cy="CY" :r="SCALE * r" fill="none" stroke="#1f2c41" stroke-dasharray="2 3" />
 
-        <path
-          :d="`M ${CX} ${CY} L ${CX + SCALE * 0.95} ${CY - SCALE * 0.31} A ${SCALE} ${SCALE} 0 0 0 ${CX + SCALE * 0.95} ${CY + SCALE * 0.31} Z`"
-          fill="url(#pqTarget)"
-        />
+        <path :d="targetZonePath" fill="url(#pqTarget)" />
 
         <g v-for="l in pfLineGeometry" :key="l.pf" :stroke="l.color" stroke-opacity="0.35" stroke-dasharray="3 4">
           <line :x1="CX" :y1="CY" :x2="l.x1" :y2="l.yLag" />
