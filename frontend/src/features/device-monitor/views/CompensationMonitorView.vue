@@ -250,6 +250,7 @@ function isRuntimeTab() {
           :rows="page.alarms"
           :action-id="page.alarmActionId"
           @resolve="page.handleResolveAlarm"
+          @view-all="switchWorkbenchTab('event-records')"
         />
         <CompensationParamSummary
           :items="runtimeParamItems"

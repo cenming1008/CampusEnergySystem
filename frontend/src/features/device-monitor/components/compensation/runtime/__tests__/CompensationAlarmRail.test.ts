@@ -38,4 +38,19 @@ describe('CompensationAlarmRail', () => {
     })
     expect(wrapper.text()).toContain('暂无未处理告警')
   })
+
+  it('点击"查看全部"footer emit view-all 且 rows 为空时不显示', async () => {
+    const wrapper = mount(CompensationAlarmRail, {
+      props: { rows: [makeAlarm(1), makeAlarm(2)], actionId: null },
+    })
+    const footer = wrapper.find('[data-test="alarm-view-all"]')
+    expect(footer.exists()).toBe(true)
+    await footer.trigger('click')
+    expect(wrapper.emitted('view-all')).toHaveLength(1)
+
+    const emptyWrapper = mount(CompensationAlarmRail, {
+      props: { rows: [], actionId: null },
+    })
+    expect(emptyWrapper.find('[data-test="alarm-view-all"]').exists()).toBe(false)
+  })
 })

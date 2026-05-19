@@ -8,7 +8,10 @@ const props = defineProps({
   actionId: { type: Number as PropType<number | null>, default: null },
 })
 
-const emit = defineEmits<{ (e: 'resolve', row: DeviceAlarmRecord): void }>()
+const emit = defineEmits<{
+  (e: 'resolve', row: DeviceAlarmRecord): void
+  (e: 'view-all'): void
+}>()
 
 const unresolved = computed(() => props.rows.filter((r) => !r.is_resolved))
 
@@ -64,6 +67,12 @@ function timeText(timestamp: string): string {
         </div>
       </div>
     </div>
+    <footer
+      v-if="rows.length > 0"
+      class="rail-footer"
+      data-test="alarm-view-all"
+      @click="emit('view-all')"
+    >查看全部 {{ rows.length }} 条记录 →</footer>
   </section>
 </template>
 
@@ -177,5 +186,18 @@ function timeText(timestamp: string): string {
 .rail-resolve:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.rail-footer {
+  border-top: 1px solid #1f2c41;
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 10px;
+  color: #22d3ee;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.rail-footer:hover {
+  color: #67e8f9;
 }
 </style>
