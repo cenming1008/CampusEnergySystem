@@ -9,7 +9,6 @@ import CompensationHealthCard from './CompensationHealthCard.vue'
 import CompensationBankTopology from './CompensationBankTopology.vue'
 import CompensationPhaseMatrix from './CompensationPhaseMatrix.vue'
 import CompensationCircuitDrawer from './CompensationCircuitDrawer.vue'
-import CompensationThreePhasePanel from '../CompensationThreePhasePanel.vue'
 import CompensationModeToggle from './CompensationModeToggle.vue'
 
 const props = defineProps({
@@ -114,11 +113,6 @@ function handleCircuitSwitch(payload: {
 
     <div class="rt-bottom">
       <CompensationPhaseMatrix :telemetry="page.compensationCapacitorBankTelemetry" />
-      <CompensationThreePhasePanel
-        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-        :is-capacitor-bank="true"
-        :measurement-metrics="page.compensationMeasurementMetrics"
-      />
     </div>
 
     <CompensationCircuitDrawer
@@ -149,19 +143,10 @@ function handleCircuitSwitch(payload: {
   min-width: 0;
 }
 .rt-bottom {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-items: start;
-}
-.rt-bottom > * {
-  min-width: 0;
+  display: block;
 }
 @media (max-width: 1280px) {
   .rt-hero {
-    grid-template-columns: 1fr;
-  }
-  .rt-bottom {
     grid-template-columns: 1fr;
   }
 }

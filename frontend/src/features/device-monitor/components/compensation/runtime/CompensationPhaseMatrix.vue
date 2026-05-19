@@ -5,10 +5,9 @@ import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
 
 type CellSeverity = 'ok' | 'warn' | 'crit' | 'na'
 
-interface MatrixCell {
-  text: string
-  severity: CellSeverity
-}
+type MatrixCell =
+  | { display: 'value'; text: string }
+  | { display: 'chip'; text: string; severity: CellSeverity }
 
 interface MatrixRow {
   label: string
@@ -31,86 +30,134 @@ function num(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function plainCell(text: string): MatrixCell {
+  return { display: 'value', text }
+}
+
 function phaseStatusCell(flag: boolean | null | undefined): MatrixCell {
-  if (flag === true) return { text: '超前', severity: 'warn' }
-  if (flag === false) return { text: '正常', severity: 'ok' }
-  return { text: '--', severity: 'na' }
+  if (flag === true) return { display: 'chip', text: '超前', severity: 'warn' }
+  if (flag === false) return { display: 'chip', text: '正常', severity: 'ok' }
+  return { display: 'chip', text: '--', severity: 'na' }
 }
 
 function valueCell(value: number | null, unit: string, threshold: number | null, digits = 1): MatrixCell {
-  if (value === null) return { text: '--', severity: 'na' }
+  if (value === null) return { display: 'chip', text: '--', severity: 'na' }
   let severity: CellSeverity = 'ok'
   if (threshold !== null) {
     if (value > threshold) severity = 'crit'
     else if (value > threshold * 0.8) severity = 'warn'
   }
-  return { text: `${value.toFixed(digits)}${unit}`, severity }
+  return { display: 'chip', text: `${value.toFixed(digits)}${unit}`, severity }
 }
 
 function systemCell(cells: MatrixCell[]): MatrixCell {
-  if (cells.every((c) => c.severity === 'na')) return { text: '--', severity: 'na' }
-  if (cells.some((c) => c.severity === 'crit')) return { text: '超限', severity: 'crit' }
-  if (cells.some((c) => c.severity === 'warn')) return { text: '异常', severity: 'warn' }
-  return { text: '正常', severity: 'ok' }
+  const chips = cells.filter((c): c is Extract<MatrixCell, { display: 'chip' }> => c.display === 'chip')
+  if (chips.every((c) => c.severity === 'na')) return { display: 'chip', text: '--', severity: 'na' }
+  if (chips.some((c) => c.severity === 'crit')) return { display: 'chip', text: '超限', severity: 'crit' }
+  if (chips.some((c) => c.severity === 'warn')) return { display: 'chip', text: '异常', severity: 'warn' }
+  return { display: 'chip', text: '正常', severity: 'ok' }
+}
+
+function fmtValue(value: number | null | undefined, digits: number): string {
+  const n = num(value)
+  return n === null ? '--' : n.toFixed(digits)
+}
+
+function meanCell(values: Array<number | null | undefined>, digits: number): MatrixCell {
+  const defined = values.map(num).filter((v): v is number => v !== null)
+  if (defined.length === 0) return plainCell('--')
+  const mean = defined.reduce((a, b) => a + b, 0) / defined.length
+  return plainCell(mean.toFixed(digits))
+}
+
+function sumCell(values: Array<number | null | undefined>, digits: number): MatrixCell {
+  const defined = values.map(num).filter((v): v is number => v !== null)
+  if (defined.length === 0) return plainCell('--')
+  const sum = defined.reduce((a, b) => a + b, 0)
+  return plainCell(sum.toFixed(digits))
 }
 
 const rows = computed<MatrixRow[]>(() => {
   const t = props.telemetry
-  const leadingCells = [
+
+  // --- 量测行 ---
+  const measurementRows: MatrixRow[] = [
+    {
+      label: '电压 (V)',
+      cells: [plainCell(fmtValue(t?.voltage_a, 1)), plainCell(fmtValue(t?.voltage_b, 1)), plainCell(fmtValue(t?.voltage_c, 1))],
+      system: meanCell([t?.voltage_a, t?.voltage_b, t?.voltage_c], 1),
+    },
+    {
+      label: '电流 (A)',
+      cells: [plainCell(fmtValue(t?.current_a, 1)), plainCell(fmtValue(t?.current_b, 1)), plainCell(fmtValue(t?.current_c, 1))],
+      system: meanCell([t?.current_a, t?.current_b, t?.current_c], 1),
+    },
+    {
+      label: '有功 (kW)',
+      cells: [plainCell(fmtValue(t?.active_power_a, 1)), plainCell(fmtValue(t?.active_power_b, 1)), plainCell(fmtValue(t?.active_power_c, 1))],
+      system: sumCell([t?.active_power_a, t?.active_power_b, t?.active_power_c], 1),
+    },
+    {
+      label: '无功 (kvar)',
+      cells: [plainCell(fmtValue(t?.reactive_power_a, 1)), plainCell(fmtValue(t?.reactive_power_b, 1)), plainCell(fmtValue(t?.reactive_power_c, 1))],
+      system: sumCell([t?.reactive_power_a, t?.reactive_power_b, t?.reactive_power_c], 1),
+    },
+    {
+      label: '视在 (kVA)',
+      cells: [plainCell(fmtValue(t?.apparent_power_a, 1)), plainCell(fmtValue(t?.apparent_power_b, 1)), plainCell(fmtValue(t?.apparent_power_c, 1))],
+      system: sumCell([t?.apparent_power_a, t?.apparent_power_b, t?.apparent_power_c], 1),
+    },
+    {
+      label: '功率因数',
+      cells: [plainCell(fmtValue(t?.power_factor_a, 3)), plainCell(fmtValue(t?.power_factor_b, 3)), plainCell(fmtValue(t?.power_factor_c, 3))],
+      system: meanCell([t?.power_factor_a, t?.power_factor_b, t?.power_factor_c], 3),
+    },
+  ]
+
+  // --- 指标行 ---
+  const leadingCells: MatrixCell[] = [
     phaseStatusCell(t?.leading_a),
     phaseStatusCell(t?.leading_b),
     phaseStatusCell(t?.leading_c),
   ]
-  const phaseRow: MatrixRow = { label: '相位状态', cells: leadingCells, system: systemCell(leadingCells) }
-
-  const definitions: Array<{ label: string; unit: string; threshold: number | null; values: Array<number | null> }> = [
-    {
-      label: '电流幅值',
-      unit: ' A',
-      threshold: null,
-      values: [num(t?.current_a), num(t?.current_b), num(t?.current_c)],
-    },
-    {
-      label: 'V-THD 谐波',
-      unit: '%',
-      threshold: VOLTAGE_THD_THRESHOLD,
-      values: [num(t?.voltage_thd_a), num(t?.voltage_thd_b), num(t?.voltage_thd_c)],
-    },
-    {
-      label: 'I-THD 谐波',
-      unit: '%',
-      threshold: CURRENT_THD_THRESHOLD,
-      values: [num(t?.current_harmonic_a), num(t?.current_harmonic_b), num(t?.current_harmonic_c)],
-    },
+  const vThdCells: MatrixCell[] = [
+    valueCell(num(t?.voltage_thd_a), '%', VOLTAGE_THD_THRESHOLD),
+    valueCell(num(t?.voltage_thd_b), '%', VOLTAGE_THD_THRESHOLD),
+    valueCell(num(t?.voltage_thd_c), '%', VOLTAGE_THD_THRESHOLD),
   ]
-  const metricRows = definitions.map((def) => {
-    const cells = def.values.map((v) => valueCell(v, def.unit, def.threshold))
-    return { label: def.label, cells, system: systemCell(cells) }
-  })
+  const iThdCells: MatrixCell[] = [
+    valueCell(num(t?.current_harmonic_a), '%', CURRENT_THD_THRESHOLD),
+    valueCell(num(t?.current_harmonic_b), '%', CURRENT_THD_THRESHOLD),
+    valueCell(num(t?.current_harmonic_c), '%', CURRENT_THD_THRESHOLD),
+  ]
+  const indicatorRows: MatrixRow[] = [
+    { label: '相位状态', cells: leadingCells, system: systemCell(leadingCells) },
+    { label: 'V-THD (%)', cells: vThdCells, system: systemCell(vThdCells) },
+    { label: 'I-THD (%)', cells: iThdCells, system: systemCell(iThdCells) },
+  ]
 
-  // 柜内温度：单值，铺到系统列
+  // --- 柜温行 ---
   const temp = num(t?.temperature)
-  const tempCell = valueCell(temp, ' °C', TEMP_THRESHOLD, 0)
+  const tempText = temp === null ? '--' : `${temp.toFixed(0)} °C`
+  const tempSystemCell: MatrixCell =
+    temp !== null && temp > TEMP_THRESHOLD
+      ? { display: 'value', text: tempText }
+      : plainCell(tempText)
   const tempRow: MatrixRow = {
-    label: '柜内温度',
-    cells: [
-      { text: '—', severity: 'na' },
-      { text: '—', severity: 'na' },
-      { text: '—', severity: 'na' },
-    ],
-    system: tempCell,
+    label: '柜温 (°C)',
+    cells: [plainCell('—'), plainCell('—'), plainCell('—')],
+    system: tempSystemCell,
   }
-  return [phaseRow, ...metricRows, tempRow]
+
+  return [...measurementRows, ...indicatorRows, tempRow]
 })
 
 const alarmCount = computed(() =>
   rows.value.reduce((sum, row) => {
-    const phaseConcern = row.cells.filter((c) => c.severity === 'crit' || c.severity === 'warn').length
-    // 温度行实测值在系统列、相位列为占位符，改用系统列计数；指标行的系统列是相位的汇总，不重复计入
-    const isPlaceholderRow = row.cells.every((c) => c.severity === 'na')
-    const systemConcern =
-      isPlaceholderRow && (row.system.severity === 'crit' || row.system.severity === 'warn') ? 1 : 0
-    return sum + phaseConcern + systemConcern
+    const phaseConcern = row.cells.filter(
+      (c): c is Extract<MatrixCell, { display: 'chip' }> => c.display === 'chip',
+    ).filter((c) => c.severity === 'crit' || c.severity === 'warn').length
+    return sum + phaseConcern
   }, 0),
 )
 </script>
@@ -118,7 +165,7 @@ const alarmCount = computed(() =>
 <template>
   <section class="matrix-card">
     <header class="rt-card-head">
-      <span class="rt-card-title"><span class="rt-accent" />三相状态总览</span>
+      <span class="rt-card-title"><span class="rt-accent" />三相量测总览</span>
       <span class="matrix-meta">{{ alarmCount }} 项关注</span>
     </header>
     <div class="matrix-body">
@@ -136,10 +183,12 @@ const alarmCount = computed(() =>
           <tr v-for="row in rows" :key="row.label">
             <td class="matrix-row-head">{{ row.label }}</td>
             <td v-for="(cell, i) in row.cells" :key="i">
-              <span class="matrix-cell" :class="`is-${cell.severity}`">{{ cell.text }}</span>
+              <span v-if="cell.display === 'chip'" class="matrix-cell" :class="`is-${cell.severity}`">{{ cell.text }}</span>
+              <span v-else class="matrix-value" :class="{ 'is-missing': cell.text === '--' }">{{ cell.text }}</span>
             </td>
             <td>
-              <span class="matrix-cell" :class="`is-${row.system.severity}`">{{ row.system.text }}</span>
+              <span v-if="row.system.display === 'chip'" class="matrix-cell" :class="`is-${row.system.severity}`">{{ row.system.text }}</span>
+              <span v-else class="matrix-value" :class="{ 'is-missing': row.system.text === '--' }">{{ row.system.text }}</span>
             </td>
           </tr>
         </tbody>
@@ -242,5 +291,14 @@ const alarmCount = computed(() =>
 }
 .matrix-cell.is-na {
   opacity: 0.5;
+}
+.matrix-value {
+  display: inline-block;
+  font-size: 11px;
+  color: #e5edf7;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-value.is-missing {
+  color: #5e6c83;
 }
 </style>

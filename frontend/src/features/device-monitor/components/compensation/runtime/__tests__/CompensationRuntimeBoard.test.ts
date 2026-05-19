@@ -49,7 +49,6 @@ function mountBoard(page: Record<string, unknown>) {
         CompensationBankTopology: { template: '<div><slot name="header-actions" /></div>', name: 'CompensationBankTopology' },
         CompensationPhaseMatrix: true,
         CompensationCircuitDrawer: true,
-        CompensationThreePhasePanel: true,
         CompensationModeToggle: true,
       },
     },
@@ -82,10 +81,9 @@ describe('CompensationRuntimeBoard', () => {
     expect(wrapper.findComponent({ name: 'CompensationCircuitDrawer' }).exists()).toBe(true)
   })
 
-  it('底部行同时渲染相矩阵与三相电气面板', () => {
+  it('底部行渲染统一相矩阵（全宽）', () => {
     const wrapper = mountBoard(makePage())
     expect(wrapper.findComponent({ name: 'CompensationPhaseMatrix' }).exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'CompensationThreePhasePanel' }).exists()).toBe(true)
   })
 
   it('控制模式切换开关渲染在拓扑卡头部', () => {
