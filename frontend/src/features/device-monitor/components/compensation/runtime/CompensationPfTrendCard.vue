@@ -53,7 +53,7 @@ const geometry = computed(() => {
   const band =
     target !== null && isFinite(target) && target > MIN && target < MAX
       ? (() => {
-          const yTop = PAD.t + h - ((MAX - MIN) / (MAX - MIN)) * h
+          const yTop = PAD.t // y for PF = MAX (top of the chart)
           const yBot = PAD.t + h - ((target - MIN) / (MAX - MIN)) * h
           return { y: yTop, h: yBot - yTop, bot: yBot }
         })()
