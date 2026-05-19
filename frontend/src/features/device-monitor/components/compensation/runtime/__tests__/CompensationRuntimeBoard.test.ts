@@ -12,6 +12,7 @@ function makePage(overrides: Record<string, unknown> = {}) {
     compensationHealthModel: { score: 78, rating: '良好', ratingTone: 'success', breakdown: [] },
     compensationCapacitorBankTelemetry: null,
     compensationCircuitProfile: {},
+    compensationMeasurementMetrics: [],
     compensationEvents: [],
     alarms: [],
     alarmActionId: null,
@@ -45,11 +46,11 @@ function mountBoard(page: Record<string, unknown>) {
         CompensationPfTrendCard: true,
         CompensationPqQuadrantCard: true,
         CompensationHealthCard: true,
-        CompensationBankTopology: true,
+        CompensationBankTopology: { template: '<div><slot name="header-actions" /></div>', name: 'CompensationBankTopology' },
         CompensationPhaseMatrix: true,
         CompensationCircuitDrawer: true,
-        ControlConsoleRemotePanel: true,
-        MonitorInlineAlert: true,
+        CompensationThreePhasePanel: true,
+        CompensationModeToggle: true,
       },
     },
   })
@@ -81,9 +82,14 @@ describe('CompensationRuntimeBoard', () => {
     expect(wrapper.findComponent({ name: 'CompensationCircuitDrawer' }).exists()).toBe(true)
   })
 
-  it('控制台加载错误时显示告警而非远程控制面板', () => {
-    const wrapper = mountBoard(makePage({ controlConsoleLoadError: '控制台不可用' }))
-    expect(wrapper.findComponent({ name: 'ControlConsoleRemotePanel' }).exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'MonitorInlineAlert' }).exists()).toBe(true)
+  it('底部行同时渲染相矩阵与三相电气面板', () => {
+    const wrapper = mountBoard(makePage())
+    expect(wrapper.findComponent({ name: 'CompensationPhaseMatrix' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'CompensationThreePhasePanel' }).exists()).toBe(true)
+  })
+
+  it('控制模式切换开关渲染在拓扑卡头部', () => {
+    const wrapper = mountBoard(makePage())
+    expect(wrapper.findComponent({ name: 'CompensationModeToggle' }).exists()).toBe(true)
   })
 })

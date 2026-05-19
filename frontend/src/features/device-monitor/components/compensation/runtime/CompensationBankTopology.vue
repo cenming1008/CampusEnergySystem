@@ -118,10 +118,13 @@ function handlePick(
         <span class="rt-accent" />电容器组拓扑
         <span class="rt-sub">分补 + 公补 · {{ summary.running }} 路投运</span>
       </span>
-      <div class="topo-legend">
-        <span><i class="sw on" />投入</span>
-        <span><i class="sw off" />切除</span>
-        <span><i class="sw empty" />未配置</span>
+      <div class="topo-head-actions">
+        <slot name="header-actions" />
+        <div class="topo-legend">
+          <span><i class="sw on" />投入</span>
+          <span><i class="sw off" />切除</span>
+          <span><i class="sw empty" />未配置</span>
+        </div>
       </div>
     </header>
 
@@ -198,6 +201,11 @@ function handlePick(
 .rt-sub {
   color: #5e6c83;
   font-weight: 400;
+}
+.topo-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .topo-legend {
   display: flex;

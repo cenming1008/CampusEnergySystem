@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { PropType } from 'vue'
-import ControlConsoleRemotePanel from '@/features/device-control/components/ControlConsoleRemotePanel.vue'
-import MonitorInlineAlert from '@/shared/components/MonitorInlineAlert.vue'
 import type { DeviceMonitorPageModel } from '@/features/device-monitor/composables/useDeviceMonitorPage'
 import type { CompensationCircuitPick } from '../types'
 import CompensationPfTrendCard from './CompensationPfTrendCard.vue'
@@ -11,6 +9,8 @@ import CompensationHealthCard from './CompensationHealthCard.vue'
 import CompensationBankTopology from './CompensationBankTopology.vue'
 import CompensationPhaseMatrix from './CompensationPhaseMatrix.vue'
 import CompensationCircuitDrawer from './CompensationCircuitDrawer.vue'
+import CompensationThreePhasePanel from '../CompensationThreePhasePanel.vue'
+import CompensationModeToggle from './CompensationModeToggle.vue'
 
 const props = defineProps({
   page: {
@@ -20,6 +20,16 @@ const props = defineProps({
 })
 
 const pickedCircuit = ref<CompensationCircuitPick | null>(null)
+
+const modeSwitchCard = computed(() =>
+  props.page.controlConsoleActionCards.find((card) => card.key === 'switch_control_mode'),
+)
+const controlMode = computed<'auto' | 'manual' | 'unknown'>(() => {
+  const label = props.page.controlConsoleCurrentControlModeLabel || ''
+  if (label.includes('自动')) return 'auto'
+  if (label.includes('手动')) return 'manual'
+  return 'unknown'
+})
 
 const RANGE_MS: Record<'10m' | '1h' | '24h', number> = {
   '10m': 10 * 60 * 1000,
@@ -89,36 +99,25 @@ function handleCircuitSwitch(payload: {
         :telemetry="page.compensationCapacitorBankTelemetry"
         :circuit-profile="page.compensationCircuitProfile"
         @pick="pickedCircuit = $event"
-      />
+      >
+        <template #header-actions>
+          <CompensationModeToggle
+            :mode="controlMode"
+            :disabled="!modeSwitchCard || !modeSwitchCard.enabled"
+            :disabled-reason="modeSwitchCard?.disabledReason || '远程控制当前不可用'"
+            :submitting="page.controlConsoleToggleSubmitting"
+            @switch="page.handleControlConsoleActionCard('switch_control_mode')"
+          />
+        </template>
+      </CompensationBankTopology>
     </div>
 
     <div class="rt-bottom">
       <CompensationPhaseMatrix :telemetry="page.compensationCapacitorBankTelemetry" />
-
-      <MonitorInlineAlert
-        v-if="page.controlConsoleLoadError"
-        title="远程控制暂不可用"
-        :message="page.controlConsoleLoadError"
-        tone="danger"
-      />
-      <ControlConsoleRemotePanel
-        v-else
-        :action-cards="page.controlConsoleActionCards"
-        :toggle-submitting="page.controlConsoleToggleSubmitting"
-        :current-control-mode-label="page.controlConsoleCurrentControlModeLabel"
-        :can-run-manual-switch="page.controlConsoleCanRunManualSwitch"
-        :manual-switch-disabled-reason="page.controlConsoleManualSwitchDisabledReason"
-        :manual-phase-options="page.controlConsoleManualPhaseOptions"
-        :manual-switch-action-options="page.controlConsoleManualSwitchActionOptions"
-        :manual-common-group-options="page.controlConsoleManualCommonGroupOptions"
-        :manual-phase="page.controlConsoleManualSwitchForm.phase"
-        :manual-switch-action="page.controlConsoleManualSwitchForm.switch_action"
-        :manual-common-group="page.controlConsoleManualSwitchForm.group"
-        @action-card="page.handleControlConsoleActionCard"
-        @update:manual-phase="page.controlConsoleManualSwitchForm.phase = $event"
-        @update:manual-switch-action="page.controlConsoleManualSwitchForm.switch_action = $event"
-        @update:manual-common-group="page.controlConsoleManualSwitchForm.group = $event"
-        @manual-switch="page.handleControlConsoleManualSwitchCommand"
+      <CompensationThreePhasePanel
+        :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
+        :is-capacitor-bank="true"
+        :measurement-metrics="page.compensationMeasurementMetrics"
       />
     </div>
 
@@ -149,14 +148,20 @@ function handleCircuitSwitch(payload: {
   min-height: 244px;
   min-width: 0;
 }
-/* 远程控制复用的 ControlConsoleRemotePanel 是整宽组件，纵向堆叠以保证其布局不溢出 */
 .rt-bottom {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: start;
+}
+.rt-bottom > * {
+  min-width: 0;
 }
 @media (max-width: 1280px) {
   .rt-hero {
+    grid-template-columns: 1fr;
+  }
+  .rt-bottom {
     grid-template-columns: 1fr;
   }
 }
