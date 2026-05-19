@@ -86,7 +86,7 @@ function doSwitch(action: 'on' | 'off') {
           <button
             type="button"
             class="drawer-btn primary"
-            data-test="circuit-action"
+            data-test="circuit-action-on"
             :disabled="!canControl"
             @click="doSwitch('on')"
           >立即投入</button>

@@ -33,7 +33,7 @@ describe('CompensationCircuitDrawer', () => {
     const wrapper = mount(CompensationCircuitDrawer, {
       props: { circuit, canControl: false, events: [] },
     })
-    const buttons = wrapper.findAll('[data-test="circuit-action"]')
+    const buttons = wrapper.findAll('[data-test^="circuit-action"]')
     expect(buttons.every((b) => b.attributes('disabled') !== undefined)).toBe(true)
   })
 
