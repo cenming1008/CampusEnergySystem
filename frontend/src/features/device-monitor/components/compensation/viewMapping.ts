@@ -28,6 +28,8 @@ import type {
   HarmonicSpectrumPhase,
   ModuleStateTone,
   ModuleStatusModel,
+  CompensationHealthModel,
+  CompensationHealthDimension,
 } from './types'
 
 export type CompensationSemanticSourceKind =
@@ -1573,4 +1575,116 @@ export function buildCompensationTrendView(input: CompensationTrendViewInput): C
     hint: hasHealthData ? (input.isSvgDevice ? '展示采集的柜内及核心器件温度历史走势。' : '展示柜内温度与频率历史走势。') : '当前时间范围内没有温度或频率历史数据。',
     isMock: false,
   }
+}
+
+/* ───── 设备健康度模型 ───── */
+
+export interface CompensationHealthModelInput {
+  ingestionStatus?: string | null
+  isRealtimeFresh: boolean
+  voltageThd: Array<number | null | undefined>
+  currentThd: Array<number | null | undefined>
+  temperature: number | null | undefined
+  voltage: number | null | undefined
+  /** [overvoltage_a,b,c, undercurrent_a,b,c]，true=异常。 */
+  switchingFlags: Array<boolean | null | undefined>
+}
+
+const HEALTH_VOLTAGE_THD_THRESHOLD = 5
+const HEALTH_CURRENT_THD_THRESHOLD = 5
+const HEALTH_TEMP_THRESHOLD = 55
+const HEALTH_NOMINAL_VOLTAGE = 220
+
+function clampHealthScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+/** 低于门限得高分，超门限急剧下降。 */
+function scoreByThreshold(value: number, threshold: number): number {
+  const ratio = value / threshold
+  if (ratio <= 1) return clampHealthScore(100 - ratio * 20)
+  return clampHealthScore(80 - (ratio - 1) * 40)
+}
+
+function maxDefinedNumber(values: Array<number | null | undefined>): number | null {
+  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  return nums.length ? Math.max(...nums) : null
+}
+
+function commHealthScore(ingestionStatus: string | null | undefined, isRealtimeFresh: boolean): number | null {
+  if (ingestionStatus === 'online') return isRealtimeFresh ? 100 : 70
+  if (ingestionStatus === 'degraded') return 55
+  if (ingestionStatus === 'offline') return 15
+  return null
+}
+
+function voltageStabilityScore(voltage: number | null | undefined): number | null {
+  if (typeof voltage !== 'number' || !Number.isFinite(voltage)) return null
+  const deviationPct = (Math.abs(voltage - HEALTH_NOMINAL_VOLTAGE) / HEALTH_NOMINAL_VOLTAGE) * 100
+  return clampHealthScore(100 - deviationPct * 4)
+}
+
+function switchingHealthScore(flags: Array<boolean | null | undefined>): number | null {
+  if (flags.every((f) => f === null || f === undefined)) return null
+  const activeCount = flags.filter((f) => f === true).length
+  return clampHealthScore(100 - activeCount * 18)
+}
+
+function healthRating(score: number | null): { rating: string; ratingTone: CompensationTone } {
+  if (score === null) return { rating: '暂无评级', ratingTone: 'neutral' }
+  if (score >= 85) return { rating: '优秀', ratingTone: 'success' }
+  if (score >= 70) return { rating: '良好', ratingTone: 'success' }
+  if (score >= 50) return { rating: '关注', ratingTone: 'warning' }
+  return { rating: '异常', ratingTone: 'danger' }
+}
+
+export function buildCompensationHealthModel(input: CompensationHealthModelInput): CompensationHealthModel {
+  const vthd = maxDefinedNumber(input.voltageThd)
+  const cthd = maxDefinedNumber(input.currentThd)
+
+  const breakdown: CompensationHealthDimension[] = [
+    {
+      key: 'comm',
+      label: '通讯链路',
+      value: commHealthScore(input.ingestionStatus, input.isRealtimeFresh),
+    },
+    {
+      key: 'voltageHarmonic',
+      label: '电压谐波',
+      value: vthd === null ? null : scoreByThreshold(vthd, HEALTH_VOLTAGE_THD_THRESHOLD),
+    },
+    {
+      key: 'currentHarmonic',
+      label: '电流谐波',
+      value: cthd === null ? null : scoreByThreshold(cthd, HEALTH_CURRENT_THD_THRESHOLD),
+    },
+    {
+      key: 'switching',
+      label: '投切动作',
+      value: switchingHealthScore(input.switchingFlags),
+    },
+    {
+      key: 'temperature',
+      label: '温度',
+      value:
+        typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+          ? scoreByThreshold(input.temperature, HEALTH_TEMP_THRESHOLD)
+          : null,
+    },
+    {
+      key: 'voltageStability',
+      label: '电压稳定',
+      value: voltageStabilityScore(input.voltage),
+    },
+  ]
+
+  const definedScores = breakdown
+    .map((d) => d.value)
+    .filter((v): v is number => v !== null)
+  const score = definedScores.length
+    ? clampHealthScore(definedScores.reduce((sum, v) => sum + v, 0) / definedScores.length)
+    : null
+  const { rating, ratingTone } = healthRating(score)
+
+  return { score, rating, ratingTone, breakdown }
 }
