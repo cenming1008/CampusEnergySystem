@@ -1,0 +1,337 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { PropType } from 'vue'
+import type { CompensationCapacitorBankTelemetry } from '@/api/compensation'
+import {
+  getCircuitGroups,
+  resolvedConfiguredCounts,
+  toBits,
+} from '../circuitStateUtils'
+import type { CompensationCircuitPick, CompensationCircuitSlotState } from '../types'
+
+interface CircuitProfileView {
+  splitCircuitCount?: number
+  commonCircuitCount?: number
+  phaseACircuitTotalCount?: number
+  phaseBCircuitTotalCount?: number
+  phaseCCircuitTotalCount?: number
+  common1CircuitTotalCount?: number
+  common2CircuitTotalCount?: number
+  common3CircuitTotalCount?: number
+}
+
+const props = defineProps({
+  telemetry: {
+    type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
+    default: null,
+  },
+  circuitProfile: {
+    type: Object as PropType<CircuitProfileView | null>,
+    default: null,
+  },
+})
+
+const emit = defineEmits<{ (e: 'pick', circuit: CompensationCircuitPick): void }>()
+
+const BUS_META: Array<{
+  phase: 'A' | 'B' | 'C' | 'COMMON'
+  commonGroup: 1 | 2 | 3 | null
+  phaseClass: string
+  chip: string
+  divider: boolean
+}> = [
+  { phase: 'A', commonGroup: null, phaseClass: 'a', chip: 'A', divider: false },
+  { phase: 'B', commonGroup: null, phaseClass: 'b', chip: 'B', divider: false },
+  { phase: 'C', commonGroup: null, phaseClass: 'c', chip: 'C', divider: false },
+  { phase: 'COMMON', commonGroup: 1, phaseClass: 'n', chip: 'N', divider: true },
+  { phase: 'COMMON', commonGroup: 2, phaseClass: 'n', chip: 'N', divider: false },
+  { phase: 'COMMON', commonGroup: 3, phaseClass: 'n', chip: 'N', divider: false },
+]
+
+const buses = computed(() => {
+  const t = props.telemetry
+  const groups = t
+    ? getCircuitGroups(t)
+    : Array.from({ length: 6 }, () => ({ label: '', mask: null as number | null, alarmFlag: null }))
+  const counts = resolvedConfiguredCounts({
+    configuredSplitCircuitCount: props.circuitProfile?.splitCircuitCount ?? null,
+    configuredCommonCircuitCount: props.circuitProfile?.commonCircuitCount ?? null,
+    phaseACircuitTotalCount: props.circuitProfile?.phaseACircuitTotalCount ?? null,
+    phaseBCircuitTotalCount: props.circuitProfile?.phaseBCircuitTotalCount ?? null,
+    phaseCCircuitTotalCount: props.circuitProfile?.phaseCCircuitTotalCount ?? null,
+    common1CircuitTotalCount: props.circuitProfile?.common1CircuitTotalCount ?? null,
+    common2CircuitTotalCount: props.circuitProfile?.common2CircuitTotalCount ?? null,
+    common3CircuitTotalCount: props.circuitProfile?.common3CircuitTotalCount ?? null,
+  })
+
+  return BUS_META.map((meta, i) => {
+    const group = groups[i]
+    const slots = toBits(group.mask, counts[i])
+    const phaseAlarm = Boolean(group.alarmFlag)
+    return {
+      ...meta,
+      label: group.label || meta.chip,
+      phaseAlarm,
+      caps: slots.map((slot, slotIdx) => {
+        const state: CompensationCircuitSlotState =
+          slot === true ? 'on' : slot === false ? 'off' : 'unconfigured'
+        return { slotIdx, index: slotIdx + 1, state }
+      }),
+    }
+  })
+})
+
+const summary = computed(() => {
+  let running = 0
+  let total = 0
+  for (const bus of buses.value) {
+    for (const cap of bus.caps) {
+      if (cap.state === 'unconfigured') continue
+      total += 1
+      if (cap.state === 'on') running += 1
+    }
+  }
+  const rate = total > 0 ? Math.round((running / total) * 1000) / 10 : 0
+  return { running, total, rate }
+})
+
+function handlePick(
+  bus: (typeof buses.value)[number],
+  cap: { index: number; state: CompensationCircuitSlotState },
+) {
+  if (cap.state === 'unconfigured') return
+  emit('pick', {
+    groupLabel: bus.label,
+    phase: bus.phase,
+    commonGroup: bus.commonGroup,
+    index: cap.index,
+    state: cap.state,
+    phaseAlarm: bus.phaseAlarm,
+  })
+}
+</script>
+
+<template>
+  <section class="topo-card">
+    <header class="rt-card-head">
+      <span class="rt-card-title">
+        <span class="rt-accent" />电容器组拓扑
+        <span class="rt-sub">分补 + 公补 · {{ summary.running }} 路投运</span>
+      </span>
+      <div class="topo-legend">
+        <span><i class="sw on" />投入</span>
+        <span><i class="sw off" />切除</span>
+        <span><i class="sw empty" />未配置</span>
+      </div>
+    </header>
+
+    <div class="topo-body">
+      <div class="topo">
+        <template v-for="bus in buses" :key="`${bus.phase}-${bus.commonGroup}`">
+          <div v-if="bus.divider" class="topo-divider" />
+          <div class="topo-bus" data-test="topo-bus">
+            <div class="topo-phase">
+              <span class="topo-chip" :class="bus.phaseClass">{{ bus.chip }}</span>
+              <span class="topo-phase-label">
+                {{ bus.label }}
+                <span v-if="bus.phaseAlarm" class="topo-phase-alarm" title="该相存在告警">!</span>
+              </span>
+            </div>
+            <div class="topo-rail">
+              <button
+                v-for="cap in bus.caps"
+                :key="cap.slotIdx"
+                type="button"
+                class="topo-cap"
+                :class="{
+                  'is-on': cap.state === 'on',
+                  'is-off': cap.state === 'off',
+                  'is-empty': cap.state === 'unconfigured',
+                }"
+                :disabled="cap.state === 'unconfigured'"
+                @click="handlePick(bus, cap)"
+              >
+                <span class="topo-cap-idx">#{{ cap.index }}</span>
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div class="topo-summary">
+        <span><b>{{ summary.running }} / {{ summary.total }}</b> 路投运</span>
+        <span>投运率 <b>{{ summary.rate }}%</b></span>
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.topo-card {
+  display: flex;
+  flex-direction: column;
+  background: #121d2e;
+  border: 1px solid #1f2c41;
+  border-radius: 10px;
+  min-height: 0;
+}
+.rt-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid #1f2c41;
+}
+.rt-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5edf7;
+}
+.rt-accent {
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: #22d3ee;
+}
+.rt-sub {
+  color: #5e6c83;
+  font-weight: 400;
+}
+.topo-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  color: #5e6c83;
+}
+.topo-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.topo-legend .sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #1f2c41;
+}
+.topo-legend .sw.on { background: #34d399; border-color: rgba(52, 211, 153, 0.5); }
+.topo-legend .sw.off { background: #0b1623; }
+.topo-legend .sw.empty { border-style: dashed; }
+.topo-body {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  flex: 1;
+  min-height: 0;
+}
+.topo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.topo-bus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.topo-phase {
+  width: 96px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.topo-chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #07101c;
+}
+.topo-chip.a { background: #facc15; }
+.topo-chip.b { background: #34d399; }
+.topo-chip.c { background: #f87171; }
+.topo-chip.n { background: #a78bfa; }
+.topo-phase-label {
+  font-size: 11px;
+  color: #e5edf7;
+}
+.topo-phase-alarm {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.topo-rail {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  position: relative;
+}
+.topo-rail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.5), rgba(34, 211, 238, 0.1));
+}
+.topo-cap {
+  position: relative;
+  height: 36px;
+  border-radius: 6px;
+  background: #0b1623;
+  border: 1px solid #1f2c41;
+  color: #9aa7bd;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.topo-cap-idx {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.topo-cap:hover:not(:disabled) {
+  border-color: #22d3ee;
+}
+.topo-cap.is-on {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.18), rgba(52, 211, 153, 0.05));
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #34d399;
+}
+.topo-cap.is-empty {
+  border-style: dashed;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.topo-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #1f2c41, transparent);
+  margin: 3px 0;
+}
+.topo-summary {
+  display: flex;
+  gap: 16px;
+  padding-top: 8px;
+  font-size: 11px;
+  color: #9aa7bd;
+}
+.topo-summary b {
+  color: #e5edf7;
+  font-variant-numeric: tabular-nums;
+}
+</style>
