@@ -24,7 +24,6 @@ const props = defineProps({
 
 const VOLTAGE_THD_THRESHOLD = 5
 const CURRENT_THD_THRESHOLD = 5
-const TEMP_THRESHOLD = 55
 
 function num(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -139,14 +138,10 @@ const rows = computed<MatrixRow[]>(() => {
   // --- 柜温行 ---
   const temp = num(t?.temperature)
   const tempText = temp === null ? '--' : `${temp.toFixed(0)} °C`
-  const tempSystemCell: MatrixCell =
-    temp !== null && temp > TEMP_THRESHOLD
-      ? { display: 'value', text: tempText }
-      : plainCell(tempText)
   const tempRow: MatrixRow = {
     label: '柜温 (°C)',
     cells: [plainCell('—'), plainCell('—'), plainCell('—')],
-    system: tempSystemCell,
+    system: plainCell(tempText),
   }
 
   return [...measurementRows, ...indicatorRows, tempRow]
