@@ -31,6 +31,12 @@ function num(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function phaseStatusCell(flag: boolean | null | undefined): MatrixCell {
+  if (flag === true) return { text: '超前', severity: 'warn' }
+  if (flag === false) return { text: '正常', severity: 'ok' }
+  return { text: '--', severity: 'na' }
+}
+
 function valueCell(value: number | null, unit: string, threshold: number | null, digits = 1): MatrixCell {
   if (value === null) return { text: '--', severity: 'na' }
   let severity: CellSeverity = 'ok'
@@ -50,6 +56,13 @@ function systemCell(cells: MatrixCell[]): MatrixCell {
 
 const rows = computed<MatrixRow[]>(() => {
   const t = props.telemetry
+  const leadingCells = [
+    phaseStatusCell(t?.leading_a),
+    phaseStatusCell(t?.leading_b),
+    phaseStatusCell(t?.leading_c),
+  ]
+  const phaseRow: MatrixRow = { label: '相位状态', cells: leadingCells, system: systemCell(leadingCells) }
+
   const definitions: Array<{ label: string; unit: string; threshold: number | null; values: Array<number | null> }> = [
     {
       label: '电流幅值',
@@ -70,7 +83,7 @@ const rows = computed<MatrixRow[]>(() => {
       values: [num(t?.current_harmonic_a), num(t?.current_harmonic_b), num(t?.current_harmonic_c)],
     },
   ]
-  const result = definitions.map((def) => {
+  const metricRows = definitions.map((def) => {
     const cells = def.values.map((v) => valueCell(v, def.unit, def.threshold))
     return { label: def.label, cells, system: systemCell(cells) }
   })
@@ -78,7 +91,7 @@ const rows = computed<MatrixRow[]>(() => {
   // 柜内温度：单值，铺到系统列
   const temp = num(t?.temperature)
   const tempCell = valueCell(temp, ' °C', TEMP_THRESHOLD, 0)
-  result.push({
+  const tempRow: MatrixRow = {
     label: '柜内温度',
     cells: [
       { text: '—', severity: 'na' },
@@ -86,8 +99,8 @@ const rows = computed<MatrixRow[]>(() => {
       { text: '—', severity: 'na' },
     ],
     system: tempCell,
-  })
-  return result
+  }
+  return [phaseRow, ...metricRows, tempRow]
 })
 
 const alarmCount = computed(() =>

@@ -34,6 +34,15 @@ describe('CompensationPhaseMatrix', () => {
     expect(wrapper.text()).toContain('--')
   })
 
+  it('相位状态行渲染超前状态并标记 warn 样式', () => {
+    const wrapper = mount(CompensationPhaseMatrix, {
+      props: { telemetry: telemetry({ leading_a: true, leading_b: false, leading_c: false }) },
+    })
+    expect(wrapper.text()).toContain('相位状态')
+    expect(wrapper.text()).toContain('超前')
+    expect(wrapper.find('.matrix-cell.is-warn').exists()).toBe(true)
+  })
+
   it('告警计数只数相位单元格，不重复计入系统汇总列', () => {
     // 三相 V-THD 全部超限（门限 5）：应计 3，而非 3 相 + 3 系统列 = 6
     const wrapper = mount(CompensationPhaseMatrix, {
