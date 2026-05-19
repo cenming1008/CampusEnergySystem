@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CompensationRuntimeBoard from '../CompensationRuntimeBoard.vue'
+import type { DeviceMonitorPageModel } from '@/features/device-monitor/composables/useDeviceMonitorPage'
 
 function makePage(overrides: Record<string, unknown> = {}) {
   return {
@@ -38,7 +39,7 @@ function makePage(overrides: Record<string, unknown> = {}) {
 
 function mountBoard(page: Record<string, unknown>) {
   return mount(CompensationRuntimeBoard, {
-    props: { page },
+    props: { page: page as unknown as DeviceMonitorPageModel },
     global: {
       stubs: {
         CompensationPfTrendCard: true,

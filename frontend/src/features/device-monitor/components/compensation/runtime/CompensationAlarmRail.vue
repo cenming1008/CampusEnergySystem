@@ -12,13 +12,13 @@ const emit = defineEmits<{ (e: 'resolve', row: DeviceAlarmRecord): void }>()
 
 const unresolved = computed(() => props.rows.filter((r) => !r.is_resolved))
 
-function sevClass(severity: string): string {
+function sevClass(severity: string | undefined): string {
   if (severity === 'critical') return 'crit'
   if (severity === 'warning') return 'warn'
   return 'info'
 }
 
-function sevLabel(severity: string): string {
+function sevLabel(severity: string | undefined): string {
   if (severity === 'critical') return '严重'
   if (severity === 'warning') return '警告'
   return '提示'
