@@ -49,9 +49,16 @@ const geometry = computed(() => {
   const line = points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt[0].toFixed(2)} ${pt[1].toFixed(2)}`).join(' ')
   const last = points[points.length - 1]
   const area = `${line} L ${last[0].toFixed(2)} ${PAD.t + h} L ${points[0][0].toFixed(2)} ${PAD.t + h} Z`
-  const yTop = PAD.t + h - ((1.0 - MIN) / (MAX - MIN)) * h
-  const yBot = PAD.t + h - ((0.95 - MIN) / (MAX - MIN)) * h
-  return { line, area, last, bandY: yTop, bandH: yBot - yTop, bandBot: yBot, w }
+  const target = props.pfTrend.target
+  const band =
+    target !== null && isFinite(target) && target > MIN && target < MAX
+      ? (() => {
+          const yTop = PAD.t + h - ((MAX - MIN) / (MAX - MIN)) * h
+          const yBot = PAD.t + h - ((target - MIN) / (MAX - MIN)) * h
+          return { y: yTop, h: yBot - yTop, bot: yBot }
+        })()
+      : null
+  return { line, area, last, band, w }
 })
 
 const delta = computed(() => {
@@ -111,8 +118,8 @@ function fmt(value: number | null, digits = 0): string {
               <stop offset="100%" stop-color="#34d399" stop-opacity="0" />
             </linearGradient>
           </defs>
-          <rect :x="PAD.l" :y="geometry.bandY" :width="geometry.w" :height="geometry.bandH" fill="#34d399" fill-opacity="0.06" />
-          <line :x1="PAD.l" :x2="PAD.l + geometry.w" :y1="geometry.bandBot" :y2="geometry.bandBot" stroke="#34d399" stroke-opacity="0.25" stroke-dasharray="2 3" />
+          <rect v-if="geometry.band" data-test="pf-target-band" :x="PAD.l" :y="geometry.band.y" :width="geometry.w" :height="geometry.band.h" fill="#34d399" fill-opacity="0.06" />
+          <line v-if="geometry.band" :x1="PAD.l" :x2="PAD.l + geometry.w" :y1="geometry.band.bot" :y2="geometry.band.bot" stroke="#34d399" stroke-opacity="0.25" stroke-dasharray="2 3" />
           <path :d="geometry.area" :fill="`url(#${areaGradientId})`" />
           <path data-test="pf-spark-line" :d="geometry.line" fill="none" stroke="#34d399" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" />
           <circle :cx="geometry.last[0]" :cy="geometry.last[1]" r="3" fill="#34d399" />

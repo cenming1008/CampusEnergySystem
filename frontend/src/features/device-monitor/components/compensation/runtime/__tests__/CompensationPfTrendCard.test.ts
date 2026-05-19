@@ -34,6 +34,16 @@ describe('CompensationPfTrendCard', () => {
     expect(wrapper.find('[data-test="pf-spark-line"]').exists()).toBe(false)
   })
 
+  it('有效 target 时渲染目标区间色带', () => {
+    const wrapper = mountCard({ pfTrend: { values: [0.96, 0.97], timestamps: [], target: 0.95 } })
+    expect(wrapper.find('[data-test="pf-target-band"]').exists()).toBe(true)
+  })
+
+  it('target 为 null 时隐藏目标区间色带', () => {
+    const wrapper = mountCard({ pfTrend: { values: [0.96, 0.97], timestamps: [], target: null } })
+    expect(wrapper.find('[data-test="pf-target-band"]').exists()).toBe(false)
+  })
+
   it('点击时间范围标签触发 range-change', async () => {
     const wrapper = mountCard()
     await wrapper.findAll('[data-test="pf-range-tab"]')[2].trigger('click')
