@@ -159,3 +159,48 @@ export interface HarmonicSpectrumModel {
   empty: boolean
   emptyText: string
 }
+
+/* ───── 运行监视重设计：健康度 / P-Q / 拓扑 ───── */
+
+export type CompensationHealthDimensionKey =
+  | 'comm'
+  | 'voltageHarmonic'
+  | 'currentHarmonic'
+  | 'switching'
+  | 'temperature'
+  | 'voltageStability'
+
+export interface CompensationHealthDimension {
+  key: CompensationHealthDimensionKey
+  label: string
+  /** 0–100；null 表示该维数据缺失，视图显示「待采集」且不计入总分。 */
+  value: number | null
+}
+
+export interface CompensationHealthModel {
+  /** 0–100；null 表示所有维度均缺数据。 */
+  score: number | null
+  rating: string
+  ratingTone: CompensationTone
+  breakdown: CompensationHealthDimension[]
+}
+
+export interface CompensationPqPoint {
+  /** 有功功率 kW；null 表示缺测。 */
+  p: number | null
+  /** 无功功率 kVar；null 表示缺测。 */
+  q: number | null
+}
+
+export type CompensationCircuitSlotState = 'on' | 'off' | 'unconfigured'
+
+export interface CompensationCircuitPick {
+  groupLabel: string
+  phase: 'A' | 'B' | 'C' | 'COMMON'
+  /** 公补组号（1–3），分相为 null。 */
+  commonGroup: 1 | 2 | 3 | null
+  /** 该回路在所属相/组内的 1-based 序号。 */
+  index: number
+  state: CompensationCircuitSlotState
+  phaseAlarm: boolean
+}
