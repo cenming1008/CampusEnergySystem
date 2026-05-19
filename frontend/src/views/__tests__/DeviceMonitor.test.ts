@@ -174,12 +174,10 @@ function mountView() {
 
 const RealtimeOverviewProbe = defineComponent({
   props: {
-    moduleStatus: {
-      type: Object,
-      required: false,
-    },
+    moduleStatus: { type: Object, required: false },
+    page: { type: Object, required: false },
   },
-  template: '<div class="realtime-overview-probe">{{ moduleStatus?.runningModuleCount }}/{{ moduleStatus?.totalModuleCount }}</div>',
+  template: '<div class="realtime-overview-probe">{{ (moduleStatus ?? page?.moduleStatusModel)?.runningModuleCount }}/{{ (moduleStatus ?? page?.moduleStatusModel)?.totalModuleCount }}</div>',
 })
 
 const MonitorSectionPanelProbe = defineComponent({
@@ -329,6 +327,7 @@ function mountViewWithRealtimeProbe() {
         MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationDetailPanel: RealtimeOverviewProbe,
+        CompensationRuntimeBoard: RealtimeOverviewProbe,
         CompensationThreePhasePanel: true,
         CompensationCircuitStatePanel: true,
         GenericMonitorView: false,
@@ -679,7 +678,7 @@ describe('DeviceMonitor view', () => {
     expect(wrapper.findComponent({ name: 'CompensationMonitorView' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'GenericMonitorView' }).exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'CompensationHeader' }).exists()).toBe(true)
-    expect(wrapper.find('.device-template-diagnostics-panel-probe').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'CompensationRuntimeBoard' }).exists()).toBe(true)
   })
 
   it('renders the harmonic spectrum panel as a standalone section for capacitor bank controllers', async () => {
@@ -793,6 +792,12 @@ describe('DeviceMonitor view', () => {
       getCompensationCapBankHistoryMock.mockResolvedValueOnce([])
 
       const wrapper = mountView()
+      await flushAsync()
+
+      const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
+        compensationWorkbenchTab: string
+      }
+      page.compensationWorkbenchTab = 'event-records'
       await flushAsync()
 
       expect(wrapper.findComponent({ name: 'CompensationMonitorView' }).exists()).toBe(true)
