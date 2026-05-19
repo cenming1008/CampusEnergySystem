@@ -92,9 +92,12 @@ const rows = computed<MatrixRow[]>(() => {
 
 const alarmCount = computed(() =>
   rows.value.reduce((sum, row) => {
-    const cellCount = row.cells.filter((c) => c.severity === 'crit' || c.severity === 'warn').length
-    const sysCount = row.system.severity === 'crit' || row.system.severity === 'warn' ? 1 : 0
-    return sum + cellCount + sysCount
+    const phaseConcern = row.cells.filter((c) => c.severity === 'crit' || c.severity === 'warn').length
+    // 温度行实测值在系统列、相位列为占位符，改用系统列计数；指标行的系统列是相位的汇总，不重复计入
+    const isPlaceholderRow = row.cells.every((c) => c.severity === 'na')
+    const systemConcern =
+      isPlaceholderRow && (row.system.severity === 'crit' || row.system.severity === 'warn') ? 1 : 0
+    return sum + phaseConcern + systemConcern
   }, 0),
 )
 </script>

@@ -33,4 +33,12 @@ describe('CompensationPhaseMatrix', () => {
     const wrapper = mount(CompensationPhaseMatrix, { props: { telemetry: null } })
     expect(wrapper.text()).toContain('--')
   })
+
+  it('告警计数只数相位单元格，不重复计入系统汇总列', () => {
+    // 三相 V-THD 全部超限（门限 5）：应计 3，而非 3 相 + 3 系统列 = 6
+    const wrapper = mount(CompensationPhaseMatrix, {
+      props: { telemetry: telemetry({ voltage_thd_a: 27, voltage_thd_b: 27, voltage_thd_c: 27 }) },
+    })
+    expect(wrapper.text()).toContain('3 项关注')
+  })
 })
