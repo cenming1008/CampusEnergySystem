@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import ControlConsoleLogPanel from '@/features/device-control/components/ControlConsoleLogPanel.vue'
 import ControlConsoleParametersPanel from '@/features/device-control/components/ControlConsoleParametersPanel.vue'
-import ControlConsoleRemotePanel from '@/features/device-control/components/ControlConsoleRemotePanel.vue'
 import ControlConsoleWriteDialog from '@/features/device-control/components/ControlConsoleWriteDialog.vue'
+import CompensationRuntimeBoard from '@/features/device-monitor/components/compensation/runtime/CompensationRuntimeBoard.vue'
+import CompensationAlarmRail from '@/features/device-monitor/components/compensation/runtime/CompensationAlarmRail.vue'
+import CompensationParamSummary from '@/features/device-monitor/components/compensation/runtime/CompensationParamSummary.vue'
 import CompensationAlarmSummaryPanel from '@/features/device-monitor/components/compensation/CompensationAlarmSummaryPanel.vue'
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
 import CompensationControlSummaryPanel from '@/features/device-monitor/components/compensation/CompensationControlSummaryPanel.vue'
@@ -47,6 +50,20 @@ function openParameterWorkbench() {
 
 function shouldShowSideTraceability() {
   return !(isCapacitorBankController() && props.page.compensationWorkbenchTab === 'event-records')
+}
+
+const runtimeParamItems = computed(() =>
+  props.page.capacitorBankControlSummaryView.summaryItems.map((item) => ({
+    label: item.label,
+    value: item.value,
+  })),
+)
+
+function isRuntimeTab() {
+  return (
+    props.page.compensationSubtype === 'capacitor_bank_controller'
+    && props.page.compensationWorkbenchTab === 'runtime'
+  )
 }
 </script>
 
@@ -97,54 +114,7 @@ function shouldShowSideTraceability() {
 
         <div class="comp-workbench__page">
           <template v-if="page.compensationWorkbenchTab === 'runtime'">
-            <CompensationRealtimeOverview
-              :core-metric="page.compensationCoreMetric"
-              :pf-metric="page.compensationPfMetric"
-              :metrics="page.compensationMetrics"
-              :extended-hint="page.compensationExtendedHint"
-              :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-              :pf-trend="page.compensationPowerFactorTrend"
-              :status-text="page.compensationStatusText"
-              :status-tone="page.compensationStatusTone"
-              :alarm-counts="page.compensationAlarmCountMetrics"
-            />
-
-            <CompensationDetailPanel
-              v-model:active-tab="page.compensationDetailTab"
-              :svg-telemetry="page.compensationSvgTelemetry"
-              :capacitor-bank-telemetry="page.compensationCapacitorBankTelemetry"
-              is-capacitor-bank
-              :circuit-profile="page.compensationCircuitProfile"
-              :module-status="page.moduleStatusModel"
-              :measurement-metrics="page.compensationMeasurementMetrics"
-            />
-
-            <MonitorInlineAlert
-              v-if="page.controlConsoleLoadError"
-              title="远程控制暂不可用"
-              :message="page.controlConsoleLoadError"
-              tone="danger"
-            />
-
-            <ControlConsoleRemotePanel
-              v-else
-              :action-cards="page.controlConsoleActionCards"
-              :toggle-submitting="page.controlConsoleToggleSubmitting"
-              :current-control-mode-label="page.controlConsoleCurrentControlModeLabel"
-              :can-run-manual-switch="page.controlConsoleCanRunManualSwitch"
-              :manual-switch-disabled-reason="page.controlConsoleManualSwitchDisabledReason"
-              :manual-phase-options="page.controlConsoleManualPhaseOptions"
-              :manual-switch-action-options="page.controlConsoleManualSwitchActionOptions"
-              :manual-common-group-options="page.controlConsoleManualCommonGroupOptions"
-              :manual-phase="page.controlConsoleManualSwitchForm.phase"
-              :manual-switch-action="page.controlConsoleManualSwitchForm.switch_action"
-              :manual-common-group="page.controlConsoleManualSwitchForm.group"
-              @action-card="page.handleControlConsoleActionCard"
-              @update:manual-phase="page.controlConsoleManualSwitchForm.phase = $event"
-              @update:manual-switch-action="page.controlConsoleManualSwitchForm.switch_action = $event"
-              @update:manual-common-group="page.controlConsoleManualSwitchForm.group = $event"
-              @manual-switch="page.handleControlConsoleManualSwitchCommand"
-            />
+            <CompensationRuntimeBoard :page="page" />
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'curves'">
@@ -275,31 +245,44 @@ function shouldShowSideTraceability() {
     </template>
 
     <template #side>
-      <CompensationEventTimeline
-        v-if="shouldShowSideTraceability()"
-        :events="page.compensationEvents"
-      />
-      <CompensationAlarmSummaryPanel
-        :rows="page.alarms"
-        :action-id="page.alarmActionId"
-        @resolve="page.handleResolveAlarm"
-      />
-      <CompensationControlSummaryPanel
-        v-if="page.compensationSubtype === 'capacitor_bank_controller'"
-        :summary-items="page.capacitorBankControlSummaryView.summaryItems"
-        :capacity-expansion-items="page.capacitorBankControlSummaryView.capacityExpansionItems"
-        :has-summary-data="page.capacitorBankControlSummaryView.hasSummaryData"
-        @open-console="openParameterWorkbench"
-      />
-      <CompensationDeviceProfile
-        :items="page.compensationProfileItems"
-        :editable="page.isSvgDevice && page.canControlDevices"
-        @edit="page.svgProfileEditVisible = true"
-      />
-      <CompensationDiagnosticsCollapsible
-        v-if="page.templateDiagnostics && shouldShowSideTraceability()"
-        :diagnostics="page.templateDiagnostics"
-      />
+      <template v-if="isRuntimeTab()">
+        <CompensationAlarmRail
+          :rows="page.alarms"
+          :action-id="page.alarmActionId"
+          @resolve="page.handleResolveAlarm"
+        />
+        <CompensationParamSummary
+          :items="runtimeParamItems"
+          @edit="openParameterWorkbench"
+        />
+      </template>
+      <template v-else>
+        <CompensationEventTimeline
+          v-if="shouldShowSideTraceability()"
+          :events="page.compensationEvents"
+        />
+        <CompensationAlarmSummaryPanel
+          :rows="page.alarms"
+          :action-id="page.alarmActionId"
+          @resolve="page.handleResolveAlarm"
+        />
+        <CompensationControlSummaryPanel
+          v-if="page.compensationSubtype === 'capacitor_bank_controller'"
+          :summary-items="page.capacitorBankControlSummaryView.summaryItems"
+          :capacity-expansion-items="page.capacitorBankControlSummaryView.capacityExpansionItems"
+          :has-summary-data="page.capacitorBankControlSummaryView.hasSummaryData"
+          @open-console="openParameterWorkbench"
+        />
+        <CompensationDeviceProfile
+          :items="page.compensationProfileItems"
+          :editable="page.isSvgDevice && page.canControlDevices"
+          @edit="page.svgProfileEditVisible = true"
+        />
+        <CompensationDiagnosticsCollapsible
+          v-if="page.templateDiagnostics && shouldShowSideTraceability()"
+          :diagnostics="page.templateDiagnostics"
+        />
+      </template>
     </template>
   </MonitorViewShell>
 

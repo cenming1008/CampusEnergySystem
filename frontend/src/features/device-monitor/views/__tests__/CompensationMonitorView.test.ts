@@ -175,6 +175,9 @@ function mountView(tab = 'runtime') {
       stubs: {
         MonitorViewShell: ShellStub,
         CompensationHeader: HeaderStub,
+        CompensationRuntimeBoard: namedStub('runtime-board-stub', '运行监视板'),
+        CompensationAlarmRail: namedStub('alarm-rail-stub', '告警栏'),
+        CompensationParamSummary: namedStub('param-summary-stub', '参数摘要'),
         CompensationRealtimeOverview: namedStub('runtime-overview-stub', '运行概览'),
         CompensationDetailPanel: namedStub('detail-panel-stub', '运行明细'),
         CompensationTrendPanel: namedStub('trend-panel-stub', '趋势曲线'),
@@ -208,9 +211,10 @@ describe('CompensationMonitorView', () => {
     expect(wrapper.find('.comp-workbench__tabs').text()).not.toContain('远程控制')
     expect(wrapper.text()).toContain('参数设置')
     expect(wrapper.text()).toContain('事件记录')
-    expect(wrapper.find('.runtime-overview-stub').exists()).toBe(true)
-    expect(wrapper.find('.detail-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('.remote-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.runtime-board-stub').exists()).toBe(true)
+    expect(wrapper.find('.runtime-overview-stub').exists()).toBe(false)
+    expect(wrapper.find('.detail-panel-stub').exists()).toBe(false)
+    expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
 
     await wrapper.find('.header-console-action').trigger('click')
 
