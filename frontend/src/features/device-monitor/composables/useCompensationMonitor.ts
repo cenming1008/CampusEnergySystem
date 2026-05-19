@@ -25,6 +25,7 @@ import {
   buildCapacitorBankControlSummaryView,
   buildCompensationExtendedHint,
   buildCompensationHeaderView,
+  buildCompensationHealthModel,
   buildCompensationModuleStatusView,
   buildCompensationOverviewMetrics,
   buildCompensationProfileItems,
@@ -36,9 +37,11 @@ import {
 import type {
   CompensationEventItem,
   CompensationHeaderModel,
+  CompensationHealthModel,
   CompensationMetric,
   CompensationPowerFactorTrend,
   CompensationProfileItem,
+  CompensationPqPoint,
   CompensationStatusItem,
   CompensationTone,
   CompensationTrendModel,
@@ -604,6 +607,49 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     }),
   )
 
+  const compensationPqPoint = computed<CompensationPqPoint>(() => ({
+    p:
+      typeof realtime.value?.flow_rate === 'number' && Number.isFinite(realtime.value.flow_rate)
+        ? realtime.value.flow_rate
+        : null,
+    q:
+      typeof realtime.value?.reactive_power === 'number' && Number.isFinite(realtime.value.reactive_power)
+        ? realtime.value.reactive_power
+        : null,
+  }))
+
+  const compensationPqHistory = computed<Array<[number, number]>>(() => {
+    const points = input.trend.value?.points || []
+    const pairs: Array<[number, number]> = []
+    for (const point of points) {
+      const p = point.flow_rate
+      const q = point.reactive_power
+      if (
+        typeof p === 'number' && Number.isFinite(p)
+        && typeof q === 'number' && Number.isFinite(q)
+      ) {
+        pairs.push([p, q])
+      }
+    }
+    return pairs
+  })
+
+  const compensationHealthModel = computed<CompensationHealthModel>(() => {
+    const cap = compensationCapacitorBankTelemetry.value
+    return buildCompensationHealthModel({
+      ingestionStatus: runtimeStatus.value?.ingestion_status,
+      isRealtimeFresh: isRealtimeFresh.value,
+      voltageThd: [cap?.voltage_thd_a, cap?.voltage_thd_b, cap?.voltage_thd_c],
+      currentThd: [cap?.current_harmonic_a, cap?.current_harmonic_b, cap?.current_harmonic_c],
+      temperature: cap?.temperature ?? realtime.value?.temperature ?? null,
+      voltage: realtime.value?.voltage ?? null,
+      switchingFlags: [
+        cap?.overvoltage_alarm_a, cap?.overvoltage_alarm_b, cap?.overvoltage_alarm_c,
+        cap?.undercurrent_a, cap?.undercurrent_b, cap?.undercurrent_c,
+      ],
+    })
+  })
+
   async function loadSVGTelemetry() {
     try {
       compensationSvgTelemetry.value = await getCompensationSvgTelemetryLatest(input.deviceId.value)
@@ -721,6 +767,9 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     compensationStatusItems,
     compensationProfileItems,
     capacitorBankControlSummaryView,
+    compensationPqPoint,
+    compensationPqHistory,
+    compensationHealthModel,
     loadSVGTelemetry,
     loadSVGProfile,
     loadCapBankTelemetry,

@@ -1,9 +1,13 @@
+import { computed, ref } from 'vue'
+import type { Ref } from 'vue'
 import { describe, expect, it } from 'vitest'
+import type { DeviceTrendResponse, MonitorOverview } from '@/api/deviceMonitor'
 import {
   buildCompensationAlarmCountMetrics,
   buildCompensationEventTimeline,
   isTimestampFresh,
   REALTIME_FRESH_THRESHOLD_MS,
+  useCompensationMonitor,
 } from '../useCompensationMonitor'
 
 describe('isTimestampFresh', () => {
@@ -155,5 +159,66 @@ describe('buildCompensationEventTimeline', () => {
       tag: '已处理',
       tone: 'success',
     })
+  })
+})
+
+describe('useCompensationMonitor P-Q 与健康度', () => {
+  it('compensationPqPoint 取 realtime 的有功/无功', () => {
+    const overview = ref({
+      archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
+      realtime: { flow_rate: 168, reactive_power: 38 },
+    }) as unknown as Ref<MonitorOverview | null>
+    const monitor = useCompensationMonitor({
+      deviceId: computed(() => 1),
+      overview,
+      trend: ref(null),
+      statusHistory: ref([]),
+      timeRange: ref(null),
+      compensationTrendTab: ref('effect'),
+      canControlDevices: computed(() => true),
+    })
+    expect(monitor.compensationPqPoint.value).toEqual({ p: 168, q: 38 })
+  })
+
+  it('compensationPqHistory 仅取同时有有功与无功的趋势点', () => {
+    const overview = ref({
+      archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
+      realtime: {},
+    }) as unknown as Ref<MonitorOverview | null>
+    const trend = ref({
+      points: [
+        { timestamp: 't1', flow_rate: 100, reactive_power: 60 },
+        { timestamp: 't2', flow_rate: 110, reactive_power: null },
+        { timestamp: 't3', flow_rate: 120, reactive_power: 40 },
+      ],
+    }) as unknown as Ref<DeviceTrendResponse | null>
+    const monitor = useCompensationMonitor({
+      deviceId: computed(() => 1),
+      overview,
+      trend,
+      statusHistory: ref([]),
+      timeRange: ref(null),
+      compensationTrendTab: ref('effect'),
+      canControlDevices: computed(() => true),
+    })
+    expect(monitor.compensationPqHistory.value).toEqual([[100, 60], [120, 40]])
+  })
+
+  it('compensationHealthModel 暴露 6 维', () => {
+    const overview = ref({
+      archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
+      realtime: { voltage: 221 },
+      runtime_status: { is_online: true, ingestion_status: 'online' },
+    }) as unknown as Ref<MonitorOverview | null>
+    const monitor = useCompensationMonitor({
+      deviceId: computed(() => 1),
+      overview,
+      trend: ref(null),
+      statusHistory: ref([]),
+      timeRange: ref(null),
+      compensationTrendTab: ref('effect'),
+      canControlDevices: computed(() => true),
+    })
+    expect(monitor.compensationHealthModel.value.breakdown).toHaveLength(6)
   })
 })
