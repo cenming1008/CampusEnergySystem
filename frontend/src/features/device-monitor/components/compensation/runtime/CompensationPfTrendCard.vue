@@ -1,7 +1,13 @@
+<script lang="ts">
+let pfGradientUid = 0
+</script>
+
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PropType } from 'vue'
 import type { CompensationPowerFactorTrend } from '../types'
+
+const areaGradientId = `pfAreaGrad-${++pfGradientUid}`
 
 const props = defineProps({
   pf: { type: Number as PropType<number | null>, default: null },
@@ -100,14 +106,14 @@ function fmt(value: number | null, digits = 0): string {
           class="pf-spark-svg"
         >
           <defs>
-            <linearGradient id="pfAreaGrad" x1="0" x2="0" y1="0" y2="1">
+            <linearGradient :id="areaGradientId" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stop-color="#34d399" stop-opacity="0.35" />
               <stop offset="100%" stop-color="#34d399" stop-opacity="0" />
             </linearGradient>
           </defs>
           <rect :x="PAD.l" :y="geometry.bandY" :width="geometry.w" :height="geometry.bandH" fill="#34d399" fill-opacity="0.06" />
           <line :x1="PAD.l" :x2="PAD.l + geometry.w" :y1="geometry.bandBot" :y2="geometry.bandBot" stroke="#34d399" stroke-opacity="0.25" stroke-dasharray="2 3" />
-          <path :d="geometry.area" fill="url(#pfAreaGrad)" />
+          <path :d="geometry.area" :fill="`url(#${areaGradientId})`" />
           <path data-test="pf-spark-line" :d="geometry.line" fill="none" stroke="#34d399" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" />
           <circle :cx="geometry.last[0]" :cy="geometry.last[1]" r="3" fill="#34d399" />
         </svg>
