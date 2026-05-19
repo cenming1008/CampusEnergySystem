@@ -147,18 +147,16 @@ function handleCircuitSwitch(payload: {
 }
 .rt-hero > * {
   min-height: 244px;
+  min-width: 0;
 }
+/* 远程控制复用的 ControlConsoleRemotePanel 是整宽组件，纵向堆叠以保证其布局不溢出 */
 .rt-bottom {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-items: start;
 }
 @media (max-width: 1280px) {
   .rt-hero {
-    grid-template-columns: 1fr;
-  }
-  .rt-bottom {
     grid-template-columns: 1fr;
   }
 }
