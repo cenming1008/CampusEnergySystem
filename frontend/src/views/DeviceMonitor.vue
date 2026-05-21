@@ -2,6 +2,7 @@
 import { useDeviceMonitorPage } from '@/features/device-monitor/composables/useDeviceMonitorPage'
 import CompensationMonitorView from '@/features/device-monitor/views/CompensationMonitorView.vue'
 import GenericMonitorView from '@/features/device-monitor/views/GenericMonitorView.vue'
+import MonitorScaleShell from '@/features/device-monitor/views/MonitorScaleShell.vue'
 import StorageMonitorView from '@/features/device-monitor/views/StorageMonitorView.vue'
 
 const page = useDeviceMonitorPage()
@@ -22,18 +23,20 @@ const page = useDeviceMonitorPage()
       description="该设备由 MQTT 首包自动登记，目前只有 sn/device_code。补全名称、类型、位置和容量后，系统才会写入业务遥测并开放监控/控制。"
     />
 
-    <CompensationMonitorView
-      v-if="page.isCompensationDevice"
-      :page="page"
-    />
-    <StorageMonitorView
-      v-else-if="page.isStorageDevice"
-      :page="page"
-    />
-    <GenericMonitorView
-      v-else
-      :page="page"
-    />
+    <MonitorScaleShell>
+      <CompensationMonitorView
+        v-if="page.isCompensationDevice"
+        :page="page"
+      />
+      <StorageMonitorView
+        v-else-if="page.isStorageDevice"
+        :page="page"
+      />
+      <GenericMonitorView
+        v-else
+        :page="page"
+      />
+    </MonitorScaleShell>
   </div>
 </template>
 
@@ -42,7 +45,7 @@ const page = useDeviceMonitorPage()
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: min(100%, 1680px);
+  width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
 }
@@ -51,14 +54,12 @@ const page = useDeviceMonitorPage()
 
 @media (min-width: 1920px) {
   .monitor-page {
-    width: min(100%, 2100px);
     gap: 20px;
   }
 }
 
 @media (min-width: 2400px) {
   .monitor-page {
-    width: min(100%, 2560px);
     gap: 24px;
   }
 }

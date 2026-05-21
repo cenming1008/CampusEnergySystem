@@ -71,4 +71,26 @@ describe('CompensationBankTopology', () => {
     const bBus = wrapper.findAll('[data-test="topo-bus"]')[1]
     expect(bBus.find('.topo-phase-alarm').exists()).toBe(true)
   })
+
+  it('按分相补偿和共补回路做轻分区', () => {
+    const wrapper = mount(CompensationBankTopology, {
+      props: { telemetry: telemetry(), circuitProfile: profile },
+    })
+    const sections = wrapper.findAll('.topo-section-label')
+
+    expect(sections).toHaveLength(2)
+    expect(sections[0].text()).toContain('分相补偿')
+    expect(sections[1].text()).toContain('共补回路')
+  })
+
+  it('每行显示已投运与可用回路小计', () => {
+    const wrapper = mount(CompensationBankTopology, {
+      props: { telemetry: telemetry(), circuitProfile: profile },
+    })
+    const buses = wrapper.findAll('[data-test="topo-bus"]')
+
+    expect(buses[0].find('.topo-row-summary').text()).toContain('1/8')
+    expect(buses[1].find('.topo-row-summary').text()).toContain('2/8')
+    expect(buses[3].find('.topo-row-summary').text()).toContain('0/8')
+  })
 })

@@ -376,7 +376,7 @@ watch(() => chart.chartRef.value, async () => {
   height: 360px;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 900px) {
   .trend-panel__toolbar {
     justify-content: flex-start;
   }

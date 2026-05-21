@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PropType } from 'vue'
-import type { CompensationPqPoint } from '../types'
+import type { CompensationPqModel, CompensationPqReferenceLine } from '../types'
 
 const props = defineProps({
-  point: { type: Object as PropType<CompensationPqPoint>, default: () => ({ p: null, q: null }) },
-  history: { type: Array as PropType<Array<[number, number]>>, default: () => [] },
+  model: {
+    type: Object as PropType<CompensationPqModel>,
+    default: () => ({
+      point: { p: null, q: null },
+      history: [],
+      axis: { pMax: 400, qMax: 200 },
+      referenceLines: [],
+      targetPowerFactor: null,
+    }),
+  },
 })
 
 const W = 380
@@ -13,23 +21,23 @@ const H = 240
 const CX = W / 2
 const CY = H / 2
 const SCALE = Math.min(W * 0.42, H * 0.42)
-const P_MAX = 400
-const Q_MAX = 200
 
 function toXY(p: number, q: number): [number, number] {
-  return [CX + (p / P_MAX) * SCALE, CY - (q / Q_MAX) * SCALE]
+  const pMax = props.model.axis.pMax > 0 ? props.model.axis.pMax : 400
+  const qMax = props.model.axis.qMax > 0 ? props.model.axis.qMax : 200
+  return [CX + (p / pMax) * SCALE, CY - (q / qMax) * SCALE]
 }
 
-const hasPoint = computed(() => props.point.p !== null && props.point.q !== null)
+const hasPoint = computed(() => props.model.point.p !== null && props.model.point.q !== null)
 
 const current = computed(() => {
   if (!hasPoint.value) return null
-  return toXY(props.point.p as number, props.point.q as number)
+  return toXY(props.model.point.p as number, props.model.point.q as number)
 })
 
 const historyPath = computed(() => {
-  if (props.history.length < 2) return ''
-  return props.history
+  if (props.model.history.length < 2) return ''
+  return props.model.history
     .map((pt, i) => {
       const [x, y] = toXY(pt[0], pt[1])
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
@@ -37,25 +45,28 @@ const historyPath = computed(() => {
     .join(' ')
 })
 
-const pfLines = [
-  { pf: 0.9, color: '#f59e0b' },
-  { pf: 0.95, color: '#34d399' },
-]
+function lineColor(line: CompensationPqReferenceLine): string {
+  return line.role === 'target' ? '#34d399' : '#f59e0b'
+}
 
 const pfLineGeometry = computed(() =>
-  pfLines.map((l) => {
-    const ang = Math.acos(l.pf)
-    const k = (P_MAX / Q_MAX) * Math.tan(ang)
-    const norm = Math.sqrt(1 + k * k)
-    const x1 = CX + SCALE / norm
-    const yLag = CY - (k * SCALE) / norm
-    const yLead = CY + (k * SCALE) / norm
-    return { ...l, x1, yLag, yLead }
-  }),
+  props.model.referenceLines
+    .filter((line) => line.powerFactor > 0 && line.powerFactor < 1)
+    .map((line) => {
+      const ang = Math.acos(line.powerFactor)
+      const pMax = props.model.axis.pMax > 0 ? props.model.axis.pMax : 400
+      const qMax = props.model.axis.qMax > 0 ? props.model.axis.qMax : 200
+      const k = (pMax / qMax) * Math.tan(ang)
+      const norm = Math.sqrt(1 + k * k)
+      const x1 = CX + SCALE / norm
+      const yLag = CY - (k * SCALE) / norm
+      const yLead = CY + (k * SCALE) / norm
+      return { ...line, color: lineColor(line), x1, yLag, yLead }
+    }),
 )
 
 const targetZonePath = computed(() => {
-  const t = pfLineGeometry.value.find((l) => l.pf === 0.95)
+  const t = pfLineGeometry.value.find((l) => l.role === 'target')
   if (!t) return ''
   return `M ${CX} ${CY} L ${t.x1.toFixed(1)} ${t.yLag.toFixed(1)} L ${t.x1.toFixed(1)} ${t.yLead.toFixed(1)} Z`
 })
@@ -89,10 +100,10 @@ const targetZonePath = computed(() => {
 
         <path :d="targetZonePath" fill="url(#pqTarget)" />
 
-        <g v-for="l in pfLineGeometry" :key="l.pf" :stroke="l.color" stroke-opacity="0.35" stroke-dasharray="3 4">
+        <g v-for="l in pfLineGeometry" :key="`${l.role}-${l.powerFactor}`" :stroke="l.color" stroke-opacity="0.35" stroke-dasharray="3 4">
           <line :x1="CX" :y1="CY" :x2="l.x1" :y2="l.yLag" />
           <line :x1="CX" :y1="CY" :x2="l.x1" :y2="l.yLead" />
-          <text :x="l.x1 + 3" :y="l.yLag - 2" :fill="l.color" fill-opacity="0.7" font-size="9">PF {{ l.pf }}</text>
+          <text :x="l.x1 + 3" :y="l.yLag - 2" :fill="l.color" fill-opacity="0.7" font-size="9">{{ l.label }}</text>
         </g>
 
         <line x1="14" :y1="CY" :x2="W - 14" :y2="CY" stroke="#2a3a55" />
@@ -119,7 +130,7 @@ const targetZonePath = computed(() => {
             <rect x="0" y="0" width="86" height="28" rx="5" fill="#0b1623" stroke="#22d3ee" stroke-opacity="0.5" />
             <text x="6" y="11" fill="#9aa7bd" font-size="8">当前运行点</text>
             <text x="6" y="22" fill="#67e8f9" font-size="10" font-weight="600">
-              P {{ point.p }} · Q {{ (point.q as number) > 0 ? '+' : '' }}{{ point.q }}
+              P {{ model.point.p }} · Q {{ (model.point.q as number) > 0 ? '+' : '' }}{{ model.point.q }}
             </text>
           </g>
         </g>

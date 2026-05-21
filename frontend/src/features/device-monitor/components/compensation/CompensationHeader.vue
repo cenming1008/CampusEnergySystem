@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeft, Refresh, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowLeft, Refresh, SwitchButton } from '@element-plus/icons-vue'
 import type { PropType } from 'vue'
-import type { CompensationHeaderModel } from './types'
+import type { CompensationHeaderModel, CompensationWorkbenchTab, CompensationWorkbenchTabOption } from './types'
 
 defineProps({
   model: {
@@ -24,13 +24,13 @@ defineProps({
     type: Boolean,
     default: false,
   },
-  showConsoleEntry: {
-    type: Boolean,
-    default: false,
+  tabs: {
+    type: Array as PropType<CompensationWorkbenchTabOption[]>,
+    default: () => [],
   },
-  consoleEntryLabel: {
-    type: String,
-    default: '远程控制',
+  activeTab: {
+    type: String as PropType<CompensationWorkbenchTab>,
+    default: 'runtime',
   },
 })
 
@@ -38,68 +38,58 @@ defineEmits<{
   back: []
   refresh: []
   toggle: []
-  openConsole: []
+  'tab-change': [value: CompensationWorkbenchTab]
 }>()
-
-function chipClass(tone: CompensationHeaderModel['tags'][number]['tone']) {
-  if (tone === 'success') return 'comp-header__chip--success'
-  if (tone === 'warning') return 'comp-header__chip--warning'
-  if (tone === 'danger') return 'comp-header__chip--danger'
-  if (tone === 'info') return 'comp-header__chip--mode'
-  return 'comp-header__chip--neutral'
-}
-
-function statusChipClass(label: string, tone: CompensationHeaderModel['deviceStatusTone']) {
-  if (label.includes('离线')) return 'comp-header__chip--offline'
-  if (label.includes('在线')) return 'comp-header__chip--success'
-  return chipClass(tone)
-}
 </script>
 
 <template>
   <div class="comp-header">
-    <div class="comp-header__identity">
-      <button
-        type="button"
-        class="comp-header__back"
-        @click="$emit('back')"
-      >
-        <el-icon><ArrowLeft /></el-icon>
-        <span>返回设备台账</span>
-      </button>
-
-      <div class="comp-header__main">
-        <div class="comp-header__mark">
-          {{ model.serial.slice(0, 3).toUpperCase() }}
-        </div>
-        <div class="comp-header__title">
-          <h2>{{ model.title }}</h2>
-          <p>
-            <span>设备编号：{{ model.serial }}</span>
-            <i />
-            <span>安装位置：{{ model.location }}</span>
-          </p>
-        </div>
+    <div class="comp-header__bar">
+      <div class="comp-header__device-pill">
+        <button
+          type="button"
+          class="comp-header__back comp-header__identity-field"
+          @click="$emit('back')"
+          aria-label="返回监视列表"
+        >
+          <span class="comp-header__identity-value comp-header__identity-value--link">
+            <el-icon><ArrowLeft /></el-icon>
+            监视
+          </span>
+        </button>
+        <span class="comp-header__identity-divider" />
+        <span class="comp-header__identity-field comp-header__identity-field--primary">
+          <span class="comp-header__identity-label">设备名称</span>
+          <span class="comp-header__identity-value">{{ model.title }}</span>
+        </span>
+        <span class="comp-header__identity-divider" />
+        <span class="comp-header__identity-field">
+          <span class="comp-header__identity-label">位置</span>
+          <span class="comp-header__identity-value">{{ model.location }}</span>
+        </span>
       </div>
-    </div>
 
-    <div class="comp-header__status">
-      <div class="comp-header__tags">
-        <span
-          class="comp-header__chip"
-          :class="statusChipClass(model.deviceStatus, model.deviceStatusTone)"
+      <div
+        v-if="tabs.length"
+        class="comp-header__tabs"
+        role="tablist"
+        aria-label="补偿控制器工作台"
+      >
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          class="comp-header__tab"
+          :class="[
+            `comp-header__tab--${tab.tone || 'normal'}`,
+            { 'is-active': activeTab === tab.value },
+          ]"
+          role="tab"
+          :aria-selected="activeTab === tab.value"
+          @click="$emit('tab-change', tab.value)"
         >
-          <i />
-          {{ model.deviceStatus }}
-        </span>
-        <span
-          v-for="tag in model.tags"
-          :key="tag.label"
-          class="comp-header__chip"
-          :class="chipClass(tag.tone)"
-        >
-          {{ tag.label }}
-        </span>
+          {{ tab.label }}
+        </button>
       </div>
 
       <div class="comp-header__actions">
@@ -124,19 +114,6 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
           <span>{{ toggleSubmitting ? '处理中...' : toggleActionLabel }}</span>
         </button>
         <button
-          v-if="showConsoleEntry"
-          type="button"
-          class="comp-header__action comp-header__action--warning"
-          :aria-label="consoleEntryLabel"
-          :title="consoleEntryLabel"
-          @click="$emit('openConsole')"
-        >
-          <el-icon :size="14">
-            <Setting />
-          </el-icon>
-          <span>{{ consoleEntryLabel }}</span>
-        </button>
-        <button
           type="button"
           class="comp-header__action comp-header__action--neutral"
           aria-label="刷新"
@@ -155,42 +132,30 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
 
 <style scoped>
 .comp-header {
-  display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(420px, auto);
-  gap: 28px;
-  align-items: center;
-  padding: 20px 22px;
+  padding: 10px 14px;
   background:
-    linear-gradient(135deg, rgba(13, 24, 38, 0.98), rgba(15, 29, 47, 0.96)),
-    linear-gradient(90deg, rgba(59, 130, 246, 0.06), rgba(245, 158, 11, 0.05));
-  border: 1px solid rgba(58, 76, 102, 0.88);
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    linear-gradient(180deg, rgba(16, 31, 52, 0.96), rgba(9, 20, 34, 0.98)),
+    rgba(13, 24, 38, 0.98);
+  border: 1px solid rgba(66, 89, 124, 0.82);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 34px rgba(0, 0, 0, 0.18);
 }
 
-.comp-header__identity,
-.comp-header__status {
+.comp-header__bar {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.comp-header__status {
-  align-items: flex-end;
+  gap: 12px;
+  align-items: center;
 }
 
 .comp-header__back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  width: fit-content;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #7f93b2;
   font: inherit;
-  font-size: 13px;
   cursor: pointer;
 }
 
@@ -198,110 +163,121 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
   color: #dbeafe;
 }
 
-.comp-header__main {
-  display: flex;
+.comp-header__device-pill {
+  display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-width: 0;
-}
-
-.comp-header__mark {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(59, 130, 246, 0.14);
-  border: 1px solid rgba(96, 165, 250, 0.26);
-  color: #bfdbfe;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
+  min-width: 372px;
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid rgba(59, 130, 246, 0.34);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.18), transparent 18%),
+    linear-gradient(135deg, rgba(13, 27, 47, 0.96), rgba(10, 22, 39, 0.68));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(15, 23, 42, 0.22);
   flex: 0 0 auto;
 }
 
-.comp-header__title h2 {
-  margin: 0;
-  font-size: 24px;
-  color: #f5f7fb;
-  letter-spacing: 0;
-  line-height: 1.15;
-}
-
-.comp-header__title p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: #8ea0bc;
-}
-
-.comp-header__title i {
+.comp-header__identity-divider {
   width: 1px;
-  height: 10px;
-  background: rgba(142, 160, 188, 0.42);
+  height: 24px;
+  background: linear-gradient(180deg, transparent, rgba(95, 123, 165, 0.64), transparent);
+  flex: 0 0 auto;
 }
 
-.comp-header__tags,
-.comp-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.comp-header__chip {
+.comp-header__identity-field {
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  gap: 7px;
-  min-width: 84px;
-  min-height: var(--touch-target);
-  padding: 0 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(72, 96, 130, 0.68);
-  background: rgba(7, 15, 26, 0.58);
-  color: #cbd5e1;
-  font-size: var(--font-caption);
+  min-width: 58px;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.comp-header__identity-field--primary {
+  min-width: 118px;
+}
+
+.comp-header__identity-label {
+  color: #6f86a6;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0;
   line-height: 1;
 }
 
-.comp-header__chip i {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  flex: 0 0 auto;
+.comp-header__identity-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #d8e7ff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.comp-header__chip--success {
-  color: #86efac;
-  border-color: rgba(34, 197, 94, 0.35);
+.comp-header__identity-value--link {
+  color: #b7cced;
 }
 
-.comp-header__chip--warning {
-  color: #fde68a;
-  border-color: rgba(245, 158, 11, 0.38);
+.comp-header__back .comp-header__identity-value {
+  min-height: 22px;
+  padding: 0 7px 0 2px;
 }
 
-.comp-header__chip--danger,
-.comp-header__chip--offline {
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.35);
+.comp-header__tabs {
+  display: grid;
+  grid-template-columns: repeat(var(--comp-header-tab-count, 4), minmax(0, 1fr));
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px;
+  border: 1px solid rgba(74, 95, 128, 0.62);
+  border-radius: 13px;
+  background: rgba(5, 12, 22, 0.34);
 }
 
-.comp-header__chip--mode {
-  color: #bfdbfe;
-  border-color: rgba(96, 165, 250, 0.32);
+.comp-header__tab {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #879bb8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.comp-header__chip--neutral {
-  color: #cbd5e1;
-  border-color: rgba(72, 96, 130, 0.68);
+.comp-header__tab:hover {
+  color: #dbeafe;
+}
+
+.comp-header__tab.is-active {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.66), rgba(30, 64, 175, 0.6));
+  color: #eff6ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 18px rgba(20, 45, 96, 0.22);
+}
+
+.comp-header__tab--warning.is-active {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fef3c7;
+}
+
+.comp-header__tab--danger.is-active {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fee2e2;
+}
+
+.comp-header__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
 }
 
 .comp-header__action {
@@ -309,13 +285,13 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 112px;
-  flex: 0 0 112px;
-  height: 34px;
+  width: 104px;
+  flex: 0 0 104px;
+  height: 36px;
   padding: 0 14px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid rgba(72, 96, 130, 0.76);
-  background: rgba(7, 15, 26, 0.68);
+  background: rgba(5, 12, 22, 0.42);
   color: #dbeafe;
   font: inherit;
   font-size: 13px;
@@ -356,7 +332,16 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
   color: #dbeafe;
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 900px) {
+  .comp-header__bar {
+    flex-wrap: wrap;
+  }
+
+  .comp-header__tabs {
+    order: 3;
+    flex-basis: 100%;
+  }
+
   .comp-header__action {
     width: var(--touch-target);
     flex-basis: var(--touch-target);
@@ -374,19 +359,24 @@ function statusChipClass(label: string, tone: CompensationHeaderModel['deviceSta
   }
 }
 
-@media (max-width: 1320px) {
-  .comp-header {
-    grid-template-columns: 1fr;
+@media (max-width: 900px) {
+  .comp-header__device-pill {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .comp-header__bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .comp-header__status {
-    width: 100%;
-    align-items: flex-start;
+  .comp-header__tabs {
+    overflow-x: auto;
   }
 
-  .comp-header__tags,
-  .comp-header__actions {
-    justify-content: flex-start;
+  .comp-header__device-pill {
+    flex-wrap: wrap;
   }
 }
 </style>

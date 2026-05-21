@@ -250,7 +250,7 @@ const RUN_STATE_LABELS: Record<StorageRunState, string> = {
 
 .comp-header__action--neutral { color: #dbeafe; }
 
-@media (max-width: 1320px) {
+@media (max-width: 900px) {
   .comp-header {
     grid-template-columns: 1fr;
   }

@@ -125,7 +125,7 @@ export function useDeviceMonitorPage() {
     enableLifecycle: false,
   })
 
-  const storage = useStorageMonitor({ deviceId, overview, timeRange })
+  const storage = useStorageMonitor({ deviceId, overview, timeRange, enableLifecycle: false })
 
   const timeShortcuts = [
     { text: '近 1 小时', value: () => buildRecentRange(1) },
@@ -326,11 +326,12 @@ export function useDeviceMonitorPage() {
     if (!deviceId.value) return
     chartLoading.value = true
     try {
-      const params = buildRangeParams()
+      const trendParams = buildRangeParams()
+      const logParams = buildControlLogRangeParams()
 
       const [trendRes, logsRes] = await Promise.all([
-        getDeviceMonitorTrend(deviceId.value, params),
-        getDeviceMonitorControlLogs(deviceId.value, params),
+        getDeviceMonitorTrend(deviceId.value, trendParams),
+        getDeviceMonitorControlLogs(deviceId.value, logParams),
       ])
 
       trend.value = {
@@ -392,6 +393,22 @@ export function useDeviceMonitorPage() {
     } finally {
       loading.value = false
     }
+  }
+
+  function resetPageState() {
+    overview.value = null
+    trend.value = null
+    alarms.value = []
+    controlLogs.value = []
+    statusHistory.value = []
+    compensation.compensationSvgTelemetry.value = null
+    compensation.compensationSvgProfile.value = null
+    compensation.compensationSvgTelemetryHistory.value = []
+    compensation.compensationCapacitorBankTelemetry.value = null
+    compensation.compensationCapacitorBankTelemetryHistory.value = []
+    compensation.compensationCapacitorBankControlProfile.value = null
+    storage.latestTelemetry.value = null
+    storage.telemetryHistory.value = []
   }
 
   async function loadStatusHistory() {
@@ -515,10 +532,22 @@ export function useDeviceMonitorPage() {
     }
   }
 
+  let mounted = false
+
+  watch(
+    () => deviceId.value,
+    async (next, previous) => {
+      if (!mounted || !next || next === previous) return
+      resetPageState()
+      await loadPage(true)
+    },
+  )
+
   onMounted(async () => {
     await chart.initChart()
     await loadPage(true)
     refreshTimer = setInterval(refreshRealtime, REFRESH_INTERVAL_MS)
+    mounted = true
   })
 
   onBeforeUnmount(() => {
@@ -532,12 +561,28 @@ export function useDeviceMonitorPage() {
     return 'kWh'
   }
 
-  function buildRangeParams(limit: number = 300) {
+  function resolveTrendLimit(start: Date, end: Date) {
+    const spanMs = Math.max(1, end.getTime() - start.getTime())
+    const hourMs = 60 * 60 * 1000
+    if (spanMs >= 12 * hourMs) return 5000
+    if (spanMs >= hourMs) return 1500
+    return 600
+  }
+
+  function buildRangeParams(limit?: number) {
     const [start, end] = timeRange.value || defaultTimeRange()
     return {
       start_time: toApiDate(start),
       end_time: toApiDate(end),
-      limit,
+      limit: limit ?? resolveTrendLimit(start, end),
+    }
+  }
+
+  function buildControlLogRangeParams() {
+    const params = buildRangeParams()
+    return {
+      ...params,
+      limit: Math.min(params.limit, 500),
     }
   }
 

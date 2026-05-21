@@ -14,6 +14,7 @@ export interface UseStorageMonitorInput {
   deviceId: ComputedRef<number>
   overview: Ref<MonitorOverview | null>
   timeRange: Ref<[Date, Date] | null>
+  enableLifecycle?: boolean
 }
 
 function toApiDate(value: Date) {
@@ -185,9 +186,11 @@ export function useStorageMonitor(input: UseStorageMonitorInput) {
     if (token !== requestToken) return
   }
 
-  onMounted(() => {
-    refreshTimer = setInterval(() => void refreshStorageData(), REFRESH_INTERVAL_MS)
-  })
+  if (input.enableLifecycle !== false) {
+    onMounted(() => {
+      refreshTimer = setInterval(() => void refreshStorageData(), REFRESH_INTERVAL_MS)
+    })
+  }
 
   onBeforeUnmount(() => {
     requestToken++

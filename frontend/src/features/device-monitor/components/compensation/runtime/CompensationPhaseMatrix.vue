@@ -15,6 +15,11 @@ interface MatrixRow {
   system: MatrixCell
 }
 
+interface MatrixGroup {
+  title: string
+  rows: MatrixRow[]
+}
+
 const props = defineProps({
   telemetry: {
     type: Object as PropType<CompensationCapacitorBankTelemetry | null>,
@@ -76,10 +81,9 @@ function sumCell(values: Array<number | null | undefined>, digits: number): Matr
   return plainCell(sum.toFixed(digits))
 }
 
-const rows = computed<MatrixRow[]>(() => {
+const matrixGroups = computed<MatrixGroup[]>(() => {
   const t = props.telemetry
 
-  // --- 量测行 ---
   const measurementRows: MatrixRow[] = [
     {
       label: '电压 (V)',
@@ -113,7 +117,6 @@ const rows = computed<MatrixRow[]>(() => {
     },
   ]
 
-  // --- 指标行 ---
   const leadingCells: MatrixCell[] = [
     phaseStatusCell(t?.leading_a),
     phaseStatusCell(t?.leading_b),
@@ -135,7 +138,6 @@ const rows = computed<MatrixRow[]>(() => {
     { label: 'I-THD (%)', cells: iThdCells, system: systemCell(iThdCells) },
   ]
 
-  // --- 柜温行 ---
   const temp = num(t?.temperature)
   const tempText = temp === null ? '--' : `${temp.toFixed(0)} °C`
   const tempRow: MatrixRow = {
@@ -144,7 +146,14 @@ const rows = computed<MatrixRow[]>(() => {
     system: plainCell(tempText),
   }
 
-  return [...measurementRows, ...indicatorRows, tempRow]
+  return [
+    { title: '电参量', rows: measurementRows },
+    { title: '运行指标', rows: [...indicatorRows, tempRow] },
+  ]
+})
+
+const rows = computed<MatrixRow[]>(() => {
+  return matrixGroups.value.flatMap((group) => group.rows)
 })
 
 const alarmCount = computed(() =>
@@ -164,30 +173,33 @@ const alarmCount = computed(() =>
       <span class="matrix-meta">{{ alarmCount }} 项关注</span>
     </header>
     <div class="matrix-body">
-      <table class="matrix">
-        <thead>
-          <tr>
-            <th class="matrix-row-head">指标</th>
-            <th>A 相</th>
-            <th>B 相</th>
-            <th>C 相</th>
-            <th>系统</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in rows" :key="row.label">
-            <td class="matrix-row-head">{{ row.label }}</td>
-            <td v-for="(cell, i) in row.cells" :key="i">
-              <span v-if="cell.display === 'chip'" class="matrix-cell" :class="`is-${cell.severity}`">{{ cell.text }}</span>
-              <span v-else class="matrix-value" :class="{ 'is-missing': cell.text === '--' }">{{ cell.text }}</span>
-            </td>
-            <td>
-              <span v-if="row.system.display === 'chip'" class="matrix-cell" :class="`is-${row.system.severity}`">{{ row.system.text }}</span>
-              <span v-else class="matrix-value" :class="{ 'is-missing': row.system.text === '--' }">{{ row.system.text }}</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-for="group in matrixGroups" :key="group.title" class="matrix-group">
+        <div class="matrix-group-title">{{ group.title }}</div>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th class="matrix-row-head">指标</th>
+              <th>A 相</th>
+              <th>B 相</th>
+              <th>C 相</th>
+              <th>系统</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in group.rows" :key="row.label">
+              <td class="matrix-row-head">{{ row.label }}</td>
+              <td v-for="(cell, i) in row.cells" :key="i">
+                <span v-if="cell.display === 'chip'" class="matrix-cell" :class="`is-${cell.severity}`">{{ cell.text }}</span>
+                <span v-else class="matrix-value" :class="{ 'is-missing': cell.text === '--' }">{{ cell.text }}</span>
+              </td>
+              <td>
+                <span v-if="row.system.display === 'chip'" class="matrix-cell" :class="`is-${row.system.severity}`">{{ row.system.text }}</span>
+                <span v-else class="matrix-value" :class="{ 'is-missing': row.system.text === '--' }">{{ row.system.text }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 </template>
@@ -227,9 +239,23 @@ const alarmCount = computed(() =>
   color: #5e6c83;
 }
 .matrix-body {
-  padding: 6px 14px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 1fr);
+  gap: 14px;
+  padding: 8px 14px 10px;
   flex: 1;
   min-height: 0;
+}
+.matrix-group {
+  min-width: 0;
+}
+.matrix-group-title {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  color: #7b8ca5;
+  font-size: 11px;
+  font-weight: 600;
 }
 .matrix {
   width: 100%;
@@ -239,7 +265,7 @@ const alarmCount = computed(() =>
 .matrix th,
 .matrix td {
   text-align: center;
-  padding: 5px 4px;
+  padding: 5px 3px;
   font-size: 11px;
   color: #9aa7bd;
   border-bottom: 1px solid #1f2c41;
@@ -295,5 +321,10 @@ const alarmCount = computed(() =>
 }
 .matrix-value.is-missing {
   color: #5e6c83;
+}
+@media (max-width: 1180px) {
+  .matrix-body {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

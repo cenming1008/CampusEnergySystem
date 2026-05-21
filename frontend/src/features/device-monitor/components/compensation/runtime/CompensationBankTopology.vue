@@ -38,14 +38,14 @@ const BUS_META: Array<{
   commonGroup: 1 | 2 | 3 | null
   phaseClass: string
   chip: string
-  divider: boolean
+  sectionLabel: string | null
 }> = [
-  { phase: 'A', commonGroup: null, phaseClass: 'a', chip: 'A', divider: false },
-  { phase: 'B', commonGroup: null, phaseClass: 'b', chip: 'B', divider: false },
-  { phase: 'C', commonGroup: null, phaseClass: 'c', chip: 'C', divider: false },
-  { phase: 'COMMON', commonGroup: 1, phaseClass: 'n', chip: 'N', divider: true },
-  { phase: 'COMMON', commonGroup: 2, phaseClass: 'n', chip: 'N', divider: false },
-  { phase: 'COMMON', commonGroup: 3, phaseClass: 'n', chip: 'N', divider: false },
+  { phase: 'A', commonGroup: null, phaseClass: 'a', chip: 'A', sectionLabel: '分相补偿' },
+  { phase: 'B', commonGroup: null, phaseClass: 'b', chip: 'B', sectionLabel: null },
+  { phase: 'C', commonGroup: null, phaseClass: 'c', chip: 'C', sectionLabel: null },
+  { phase: 'COMMON', commonGroup: 1, phaseClass: 'n', chip: 'N', sectionLabel: '共补回路' },
+  { phase: 'COMMON', commonGroup: 2, phaseClass: 'n', chip: 'N', sectionLabel: null },
+  { phase: 'COMMON', commonGroup: 3, phaseClass: 'n', chip: 'N', sectionLabel: null },
 ]
 
 const buses = computed(() => {
@@ -68,10 +68,14 @@ const buses = computed(() => {
     const group = groups[i]
     const slots = toBits(group.mask, counts[i])
     const phaseAlarm = Boolean(group.alarmFlag)
+    const runningCount = slots.filter((slot) => slot === true).length
+    const configuredCount = slots.filter((slot) => slot !== null).length
     return {
       ...meta,
       label: group.label || meta.chip,
       phaseAlarm,
+      runningCount,
+      configuredCount,
       caps: slots.map((slot, slotIdx) => {
         const state: CompensationCircuitSlotState =
           slot === true ? 'on' : slot === false ? 'off' : 'unconfigured'
@@ -131,7 +135,7 @@ function handlePick(
     <div class="topo-body">
       <div class="topo">
         <template v-for="bus in buses" :key="`${bus.phase}-${bus.commonGroup}`">
-          <div v-if="bus.divider" class="topo-divider" />
+          <div v-if="bus.sectionLabel" class="topo-section-label">{{ bus.sectionLabel }}</div>
           <div class="topo-bus" data-test="topo-bus">
             <div class="topo-phase">
               <span class="topo-chip" :class="bus.phaseClass">{{ bus.chip }}</span>
@@ -156,6 +160,9 @@ function handlePick(
               >
                 <span class="topo-cap-idx">#{{ cap.index }}</span>
               </button>
+            </div>
+            <div class="topo-row-summary">
+              <b>{{ bus.runningCount }}/{{ bus.configuredCount }}</b>
             </div>
           </div>
         </template>
@@ -209,22 +216,27 @@ function handlePick(
 }
 .topo-legend {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   font-size: 10px;
   color: #5e6c83;
 }
 .topo-legend span {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(31, 44, 65, 0.75);
+  border-radius: 999px;
+  background: rgba(11, 22, 35, 0.42);
 }
 .topo-legend .sw {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 3px;
   border: 1px solid #1f2c41;
 }
-.topo-legend .sw.on { background: #34d399; border-color: rgba(52, 211, 153, 0.5); }
+.topo-legend .sw.on { background: #22d3a6; border-color: rgba(52, 211, 153, 0.72); }
 .topo-legend .sw.off { background: #0b1623; }
 .topo-legend .sw.empty { border-style: dashed; }
 .topo-body {
@@ -239,6 +251,22 @@ function handlePick(
   flex-direction: column;
   gap: 4px;
   flex: 1;
+}
+.topo-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 18px;
+  margin-top: 2px;
+  color: #7b8ca5;
+  font-size: 10px;
+  font-weight: 600;
+}
+.topo-section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(31, 44, 65, 0.9), rgba(31, 44, 65, 0.08));
 }
 .topo-bus {
   display: flex;
@@ -296,7 +324,7 @@ function handlePick(
   right: 0;
   top: 50%;
   height: 2px;
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.5), rgba(34, 211, 238, 0.1));
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.2), rgba(34, 211, 238, 0.04));
 }
 .topo-cap {
   position: relative;
@@ -310,26 +338,39 @@ function handlePick(
   place-items: center;
 }
 .topo-cap-idx {
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .topo-cap:hover:not(:disabled) {
   border-color: #22d3ee;
 }
 .topo-cap.is-on {
-  background: linear-gradient(180deg, rgba(52, 211, 153, 0.18), rgba(52, 211, 153, 0.05));
-  border-color: rgba(52, 211, 153, 0.5);
-  color: #34d399;
+  background: linear-gradient(180deg, rgba(34, 211, 166, 0.34), rgba(20, 184, 166, 0.15));
+  border-color: rgba(45, 212, 191, 0.78);
+  color: #b7f7e6;
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.18), 0 0 16px rgba(20, 184, 166, 0.2);
+}
+.topo-cap.is-off {
+  background: rgba(8, 19, 31, 0.84);
+  color: #78889f;
 }
 .topo-cap.is-empty {
   border-style: dashed;
-  opacity: 0.45;
+  opacity: 0.28;
   cursor: not-allowed;
 }
-.topo-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #1f2c41, transparent);
-  margin: 3px 0;
+.topo-row-summary {
+  width: 42px;
+  flex-shrink: 0;
+  text-align: right;
+  color: #5e6c83;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.topo-row-summary b {
+  color: #c4d3e7;
+  font-weight: 600;
 }
 .topo-summary {
   display: flex;

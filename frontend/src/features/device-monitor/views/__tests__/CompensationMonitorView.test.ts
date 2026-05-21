@@ -15,21 +15,30 @@ const ShellStub = defineComponent({
 
 const HeaderStub = defineComponent({
   props: {
-    consoleEntryLabel: {
+    tabs: {
+      type: Array,
+      default: () => [],
+    },
+    activeTab: {
       type: String,
       default: '',
     },
   },
-  emits: ['open-console'],
+  emits: ['tab-change'],
   template: `
     <header class="header-stub">
-      <button
-        class="header-console-action"
-        type="button"
-        @click="$emit('open-console')"
-      >
-        {{ consoleEntryLabel }}
-      </button>
+      <nav class="header-tabs-stub">
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          class="header-tab-stub"
+          :class="{ 'is-active': activeTab === tab.value }"
+          @click="$emit('tab-change', tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
     </header>
   `,
 })
@@ -43,6 +52,19 @@ const ControlSummaryStub = defineComponent({
       @click="$emit('open-console')"
     >
       参数入口
+    </button>
+  `,
+})
+
+const AlarmRailStub = defineComponent({
+  emits: ['view-all'],
+  template: `
+    <button
+      class="alarm-rail-stub"
+      type="button"
+      @click="$emit('view-all')"
+    >
+      告警栏
     </button>
   `,
 })
@@ -94,6 +116,7 @@ function createPage(tab = 'runtime') {
     compensationMetrics: [],
     compensationExtendedHint: '',
     compensationCapacitorBankTelemetry: null,
+    compensationCapacitorBankTelemetryHistory: [],
     compensationPowerFactorTrend: [],
     compensationStatusText: '在线',
     compensationStatusTone: 'success',
@@ -176,11 +199,13 @@ function mountView(tab = 'runtime') {
         MonitorViewShell: ShellStub,
         CompensationHeader: HeaderStub,
         CompensationRuntimeBoard: namedStub('runtime-board-stub', '运行监视板'),
-        CompensationAlarmRail: namedStub('alarm-rail-stub', '告警栏'),
+        CompensationAlarmRail: AlarmRailStub,
         CompensationParamSummary: namedStub('param-summary-stub', '参数摘要'),
         CompensationRealtimeOverview: namedStub('runtime-overview-stub', '运行概览'),
         CompensationDetailPanel: namedStub('detail-panel-stub', '运行明细'),
         CompensationTrendPanel: namedStub('trend-panel-stub', '趋势曲线'),
+        CompensationCurveWorkspace: namedStub('curve-workspace-stub', '曲线分析工作区'),
+        CompensationCurveAnalysisAside: namedStub('curve-analysis-aside-stub', '曲线分析助手'),
         HarmonicSpectrumPanel: namedStub('harmonic-panel-stub', '高次谐波'),
         CompensationAlarmTable: namedStub('alarm-table-stub', '告警列表'),
         CompensationEventTimeline: namedStub('event-timeline-stub', '事件时间线'),
@@ -204,22 +229,18 @@ function mountView(tab = 'runtime') {
 
 describe('CompensationMonitorView', () => {
   it('renders remote control as a runtime module instead of a workbench tab', async () => {
-    const { wrapper, page } = mountView()
+    const { wrapper } = mountView()
 
     expect(wrapper.text()).toContain('运行监视')
     expect(wrapper.text()).toContain('曲线分析')
-    expect(wrapper.find('.comp-workbench__tabs').text()).not.toContain('远程控制')
+    expect(wrapper.find('.header-tabs-stub').text()).not.toContain('远程控制')
     expect(wrapper.text()).toContain('参数设置')
     expect(wrapper.text()).toContain('事件记录')
     expect(wrapper.find('.runtime-board-stub').exists()).toBe(true)
     expect(wrapper.find('.runtime-overview-stub').exists()).toBe(false)
     expect(wrapper.find('.detail-panel-stub').exists()).toBe(false)
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
-
-    await wrapper.find('.header-console-action').trigger('click')
-
-    expect(page.compensationWorkbenchTab).toBe('runtime')
-    expect(page.router.push).not.toHaveBeenCalled()
+    expect(wrapper.find('.header-console-action').exists()).toBe(false)
   })
 
   it('keeps the remote control module out of non-runtime workbench tabs', () => {
@@ -227,6 +248,20 @@ describe('CompensationMonitorView', () => {
 
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
     expect(wrapper.find('.params-panel-stub').exists()).toBe(true)
+  })
+
+  it('jumps from runtime alarm rail to event records tab', async () => {
+    const { wrapper, page } = mountView()
+
+    await wrapper.find('.alarm-rail-stub').trigger('click')
+
+    expect(page.compensationWorkbenchTab).toBe('event-records')
+  })
+
+  it('shows the device profile in the runtime side panel', () => {
+    const { wrapper } = mountView()
+
+    expect(wrapper.find('.device-profile-stub').exists()).toBe(true)
   })
 
   it('shows the merged parameters panel on the parameter-settings tab', () => {
@@ -247,11 +282,26 @@ describe('CompensationMonitorView', () => {
     expect(wrapper.find('.remote-panel-stub').exists()).toBe(false)
   })
 
-  it('shows realtime harmonics and historical trends together on the curves tab', () => {
-    const { wrapper, page } = mountView('curves')
+  it('renders the redesigned curve workspace on the curves tab', () => {
+    const { wrapper } = mountView('curves')
 
-    expect(wrapper.find('.trend-panel-stub').exists()).toBe(true)
-    expect(wrapper.find('.harmonic-panel-stub').exists()).toBe(true)
-    expect(page.compensationTrendTab).toBe('effect')
+    expect(wrapper.find('.curve-workspace-stub').exists()).toBe(true)
+  })
+
+  it('switches workbench tabs from the device header', async () => {
+    const { wrapper, page } = mountView('runtime')
+
+    await wrapper.findAll('.header-tab-stub').find((button) => button.text() === '曲线分析')?.trigger('click')
+
+    expect(page.compensationWorkbenchTab).toBe('curves')
+  })
+
+  it('uses the curve analysis assistant in the curves side panel', () => {
+    const { wrapper } = mountView('curves')
+
+    expect(wrapper.find('.curve-analysis-aside-stub').exists()).toBe(true)
+    expect(wrapper.find('.event-timeline-stub').exists()).toBe(false)
+    expect(wrapper.find('.alarm-summary-stub').exists()).toBe(false)
+    expect(wrapper.find('.device-profile-stub').exists()).toBe(false)
   })
 })

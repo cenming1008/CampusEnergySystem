@@ -90,7 +90,12 @@ class _CapacitorBankMonitorPlugin(_BaseMonitorPlugin):
         self,
         context: DeviceMonitorContext,
     ) -> Optional[dict[str, Any]]:
-        return CompensationMonitorService.build_monitor(context.session, context.device, context.realtime)
+        return CompensationMonitorService.build_monitor(
+            context.session,
+            context.device,
+            context.realtime,
+            context.runtime_status,
+        )
 
     def get_template_spec(self) -> MonitorTemplateSpec:
         return MonitorTemplateService._CAPACITOR_BANK_TEMPLATE
@@ -119,7 +124,12 @@ class _SvgMonitorPlugin(_BaseMonitorPlugin):
         self,
         context: DeviceMonitorContext,
     ) -> Optional[dict[str, Any]]:
-        return CompensationMonitorService.build_monitor(context.session, context.device, context.realtime)
+        return CompensationMonitorService.build_monitor(
+            context.session,
+            context.device,
+            context.realtime,
+            context.runtime_status,
+        )
 
     def get_template_spec(self) -> MonitorTemplateSpec:
         return MonitorTemplateService._SVG_TEMPLATE

@@ -72,7 +72,7 @@
   }
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 900px) {
   .monitor-view-shell__grid {
     grid-template-columns: 1fr;
   }

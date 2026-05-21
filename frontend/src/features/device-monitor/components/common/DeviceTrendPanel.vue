@@ -249,7 +249,7 @@ function displayNumber(value?: number | null) {
   min-width: 0;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 900px) {
   .device-trend-panel__toolbar {
     justify-content: flex-start;
   }

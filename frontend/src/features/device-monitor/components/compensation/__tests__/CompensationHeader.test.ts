@@ -13,14 +13,13 @@ const model = {
 }
 
 describe('CompensationHeader', () => {
-  it('uses the remote control label as the default secondary entry label', () => {
+  it('does not render the removed remote-control entry', () => {
     const wrapper = mount(CompensationHeader, {
       props: {
         model,
         toggleActionLabel: '停用设备',
         toggleButtonType: 'danger',
         canControlDevices: true,
-        showConsoleEntry: true,
       },
       global: {
         stubs: {
@@ -28,28 +27,29 @@ describe('CompensationHeader', () => {
           ArrowLeft: true,
           Refresh: true,
           SwitchButton: true,
-          Setting: { template: '<i class="setting-icon-probe" />' },
         },
       },
     })
 
-    const consoleButton = wrapper.find('button[aria-label="远程控制"]')
-
-    expect(consoleButton.exists()).toBe(true)
-    expect(consoleButton.attributes('title')).toBe('远程控制')
-    expect(consoleButton.text()).toContain('远程控制')
-    expect(consoleButton.text()).not.toContain('控制台')
+    expect(wrapper.find('button[aria-label="远程控制"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="参数设置"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('远程控制')
   })
 
-  it('uses the provided workbench action label and settings icon for the secondary entry', () => {
+  it('renders workbench tabs in the header without a search input', async () => {
     const wrapper = mount(CompensationHeader, {
       props: {
         model,
         toggleActionLabel: '停用设备',
         toggleButtonType: 'danger',
         canControlDevices: true,
-        showConsoleEntry: true,
-        consoleEntryLabel: '参数设置',
+        activeTab: 'curves',
+        tabs: [
+          { label: '运行监视', value: 'runtime' },
+          { label: '曲线分析', value: 'curves' },
+          { label: '参数设置', value: 'parameter-settings' },
+          { label: '事件记录', value: 'event-records' },
+        ],
       },
       global: {
         stubs: {
@@ -57,17 +57,59 @@ describe('CompensationHeader', () => {
           ArrowLeft: true,
           Refresh: true,
           SwitchButton: true,
-          Setting: { template: '<i class="setting-icon-probe" />' },
         },
       },
     })
 
-    const consoleButton = wrapper.find('button[aria-label="参数设置"]')
+    expect(wrapper.find('.comp-header__tabs').exists()).toBe(true)
+    expect(wrapper.find('.comp-header__tab.is-active').text()).toContain('曲线分析')
+    expect(wrapper.find('.comp-header__device-pill').text()).toContain('监视')
+    expect(wrapper.find('.comp-header__device-pill').text()).toContain('补偿控制器')
+    expect(wrapper.find('.comp-header__device-pill').text()).toContain('配电房')
+    expect(wrapper.find('.comp-header__device-pill').text()).not.toContain('曲线分析')
+    expect(wrapper.find('.comp-header__device-pill').text()).not.toContain('CAP-001')
+    expect(wrapper.find('input').exists()).toBe(false)
 
-    expect(consoleButton.exists()).toBe(true)
-    expect(consoleButton.attributes('title')).toBe('参数设置')
-    expect(consoleButton.text()).toContain('参数设置')
-    expect(consoleButton.text()).not.toContain('控制台')
-    expect(consoleButton.find('.setting-icon-probe').exists()).toBe(true)
+    await wrapper.findAll('.comp-header__tab').find((button) => button.text().includes('运行监视'))?.trigger('click')
+
+    expect(wrapper.emitted('tab-change')?.[0]).toEqual(['runtime'])
+  })
+
+  it('presents the identity pill as three labeled fields', () => {
+    const wrapper = mount(CompensationHeader, {
+      props: {
+        model,
+        toggleActionLabel: '停用设备',
+        toggleButtonType: 'danger',
+        canControlDevices: true,
+      },
+      global: {
+        stubs: {
+          'el-icon': { template: '<span class="icon-probe"><slot /></span>' },
+          ArrowLeft: true,
+          Refresh: true,
+          SwitchButton: true,
+        },
+      },
+    })
+
+    const fields = wrapper.findAll('.comp-header__identity-field')
+
+    expect(fields).toHaveLength(3)
+    expect(
+      fields.map((field) => {
+        const label = field.find('.comp-header__identity-label')
+        return label.exists() ? label.text() : ''
+      }),
+    ).toEqual([
+      '',
+      '设备名称',
+      '位置',
+    ])
+    expect(fields.map((field) => field.find('.comp-header__identity-value').text())).toEqual([
+      '监视',
+      '补偿控制器',
+      '配电房',
+    ])
   })
 })

@@ -48,7 +48,6 @@ const timeRangeKey = computed<'10m' | '1h' | '24h'>(() => {
 function handleRangeChange(key: '10m' | '1h' | '24h') {
   const now = new Date()
   props.page.timeRange = [new Date(now.getTime() - RANGE_MS[key]), now]
-  void props.page.handleRangeChange()
 }
 
 const circuitEvents = computed(() => {
@@ -87,8 +86,7 @@ function handleCircuitSwitch(payload: {
         @range-change="handleRangeChange"
       />
       <CompensationPqQuadrantCard
-        :point="page.compensationPqPoint"
-        :history="page.compensationPqHistory"
+        :model="page.compensationPqModel"
       />
       <CompensationHealthCard :model="page.compensationHealthModel" />
     </div>
@@ -145,7 +143,7 @@ function handleCircuitSwitch(payload: {
 .rt-bottom {
   display: block;
 }
-@media (max-width: 1280px) {
+@media (max-width: 900px) {
   .rt-hero {
     grid-template-columns: 1fr;
   }

@@ -13,7 +13,6 @@ import {
   buildHarmonicSpectrumView,
   getHarmonicSpectrumYAxisMax,
   describeCompensationSource,
-  buildCompensationHealthModel,
 } from '../viewMapping'
 import type { CompensationMonitor } from '@/api/deviceMonitor'
 
@@ -801,71 +800,5 @@ describe('compensation view mapping', () => {
     expect(model.summary.threshold).toBeNull()
     expect(model.summary.statusText).toBe('正常')
     expect(model.bars.find((bar) => bar.order === 3)?.exceeded).toBe(false)
-  })
-})
-
-describe('buildCompensationHealthModel', () => {
-  it('健康设备：所有维度有数据，给出高分与良好评级', () => {
-    const model = buildCompensationHealthModel({
-      ingestionStatus: 'online',
-      isRealtimeFresh: true,
-      voltageThd: [1.2, 1.4, 1.1],
-      currentThd: [2.0, 1.8, 2.2],
-      temperature: 38,
-      voltage: 221,
-      switchingFlags: [false, false, false, false, false, false],
-    })
-    expect(model.score).not.toBeNull()
-    expect(model.score as number).toBeGreaterThan(80)
-    expect(model.breakdown).toHaveLength(6)
-    expect(model.breakdown.every((d) => d.value !== null)).toBe(true)
-    expect(model.rating).toBe('优秀')
-  })
-
-  it('缺测维度记为 null 且不计入总分', () => {
-    const model = buildCompensationHealthModel({
-      ingestionStatus: 'online',
-      isRealtimeFresh: true,
-      voltageThd: [null, null, null],
-      currentThd: [2.0, null, null],
-      temperature: null,
-      voltage: 221,
-      switchingFlags: [null, null, null, null, null, null],
-    })
-    const vh = model.breakdown.find((d) => d.key === 'voltageHarmonic')
-    const temp = model.breakdown.find((d) => d.key === 'temperature')
-    const sw = model.breakdown.find((d) => d.key === 'switching')
-    expect(vh?.value).toBeNull()
-    expect(temp?.value).toBeNull()
-    expect(sw?.value).toBeNull()
-    expect(model.score).not.toBeNull()
-  })
-
-  it('全部维度缺数据时 score 为 null', () => {
-    const model = buildCompensationHealthModel({
-      ingestionStatus: 'unknown',
-      isRealtimeFresh: false,
-      voltageThd: [null, null, null],
-      currentThd: [null, null, null],
-      temperature: null,
-      voltage: null,
-      switchingFlags: [null, null, null, null, null, null],
-    })
-    expect(model.score).toBeNull()
-    expect(model.rating).toBe('暂无评级')
-  })
-
-  it('严重谐波超限时该维得分很低', () => {
-    const model = buildCompensationHealthModel({
-      ingestionStatus: 'online',
-      isRealtimeFresh: true,
-      voltageThd: [27, 27, 27],
-      currentThd: [2, 2, 2],
-      temperature: 38,
-      voltage: 221,
-      switchingFlags: [false, false, false, false, false, false],
-    })
-    const vh = model.breakdown.find((d) => d.key === 'voltageHarmonic')
-    expect(vh?.value).toBeLessThan(20)
   })
 })

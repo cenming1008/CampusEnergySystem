@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlmodel import Session, select
@@ -24,12 +25,237 @@ from app.services.devices.compensation.svg.service import SVGService
 class CompensationMonitorService:
     """构建补偿类设备监控页专属 payload。"""
 
+    _HEALTH_REALTIME_FRESH_THRESHOLD_SECONDS = 120
+    _HEALTH_VOLTAGE_THD_THRESHOLD = 5.0
+    _HEALTH_CURRENT_THD_THRESHOLD = 5.0
+    _HEALTH_TEMP_THRESHOLD = 55.0
+    _HEALTH_NOMINAL_VOLTAGE = 220.0
+    _PQ_DEFAULT_P_MAX = 400.0
+    _PQ_DEFAULT_Q_MAX = 200.0
+
     @staticmethod
     def _build_metric(value: Any, *, source: str, state: str) -> dict[str, Any]:
         return {
             "value": value,
             "source": source,
             "state": state,
+        }
+
+    @staticmethod
+    def _clamp_health_score(value: float) -> int:
+        return max(0, min(100, int(value + 0.5)))
+
+    @staticmethod
+    def _score_by_threshold(value: Optional[float], threshold: float) -> Optional[int]:
+        if value is None:
+            return 0
+        ratio = float(value) / threshold
+        if ratio <= 1:
+            return CompensationMonitorService._clamp_health_score(100 - ratio * 20)
+        return CompensationMonitorService._clamp_health_score(80 - (ratio - 1) * 40)
+
+    @staticmethod
+    def _max_defined_number(values: tuple[Optional[float], ...]) -> Optional[float]:
+        defined = [float(value) for value in values if value is not None]
+        return max(defined) if defined else None
+
+    @staticmethod
+    def _is_realtime_fresh(timestamp: Any) -> bool:
+        if timestamp is None:
+            return False
+        if not isinstance(timestamp, datetime):
+            return False
+        now = datetime.now(tz=timestamp.tzinfo) if timestamp.tzinfo else datetime.now()
+        delta = now - timestamp
+        return 0 <= delta.total_seconds() <= CompensationMonitorService._HEALTH_REALTIME_FRESH_THRESHOLD_SECONDS
+
+    @staticmethod
+    def _comm_health_score(ingestion_status: Optional[str], is_realtime_fresh: bool) -> Optional[int]:
+        if ingestion_status == "online":
+            return 100 if is_realtime_fresh else 70
+        if ingestion_status == "degraded":
+            return 55
+        if ingestion_status == "offline":
+            return 15
+        return 0
+
+    @staticmethod
+    def _voltage_stability_score(voltage: Optional[float]) -> Optional[int]:
+        if voltage is None:
+            return 0
+        deviation_pct = (abs(float(voltage) - CompensationMonitorService._HEALTH_NOMINAL_VOLTAGE) / CompensationMonitorService._HEALTH_NOMINAL_VOLTAGE) * 100
+        return CompensationMonitorService._clamp_health_score(100 - deviation_pct * 4)
+
+    @staticmethod
+    def _switching_health_score(flags: tuple[Optional[bool], ...]) -> Optional[int]:
+        if all(flag is None for flag in flags):
+            return 0
+        active_count = sum(1 for flag in flags if flag is True)
+        return CompensationMonitorService._clamp_health_score(100 - active_count * 18)
+
+    @staticmethod
+    def _health_rating(score: Optional[int]) -> dict[str, str]:
+        if score is None:
+            return {"rating": "暂无评级", "ratingTone": "neutral"}
+        if score >= 85:
+            return {"rating": "优秀", "ratingTone": "success"}
+        if score >= 70:
+            return {"rating": "良好", "ratingTone": "success"}
+        if score >= 50:
+            return {"rating": "关注", "ratingTone": "warning"}
+        return {"rating": "异常", "ratingTone": "danger"}
+
+    @staticmethod
+    def _build_capacitor_bank_health_model(
+        telemetry: Optional[CapacitorBankTelemetry],
+        realtime: dict[str, Any],
+        runtime_status: Optional[dict[str, Any]],
+        *,
+        cabinet_temperature: Optional[float],
+    ) -> dict[str, Any]:
+        vthd = CompensationMonitorService._max_defined_number((
+            getattr(telemetry, "voltage_thd_a", None),
+            getattr(telemetry, "voltage_thd_b", None),
+            getattr(telemetry, "voltage_thd_c", None),
+        ))
+        cthd = CompensationMonitorService._max_defined_number((
+            getattr(telemetry, "current_harmonic_a", None),
+            getattr(telemetry, "current_harmonic_b", None),
+            getattr(telemetry, "current_harmonic_c", None),
+        ))
+        switching_flags = (
+            getattr(telemetry, "overvoltage_alarm_a", None),
+            getattr(telemetry, "overvoltage_alarm_b", None),
+            getattr(telemetry, "overvoltage_alarm_c", None),
+            getattr(telemetry, "undercurrent_a", None),
+            getattr(telemetry, "undercurrent_b", None),
+            getattr(telemetry, "undercurrent_c", None),
+        )
+        ingestion_status = (runtime_status or {}).get("ingestion_status")
+        breakdown = [
+            {
+                "key": "comm",
+                "label": "通讯链路",
+                "value": CompensationMonitorService._comm_health_score(
+                    ingestion_status,
+                    CompensationMonitorService._is_realtime_fresh(realtime.get("timestamp")),
+                ),
+            },
+            {
+                "key": "voltageHarmonic",
+                "label": "电压谐波",
+                "value": CompensationMonitorService._score_by_threshold(
+                    vthd,
+                    CompensationMonitorService._HEALTH_VOLTAGE_THD_THRESHOLD,
+                ),
+            },
+            {
+                "key": "currentHarmonic",
+                "label": "电流谐波",
+                "value": CompensationMonitorService._score_by_threshold(
+                    cthd,
+                    CompensationMonitorService._HEALTH_CURRENT_THD_THRESHOLD,
+                ),
+            },
+            {
+                "key": "switching",
+                "label": "投切动作",
+                "value": CompensationMonitorService._switching_health_score(switching_flags),
+            },
+            {
+                "key": "temperature",
+                "label": "温度",
+                "value": CompensationMonitorService._score_by_threshold(
+                    float(cabinet_temperature) if cabinet_temperature is not None else None,
+                    CompensationMonitorService._HEALTH_TEMP_THRESHOLD,
+                ),
+            },
+            {
+                "key": "voltageStability",
+                "label": "电压稳定",
+                "value": CompensationMonitorService._voltage_stability_score(realtime.get("voltage")),
+            },
+        ]
+        defined_scores = [item["value"] for item in breakdown if item["value"] is not None]
+        score = CompensationMonitorService._clamp_health_score(sum(defined_scores) / len(defined_scores))
+        return {
+            "score": score,
+            **CompensationMonitorService._health_rating(score),
+            "breakdown": breakdown,
+        }
+
+    @staticmethod
+    def _optional_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalize_power_factor(value: Any) -> Optional[float]:
+        numeric = CompensationMonitorService._optional_float(value)
+        if numeric is None:
+            return None
+        if numeric > 2:
+            numeric = numeric / 100.0
+        if numeric <= 0:
+            return None
+        return min(0.999, numeric)
+
+    @staticmethod
+    def _build_pq_reference_line(power_factor: float, *, role: str) -> dict[str, Any]:
+        normalized = round(power_factor, 3)
+        return {
+            "powerFactor": normalized,
+            "label": f"PF {normalized:.2f}",
+            "role": role,
+        }
+
+    @staticmethod
+    def _build_capacitor_bank_pq_model(
+        device: Device,
+        realtime: dict[str, Any],
+        profile: Optional[CapacitorBankControlProfile],
+    ) -> dict[str, Any]:
+        p = CompensationMonitorService._optional_float(realtime.get("flow_rate"))
+        q = CompensationMonitorService._optional_float(realtime.get("reactive_power"))
+        rated_capacity = CompensationMonitorService._optional_float(getattr(device, "rated_capacity", None)) or 0.0
+
+        p_max = max(
+            CompensationMonitorService._PQ_DEFAULT_P_MAX,
+            rated_capacity,
+            abs(p or 0.0) * 1.2,
+        )
+        q_max = max(
+            CompensationMonitorService._PQ_DEFAULT_Q_MAX,
+            rated_capacity * 0.5,
+            abs(q or 0.0) * 1.2,
+        )
+
+        threshold_pf = CompensationMonitorService._normalize_power_factor(
+            getattr(profile, "switch_on_power_factor", None) if profile else None,
+        ) or 0.9
+        target_pf = CompensationMonitorService._normalize_power_factor(
+            getattr(profile, "switch_off_power_factor", None) if profile else None,
+        ) or 0.95
+        reference_lines = [
+            CompensationMonitorService._build_pq_reference_line(threshold_pf, role="threshold"),
+            CompensationMonitorService._build_pq_reference_line(target_pf, role="target"),
+        ]
+
+        return {
+            "point": {
+                "p": p,
+                "q": q,
+            },
+            "axis": {
+                "pMax": round(p_max, 1),
+                "qMax": round(q_max, 1),
+            },
+            "referenceLines": reference_lines,
+            "targetPowerFactor": round(target_pf, 3),
         }
 
     @staticmethod
@@ -272,6 +498,7 @@ class CompensationMonitorService:
         session: Session,
         device: Device,
         realtime: dict[str, Any],
+        runtime_status: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         telemetry = CompensationMonitorService._get_latest_capacitor_bank_telemetry(session, device.id)
         profile = CapacitorBankControlProfileService.get_control_profile(session, device.id)
@@ -325,6 +552,13 @@ class CompensationMonitorService:
             "subtype": "capacitor_bank_controller",
             "control_mode": control_mode,
             "circuit_summary": circuit_summary,
+            "health_model": CompensationMonitorService._build_capacitor_bank_health_model(
+                telemetry,
+                realtime,
+                runtime_status,
+                cabinet_temperature=cabinet_temperature,
+            ),
+            "pq_model": CompensationMonitorService._build_capacitor_bank_pq_model(device, realtime, profile),
             "profile_status": {
                 "source_status": profile_status,
                 "is_stale": profile_status == "stale",
@@ -436,13 +670,14 @@ class CompensationMonitorService:
         session: Session,
         device: Device,
         realtime: dict[str, Any],
+        runtime_status: Optional[dict[str, Any]] = None,
     ) -> Optional[dict[str, Any]]:
         subtype = resolve_compensation_subtype(
             getattr(device, "device_type", None),
             getattr(device, "device_subtype", None),
         )
         if subtype == "capacitor_bank_controller":
-            return CompensationMonitorService._build_capacitor_bank_monitor(session, device, realtime)
+            return CompensationMonitorService._build_capacitor_bank_monitor(session, device, realtime, runtime_status)
         if subtype == "svg":
             return CompensationMonitorService._build_svg_monitor(session, device, realtime)
         return None

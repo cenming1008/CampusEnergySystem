@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CompensationRuntimeBoard from '../CompensationRuntimeBoard.vue'
 import type { DeviceMonitorPageModel } from '@/features/device-monitor/composables/useDeviceMonitorPage'
@@ -89,5 +89,16 @@ describe('CompensationRuntimeBoard', () => {
   it('控制模式切换开关渲染在拓扑卡头部', () => {
     const wrapper = mountBoard(makePage())
     expect(wrapper.findComponent({ name: 'CompensationModeToggle' }).exists()).toBe(true)
+  })
+
+  it('快捷时间只更新 timeRange，由页面 watcher 统一触发加载', async () => {
+    const handleRangeChange = vi.fn()
+    const page = makePage({ handleRangeChange })
+    const wrapper = mountBoard(page)
+
+    await wrapper.findComponent({ name: 'CompensationPfTrendCard' }).vm.$emit('range-change', '10m')
+
+    expect(Array.isArray(page.timeRange)).toBe(true)
+    expect(handleRangeChange).not.toHaveBeenCalled()
   })
 })

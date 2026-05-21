@@ -397,7 +397,7 @@ watch(() => chart.chartRef.value, async () => {
   height: 280px;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 900px) {
   .trend-panel__range-picker {
     flex-basis: 100%;
     min-width: 0;

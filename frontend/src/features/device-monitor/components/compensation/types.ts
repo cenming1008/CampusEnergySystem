@@ -192,6 +192,25 @@ export interface CompensationPqPoint {
   q: number | null
 }
 
+export interface CompensationPqAxis {
+  pMax: number
+  qMax: number
+}
+
+export interface CompensationPqReferenceLine {
+  powerFactor: number
+  label: string
+  role: 'threshold' | 'target'
+}
+
+export interface CompensationPqModel {
+  point: CompensationPqPoint
+  history: Array<[number, number]>
+  axis: CompensationPqAxis
+  referenceLines: CompensationPqReferenceLine[]
+  targetPowerFactor: number | null
+}
+
 export type CompensationCircuitSlotState = 'on' | 'off' | 'unconfigured'
 
 export interface CompensationCircuitPick {

@@ -40,6 +40,26 @@ describe('CompensationPhaseMatrix (统一量测总览)', () => {
     expect(wrapper.text()).toContain('I-THD (%)')
   })
 
+  it('将电参量和运行指标拆成两个并列分组', () => {
+    const wrapper = mount(CompensationPhaseMatrix, { props: { telemetry: telemetry() } })
+    const groups = wrapper.findAll('.matrix-group')
+
+    expect(groups).toHaveLength(2)
+    expect(groups[0].find('.matrix-group-title').text()).toContain('电参量')
+    expect(groups[0].text()).toContain('电压 (V)')
+    expect(groups[0].text()).toContain('电流 (A)')
+    expect(groups[0].text()).toContain('有功 (kW)')
+    expect(groups[0].text()).toContain('无功 (kvar)')
+    expect(groups[0].text()).toContain('视在 (kVA)')
+    expect(groups[0].text()).toContain('功率因数')
+
+    expect(groups[1].find('.matrix-group-title').text()).toContain('运行指标')
+    expect(groups[1].text()).toContain('相位状态')
+    expect(groups[1].text()).toContain('V-THD (%)')
+    expect(groups[1].text()).toContain('I-THD (%)')
+    expect(groups[1].text()).toContain('柜温 (°C)')
+  })
+
   it('电压量测行显示相位值及三相平均', () => {
     const wrapper = mount(CompensationPhaseMatrix, {
       props: {

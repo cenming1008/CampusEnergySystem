@@ -17,6 +17,8 @@ import CompensationRealtimeOverview from '@/features/device-monitor/components/c
 import CompensationSvgProfileEditDialog from '@/features/device-monitor/components/compensation/CompensationSvgProfileEditDialog.vue'
 import CompensationTrendPanel from '@/features/device-monitor/components/compensation/CompensationTrendPanel.vue'
 import CompensationDiagnosticsCollapsible from '@/features/device-monitor/components/compensation/CompensationDiagnosticsCollapsible.vue'
+import CompensationCurveAnalysisAside from '@/features/device-monitor/components/compensation/curves/CompensationCurveAnalysisAside.vue'
+import CompensationCurveWorkspace from '@/features/device-monitor/components/compensation/curves/CompensationCurveWorkspace.vue'
 import HarmonicSpectrumPanel from '@/features/device-monitor/components/compensation/HarmonicSpectrumPanel.vue'
 import MonitorInlineAlert from '@/shared/components/MonitorInlineAlert.vue'
 import MonitorSectionPanel from '@/shared/components/MonitorSectionPanel.vue'
@@ -33,15 +35,6 @@ function isCapacitorBankController() {
 
 function switchWorkbenchTab(tab: DeviceMonitorPageModel['compensationWorkbenchTab']) {
   props.page.compensationWorkbenchTab = tab
-}
-
-function openControlWorkbench() {
-  if (isCapacitorBankController()) {
-    switchWorkbenchTab('runtime')
-    return
-  }
-
-  props.page.router.push(`/device-console/${props.page.deviceId}`)
 }
 
 function openParameterWorkbench() {
@@ -76,11 +69,11 @@ function isRuntimeTab() {
         :toggle-button-type="page.toggleButtonType"
         :toggle-submitting="page.toggleSubmitting"
         :can-control-devices="page.canControlDevices && !page.isPendingArchiveDevice"
-        :show-console-entry="page.compensationSubtype === 'capacitor_bank_controller' && !page.isPendingArchiveDevice"
-        console-entry-label="远程控制"
+        :tabs="page.compensationSubtype === 'capacitor_bank_controller' ? page.compensationWorkbenchTabs : []"
+        :active-tab="page.compensationWorkbenchTab"
         @back="page.router.push('/devices')"
-        @open-console="openControlWorkbench"
         @refresh="page.loadPage(true)"
+        @tab-change="switchWorkbenchTab"
         @toggle="page.handleToggleDevice"
       />
     </template>
@@ -90,73 +83,17 @@ function isRuntimeTab() {
         v-if="page.compensationSubtype === 'capacitor_bank_controller'"
         class="comp-workbench"
       >
-        <div
-          class="comp-workbench__tabs"
-          role="tablist"
-          aria-label="补偿控制器工作台"
-        >
-          <button
-            v-for="tab in page.compensationWorkbenchTabs"
-            :key="tab.value"
-            type="button"
-            class="comp-workbench__tab"
-            :class="[
-              `comp-workbench__tab--${tab.tone || 'default'}`,
-              { 'is-active': page.compensationWorkbenchTab === tab.value },
-            ]"
-            role="tab"
-            :aria-selected="page.compensationWorkbenchTab === tab.value"
-            @click="switchWorkbenchTab(tab.value)"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-
         <div class="comp-workbench__page">
           <template v-if="page.compensationWorkbenchTab === 'runtime'">
             <CompensationRuntimeBoard :page="page" />
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'curves'">
-            <section class="comp-workbench__analysis-block">
-              <div class="comp-workbench__analysis-title">实时分析</div>
-              <HarmonicSpectrumPanel
-                :telemetry="page.compensationCapacitorBankTelemetry"
-                :control-profile="page.compensationCapacitorBankControlProfile"
-              />
-            </section>
-
-            <section class="comp-workbench__analysis-block">
-              <div class="comp-workbench__analysis-title">历史数据</div>
-              <div
-                class="comp-workbench__subtabs"
-                role="tablist"
-                aria-label="历史数据"
-              >
-                <button
-                  v-for="tab in page.compensationTrendTabs"
-                  :key="tab.value"
-                  type="button"
-                  class="comp-workbench__subtab"
-                  :class="{ 'is-active': page.compensationTrendTab === tab.value }"
-                  role="tab"
-                  :aria-selected="page.compensationTrendTab === tab.value"
-                  @click="page.compensationTrendTab = tab.value"
-                >
-                  {{ tab.label }}
-                </button>
-              </div>
-
-              <CompensationTrendPanel
-                v-model:active-tab="page.compensationTrendTab"
-                v-model:time-range="page.timeRange"
-                :tabs="[]"
-                :model="page.compensationTrendModel"
-                :shortcuts="page.timeShortcuts"
-                :loading="page.chartLoading"
-                @range-change="page.handleRangeChange"
-              />
-            </section>
+            <CompensationCurveWorkspace
+              :telemetry="page.compensationCapacitorBankTelemetry"
+              :history="page.compensationCapacitorBankTelemetryHistory"
+              :control-profile="page.compensationCapacitorBankControlProfile"
+            />
           </template>
 
           <template v-else-if="page.compensationWorkbenchTab === 'parameter-settings'">
@@ -256,6 +193,21 @@ function isRuntimeTab() {
           :items="runtimeParamItems"
           @edit="openParameterWorkbench"
         />
+        <CompensationDeviceProfile
+          :items="page.compensationProfileItems"
+          :editable="page.isSvgDevice && page.canControlDevices"
+          @edit="page.svgProfileEditVisible = true"
+        />
+      </template>
+      <template v-else-if="page.compensationSubtype === 'capacitor_bank_controller' && page.compensationWorkbenchTab === 'curves'">
+        <CompensationCurveAnalysisAside
+          :telemetry="page.compensationCapacitorBankTelemetry"
+          :history="page.compensationCapacitorBankTelemetryHistory"
+          :control-profile="page.compensationCapacitorBankControlProfile"
+          :alarms="page.alarms"
+          :events="page.compensationEvents"
+          :time-range="page.timeRange"
+        />
       </template>
       <template v-else>
         <CompensationEventTimeline
@@ -317,55 +269,6 @@ function isRuntimeTab() {
   min-width: 0;
 }
 
-.comp-workbench__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid rgba(58, 76, 102, 0.72);
-  border-radius: 8px;
-  background: rgba(13, 24, 38, 0.88);
-}
-
-.comp-workbench__tab {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: #8ca0ba;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    color 0.16s ease;
-}
-
-.comp-workbench__tab:hover {
-  border-color: rgba(96, 165, 250, 0.32);
-  color: #dbeafe;
-}
-
-.comp-workbench__tab.is-active {
-  border-color: rgba(96, 165, 250, 0.42);
-  background: rgba(37, 99, 235, 0.18);
-  color: #eff6ff;
-}
-
-.comp-workbench__tab--warning.is-active {
-  border-color: rgba(245, 158, 11, 0.48);
-  background: rgba(245, 158, 11, 0.16);
-  color: #fef3c7;
-}
-
-.comp-workbench__tab--danger.is-active {
-  border-color: rgba(248, 113, 113, 0.48);
-  background: rgba(220, 38, 38, 0.16);
-  color: #fee2e2;
-}
-
 .comp-workbench__page {
   display: flex;
   flex-direction: column;
@@ -411,14 +314,4 @@ function isRuntimeTab() {
   color: #eff6ff;
 }
 
-@media (max-width: 720px) {
-  .comp-workbench__tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .comp-workbench__tab {
-    width: 100%;
-  }
-}
 </style>

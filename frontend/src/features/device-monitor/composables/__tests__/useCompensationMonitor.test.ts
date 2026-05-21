@@ -204,7 +204,52 @@ describe('useCompensationMonitor P-Q 与健康度', () => {
     expect(monitor.compensationPqHistory.value).toEqual([[100, 60], [120, 40]])
   })
 
-  it('compensationHealthModel 暴露 6 维', () => {
+  it('compensationPqModel 优先使用后端下发的坐标范围与参考线口径', () => {
+    const overview = ref({
+      archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
+      realtime: { flow_rate: 168, reactive_power: 38 },
+      compensation_monitor: {
+        subtype: 'capacitor_bank_controller',
+        pq_model: {
+          point: { p: 168, q: 38 },
+          axis: { pMax: 500, qMax: 250 },
+          referenceLines: [
+            { powerFactor: 0.9, label: 'PF 0.90', role: 'threshold' },
+            { powerFactor: 0.95, label: 'PF 0.95', role: 'target' },
+          ],
+          targetPowerFactor: 0.95,
+        },
+      },
+    }) as unknown as Ref<MonitorOverview | null>
+    const trend = ref({
+      points: [
+        { timestamp: 't1', flow_rate: 100, reactive_power: 60 },
+        { timestamp: 't2', flow_rate: 120, reactive_power: 40 },
+      ],
+    }) as unknown as Ref<DeviceTrendResponse | null>
+    const monitor = useCompensationMonitor({
+      deviceId: computed(() => 1),
+      overview,
+      trend,
+      statusHistory: ref([]),
+      timeRange: ref(null),
+      compensationTrendTab: ref('effect'),
+      canControlDevices: computed(() => true),
+    })
+
+    expect(monitor.compensationPqModel.value).toEqual({
+      point: { p: 168, q: 38 },
+      history: [[100, 60], [120, 40]],
+      axis: { pMax: 500, qMax: 250 },
+      referenceLines: [
+        { powerFactor: 0.9, label: 'PF 0.90', role: 'threshold' },
+        { powerFactor: 0.95, label: 'PF 0.95', role: 'target' },
+      ],
+      targetPowerFactor: 0.95,
+    })
+  })
+
+  it('compensationHealthModel 缺少后端 health_model 时展示 0 分占位且不前端计算', () => {
     const overview = ref({
       archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
       realtime: { voltage: 221 },
@@ -219,6 +264,55 @@ describe('useCompensationMonitor P-Q 与健康度', () => {
       compensationTrendTab: ref('effect'),
       canControlDevices: computed(() => true),
     })
-    expect(monitor.compensationHealthModel.value.breakdown).toHaveLength(6)
+    expect(monitor.compensationHealthModel.value).toEqual({
+      score: 0,
+      rating: '暂无数据',
+      ratingTone: 'neutral',
+      breakdown: [
+        { key: 'comm', label: '通讯链路', value: 0 },
+        { key: 'voltageHarmonic', label: '电压谐波', value: 0 },
+        { key: 'currentHarmonic', label: '电流谐波', value: 0 },
+        { key: 'switching', label: '投切动作', value: 0 },
+        { key: 'temperature', label: '温度', value: 0 },
+        { key: 'voltageStability', label: '电压稳定', value: 0 },
+      ],
+    })
+  })
+
+  it('compensationHealthModel 优先使用后端统一健康度口径', () => {
+    const overview = ref({
+      archive: { device_type: 'compensation', device_subtype: 'capacitor_bank_controller' },
+      realtime: { voltage: 221 },
+      runtime_status: { is_online: true, ingestion_status: 'online' },
+      compensation_monitor: {
+        subtype: 'capacitor_bank_controller',
+        health_model: {
+          score: 42,
+          rating: '后端评级',
+          ratingTone: 'warning',
+          breakdown: [
+            { key: 'comm', label: '通讯链路', value: 42 },
+          ],
+        },
+      },
+    }) as unknown as Ref<MonitorOverview | null>
+    const monitor = useCompensationMonitor({
+      deviceId: computed(() => 1),
+      overview,
+      trend: ref(null),
+      statusHistory: ref([]),
+      timeRange: ref(null),
+      compensationTrendTab: ref('effect'),
+      canControlDevices: computed(() => true),
+    })
+
+    expect(monitor.compensationHealthModel.value).toEqual({
+      score: 42,
+      rating: '后端评级',
+      ratingTone: 'warning',
+      breakdown: [
+        { key: 'comm', label: '通讯链路', value: 42 },
+      ],
+    })
   })
 })

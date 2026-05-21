@@ -803,6 +803,139 @@ class TestDeviceMonitorService(unittest.TestCase):
             self.assertEqual(health_metric["source"], "telemetry")
             self.assertEqual(health_metric["state"], "live")
 
+    def test_monitor_overview_capacitor_bank_returns_backend_health_model(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器健康度后端口径测试",
+                sn="CAP-HEALTH-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=12.0,
+                flow_rate=21.0,
+                timestamp=now - timedelta(minutes=1),
+                voltage=221.0,
+                temperature=44.0,
+            )
+            IngestionHealthService.mark_ingestion_success(session, device.id, now - timedelta(minutes=1))
+            session.add(
+                CapacitorBankTelemetry(
+                    device_id=device.id,
+                    timestamp=now - timedelta(minutes=1),
+                    voltage_thd_a=2.5,
+                    voltage_thd_b=1.0,
+                    voltage_thd_c=1.2,
+                    current_harmonic_a=1.0,
+                    current_harmonic_b=0.5,
+                    current_harmonic_c=0.7,
+                    temperature=44.0,
+                    overvoltage_alarm_a=True,
+                    overvoltage_alarm_b=False,
+                    overvoltage_alarm_c=False,
+                    undercurrent_a=False,
+                    undercurrent_b=False,
+                    undercurrent_c=False,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            health_model = overview["compensation_monitor"]["health_model"]
+
+            self.assertEqual(health_model["score"], 92)
+            self.assertEqual(health_model["rating"], "优秀")
+            self.assertEqual(health_model["ratingTone"], "success")
+            self.assertEqual(
+                [item["key"] for item in health_model["breakdown"]],
+                ["comm", "voltageHarmonic", "currentHarmonic", "switching", "temperature", "voltageStability"],
+            )
+            self.assertEqual(health_model["breakdown"][0]["value"], 100)
+            self.assertEqual(health_model["breakdown"][3]["value"], 82)
+
+    def test_monitor_overview_capacitor_bank_returns_backend_pq_model(self):
+        now = datetime.now()
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器PQ模型后端口径测试",
+                sn="CAP-PQ-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                rated_capacity=500,
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            EnergyService.save_energy_data(
+                session=session,
+                device_id=device.id,
+                energy_type=device.energy_type,
+                consumption=12.0,
+                flow_rate=168.0,
+                reactive_power=38.0,
+                timestamp=now - timedelta(minutes=1),
+            )
+            session.add(
+                CapacitorBankControlProfile(
+                    device_id=device.id,
+                    switch_on_power_factor=90,
+                    switch_off_power_factor=0.95,
+                )
+            )
+            session.commit()
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            pq_model = overview["compensation_monitor"]["pq_model"]
+
+            self.assertEqual(pq_model["point"], {"p": 168.0, "q": 38.0})
+            self.assertEqual(pq_model["axis"], {"pMax": 500.0, "qMax": 250.0})
+            self.assertEqual(
+                pq_model["referenceLines"],
+                [
+                    {"powerFactor": 0.9, "label": "PF 0.90", "role": "threshold"},
+                    {"powerFactor": 0.95, "label": "PF 0.95", "role": "target"},
+                ],
+            )
+            self.assertEqual(pq_model["targetPowerFactor"], 0.95)
+
+    def test_monitor_overview_capacitor_bank_health_model_defaults_missing_dimensions_to_zero(self):
+        with Session(self.engine) as session:
+            device = Device(
+                name="补偿器健康度缺省归零测试",
+                sn="CAP-HEALTH-ZERO-001",
+                device_type="compensation",
+                device_subtype="capacitor_bank_controller",
+                device_category="compensation",
+                energy_type="electricity",
+                is_active=True,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            overview = DeviceMonitorService.get_monitor_overview(session, device.id)
+            health_model = overview["compensation_monitor"]["health_model"]
+
+            self.assertEqual(health_model["score"], 0)
+            self.assertEqual(health_model["rating"], "异常")
+            self.assertEqual(health_model["ratingTone"], "danger")
+            self.assertEqual([item["value"] for item in health_model["breakdown"]], [0, 0, 0, 0, 0, 0])
+
     def test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable(self):
         now = datetime.now()
         with Session(self.engine) as session:

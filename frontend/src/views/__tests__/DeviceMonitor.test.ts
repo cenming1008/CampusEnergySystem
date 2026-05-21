@@ -145,6 +145,7 @@ function mountView() {
         StorageStatusPanel: true,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorScaleShell: false,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationDetailPanel: true,
@@ -301,6 +302,10 @@ const CompensationTrendPanelSwitchToSpectrumProbe = defineComponent({
   `,
 })
 
+const CompensationCurveWorkspaceProbe = defineComponent({
+  template: '<div class="curve-workspace-probe">曲线分析工作区</div>',
+})
+
 function mountViewWithRealtimeProbe() {
   return shallowMount(DeviceMonitor, {
     global: {
@@ -324,6 +329,7 @@ function mountViewWithRealtimeProbe() {
         StorageStatusPanel: true,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorScaleShell: false,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationDetailPanel: RealtimeOverviewProbe,
@@ -360,6 +366,7 @@ function mountViewWithSpectrumTabProbe() {
         CompensationMonitorView: false,
         CompensationRealtimeOverview: true,
         CompensationTrendPanel: CompensationTrendPanelSwitchToSpectrumProbe,
+        CompensationCurveWorkspace: CompensationCurveWorkspaceProbe,
         CompensationEventTimeline: true,
         CompensationStatusSummary: true,
         CompensationDeviceProfile: true,
@@ -375,6 +382,7 @@ function mountViewWithSpectrumTabProbe() {
         StorageStatusPanel: true,
         MonitorSectionPanel: MonitorSectionPanelProbe,
         MonitorPageHeader: MonitorPageHeaderProbe,
+        MonitorScaleShell: false,
         MonitorViewShell: false,
         CompensationAlarmTable: true,
         CompensationDetailPanel: true,
@@ -584,6 +592,7 @@ describe('DeviceMonitor view', () => {
     await flushAsync()
 
     expect(wrapper.exists()).toBe(true)
+    expect(wrapper.find('.monitor-scale-shell').exists()).toBe(true)
     expect(getDeviceMonitorOverviewMock).toHaveBeenCalledTimes(1)
     expect(getCompensationCapBankHistoryMock).toHaveBeenCalledTimes(1)
   })
@@ -681,7 +690,7 @@ describe('DeviceMonitor view', () => {
     expect(wrapper.findComponent({ name: 'CompensationRuntimeBoard' }).exists()).toBe(true)
   })
 
-  it('renders the harmonic spectrum panel as a standalone section for capacitor bank controllers', async () => {
+  it('renders curve analysis as the capacitor bank curve workspace', async () => {
     getCompensationCapBankLatestMock.mockResolvedValueOnce({
       device_id: 2,
       timestamp: '2026-04-21T17:09:39',
@@ -700,11 +709,9 @@ describe('DeviceMonitor view', () => {
     page.compensationWorkbenchTab = 'curves'
     await nextTick()
 
-    const curvesTabText = wrapper.find('.comp-workbench__subtabs').text()
-    expect(curvesTabText).toContain('谐波趋势')
-    expect(curvesTabText).not.toContain('高次谐波')
-    expect(wrapper.find('.compensation-trend-panel-spectrum-probe').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(true)
+    expect(wrapper.find('.curve-workspace-probe').exists()).toBe(true)
+    expect(wrapper.find('.compensation-trend-panel-spectrum-probe').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'HarmonicSpectrumPanel' }).exists()).toBe(false)
   })
 
   it.each(['offline', 'missing', 'partial'] as const)(
@@ -1246,6 +1253,34 @@ describe('DeviceMonitor view', () => {
     expect(getDeviceMonitorTrendMock).toHaveBeenLastCalledWith(2, expect.objectContaining({
       start_time: '2026-04-21T16:10:57',
       end_time: '2026-04-21T17:10:57',
+    }))
+  })
+
+  it('requests more trend points for long power-factor windows', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-21T17:10:52'))
+
+    const wrapper = mountView()
+    await flushAsync()
+
+    const page = wrapper.findComponent({ name: 'CompensationMonitorView' }).props('page') as {
+      timeRange: [Date, Date]
+    }
+    page.timeRange = [
+      new Date('2026-04-20T17:10:52'),
+      new Date('2026-04-21T17:10:52'),
+    ]
+    await flushAsync()
+
+    expect(getDeviceMonitorTrendMock).toHaveBeenLastCalledWith(2, expect.objectContaining({
+      start_time: '2026-04-20T17:10:52',
+      end_time: '2026-04-21T17:10:52',
+      limit: 5000,
+    }))
+    expect(getDeviceMonitorControlLogsMock).toHaveBeenCalledWith(2, expect.objectContaining({
+      start_time: '2026-04-20T17:10:52',
+      end_time: '2026-04-21T17:10:52',
+      limit: 500,
     }))
   })
 })

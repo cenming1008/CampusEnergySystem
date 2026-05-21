@@ -24,6 +24,18 @@ describe('CompensationAlarmRail', () => {
     expect(wrapper.findAll('[data-test="alarm-rail-item"]')).toHaveLength(2)
   })
 
+  it('超过 5 条未处理告警时列表保持全部渲染但使用 5 条可视高度滚动', () => {
+    const rows = Array.from({ length: 8 }, (_, index) => makeAlarm(index + 1))
+    const wrapper = mount(CompensationAlarmRail, {
+      props: { rows, actionId: null },
+    })
+    const body = wrapper.find('[data-test="alarm-rail-scroll"]')
+
+    expect(wrapper.findAll('[data-test="alarm-rail-item"]')).toHaveLength(8)
+    expect(body.classes()).toContain('rail-body--scrollable')
+    expect(body.attributes('style')).toContain('--rail-visible-rows: 5')
+  })
+
   it('点击处理按钮 emit resolve', async () => {
     const wrapper = mount(CompensationAlarmRail, {
       props: { rows: [makeAlarm(1)], actionId: null },
@@ -45,6 +57,7 @@ describe('CompensationAlarmRail', () => {
     })
     const footer = wrapper.find('[data-test="alarm-view-all"]')
     expect(footer.exists()).toBe(true)
+    expect(footer.text()).toContain('查看全部 2 条记录')
     await footer.trigger('click')
     expect(wrapper.emitted('view-all')).toHaveLength(1)
 

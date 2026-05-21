@@ -25,7 +25,6 @@ import {
   buildCapacitorBankControlSummaryView,
   buildCompensationExtendedHint,
   buildCompensationHeaderView,
-  buildCompensationHealthModel,
   buildCompensationModuleStatusView,
   buildCompensationOverviewMetrics,
   buildCompensationProfileItems,
@@ -41,6 +40,7 @@ import type {
   CompensationMetric,
   CompensationPowerFactorTrend,
   CompensationProfileItem,
+  CompensationPqModel,
   CompensationPqPoint,
   CompensationStatusItem,
   CompensationTone,
@@ -62,6 +62,24 @@ export interface UseCompensationMonitorInput {
 
 export const REALTIME_FRESH_THRESHOLD_MS = 120_000
 const EVENT_TIMELINE_LIMIT = 20
+const DEFAULT_COMPENSATION_PQ_MODEL: Omit<CompensationPqModel, 'point' | 'history'> = {
+  axis: { pMax: 400, qMax: 200 },
+  referenceLines: [],
+  targetPowerFactor: null,
+}
+const EMPTY_COMPENSATION_HEALTH_MODEL: CompensationHealthModel = {
+  score: 0,
+  rating: '暂无数据',
+  ratingTone: 'neutral',
+  breakdown: [
+    { key: 'comm', label: '通讯链路', value: 0 },
+    { key: 'voltageHarmonic', label: '电压谐波', value: 0 },
+    { key: 'currentHarmonic', label: '电流谐波', value: 0 },
+    { key: 'switching', label: '投切动作', value: 0 },
+    { key: 'temperature', label: '温度', value: 0 },
+    { key: 'voltageStability', label: '电压稳定', value: 0 },
+  ],
+}
 
 /** 电容补偿告警次数看板：把后端按类别统计的累计告警归并成展示分块。 */
 const ALARM_COUNT_BUCKETS: ReadonlyArray<{
@@ -634,20 +652,22 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     return pairs
   })
 
+  const compensationPqModel = computed<CompensationPqModel>(() => {
+    const backendModel = compensationMonitor.value?.pq_model
+    return {
+      point: backendModel?.point ?? compensationPqPoint.value,
+      history: compensationPqHistory.value,
+      axis: backendModel?.axis ?? DEFAULT_COMPENSATION_PQ_MODEL.axis,
+      referenceLines: backendModel?.referenceLines ?? DEFAULT_COMPENSATION_PQ_MODEL.referenceLines,
+      targetPowerFactor: backendModel?.targetPowerFactor ?? DEFAULT_COMPENSATION_PQ_MODEL.targetPowerFactor,
+    }
+  })
+
   const compensationHealthModel = computed<CompensationHealthModel>(() => {
-    const cap = compensationCapacitorBankTelemetry.value
-    return buildCompensationHealthModel({
-      ingestionStatus: runtimeStatus.value?.ingestion_status,
-      isRealtimeFresh: isRealtimeFresh.value,
-      voltageThd: [cap?.voltage_thd_a, cap?.voltage_thd_b, cap?.voltage_thd_c],
-      currentThd: [cap?.current_harmonic_a, cap?.current_harmonic_b, cap?.current_harmonic_c],
-      temperature: cap?.temperature ?? realtime.value?.temperature ?? null,
-      voltage: realtime.value?.voltage ?? null,
-      switchingFlags: [
-        cap?.overvoltage_alarm_a, cap?.overvoltage_alarm_b, cap?.overvoltage_alarm_c,
-        cap?.undercurrent_a, cap?.undercurrent_b, cap?.undercurrent_c,
-      ],
-    })
+    if (compensationMonitor.value?.health_model) {
+      return compensationMonitor.value.health_model
+    }
+    return EMPTY_COMPENSATION_HEALTH_MODEL
   })
 
   async function loadSVGTelemetry() {
@@ -769,6 +789,7 @@ export function useCompensationMonitor(input: UseCompensationMonitorInput) {
     capacitorBankControlSummaryView,
     compensationPqPoint,
     compensationPqHistory,
+    compensationPqModel,
     compensationHealthModel,
     loadSVGTelemetry,
     loadSVGProfile,

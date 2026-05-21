@@ -39,6 +39,30 @@ describe('CompensationPfTrendCard', () => {
     expect(wrapper.find('[data-test="pf-target-band"]').exists()).toBe(true)
   })
 
+  it('显示 PF 纵轴刻度、时间刻度和当前时间段有效点数', () => {
+    const wrapper = mountCard({
+      pfTrend: {
+        values: [0.91, 0.94, 0.97],
+        timestamps: [
+          '2026-05-21T10:00:00+08:00',
+          '2026-05-21T10:30:00+08:00',
+          '2026-05-21T11:00:00+08:00',
+        ],
+        target: 0.95,
+      },
+      timeRangeKey: '1h',
+    })
+
+    expect(wrapper.find('[data-test="pf-y-axis"]').text()).toContain('1.00')
+    expect(wrapper.find('[data-test="pf-y-axis"]').text()).toContain('0.95')
+    expect(wrapper.find('[data-test="pf-y-axis"]').text()).toContain('0.90')
+    expect(wrapper.find('[data-test="pf-x-axis"]').text()).toContain('10:00')
+    expect(wrapper.find('[data-test="pf-x-axis"]').text()).toContain('10:30')
+    expect(wrapper.find('[data-test="pf-x-axis"]').text()).toContain('11:00')
+    expect(wrapper.find('[data-test="pf-window-summary"]').text()).toContain('1 小时')
+    expect(wrapper.find('[data-test="pf-window-summary"]').text()).toContain('3 点')
+  })
+
   it('target 为 null 时隐藏目标区间色带', () => {
     const wrapper = mountCard({ pfTrend: { values: [0.96, 0.97], timestamps: [], target: null } })
     expect(wrapper.find('[data-test="pf-target-band"]').exists()).toBe(false)

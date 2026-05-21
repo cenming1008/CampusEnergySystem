@@ -59,10 +59,11 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
 
 <style scoped>
 .side-panel {
-  padding: 16px;
-  background: linear-gradient(180deg, rgba(18, 32, 50, 0.96), rgba(13, 22, 35, 0.98));
-  border: 1px solid rgba(53, 72, 97, 0.88);
-  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  background: #121d2e;
+  border: 1px solid #1f2c41;
+  border-radius: 10px;
 }
 
 .side-panel--muted {
@@ -74,13 +75,15 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #1f2c41;
 }
 
 .side-panel__head h3 {
   margin: 0;
-  font-size: 15px;
-  color: #f5f7fb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5edf7;
 }
 
 .side-panel__head span {
@@ -113,7 +116,8 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
 .profile-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
+  padding: 9px 14px;
 }
 
 .profile-row {
@@ -121,7 +125,7 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: 10px 0;
+  padding: 5px 0;
   border-bottom: 1px solid rgba(41, 57, 77, 0.72);
 }
 
@@ -130,16 +134,17 @@ const { collapsed, toggle } = usePanelCollapse('compensation-monitor:collapse:de
 }
 
 .profile-row span {
-  color: #91a5c4;
-  font-size: 12px;
+  color: #5e6c83;
+  font-size: 11px;
 }
 
 .profile-row strong {
-  color: #dfe8f5;
-  font-size: 12px;
+  color: #e5edf7;
+  font-size: 11px;
+  font-weight: 500;
   text-align: right;
   max-width: 60%;
-  line-height: 1.5;
+  line-height: 1.4;
   word-break: break-word;
 }
 

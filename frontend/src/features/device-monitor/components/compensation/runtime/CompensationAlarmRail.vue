@@ -14,6 +14,8 @@ const emit = defineEmits<{
 }>()
 
 const unresolved = computed(() => props.rows.filter((r) => !r.is_resolved))
+const visibleRows = 5
+const hasScrollableRows = computed(() => unresolved.value.length > visibleRows)
 
 function sevClass(severity: string | undefined): string {
   if (severity === 'critical') return 'crit'
@@ -40,7 +42,12 @@ function timeText(timestamp: string): string {
       <span class="rt-card-title"><span class="rt-accent" />未处理告警</span>
       <span class="rail-count">{{ unresolved.length }} 待处理</span>
     </header>
-    <div class="rail-body">
+    <div
+      class="rail-body"
+      :class="{ 'rail-body--scrollable': hasScrollableRows }"
+      :style="{ '--rail-visible-rows': visibleRows }"
+      data-test="alarm-rail-scroll"
+    >
       <div v-if="unresolved.length === 0" class="rail-empty">暂无未处理告警</div>
       <div
         v-for="alarm in unresolved"
@@ -67,12 +74,13 @@ function timeText(timestamp: string): string {
         </div>
       </div>
     </div>
-    <footer
+    <button
       v-if="rows.length > 0"
+      type="button"
       class="rail-footer"
       data-test="alarm-view-all"
       @click="emit('view-all')"
-    >查看全部 {{ rows.length }} 条记录 →</footer>
+    >查看全部 {{ rows.length }} 条记录 →</button>
   </section>
 </template>
 
@@ -84,7 +92,7 @@ function timeText(timestamp: string): string {
   border: 1px solid #1f2c41;
   border-radius: 10px;
   min-height: 0;
-  flex: 1;
+  flex: 0 0 auto;
 }
 .rt-card-head {
   display: flex;
@@ -115,9 +123,25 @@ function timeText(timestamp: string): string {
   color: #f59e0b;
 }
 .rail-body {
-  flex: 1;
   min-height: 0;
+  max-height: calc(var(--rail-visible-rows, 5) * 56px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a55 #0b1623;
+}
+.rail-body::-webkit-scrollbar {
+  width: 6px;
+}
+.rail-body::-webkit-scrollbar-track {
+  background: #0b1623;
+}
+.rail-body::-webkit-scrollbar-thumb {
+  background: #2a3a55;
+  border-radius: 999px;
+}
+.rail-body--scrollable {
+  padding-right: 2px;
 }
 .rail-empty {
   padding: 18px 14px;
@@ -129,6 +153,8 @@ function timeText(timestamp: string): string {
   display: flex;
   gap: 9px;
   padding: 9px 14px;
+  min-height: 56px;
+  box-sizing: border-box;
   border-bottom: 1px solid #1f2c41;
 }
 .rail-sev {
@@ -188,14 +214,20 @@ function timeText(timestamp: string): string {
   cursor: not-allowed;
 }
 .rail-footer {
+  width: 100%;
   border-top: 1px solid #1f2c41;
   padding: 8px 14px;
   text-align: center;
   font-size: 10px;
   color: #22d3ee;
+  background: transparent;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
   cursor: pointer;
   user-select: none;
   transition: color 0.15s ease;
+  font: inherit;
 }
 .rail-footer:hover {
   color: #67e8f9;

@@ -118,10 +118,48 @@ export interface CompensationMonitorCapabilitiesSummary {
   supports_remote_control: boolean
 }
 
+export interface CompensationHealthDimension {
+  key: 'comm' | 'voltageHarmonic' | 'currentHarmonic' | 'switching' | 'temperature' | 'voltageStability'
+  label: string
+  value: number | null
+}
+
+export interface CompensationHealthModel {
+  score: number | null
+  rating: string
+  ratingTone: 'success' | 'info' | 'warning' | 'danger' | 'neutral'
+  breakdown: CompensationHealthDimension[]
+}
+
+export interface CompensationPqPoint {
+  p: number | null
+  q: number | null
+}
+
+export interface CompensationPqAxis {
+  pMax: number
+  qMax: number
+}
+
+export interface CompensationPqReferenceLine {
+  powerFactor: number
+  label: string
+  role: 'threshold' | 'target'
+}
+
+export interface CompensationPqModel {
+  point: CompensationPqPoint
+  axis: CompensationPqAxis
+  referenceLines: CompensationPqReferenceLine[]
+  targetPowerFactor: number | null
+}
+
 export interface CompensationMonitor {
   subtype: 'svg' | 'capacitor_bank_controller'
   control_mode: CompensationMonitorControlMode
   circuit_summary: CompensationMonitorCircuitSummary
+  health_model?: CompensationHealthModel | null
+  pq_model?: CompensationPqModel | null
   profile_status?: CompensationMonitorProfileStatus | null
   key_metrics: Record<string, CompensationMonitorSemanticValue>
   capabilities_summary: CompensationMonitorCapabilitiesSummary
