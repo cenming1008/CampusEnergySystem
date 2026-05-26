@@ -66,7 +66,7 @@ const kpis = computed<Kpi[]>(() => {
   const pfStatus: Status = pf == null ? 'na' : pf >= 0.95 ? 'ok' : pf >= 0.9 ? 'warn' : 'crit'
   const qStatus: Status = q == null ? 'na' : Math.abs(q) <= 50 ? 'ok' : Math.abs(q) <= 200 ? 'warn' : 'crit'
   const thduStatus: Status = thdu == null ? 'na' : thdu < 5 ? 'ok' : 'warn'
-  const thdiStatus: Status = thdi == null ? 'na' : thdi < 8 ? 'ok' : 'warn'
+  const thdiStatus: Status = thdi == null ? 'na' : 'ok'
   const tempStatus: Status = temp == null ? 'na' : temp < 55 ? 'ok' : temp < 65 ? 'warn' : 'crit'
 
   return [
@@ -107,16 +107,14 @@ const kpis = computed<Kpi[]>(() => {
       spark: thduHist,
     },
     {
-      label: 'THDi A 相',
-      hint: '电流总畸变',
+      label: 'A相谐波电流',
+      hint: '电流谐波幅值',
       value: fmt(thdi, 2),
-      unit: '%',
-      target: '限值 8.00%',
-      delta: thdi == null ? '—' : thdi <= 8 ? `余量 ${(8 - thdi).toFixed(2)}%` : `超 ${(thdi - 8).toFixed(2)}%`,
+      unit: 'A',
+      target: '幅值 A',
+      delta: thdi == null ? '—' : `当前 ${thdi.toFixed(2)} A`,
       status: thdiStatus,
       color: '#fbbf24',
-      domain: [0, 12],
-      refValue: 8,
       spark: thdiHist,
     },
     {

@@ -106,4 +106,18 @@ describe('CompensationMetricGrid', () => {
     expect(option?.yAxis?.[0]?.name).toBe('kVar')
     expect(option?.series?.map((series: { name: string }) => series.name)).toEqual(['Q'])
   })
+
+  it('labels harmonic current metrics with ampere units instead of THDi percent wording', () => {
+    const wrapper = mount(CompensationMetricGrid, {
+      props: {
+        telemetry: history.at(-1) ?? null,
+        history,
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain('谐波电流')
+    expect(text).toContain('A')
+    expect(text).not.toContain('THDi')
+  })
 })

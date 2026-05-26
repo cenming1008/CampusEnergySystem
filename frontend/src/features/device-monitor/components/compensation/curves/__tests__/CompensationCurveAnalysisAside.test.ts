@@ -102,7 +102,7 @@ const alarms: DeviceAlarmRecord[] = [
 
 const events: CompensationEventItem[] = [
   {
-    time: '2026-05-21T09:58:00+08:00',
+    time: '09:58',
     title: '投切动作完成',
     detail: '自动投入 B 相分补 #2',
     tone: 'success',

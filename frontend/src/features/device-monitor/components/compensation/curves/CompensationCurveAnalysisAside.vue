@@ -58,15 +58,29 @@ function normalizePercentThreshold(value: number | null | undefined, fallback: n
 
 function fmtDateTime(value: string | Date | null | undefined): string {
   if (!value) return '暂无数据'
+  if (typeof value === 'string' && /^\d{1,2}:\d{2}$/.test(value.trim())) return value.trim()
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return '暂无数据'
   return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
+function parseRangeComparableTime(value: string | null | undefined): number | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  const timeOnly = trimmed.match(/^(\d{1,2}):(\d{2})$/)
+  if (timeOnly && props.timeRange) {
+    const candidate = new Date(props.timeRange[0])
+    candidate.setHours(Number(timeOnly[1]), Number(timeOnly[2]), 0, 0)
+    return candidate.getTime()
+  }
+  const parsed = new Date(trimmed).getTime()
+  return Number.isNaN(parsed) ? null : parsed
+}
+
 function isWithinRange(value: string | null | undefined): boolean {
   if (!props.timeRange || !value) return true
-  const time = new Date(value).getTime()
-  if (Number.isNaN(time)) return false
+  const time = parseRangeComparableTime(value)
+  if (time === null) return false
   return time >= props.timeRange[0].getTime() && time <= props.timeRange[1].getTime()
 }
 
