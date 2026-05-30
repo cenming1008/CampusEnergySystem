@@ -25,8 +25,10 @@
   - 核对测试是否能防止审计文档关键字段丢失。
 
 ## 已验证
-- 待执行。
+- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py tests/test_layer_exports.py -q` 通过。
 
 ## 剩余风险
-- 审计文档会暴露后续整理候选，但不等于批准一次性重构。
-- 若发现影响 API 契约的整理需求，必须升级为单独 PLAN。
+- 本阶段只完成架构审计和文档护栏，不解决厚 service 或大 endpoint 的具体代码债。
+- `energy/shared.py`、`alarm_service.py`、`device_service.py`、`campus_service.py` 等候选项需要按后续小步计划处理。
+- 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。

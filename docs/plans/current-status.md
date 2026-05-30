@@ -11,10 +11,10 @@
 
 ## 当前阶段
 - [x] 建立正式后端架构分层审计 PLAN。
-- [ ] 建立后端架构审计库存。
-- [ ] 补充后端规范中的审计分类口径。
-- [ ] 增加轻量文档护栏测试。
-- [ ] 执行最小验证并给出阶段验收判断。
+- [x] 建立后端架构审计库存。
+- [x] 补充后端规范中的审计分类口径。
+- [x] 增加轻量文档护栏测试。
+- [x] 执行最小验证并给出阶段验收判断。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -25,10 +25,14 @@
 - [ ] 将高风险生产代码整理候选标为 `plan_required`。
 
 ## 当前验证结论
-- 待执行。
+- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py tests/test_layer_exports.py -q` 通过。
 
 ## 当前验收判断
-- 待验收。
+- 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
+- 第一阶段可判定：审计库存已覆盖主要后端分层目录，并明确 `keep/watch/split_candidate/plan_required` 分类。
+- 第一阶段可判定：本轮未移动生产代码，未改变 API 契约。
+- 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
 - 当前只做架构审计，不解决既有厚 service 或大 endpoint 的具体代码债。
