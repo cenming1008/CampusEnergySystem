@@ -16,7 +16,7 @@
 | 文件 | 分类 | 原因 | 建议落点 | 下一步 |
 | --- | --- | --- | --- | --- |
 | `app/api/endpoints/devices/` | `keep` | 已按设备主域拆分为 management/data/monitoring/ingestion_health/补偿/储能等职责文件 | 继续作为复杂 endpoint 域目录样板 | 新增设备接口优先复用该分层 |
-| `app/api/endpoints/energy/shared.py` | `split_candidate` | `shared.py` 名称容易继续吸收 schema、serializer 和 helper | `energy/schemas.py`、`energy/serializers.py` 或局部 helper | 后续第一轮 endpoint cleanup 优先审计 |
+| `app/api/endpoints/energy/shared.py` | `keep` | 已拆为 `schemas.py`、`constants.py`、`serializers.py`，`shared.py` 仅保留兼容导出 | 新代码直接导入明确模块 | 后续不再向 `shared.py` 添加新职责 |
 | `app/api/endpoints/campus.py` | `watch` | 文件较大，但已有 `app/application/campus.py` 承接聚合 use case | 保持 endpoint 极薄，新增聚合进 application | 新增前先查是否已有 use case |
 | `app/api/endpoints/locations.py` | `watch` | 文件较大，但已有 `app/application/locations.py` | 位置树裁剪和统计优先放 application | 只在出现具体泄漏时拆 |
 | `app/api/endpoints/inspection.py` | `watch` | 历史较厚，但 application convergence 已完成一轮 | application/inspection.py | 不回头重做，新增动作优先 use case |

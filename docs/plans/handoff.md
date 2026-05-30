@@ -12,6 +12,7 @@
 - 已确认本主题第一阶段定位为后端架构审计与规范护栏。
 - 第一阶段不移动生产代码，不改变 API 契约。
 - 审计分类固定为 `keep / watch / split_candidate / plan_required`。
+- 第一轮低风险 endpoint cleanup 已完成：`energy/shared.py` 拆为 `schemas.py`、`constants.py`、`serializers.py`，endpoint 新代码不再从 `.shared` 导入。
 
 ## 下一棒
 - 规则/预判角色：
@@ -31,5 +32,5 @@
 
 ## 剩余风险
 - 本阶段只完成架构审计和文档护栏，不解决厚 service 或大 endpoint 的具体代码债。
-- `energy/shared.py`、`alarm_service.py`、`device_service.py`、`campus_service.py` 等候选项需要按后续小步计划处理。
+- `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。

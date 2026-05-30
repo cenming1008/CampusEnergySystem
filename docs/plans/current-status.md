@@ -15,6 +15,9 @@
 - [x] 补充后端规范中的审计分类口径。
 - [x] 增加轻量文档护栏测试。
 - [x] 执行最小验证并给出阶段验收判断。
+- [x] 第一轮低风险 endpoint cleanup 已选择 `app/api/endpoints/energy/shared.py`。
+- [x] `energy/shared.py` 已拆分为 `schemas.py`、`constants.py`、`serializers.py`，并保留兼容导出。
+- [x] 能源 endpoint 已改为直接从明确模块导入，不再从 `.shared` 导入。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -27,6 +30,8 @@
 ## 当前验证结论
 - `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py tests/test_layer_exports.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_energy_endpoint_layering.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_energy_endpoint_semantics.py tests/test_endpoint_application_convergence.py tests/test_energy_service_round2.py -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
