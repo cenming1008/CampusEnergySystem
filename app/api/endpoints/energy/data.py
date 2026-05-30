@@ -24,13 +24,9 @@ from app.core.response import success_response
 from app.models.tables import EnergyData, User
 from app.services.energy_service import EnergyService
 
-from .shared import (
-    ENERGY_TYPE_OPTIONS,
-    EnergyDataCreate,
-    EnergyOverviewResponse,
-    EnergyStatisticsResponse,
-    extract_optional_energy_fields,
-)
+from .constants import ENERGY_TYPE_OPTIONS
+from .schemas import EnergyDataCreate, EnergyOverviewResponse, EnergyStatisticsResponse
+from .serializers import extract_optional_energy_fields
 
 router = APIRouter()
 

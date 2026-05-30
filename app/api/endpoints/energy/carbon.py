@@ -21,7 +21,7 @@ from app.core.response import success_response
 from app.domain.energy_rules import CARBON_FACTORS, ENERGY_UNITS, calculate_manual_carbon
 from app.models.tables import CarbonEmission, User
 
-from .shared import CarbonSummaryResponse
+from .schemas import CarbonSummaryResponse
 
 router = APIRouter()
 
