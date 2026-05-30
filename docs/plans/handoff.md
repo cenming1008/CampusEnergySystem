@@ -15,14 +15,15 @@
 
 ## 下一棒
 - 规则/预判角色：
-  - 建立 `docs/plans/backend-architecture-audit-inventory.md`。
-  - 按分层目录给出候选文件分类、原因、建议落点和下一步。
+  - 后续进入生产代码整理前，先从 `docs/plans/backend-architecture-audit-inventory.md` 选择单一候选项。
+  - 若候选项为 `plan_required`，必须先建立或更新正式 `PLAN-*.md`。
 - 后端角色：
-  - 仅在审计文档和护栏测试范围内执行。
-  - 不在本阶段拆 service、不改 endpoint 行为。
+  - 每轮只处理一个具体职责泄漏点，不做批量 service / endpoint 搬迁。
+  - 保持 API 路径、请求参数、响应模型和状态码兼容。
+  - 按候选项选择对应测试，必要时先补测试再改生产代码。
 - 验收角色：
-  - 核对文档是否覆盖主要后端分层。
-  - 核对测试是否能防止审计文档关键字段丢失。
+  - 核对本阶段是否仍只停留在审计和护栏。
+  - 后续每个生产代码整理阶段都要重新核对非目标和兼容边界。
 
 ## 已验证
 - `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。

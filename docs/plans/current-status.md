@@ -20,9 +20,9 @@
 - 当前无代码阻塞。
 
 ## 当前待办
-- [ ] 确认第一阶段只做文档与护栏测试，不移动生产代码。
-- [ ] 审计 `api / application / services / domain / integrations` 主要文件职责。
-- [ ] 将高风险生产代码整理候选标为 `plan_required`。
+- [ ] 若进入生产代码整理，先从 `docs/plans/backend-architecture-audit-inventory.md` 选择一个 `split_candidate`。
+- [ ] 对涉及控制链、权限、接口契约或历史专题边界的候选项，先建立单独 `PLAN-*.md`。
+- [ ] 后续代码整理必须保持 API 契约兼容，并补充对应测试。
 
 ## 当前验证结论
 - `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。
