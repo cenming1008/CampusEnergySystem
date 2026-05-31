@@ -65,10 +65,15 @@
 
 ## 第一批建议执行顺序
 
-1. `energy/shared.py` 命名和职责审计，若确有复用压力再拆 `schemas.py` / `serializers.py`。
-2. `alarm_service.py` 中一个纯规则泄漏点迁入 `domain`。
-3. `device_service.py` 中一个 profile/default 归一职责拆出。
-4. `campus_service.py` 聚合计算 helper 的可测试性整理。
+已完成：
+
+- `energy/shared.py` 已拆为 `schemas.py`、`constants.py`、`serializers.py`，`shared.py` 仅保留兼容导出。
+
+后续建议：
+
+1. `alarm_service.py` 中一个纯规则泄漏点迁入 `domain`。
+2. `device_service.py` 中一个 profile/default 归一职责拆出。
+3. `campus_service.py` 聚合计算 helper 的可测试性整理。
 
 ## 第一阶段禁止项
 

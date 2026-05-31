@@ -23,7 +23,7 @@
 - 当前无代码阻塞。
 
 ## 当前待办
-- [ ] 若进入生产代码整理，先从 `docs/plans/backend-architecture-audit-inventory.md` 选择一个 `split_candidate`。
+- [ ] 若继续进入下一轮生产代码整理，先从 `docs/plans/backend-architecture-audit-inventory.md` 选择一个剩余 `split_candidate`，不重复处理已完成的 `energy/shared.py`。
 - [ ] 对涉及控制链、权限、接口契约或历史专题边界的候选项，先建立单独 `PLAN-*.md`。
 - [ ] 后续代码整理必须保持 API 契约兼容，并补充对应测试。
 
@@ -36,7 +36,7 @@
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
 - 第一阶段可判定：审计库存已覆盖主要后端分层目录，并明确 `keep/watch/split_candidate/plan_required` 分类。
-- 第一阶段可判定：本轮未移动生产代码，未改变 API 契约。
+- 第一阶段审计本身未移动生产代码；随后完成的 `energy/shared.py` 低风险 endpoint cleanup 仅调整模块导入和兼容导出，未改变 API 契约。
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
