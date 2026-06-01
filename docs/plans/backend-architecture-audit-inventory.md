@@ -71,9 +71,10 @@
 
 后续建议：
 
-1. `alarm_service.py` 中一个纯规则泄漏点迁入 `domain`。
-2. `device_service.py` 中一个 profile/default 归一职责拆出。
-3. `campus_service.py` 聚合计算 helper 的可测试性整理。
+1. 已完成：`alarm_service.py` 中 storage managed categories 纯映射已迁入 `domain/alarm_rules.py`。
+2. `alarm_service.py` 后续如继续整理，只能再选择一个独立纯规则泄漏点。
+3. `device_service.py` 中一个 profile/default 归一职责拆出。
+4. `campus_service.py` 聚合计算 helper 的可测试性整理。
 
 ## 第一阶段禁止项
 

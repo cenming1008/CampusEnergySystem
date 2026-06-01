@@ -13,6 +13,7 @@
 - 第一阶段审计本身未移动生产代码；随后完成的 `energy/shared.py` 低风险 endpoint cleanup 仅调整模块导入和兼容导出，未改变 API 契约。
 - 审计分类固定为 `keep / watch / split_candidate / plan_required`。
 - 第一轮低风险 endpoint cleanup 已完成：`energy/shared.py` 拆为 `schemas.py`、`constants.py`、`serializers.py`，endpoint 新代码不再从 `.shared` 导入。
+- `alarm_service.py` 第一轮纯规则泄漏点已收口：storage managed categories 映射迁入 `domain/alarm_rules.py`，告警生命周期编排仍保留在 service。
 
 ## 下一棒
 - 规则/预判角色：
@@ -34,3 +35,4 @@
 - 当前已完成审计、文档护栏和 `energy/shared.py` 低风险 endpoint cleanup；其余厚 service 或大 endpoint 代码债仍未处理。
 - `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
+- `alarm_service.py` 仍是 `split_candidate`，但本轮只处理 storage managed categories 纯映射；后续继续整理时仍必须一次只选一个独立规则泄漏点。
