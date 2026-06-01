@@ -46,7 +46,7 @@ def test_build_energy_category_summary_sorts_and_preserves_response_shape():
             "label": "电",
             "total_consumption": 35.111,
             "avg_load": 4.25,
-            "ratio": 0.7453,
+            "ratio": 0.7399,
             "estimated_carbon": 27.562,
         },
         {
@@ -54,7 +54,7 @@ def test_build_energy_category_summary_sorts_and_preserves_response_shape():
             "label": "水",
             "total_consumption": 12.346,
             "avg_load": 3.0,
-            "ratio": 0.2547,
+            "ratio": 0.2602,
             "estimated_carbon": 0.0,
         },
     ]
