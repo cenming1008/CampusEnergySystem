@@ -263,3 +263,19 @@ def test_resolve_storage_threshold_profile_uses_category_subtype_device_order():
     assert profile.thresholds.soc_min == 25.0
     assert profile.thresholds.soh_min == 80.0
     assert profile.thresholds.cell_temp_max == 50.0
+
+
+def test_storage_managed_categories_follow_present_payload_fields():
+    from app.domain.alarm_rules import get_storage_managed_categories
+
+    assert get_storage_managed_categories({"soc": 18.0}) == {
+        "storage_soc_low",
+        "storage_soc_out_of_range",
+    }
+    assert get_storage_managed_categories({"soh": 79.0, "cell_temp_max": 51.0}) == {
+        "storage_soh_low",
+        "storage_cell_temp_high",
+    }
+    assert get_storage_managed_categories({"active_power": -151.0, "soc": None}) == {
+        "storage_active_power_out_of_range",
+    }
