@@ -147,6 +147,66 @@ def build_device_create_fields(
     }
 
 
+def build_device_registry_default_patch(
+    device_type: Optional[str],
+    device_subtype: Optional[str] = None,
+    device_category: Optional[str] = None,
+    energy_type: Optional[str] = None,
+    unit: Optional[str] = None,
+    rated_capacity: Optional[float] = None,
+) -> dict[str, Any]:
+    """Build missing legacy Device fields from registry defaults."""
+    effective_subtype = resolve_compensation_subtype(device_type, device_subtype)
+    effective_type = effective_subtype or normalize_device_type_alias(device_type)
+    if not effective_type:
+        return {}
+
+    config = device_registry.get(effective_type)
+    if not config:
+        return {}
+
+    patch: dict[str, Any] = {}
+    normalized_category = _normalize_device_category_for_defaults(
+        effective_type,
+        device_subtype,
+        device_category,
+    )
+    if normalized_category:
+        patch["device_category"] = normalized_category
+    elif not device_category:
+        patch["device_category"] = config.category.value
+
+    if not energy_type:
+        patch["energy_type"] = config.energy_type.value
+    if not unit:
+        patch["unit"] = config.unit
+    if not rated_capacity and config.default_capacity:
+        patch["rated_capacity"] = config.default_capacity
+
+    compensation_subtype = (
+        resolve_compensation_subtype(device_type, device_subtype)
+        or resolve_compensation_subtype(effective_type)
+    )
+    if compensation_subtype and not device_subtype:
+        patch["device_subtype"] = compensation_subtype
+
+    return patch
+
+
+def _normalize_device_category_for_defaults(
+    device_type: Optional[str],
+    device_subtype: Optional[str],
+    current_category: Optional[str],
+) -> Optional[str]:
+    if not is_compensation_device(device_type, device_subtype, current_category):
+        return current_category
+    if current_category == DeviceCategory.COMPENSATION.value:
+        return current_category
+    if current_category in (None, "", DeviceCategory.LOAD.value):
+        return DeviceCategory.COMPENSATION.value
+    return current_category
+
+
 def describe_device_type_semantics(device_type: str) -> dict[str, Any]:
     """返回设备类型的第一批对象语义。"""
     config = get_device_type_config(device_type)

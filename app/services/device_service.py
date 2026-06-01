@@ -9,6 +9,7 @@ from app.core.logger import logger
 
 from app.domain.device_payloads import (
     build_device_create_fields,
+    build_device_registry_default_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
@@ -306,31 +307,16 @@ class DeviceService:
         try:
             # 如果提供了 device_type，尝试自动配置
             if device.device_type:
-                effective_type = DeviceService._effective_device_type(device) or device.device_type
-                config = device_registry.get(effective_type)
-                if config:
-                    normalized_category = DeviceService._normalize_device_category(
-                        effective_type,
-                        getattr(device, "device_subtype", None),
-                        device.device_category,
-                    )
-                    # 自动填充未设置的字段
-                    if normalized_category:
-                        device.device_category = normalized_category
-                    elif not device.device_category:
-                        device.device_category = config.category.value
-                    if not device.energy_type:
-                        device.energy_type = config.energy_type.value
-                    if not device.unit:
-                        device.unit = config.unit
-                    if not device.rated_capacity and config.default_capacity:
-                        device.rated_capacity = config.default_capacity
-                    compensation_subtype = resolve_compensation_subtype(
-                        getattr(device, "device_type", None),
-                        getattr(device, "device_subtype", None),
-                    ) or resolve_compensation_subtype(effective_type)
-                    if compensation_subtype and not getattr(device, "device_subtype", None):
-                        device.device_subtype = compensation_subtype
+                default_patch = build_device_registry_default_patch(
+                    device_type=getattr(device, "device_type", None),
+                    device_subtype=getattr(device, "device_subtype", None),
+                    device_category=getattr(device, "device_category", None),
+                    energy_type=getattr(device, "energy_type", None),
+                    unit=getattr(device, "unit", None),
+                    rated_capacity=getattr(device, "rated_capacity", None),
+                )
+                for field_name, value in default_patch.items():
+                    setattr(device, field_name, value)
             
             DeviceRepository.save(session, device)
             return device
