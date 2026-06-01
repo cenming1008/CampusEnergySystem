@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 from sqlmodel import Session
 
 from app.domain import analysis_rules
+from app.domain.campus_rules import ENERGY_CATEGORY_LABELS
 from app.domain.device_payloads import describe_device_type_semantics, describe_energy_data_fields
 from app.domain.energy_rules import calculate_energy_cost, get_energy_semantics
 from app.models.tables import EnergyData
@@ -26,7 +27,6 @@ from app.services.campus_service import (
     AREA_LOCATION_TYPES,
     BUILDING_LOCATION_TYPES,
     CampusService,
-    ENERGY_CATEGORY_LABELS,
     SITE_LOCATION_TYPES,
     SUB_ITEM_LABELS,
 )

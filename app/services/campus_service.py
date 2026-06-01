@@ -14,6 +14,7 @@ from typing import Iterable, Optional
 
 from sqlmodel import Session, select
 
+from app.domain.campus_rules import build_energy_category_summary
 from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
 
@@ -21,15 +22,6 @@ SITE_LOCATION_TYPES = {"park", "campus", "site"}
 AREA_LOCATION_TYPES = {"area", "zone"}
 BUILDING_LOCATION_TYPES = {"building"}
 METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
-
-ENERGY_CATEGORY_LABELS = {
-    "electricity": "电",
-    "water": "水",
-    "gas": "气",
-    "cooling": "冷",
-    "heat": "热",
-    "steam": "蒸汽",
-}
 
 SUB_ITEM_LABELS = {
     "load": "动力/普通负荷",
@@ -123,7 +115,7 @@ class CampusService:
         alarm_rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
 
         hierarchy_summary = CampusService._build_hierarchy_summary(context)
-        energy_category_summary = CampusService._build_energy_category_summary(period_summaries)
+        energy_category_summary = build_energy_category_summary(period_summaries)
         subitem_statistics = CampusService._build_subitem_statistics(period_summaries, context.device_by_id)
         area_rankings = CampusService._build_location_rankings(
             period_summaries, context, AREA_LOCATION_TYPES, top_n=5
@@ -197,7 +189,7 @@ class CampusService:
         period_summaries = CampusService._build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
-            "items": CampusService._build_energy_category_summary(period_summaries),
+            "items": build_energy_category_summary(period_summaries),
         }
 
     @staticmethod
@@ -373,34 +365,6 @@ class CampusService:
                 )
             )
         return summaries
-
-    @staticmethod
-    def _build_energy_category_summary(summaries: list[PeriodEnergySummary]) -> list[dict]:
-        totals: dict[str, dict[str, float]] = defaultdict(lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0.0})
-        total_consumption = 0.0
-        for summary in summaries:
-            item = totals[summary.energy_type]
-            item["consumption"] += float(summary.total_consumption or 0.0)
-            item["load"] += summary.load_sum
-            item["load_count"] += summary.load_count
-            total_consumption += float(summary.total_consumption or 0.0)
-
-        items = []
-        for energy_type, value in sorted(totals.items(), key=lambda item: item[1]["consumption"], reverse=True):
-            consumption = round(value["consumption"], 3)
-            ratio = round((consumption / total_consumption) if total_consumption else 0.0, 4)
-            load_count = max(int(value["load_count"]), 1)
-            items.append(
-                {
-                    "energy_category": energy_type,
-                    "label": ENERGY_CATEGORY_LABELS.get(energy_type, energy_type),
-                    "total_consumption": consumption,
-                    "avg_load": round(value["load"] / load_count, 3),
-                    "ratio": ratio,
-                    "estimated_carbon": round(consumption * 0.785, 3) if energy_type == "electricity" else 0.0,
-                }
-            )
-        return items
 
     @staticmethod
     def _build_subitem_statistics(summaries: list[PeriodEnergySummary], device_by_id: dict[int, Device]) -> list[dict]:
