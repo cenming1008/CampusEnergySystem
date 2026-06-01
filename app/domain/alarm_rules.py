@@ -714,3 +714,17 @@ def get_capacitor_bank_managed_categories() -> set[str]:
         *(f"cap_current_thd_{phase}" for phase in ("a", "b", "c")),
         *(f"cap_undercurrent_{phase}" for phase in ("a", "b", "c")),
     }
+
+
+def get_storage_managed_categories(storage_data: dict[str, Any]) -> set[str]:
+    """Return storage platform alarm categories managed by present telemetry fields."""
+    managed_categories: set[str] = set()
+    if storage_data.get("soc") is not None:
+        managed_categories.update({"storage_soc_low", "storage_soc_out_of_range"})
+    if storage_data.get("soh") is not None:
+        managed_categories.add("storage_soh_low")
+    if storage_data.get("cell_temp_max") is not None:
+        managed_categories.add("storage_cell_temp_high")
+    if storage_data.get("active_power") is not None:
+        managed_categories.add("storage_active_power_out_of_range")
+    return managed_categories

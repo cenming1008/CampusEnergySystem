@@ -256,15 +256,7 @@ class AlarmService:
             storage_data,
             rule_profile.thresholds,
         )
-        managed_categories: set[str] = set()
-        if storage_data.get("soc") is not None:
-            managed_categories.update({"storage_soc_low", "storage_soc_out_of_range"})
-        if storage_data.get("soh") is not None:
-            managed_categories.add("storage_soh_low")
-        if storage_data.get("cell_temp_max") is not None:
-            managed_categories.add("storage_cell_temp_high")
-        if storage_data.get("active_power") is not None:
-            managed_categories.add("storage_active_power_out_of_range")
+        managed_categories = alarm_rules.get_storage_managed_categories(storage_data)
 
         return AlarmService._apply_fault_detection(
             session=session,
