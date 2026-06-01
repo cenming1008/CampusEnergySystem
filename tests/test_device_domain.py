@@ -5,6 +5,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test
 
 from app.domain.device_payloads import (
     build_device_create_fields,
+    build_device_registry_default_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
@@ -27,6 +28,22 @@ class TestDeviceDomainHelpers(unittest.TestCase):
         self.assertEqual(fields["energy_type"], "water")
         self.assertEqual(fields["unit"], "m³/h")
         self.assertTrue(fields["is_active"])
+
+    def test_build_device_registry_default_patch_normalizes_legacy_compensation_device(self):
+        patch = build_device_registry_default_patch(
+            device_type="svg",
+            device_subtype=None,
+            device_category="load",
+            energy_type=None,
+            unit=None,
+            rated_capacity=None,
+        )
+
+        self.assertEqual(patch["device_category"], "compensation")
+        self.assertEqual(patch["device_subtype"], "svg")
+        self.assertEqual(patch["energy_type"], "electricity")
+        self.assertEqual(patch["unit"], "kVAR")
+        self.assertGreater(patch["rated_capacity"], 0)
 
     def test_describe_device_type_semantics_exposes_meter_role(self):
         semantics = describe_device_type_semantics("water_meter")
