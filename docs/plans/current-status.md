@@ -46,5 +46,5 @@
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
-- 当前已完成架构审计、文档护栏和 `energy/shared.py` 低风险 endpoint cleanup；`energy/shared.py` 仅作为兼容导出保留，其余厚 service 或大 endpoint 代码债仍未处理。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage managed categories 切片和 `device_service.py` legacy create registry defaults patch 切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。
