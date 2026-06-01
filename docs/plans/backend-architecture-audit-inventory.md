@@ -73,8 +73,9 @@
 
 1. 已完成：`alarm_service.py` 中 storage managed categories 纯映射已迁入 `domain/alarm_rules.py`。
 2. `alarm_service.py` 后续如继续整理，只能再选择一个独立纯规则泄漏点。
-3. `device_service.py` 中一个 profile/default 归一职责拆出。
-4. `campus_service.py` 聚合计算 helper 的可测试性整理。
+3. 已完成：`device_service.py` 中 legacy create registry defaults patch 已迁入 `domain/device_payloads.py`。
+4. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 泄漏点。
+5. `campus_service.py` 聚合计算 helper 的可测试性整理。
 
 ## 第一阶段禁止项
 

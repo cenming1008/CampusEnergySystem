@@ -19,6 +19,7 @@
 - [x] `energy/shared.py` 已拆分为 `schemas.py`、`constants.py`、`serializers.py`，并保留兼容导出。
 - [x] 能源 endpoint 已改为直接从明确模块导入，不再从 `.shared` 导入。
 - [x] `alarm_service.py` 第一轮纯规则泄漏点已收口：storage managed categories 映射迁入 `domain/alarm_rules.py`。
+- [x] `device_service.py` 第一轮 profile/default 泄漏点已收口：legacy create registry defaults patch 迁入 `domain/device_payloads.py`。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -35,6 +36,8 @@
 - `./venv/bin/python -m pytest tests/test_energy_endpoint_semantics.py tests/test_endpoint_application_convergence.py tests/test_energy_service_round2.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_storage_managed_categories_follow_present_payload_fields -q` 通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_registry_default_patch_normalizes_legacy_compensation_device -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py tests/test_device_management_use_cases.py -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
