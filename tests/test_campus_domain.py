@@ -3,6 +3,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from app.domain.campus_rules import (
+    build_alarm_summary,
     build_energy_category_summary,
     build_location_rankings,
     build_realtime_load_trend,
@@ -151,3 +152,104 @@ def test_build_location_rankings_rolls_summaries_up_to_target_locations():
             "energy_breakdown": {"gas": 30.0},
         }
     ]
+
+
+def test_build_alarm_summary_counts_status_severity_locations_and_latest():
+    t1 = datetime(2026, 6, 2, 9, 0, 0)
+    t2 = datetime(2026, 6, 2, 9, 5, 0)
+    t3 = datetime(2026, 6, 2, 9, 10, 0)
+    locations_by_id = {
+        1: SimpleNamespace(id=1, name="North Area", location_type="area", full_path="Campus/North", parent_id=None),
+        2: SimpleNamespace(id=2, name="Lab A", location_type="building", full_path="Campus/North/Lab A", parent_id=1),
+    }
+    device_by_id = {
+        101: SimpleNamespace(id=101, location_id=2),
+        102: SimpleNamespace(id=102, location_id=None),
+    }
+    alarms = [
+        SimpleNamespace(
+            id=1,
+            device_id=101,
+            message="High load",
+            severity="warning",
+            category="energy",
+            timestamp=t1,
+            is_resolved=False,
+        ),
+        SimpleNamespace(
+            id=2,
+            device_id=101,
+            message="Meter offline",
+            severity="critical",
+            category="device",
+            timestamp=t2,
+            is_resolved=True,
+        ),
+        SimpleNamespace(
+            id=3,
+            device_id=102,
+            message="No location",
+            severity="warning",
+            category="device",
+            timestamp=t3,
+            is_resolved=False,
+        ),
+    ]
+
+    def find_ancestor(locations, location_id, target_types):
+        current_id = location_id
+        while current_id is not None:
+            location = locations.get(current_id)
+            if not location:
+                return None
+            if location.location_type in target_types:
+                return location
+            current_id = location.parent_id
+        return None
+
+    result = build_alarm_summary(
+        alarms,
+        device_by_id,
+        locations_by_id,
+        {"area", "building"},
+        find_ancestor=find_ancestor,
+    )
+
+    assert result == {
+        "total_count": 3,
+        "unresolved_count": 2,
+        "resolved_count": 1,
+        "by_severity": {"critical": 1, "warning": 2},
+        "top_locations": [
+            {"location_id": 2, "name": "Lab A", "location_type": "building", "alarm_count": 2},
+        ],
+        "latest": [
+            {
+                "id": 1,
+                "device_id": 101,
+                "message": "High load",
+                "severity": "warning",
+                "category": "energy",
+                "timestamp": t1,
+                "is_resolved": False,
+            },
+            {
+                "id": 2,
+                "device_id": 101,
+                "message": "Meter offline",
+                "severity": "critical",
+                "category": "device",
+                "timestamp": t2,
+                "is_resolved": True,
+            },
+            {
+                "id": 3,
+                "device_id": 102,
+                "message": "No location",
+                "severity": "warning",
+                "category": "device",
+                "timestamp": t3,
+                "is_resolved": False,
+            },
+        ],
+    }
