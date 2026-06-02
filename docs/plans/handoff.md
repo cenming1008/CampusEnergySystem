@@ -16,6 +16,7 @@
 - `alarm_service.py` 第一轮纯规则泄漏点已收口：storage managed categories 映射迁入 `domain/alarm_rules.py`，告警生命周期编排仍保留在 service。
 - `device_service.py` 第一轮 profile/default 泄漏点已收口：legacy create registry defaults patch 迁入 `domain/device_payloads.py`，持久化、回滚和重复 SN 兼容仍保留在 service。
 - `campus_service.py` 第一轮纯聚合泄漏点已收口：energy category summary 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
+- `campus_service.py` 第二轮纯聚合泄漏点已收口：subitem statistics 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
 
 ## 下一棒
 - 规则/预判角色：
@@ -35,11 +36,12 @@
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_registry_default_patch_normalizes_legacy_compensation_device -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py tests/test_device_management_use_cases.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_devices -q` 通过。
 
 ## 剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage managed categories 切片、`device_service.py` legacy create registry defaults patch 切片和 `campus_service.py` energy category summary 切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage managed categories 切片、`device_service.py` legacy create registry defaults patch 切片、`campus_service.py` energy category summary 切片和 `campus_service.py` subitem statistics 切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
 - `alarm_service.py` 仍是 `split_candidate`，但本轮只处理 storage managed categories 纯映射；后续继续整理时仍必须一次只选一个独立规则泄漏点。
 - `device_service.py` 仍是 `split_candidate`，但本轮只处理 legacy create registry defaults patch；后续继续整理时仍必须一次只选一个独立 profile/default 泄漏点。
-- `campus_service.py` 仍是 `split_candidate`，但本轮只处理 energy category summary 纯聚合；后续继续整理时仍必须一次只选一个独立聚合 helper。
+- `campus_service.py` 仍是 `split_candidate`，但已处理 energy category summary 与 subitem statistics 两个纯聚合 helper；后续继续整理时仍必须一次只选一个独立聚合 helper。

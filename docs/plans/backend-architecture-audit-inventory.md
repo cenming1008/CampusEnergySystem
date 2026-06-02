@@ -76,7 +76,8 @@
 3. 已完成：`device_service.py` 中 legacy create registry defaults patch 已迁入 `domain/device_payloads.py`。
 4. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 泄漏点。
 5. 已完成：`campus_service.py` 中 energy category summary 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的能源分类标签依赖同步改为 domain 来源。
-6. `campus_service.py` 后续如继续整理，只能再选择一个独立聚合 helper（例如分项统计、位置排行、实时负荷趋势或告警摘要）。
+6. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
+7. `campus_service.py` 后续如继续整理，只能再选择一个独立聚合 helper（例如位置排行、实时负荷趋势或告警摘要）。
 
 ## 第一阶段禁止项
 
