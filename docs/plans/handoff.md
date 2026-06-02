@@ -22,6 +22,7 @@
 - `device_service.py` 第四轮纯规则泄漏点已收口：effective device type 解析迁入 `domain/device_payloads.py`，service 仅保留兼容包装。
 - `device_service.py` 第五轮纯规则泄漏点已收口：read normalization patch 迁入 `domain/device_payloads.py`，SQLModel / 普通对象复制仍保留在 service。
 - `device_service.py` 第六轮纯规则泄漏点已收口：pending archive status 迁入 `domain/device_payloads.py`，service 仅保留兼容常量与流程触发。
+- `device_service.py` 第七轮纯规则泄漏点已收口：update identity patch 迁入 `domain/device_payloads.py`，service 仅负责将 patch 写回设备对象并持久化。
 - `campus_service.py` 第一轮纯聚合泄漏点已收口：energy category summary 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
 - `campus_service.py` 第二轮纯聚合泄漏点已收口：subitem statistics 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
 - `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
@@ -62,6 +63,8 @@
 - `./venv/bin/python -m pytest tests/test_device_domain.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_service_round2.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_update_identity_patch_normalizes_type_and_adds_missing_unit tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_update_identity_patch_preserves_existing_unit -q` 先失败于缺少 `build_device_update_identity_patch`，补实现后通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_devices -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas -q` 通过。
@@ -82,11 +85,11 @@
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder -q` 通过。
 
 ## 剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories 与 platform communication offline category/message 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch 与 pending archive status 切片、`campus_service.py` 主要纯聚合 helper、site entities 与 hierarchy summary 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态与控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories 与 platform communication offline category/message 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、pending archive status 与 update identity patch 切片、`campus_service.py` 主要纯聚合 helper、site entities 与 hierarchy summary 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态与控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
 - `alarm_service.py` 仍是 `split_candidate`，但已处理 storage、generic/media threshold managed categories 与 platform communication offline category/message 纯规则；后续继续整理时必须一次只选一个独立生命周期、规则 profile 编排或查询编排泄漏点。
-- `device_service.py` 仍是 `split_candidate`，但已处理 legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch 与 pending archive status；后续继续整理时必须一次只选一个独立 profile/default 编排、对象复制或持久化边界泄漏点。
+- `device_service.py` 仍是 `split_candidate`，但已处理 legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、pending archive status 与 update identity patch；后续继续整理时必须一次只选一个独立 profile/default 编排、对象复制或持久化边界泄漏点。
 - `campus_service.py` 仍是 `split_candidate`，但已处理 energy category summary、subitem statistics、realtime load trend、location rankings、alarm summary、site entities 与 hierarchy summary；后续若继续整理，应先评估查询 / context 编排边界，不再优先寻找纯聚合 helper。
 - `location_service.py` 仍是 `split_candidate`，但已处理路径计算、tree node payload 和 statistics payload；后续继续整理时只能再选择位置树遍历或查询编排中的一个独立泄漏点。
 - `app/services/devices/compensation/monitor_service.py` 仍是 `split_candidate`，但已处理 PQ 归一、参考线格式、健康评分基础规则、回路摘要、温度状态和控制模式解析；后续如继续整理需重新选择新的独立泄漏点，控制命令链路仍按 `plan_required` 处理。

@@ -8,6 +8,7 @@ from app.domain import device_payloads
 from app.domain.device_payloads import (
     build_device_create_fields,
     build_device_registry_default_patch,
+    build_device_update_identity_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
@@ -164,6 +165,49 @@ class TestDeviceDomainHelpers(unittest.TestCase):
         self.assertTrue(device_payloads.is_pending_device_archive(pending))
         self.assertFalse(device_payloads.is_pending_device_archive(complete))
         self.assertFalse(device_payloads.is_pending_device_archive(missing))
+
+    def test_build_device_update_identity_patch_normalizes_type_and_adds_missing_unit(self):
+        device = SimpleNamespace(
+            device_type="load",
+            device_category="load",
+            unit=None,
+        )
+
+        self.assertEqual(
+            build_device_update_identity_patch(
+                device,
+                device_type="reactive_power_compensator",
+                device_subtype=None,
+            ),
+            {
+                "device_type": "capacitor_bank_controller",
+                "device_subtype": "capacitor_bank_controller",
+                "device_category": "compensation",
+                "energy_type": "electricity",
+                "unit": "kVAR",
+            },
+        )
+
+    def test_build_device_update_identity_patch_preserves_existing_unit(self):
+        device = SimpleNamespace(
+            device_type="water_meter",
+            device_category="water_meter",
+            unit="custom-unit",
+        )
+
+        self.assertEqual(
+            build_device_update_identity_patch(
+                device,
+                device_type="water_meter",
+                device_subtype=None,
+            ),
+            {
+                "device_type": "water_meter",
+                "device_subtype": None,
+                "device_category": "water_meter",
+                "energy_type": "water",
+            },
+        )
 
     def test_describe_device_type_semantics_exposes_meter_role(self):
         semantics = describe_device_type_semantics("water_meter")

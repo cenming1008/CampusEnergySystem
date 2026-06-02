@@ -240,6 +240,31 @@ def build_device_read_normalization_patch(device: Any) -> dict[str, Any]:
     return patch
 
 
+def build_device_update_identity_patch(
+    device: Any,
+    *,
+    device_type: Optional[str],
+    device_subtype: Optional[str],
+) -> dict[str, Any]:
+    """Build field overrides for updating a device identity."""
+    base_type = device_type or getattr(device, "device_category", None) or getattr(device, "device_type", None)
+    resolved_identity = resolve_device_identity(base_type, device_subtype)
+    resolved_type = resolved_identity["device_type"]
+    patch: dict[str, Any] = {}
+    if resolved_type:
+        patch["device_type"] = resolved_type
+    patch["device_subtype"] = resolved_identity["device_subtype"]
+    if resolved_identity["device_category"]:
+        patch["device_category"] = resolved_identity["device_category"]
+    if resolved_identity["energy_type"]:
+        patch["energy_type"] = resolved_identity["energy_type"]
+
+    config = get_device_type_config(patch.get("device_type") or getattr(device, "device_type", None))
+    if not getattr(device, "unit", None):
+        patch["unit"] = config.unit
+    return patch
+
+
 def is_device_archive_complete(device: Any) -> bool:
     """Return whether a pending device has enough profile fields to leave archive mode."""
     if not getattr(device, "sn", None):

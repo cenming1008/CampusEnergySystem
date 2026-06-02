@@ -82,24 +82,25 @@
 8. 已完成：`device_service.py` 中 effective device type 解析已迁入 `domain/device_payloads.py`，service 仅保留兼容包装。
 9. 已完成：`device_service.py` 中 read normalization patch 纯规则已迁入 `domain/device_payloads.py`，service 仅保留 SQLModel / 普通对象复制。
 10. 已完成：`device_service.py` 中 pending archive status 纯规则已迁入 `domain/device_payloads.py`，service 仅保留兼容常量与流程触发。
-11. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 编排、对象复制或持久化边界泄漏点。
-12. 已完成：`campus_service.py` 中 energy category summary 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的能源分类标签依赖同步改为 domain 来源。
-13. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
-14. 已完成：`campus_service.py` 中 realtime load trend 纯聚合已迁入 `domain/campus_rules.py`。
-15. 已完成：`campus_service.py` 中 location rankings 纯聚合已迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
-16. 已完成：`campus_service.py` 中 alarm summary 摘要聚合已迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
-17. 已完成：`campus_service.py` 中 site entities / hierarchy summary 纯聚合已迁入 `domain/campus_rules.py`，context 构建、数据库查询与驾驶舱编排仍留 service。
-18. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
-19. 已完成：`location_service.py` 中 full_path / level 路径计算已迁入 `domain/location_rules.py`，数据库查询与对象赋值仍留 service。
-20. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
-21. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
-22. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
-23. 已完成：`app/services/devices/compensation/monitor_service.py` 中 PQ power factor normalization 与 reference line formatting 已迁入 `domain/compensation_rules.py`。
-24. 已完成：`app/services/devices/compensation/monitor_service.py` 中 health score primitive rules 已迁入 `domain/compensation_rules.py`，健康模型 payload 组装仍留 service。
-25. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank circuit summary 纯规则已迁入 `domain/compensation_rules.py`，telemetry/profile 字段抽取与监控 payload 组装仍留 service。
-26. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank temperature health 纯规则已迁入 `domain/compensation_rules.py`，warning margin 配置读取仍留 service。
-27. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank control mode resolution 纯规则已迁入 `domain/compensation_rules.py`，control log 读取与日志结果归一仍留 service。
-28. `app/services/devices/compensation/monitor_service.py` 后续如继续整理，需重新选择新的独立泄漏点；控制命令相关逻辑保持 `plan_required` 边界。
+11. 已完成：`device_service.py` 中 update identity patch 纯规则已迁入 `domain/device_payloads.py`，service 仅保留对象赋值与持久化。
+12. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 编排、对象复制或持久化边界泄漏点。
+13. 已完成：`campus_service.py` 中 energy category summary 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的能源分类标签依赖同步改为 domain 来源。
+14. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
+15. 已完成：`campus_service.py` 中 realtime load trend 纯聚合已迁入 `domain/campus_rules.py`。
+16. 已完成：`campus_service.py` 中 location rankings 纯聚合已迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
+17. 已完成：`campus_service.py` 中 alarm summary 摘要聚合已迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
+18. 已完成：`campus_service.py` 中 site entities / hierarchy summary 纯聚合已迁入 `domain/campus_rules.py`，context 构建、数据库查询与驾驶舱编排仍留 service。
+19. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
+20. 已完成：`location_service.py` 中 full_path / level 路径计算已迁入 `domain/location_rules.py`，数据库查询与对象赋值仍留 service。
+21. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
+22. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
+23. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
+24. 已完成：`app/services/devices/compensation/monitor_service.py` 中 PQ power factor normalization 与 reference line formatting 已迁入 `domain/compensation_rules.py`。
+25. 已完成：`app/services/devices/compensation/monitor_service.py` 中 health score primitive rules 已迁入 `domain/compensation_rules.py`，健康模型 payload 组装仍留 service。
+26. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank circuit summary 纯规则已迁入 `domain/compensation_rules.py`，telemetry/profile 字段抽取与监控 payload 组装仍留 service。
+27. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank temperature health 纯规则已迁入 `domain/compensation_rules.py`，warning margin 配置读取仍留 service。
+28. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank control mode resolution 纯规则已迁入 `domain/compensation_rules.py`，control log 读取与日志结果归一仍留 service。
+29. `app/services/devices/compensation/monitor_service.py` 后续如继续整理，需重新选择新的独立泄漏点；控制命令相关逻辑保持 `plan_required` 边界。
 
 ## 第一阶段禁止项
 

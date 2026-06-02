@@ -12,6 +12,7 @@ from app.domain.device_payloads import (
     build_device_read_normalization_patch,
     build_device_create_fields,
     build_device_registry_default_patch,
+    build_device_update_identity_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
@@ -292,19 +293,13 @@ class DeviceService:
         device = DeviceService.get_device_by_id(session, device_id)
 
         if device_type is not None or device_subtype is not None:
-            base_type = device_type or getattr(device, "device_category", None) or device.device_type
-            resolved_identity = resolve_device_identity(base_type, device_subtype)
-            resolved_type = resolved_identity["device_type"]
-            if resolved_type:
-                device.device_type = resolved_type
-            device.device_subtype = resolved_identity["device_subtype"]
-            if resolved_identity["device_category"]:
-                device.device_category = resolved_identity["device_category"]
-            if resolved_identity["energy_type"]:
-                device.energy_type = resolved_identity["energy_type"]
-            config = get_device_type_config(device.device_type)
-            if not device.unit:
-                device.unit = config.unit
+            identity_patch = build_device_update_identity_patch(
+                device,
+                device_type=device_type,
+                device_subtype=device_subtype,
+            )
+            for field_name, value in identity_patch.items():
+                setattr(device, field_name, value)
 
         if name is not None:
             device.name = name
