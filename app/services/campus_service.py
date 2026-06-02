@@ -14,7 +14,7 @@ from typing import Iterable, Optional
 
 from sqlmodel import Session, select
 
-from app.domain.campus_rules import build_energy_category_summary
+from app.domain.campus_rules import build_energy_category_summary, build_subitem_statistics
 from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
 
@@ -22,19 +22,6 @@ SITE_LOCATION_TYPES = {"park", "campus", "site"}
 AREA_LOCATION_TYPES = {"area", "zone"}
 BUILDING_LOCATION_TYPES = {"building"}
 METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
-
-SUB_ITEM_LABELS = {
-    "load": "动力/普通负荷",
-    "solar": "光伏",
-    "wind": "风电",
-    "water_meter": "给排水计量",
-    "gas_meter": "燃气计量",
-    "heat_meter": "供热计量",
-    "cooling_meter": "供冷计量",
-    "storage": "储能",
-    "charger": "充电桩",
-}
-
 
 @dataclass
 class CampusContext:
@@ -116,7 +103,7 @@ class CampusService:
 
         hierarchy_summary = CampusService._build_hierarchy_summary(context)
         energy_category_summary = build_energy_category_summary(period_summaries)
-        subitem_statistics = CampusService._build_subitem_statistics(period_summaries, context.device_by_id)
+        subitem_statistics = build_subitem_statistics(period_summaries, context.device_by_id)
         area_rankings = CampusService._build_location_rankings(
             period_summaries, context, AREA_LOCATION_TYPES, top_n=5
         )
@@ -204,7 +191,7 @@ class CampusService:
         period_summaries = CampusService._build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
-            "items": CampusService._build_subitem_statistics(period_summaries, context.device_by_id),
+            "items": build_subitem_statistics(period_summaries, context.device_by_id),
         }
 
     @staticmethod
@@ -365,37 +352,6 @@ class CampusService:
                 )
             )
         return summaries
-
-    @staticmethod
-    def _build_subitem_statistics(summaries: list[PeriodEnergySummary], device_by_id: dict[int, Device]) -> list[dict]:
-        items: dict[str, dict] = defaultdict(
-            lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0, "device_ids": set(), "energy_categories": set()}
-        )
-        for summary in summaries:
-            device = device_by_id.get(summary.device_id)
-            if not device:
-                continue
-            sub_item = device.device_category or device.device_type or "device"
-            item = items[sub_item]
-            item["consumption"] += float(summary.total_consumption or 0.0)
-            item["load"] += summary.load_sum
-            item["load_count"] += summary.load_count
-            item["device_ids"].add(device.id)
-            item["energy_categories"].add(summary.energy_type)
-
-        result = []
-        for sub_item, value in sorted(items.items(), key=lambda item: item[1]["consumption"], reverse=True):
-            result.append(
-                {
-                    "sub_item": sub_item,
-                    "label": SUB_ITEM_LABELS.get(sub_item, sub_item),
-                    "total_consumption": round(float(value["consumption"]), 3),
-                    "avg_load": round(float(value["load"]) / max(int(value["load_count"]), 1), 3),
-                    "device_count": len(value["device_ids"]),
-                    "energy_categories": sorted(value["energy_categories"]),
-                }
-            )
-        return result
 
     @staticmethod
     def _build_location_rankings(
