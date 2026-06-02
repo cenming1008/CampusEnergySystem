@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Iterable
+
+from app.domain.energy_rules import calculate_period_delta
 
 ENERGY_CATEGORY_LABELS = {
     "electricity": "电",
@@ -29,6 +32,16 @@ SUB_ITEM_LABELS = {
 SITE_LOCATION_TYPES = {"park", "campus", "site"}
 METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
 HIERARCHY_LOCATION_TYPES = ("park", "campus", "site", "area", "zone", "building")
+
+
+@dataclass
+class PeriodEnergySummary:
+    device_id: int
+    energy_type: str
+    total_consumption: float
+    load_sum: float
+    load_count: int
+    meter_reset_suspected: bool
 
 
 def build_site_entities(
@@ -97,6 +110,33 @@ def build_hierarchy_summary(
         "active_device_count": sum(1 for device in devices if getattr(device, "is_active", False)),
         "meter_count": sum(1 for device in devices if is_meter_device(device)),
     }
+
+
+def build_period_energy_summaries(rows: Iterable[Any]) -> list[PeriodEnergySummary]:
+    """Group energy rows into period summaries by device and energy type."""
+    grouped_rows: dict[tuple[int, str], list[Any]] = defaultdict(list)
+    for row in rows:
+        grouped_rows[(getattr(row, "device_id"), getattr(row, "energy_type"))].append(row)
+
+    summaries = []
+    for (device_id, energy_type), group_rows in grouped_rows.items():
+        flow_rates = [
+            float(getattr(row, "flow_rate"))
+            for row in group_rows
+            if getattr(row, "flow_rate", None) is not None
+        ]
+        total_consumption, meter_reset_suspected = calculate_period_delta(group_rows)
+        summaries.append(
+            PeriodEnergySummary(
+                device_id=device_id,
+                energy_type=energy_type,
+                total_consumption=total_consumption,
+                load_sum=sum(flow_rates),
+                load_count=len(flow_rates),
+                meter_reset_suspected=meter_reset_suspected,
+            )
+        )
+    return summaries
 
 
 def build_energy_category_summary(summaries: Iterable[Any]) -> list[dict]:

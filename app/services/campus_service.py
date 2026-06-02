@@ -7,10 +7,9 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterable, Optional
+from typing import Optional
 
 from sqlmodel import Session, select
 
@@ -20,11 +19,11 @@ from app.domain.campus_rules import (
     build_energy_category_summary,
     build_hierarchy_summary,
     build_location_rankings,
+    build_period_energy_summaries,
     build_realtime_load_trend,
     build_site_entities,
     build_subitem_statistics,
 )
-from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
 
 AREA_LOCATION_TYPES = {"area", "zone"}
@@ -36,16 +35,6 @@ class CampusContext:
     devices: list[Device]
     device_by_id: dict[int, Device]
     relevant_location_ids: set[int]
-
-
-@dataclass
-class PeriodEnergySummary:
-    device_id: int
-    energy_type: str
-    total_consumption: float
-    load_sum: float
-    load_count: int
-    meter_reset_suspected: bool
 
 
 class CampusService:
@@ -99,7 +88,7 @@ class CampusService:
     ) -> dict:
         context = CampusService.build_context(session, allowed_device_ids)
         energy_rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
-        period_summaries = CampusService._build_period_energy_summaries(energy_rows)
+        period_summaries = build_period_energy_summaries(energy_rows)
         trend_rows = CampusService._list_energy_rows(
             session,
             end_time - timedelta(hours=24),
@@ -181,7 +170,7 @@ class CampusService:
         context = CampusService.build_context(session, allowed_device_ids)
         target_types = AREA_LOCATION_TYPES if dimension == "area" else BUILDING_LOCATION_TYPES
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
-        period_summaries = CampusService._build_period_energy_summaries(rows)
+        period_summaries = build_period_energy_summaries(rows)
         rankings = build_location_rankings(
             period_summaries,
             context.device_by_id,
@@ -207,7 +196,7 @@ class CampusService:
         allowed_device_ids: Optional[set[int]] = None,
     ) -> dict:
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
-        period_summaries = CampusService._build_period_energy_summaries(rows)
+        period_summaries = build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
             "items": build_energy_category_summary(period_summaries),
@@ -222,7 +211,7 @@ class CampusService:
     ) -> dict:
         context = CampusService.build_context(session, allowed_device_ids)
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
-        period_summaries = CampusService._build_period_energy_summaries(rows)
+        period_summaries = build_period_energy_summaries(rows)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
             "items": build_subitem_statistics(period_summaries, context.device_by_id),
@@ -311,28 +300,6 @@ class CampusService:
                 return []
             statement = statement.where(Alarm.device_id.in_(allowed_device_ids))
         return list(session.exec(statement).all())
-
-    @staticmethod
-    def _build_period_energy_summaries(rows: list[EnergyData]) -> list[PeriodEnergySummary]:
-        grouped_rows: dict[tuple[int, str], list[EnergyData]] = defaultdict(list)
-        for row in rows:
-            grouped_rows[(row.device_id, row.energy_type)].append(row)
-
-        summaries = []
-        for (device_id, energy_type), group_rows in grouped_rows.items():
-            flow_rates = [float(row.flow_rate) for row in group_rows if row.flow_rate is not None]
-            total_consumption, meter_reset_suspected = calculate_period_delta(group_rows)
-            summaries.append(
-                PeriodEnergySummary(
-                    device_id=device_id,
-                    energy_type=energy_type,
-                    total_consumption=total_consumption,
-                    load_sum=sum(flow_rates),
-                    load_count=len(flow_rates),
-                    meter_reset_suspected=meter_reset_suspected,
-                )
-            )
-        return summaries
 
     @staticmethod
     def _find_ancestor_location(

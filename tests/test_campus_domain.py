@@ -7,6 +7,7 @@ from app.domain.campus_rules import (
     build_energy_category_summary,
     build_hierarchy_summary,
     build_location_rankings,
+    build_period_energy_summaries,
     build_realtime_load_trend,
     build_site_entities,
     build_subitem_statistics,
@@ -102,6 +103,48 @@ def test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas():
         {"timestamp": t1, "total_load": 2.0, "total_consumption": 0.0},
         {"timestamp": t2, "total_load": 3.333, "total_consumption": 2.5},
         {"timestamp": t3, "total_load": 1.25, "total_consumption": 0.0},
+    ]
+
+
+def test_build_period_energy_summaries_groups_rows_and_flags_meter_reset():
+    t1 = datetime(2026, 6, 2, 8, 0, 0)
+    t2 = datetime(2026, 6, 2, 9, 0, 0)
+    rows = [
+        SimpleNamespace(device_id=1, energy_type="electricity", timestamp=t1, consumption=10.0, flow_rate=2.0),
+        SimpleNamespace(device_id=1, energy_type="electricity", timestamp=t2, consumption=14.5, flow_rate=3.0),
+        SimpleNamespace(device_id=2, energy_type="water", timestamp=t1, consumption=7.0, flow_rate=None),
+        SimpleNamespace(device_id=2, energy_type="water", timestamp=t2, consumption=4.0, flow_rate=1.5),
+    ]
+
+    summaries = build_period_energy_summaries(rows)
+
+    assert [
+        {
+            "device_id": summary.device_id,
+            "energy_type": summary.energy_type,
+            "total_consumption": summary.total_consumption,
+            "load_sum": summary.load_sum,
+            "load_count": summary.load_count,
+            "meter_reset_suspected": summary.meter_reset_suspected,
+        }
+        for summary in summaries
+    ] == [
+        {
+            "device_id": 1,
+            "energy_type": "electricity",
+            "total_consumption": 4.5,
+            "load_sum": 5.0,
+            "load_count": 2,
+            "meter_reset_suspected": False,
+        },
+        {
+            "device_id": 2,
+            "energy_type": "water",
+            "total_consumption": 0.0,
+            "load_sum": 1.5,
+            "load_count": 1,
+            "meter_reset_suspected": True,
+        },
     ]
 
 
