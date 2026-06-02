@@ -5,8 +5,10 @@ from types import SimpleNamespace
 from app.domain.campus_rules import (
     build_alarm_summary,
     build_energy_category_summary,
+    build_hierarchy_summary,
     build_location_rankings,
     build_realtime_load_trend,
+    build_site_entities,
     build_subitem_statistics,
 )
 
@@ -252,4 +254,67 @@ def test_build_alarm_summary_counts_status_severity_locations_and_latest():
                 "is_resolved": False,
             },
         ],
+    }
+
+
+def test_build_site_entities_prefers_site_types_and_derives_roots_when_missing():
+    locations_by_id = {
+        1: SimpleNamespace(id=1, name="Main Campus", code="CAMPUS", location_type="campus", full_path="/Main", parent_id=None),
+        2: SimpleNamespace(id=2, name="North Area", code="NORTH", location_type="area", full_path="/Main/North", parent_id=1),
+        3: SimpleNamespace(id=3, name="Lab A", code="LAB-A", location_type="building", full_path="/Main/North/Lab A", parent_id=2),
+    }
+
+    assert build_site_entities(locations_by_id, {1, 2, 3}) == [
+        {
+            "id": 1,
+            "name": "Main Campus",
+            "code": "CAMPUS",
+            "location_type": "campus",
+            "full_path": "/Main",
+        }
+    ]
+
+    assert build_site_entities(locations_by_id, {2, 3}) == []
+
+    root_only_locations = {
+        10: SimpleNamespace(id=10, name="Legacy Root", code="ROOT", location_type="area", full_path="/Legacy", parent_id=None),
+        11: SimpleNamespace(id=11, name="Building", code="B1", location_type="building", full_path="/Legacy/B1", parent_id=10),
+    }
+    assert build_site_entities(root_only_locations, {10, 11}) == [
+        {
+            "id": 10,
+            "name": "Legacy Root",
+            "code": "ROOT",
+            "location_type": "site",
+            "full_path": "/Legacy",
+            "derived": True,
+        }
+    ]
+
+
+def test_build_hierarchy_summary_counts_locations_devices_and_meters():
+    locations_by_id = {
+        1: SimpleNamespace(id=1, location_type="campus"),
+        2: SimpleNamespace(id=2, location_type="area"),
+        3: SimpleNamespace(id=3, location_type="building"),
+        4: SimpleNamespace(id=4, location_type="room"),
+    }
+    devices = [
+        SimpleNamespace(id=101, is_active=True, device_category="water_meter", device_type="flow"),
+        SimpleNamespace(id=102, is_active=False, device_category="load", device_type="electric_meter"),
+        SimpleNamespace(id=103, is_active=True, device_category="load", device_type="fan"),
+    ]
+
+    assert build_hierarchy_summary(locations_by_id, {1, 2, 3, 4}, devices) == {
+        "location_counts": {
+            "park": 0,
+            "campus": 1,
+            "site": 0,
+            "area": 1,
+            "zone": 0,
+            "building": 1,
+        },
+        "device_count": 3,
+        "active_device_count": 2,
+        "meter_count": 2,
     }

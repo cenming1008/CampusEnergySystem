@@ -26,6 +26,78 @@ SUB_ITEM_LABELS = {
     "charger": "充电桩",
 }
 
+SITE_LOCATION_TYPES = {"park", "campus", "site"}
+METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
+HIERARCHY_LOCATION_TYPES = ("park", "campus", "site", "area", "zone", "building")
+
+
+def build_site_entities(
+    locations_by_id: dict[int, Any],
+    relevant_location_ids: set[int],
+) -> list[dict]:
+    """Build campus/site entities from relevant locations."""
+    locations = [
+        location
+        for location_id, location in locations_by_id.items()
+        if not relevant_location_ids or location_id in relevant_location_ids
+    ]
+    site_entities = [
+        {
+            "id": getattr(location, "id"),
+            "name": getattr(location, "name"),
+            "code": getattr(location, "code"),
+            "location_type": getattr(location, "location_type"),
+            "full_path": getattr(location, "full_path"),
+        }
+        for location in locations
+        if getattr(location, "location_type", None) in SITE_LOCATION_TYPES
+    ]
+    if site_entities:
+        return site_entities
+
+    roots = [location for location in locations if getattr(location, "parent_id", None) is None]
+    return [
+        {
+            "id": getattr(location, "id"),
+            "name": getattr(location, "name"),
+            "code": getattr(location, "code"),
+            "location_type": "site",
+            "full_path": getattr(location, "full_path"),
+            "derived": True,
+        }
+        for location in roots
+    ]
+
+
+def is_meter_device(device: Any) -> bool:
+    """Return whether a device should count as a meter in campus hierarchy summaries."""
+    if getattr(device, "device_category", None) in METER_DEVICE_CATEGORIES:
+        return True
+    text = f"{getattr(device, 'device_type', '') or ''} {getattr(device, 'device_category', '') or ''}".lower()
+    return "meter" in text
+
+
+def build_hierarchy_summary(
+    locations_by_id: dict[int, Any],
+    relevant_location_ids: set[int],
+    devices: Iterable[Any],
+) -> dict:
+    """Build campus hierarchy counts from locations and devices."""
+    devices = list(devices)
+    location_counts = {location_type: 0 for location_type in HIERARCHY_LOCATION_TYPES}
+    for location_id in relevant_location_ids:
+        location = locations_by_id.get(location_id)
+        location_type = getattr(location, "location_type", None) if location else None
+        if location_type in location_counts:
+            location_counts[location_type] += 1
+
+    return {
+        "location_counts": location_counts,
+        "device_count": len(devices),
+        "active_device_count": sum(1 for device in devices if getattr(device, "is_active", False)),
+        "meter_count": sum(1 for device in devices if is_meter_device(device)),
+    }
+
 
 def build_energy_category_summary(summaries: Iterable[Any]) -> list[dict]:
     """Aggregate period energy summaries by energy category."""

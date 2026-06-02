@@ -15,19 +15,20 @@ from typing import Iterable, Optional
 from sqlmodel import Session, select
 
 from app.domain.campus_rules import (
+    SITE_LOCATION_TYPES,
     build_alarm_summary,
     build_energy_category_summary,
+    build_hierarchy_summary,
     build_location_rankings,
     build_realtime_load_trend,
+    build_site_entities,
     build_subitem_statistics,
 )
 from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
 
-SITE_LOCATION_TYPES = {"park", "campus", "site"}
 AREA_LOCATION_TYPES = {"area", "zone"}
 BUILDING_LOCATION_TYPES = {"building"}
-METER_DEVICE_CATEGORIES = {"water_meter", "gas_meter", "heat_meter", "cooling_meter"}
 
 @dataclass
 class CampusContext:
@@ -107,7 +108,11 @@ class CampusService:
         )
         alarm_rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
 
-        hierarchy_summary = CampusService._build_hierarchy_summary(context)
+        hierarchy_summary = build_hierarchy_summary(
+            context.locations_by_id,
+            context.relevant_location_ids,
+            context.devices,
+        )
         energy_category_summary = build_energy_category_summary(period_summaries)
         subitem_statistics = build_subitem_statistics(period_summaries, context.device_by_id)
         area_rankings = build_location_rankings(
@@ -140,7 +145,7 @@ class CampusService:
         total_carbon = sum(item["estimated_carbon"] for item in energy_category_summary)
 
         return {
-            "campus_entities": CampusService._build_site_entities(context),
+            "campus_entities": build_site_entities(context.locations_by_id, context.relevant_location_ids),
             "hierarchy_summary": hierarchy_summary,
             "analysis_summary": {
                 "time_window": {
@@ -308,65 +313,6 @@ class CampusService:
         return list(session.exec(statement).all())
 
     @staticmethod
-    def _build_site_entities(context: CampusContext) -> list[dict]:
-        locations = [
-            location
-            for location_id, location in context.locations_by_id.items()
-            if not context.relevant_location_ids or location_id in context.relevant_location_ids
-        ]
-        site_entities = [
-            {
-                "id": location.id,
-                "name": location.name,
-                "code": location.code,
-                "location_type": location.location_type,
-                "full_path": location.full_path,
-            }
-            for location in locations
-            if location.location_type in SITE_LOCATION_TYPES
-        ]
-        if site_entities:
-            return site_entities
-
-        roots = [location for location in locations if location.parent_id is None]
-        return [
-            {
-                "id": location.id,
-                "name": location.name,
-                "code": location.code,
-                "location_type": "site",
-                "full_path": location.full_path,
-                "derived": True,
-            }
-            for location in roots
-        ]
-
-    @staticmethod
-    def _build_hierarchy_summary(context: CampusContext) -> dict:
-        location_counts = {
-            "park": 0,
-            "campus": 0,
-            "site": 0,
-            "area": 0,
-            "zone": 0,
-            "building": 0,
-        }
-        for location_id in context.relevant_location_ids:
-            location = context.locations_by_id.get(location_id)
-            if location and location.location_type in location_counts:
-                location_counts[location.location_type] += 1
-
-        device_count = len(context.devices)
-        active_device_count = sum(1 for device in context.devices if device.is_active)
-        meter_count = sum(1 for device in context.devices if CampusService._is_meter(device))
-        return {
-            "location_counts": location_counts,
-            "device_count": device_count,
-            "active_device_count": active_device_count,
-            "meter_count": meter_count,
-        }
-
-    @staticmethod
     def _build_period_energy_summaries(rows: list[EnergyData]) -> list[PeriodEnergySummary]:
         grouped_rows: dict[tuple[int, str], list[EnergyData]] = defaultdict(list)
         for row in rows:
@@ -403,10 +349,3 @@ class CampusService:
                 return location
             current_id = location.parent_id
         return None
-
-    @staticmethod
-    def _is_meter(device: Device) -> bool:
-        if device.device_category in METER_DEVICE_CATEGORIES:
-            return True
-        text = f"{device.device_type or ''} {device.device_category or ''}".lower()
-        return "meter" in text

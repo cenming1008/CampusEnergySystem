@@ -32,6 +32,7 @@
 - [x] `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第四轮纯聚合泄漏点已收口：location rankings 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第五轮摘要聚合泄漏点已收口：alarm summary 迁入 `domain/campus_rules.py`。
+- [x] `campus_service.py` 第六轮纯聚合泄漏点已收口：site entities / hierarchy summary 迁入 `domain/campus_rules.py`。
 - [x] `location_service.py` 第一轮纯规则泄漏点已收口：full_path / level 路径计算迁入 `domain/location_rules.py`。
 - [x] `location_service.py` 第二轮轻量转换泄漏点已收口：location tree node payload 迁入 `domain/location_rules.py`。
 - [x] `location_service.py` 第三轮统计聚合泄漏点已收口：location statistics payload 迁入 `domain/location_rules.py`。
@@ -71,6 +72,8 @@
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_location_rankings_rolls_summaries_up_to_target_locations -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_alarm_summary_counts_status_severity_locations_and_latest -q` 通过。
+- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_site_entities_prefers_site_types_and_derives_roots_when_missing tests/test_campus_domain.py::test_build_hierarchy_summary_counts_locations_devices_and_meters -q` 先失败于缺少 `build_hierarchy_summary`，补实现后通过。
+- `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_location_domain.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_location_domain.py tests/test_location_application_use_cases.py tests/test_endpoint_application_convergence.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_location_domain.py::test_build_location_tree_node_preserves_response_shape -q` 通过。
@@ -91,5 +94,5 @@
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories 与 platform communication offline category/message 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch 与 pending archive status 切片、`campus_service.py` 主要纯聚合 helper 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态与控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories 与 platform communication offline category/message 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch 与 pending archive status 切片、`campus_service.py` 主要纯聚合 helper、site entities 与 hierarchy summary 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态与控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。
