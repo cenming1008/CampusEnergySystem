@@ -83,7 +83,8 @@
 10. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
 11. 已完成：`location_service.py` 中 full_path / level 路径计算已迁入 `domain/location_rules.py`，数据库查询与对象赋值仍留 service。
 12. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
-13. `location_service.py` 后续如继续整理，只能再选择位置树遍历或统计中的一个独立泄漏点。
+13. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
+14. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
 
 ## 第一阶段禁止项
 
