@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from app.domain.campus_rules import (
     build_energy_category_summary,
+    build_location_rankings,
     build_realtime_load_trend,
     build_subitem_statistics,
 )
@@ -98,4 +99,55 @@ def test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas():
         {"timestamp": t1, "total_load": 2.0, "total_consumption": 0.0},
         {"timestamp": t2, "total_load": 3.333, "total_consumption": 2.5},
         {"timestamp": t3, "total_load": 1.25, "total_consumption": 0.0},
+    ]
+
+
+def test_build_location_rankings_rolls_summaries_up_to_target_locations():
+    locations_by_id = {
+        1: SimpleNamespace(id=1, name="North Area", location_type="area", full_path="Campus/North", parent_id=None),
+        2: SimpleNamespace(id=2, name="South Area", location_type="area", full_path="Campus/South", parent_id=None),
+        10: SimpleNamespace(id=10, name="Lab A", location_type="building", full_path="Campus/North/Lab A", parent_id=1),
+    }
+    device_by_id = {
+        101: SimpleNamespace(id=101, location_id=10),
+        102: SimpleNamespace(id=102, location_id=2),
+        103: SimpleNamespace(id=103, location_id=None),
+    }
+    summaries = [
+        Summary("electricity", 18.1234, 6.0, 2, device_id=101),
+        Summary("water", 4.0, 2.0, 0, device_id=101),
+        Summary("gas", 30.0, 5.0, 1, device_id=102),
+        Summary("electricity", 99.0, 99.0, 1, device_id=103),
+    ]
+
+    def find_ancestor(locations, location_id, target_types):
+        current_id = location_id
+        while current_id is not None:
+            location = locations.get(current_id)
+            if not location:
+                return None
+            if location.location_type in target_types:
+                return location
+            current_id = location.parent_id
+        return None
+
+    result = build_location_rankings(
+        summaries,
+        device_by_id,
+        locations_by_id,
+        {"area"},
+        top_n=1,
+        find_ancestor=find_ancestor,
+    )
+
+    assert result == [
+        {
+            "location_id": 2,
+            "name": "South Area",
+            "location_type": "area",
+            "full_path": "Campus/South",
+            "total_consumption": 30.0,
+            "avg_load": 5.0,
+            "energy_breakdown": {"gas": 30.0},
+        }
     ]
