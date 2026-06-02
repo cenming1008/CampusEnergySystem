@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlmodel import Session, select, func
 from app.core.logger import logger
 
+from app.domain.location_rules import calculate_location_path_fields
 from app.models.tables import Location, Device, EnergyData, LocationType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 
@@ -260,18 +261,10 @@ class LocationService:
     @staticmethod
     def _recalculate_path(session: Session, location: Location) -> Location:
         """重新计算位置的 full_path 和 level"""
-        if location.parent_id:
-            parent = session.get(Location, location.parent_id)
-            if parent:
-                location.level = parent.level + 1
-                location.full_path = f"{parent.full_path}/{location.name}"
-            else:
-                location.level = 0
-                location.full_path = f"/{location.name}"
-        else:
-            location.level = 0
-            location.full_path = f"/{location.name}"
-        
+        parent = session.get(Location, location.parent_id) if location.parent_id else None
+        path_fields = calculate_location_path_fields(location.name, parent)
+        location.level = path_fields["level"]
+        location.full_path = path_fields["full_path"]
         return location
     
     @staticmethod
