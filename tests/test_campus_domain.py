@@ -1,7 +1,12 @@
 from dataclasses import dataclass
+from datetime import datetime
 from types import SimpleNamespace
 
-from app.domain.campus_rules import build_energy_category_summary, build_subitem_statistics
+from app.domain.campus_rules import (
+    build_energy_category_summary,
+    build_realtime_load_trend,
+    build_subitem_statistics,
+)
 
 
 @dataclass
@@ -73,4 +78,24 @@ def test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_
             "device_count": 1,
             "energy_categories": ["gas"],
         },
+    ]
+
+
+def test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas():
+    t1 = datetime(2026, 6, 2, 8, 0, 0)
+    t2 = datetime(2026, 6, 2, 8, 15, 0)
+    t3 = datetime(2026, 6, 2, 8, 30, 0)
+    rows = [
+        SimpleNamespace(device_id=1, energy_type="electricity", timestamp=t2, flow_rate=3.3333, consumption=12.5),
+        SimpleNamespace(device_id=1, energy_type="electricity", timestamp=t1, flow_rate=2.0, consumption=10.0),
+        SimpleNamespace(device_id=2, energy_type="water", timestamp=t2, flow_rate=None, consumption=4.0),
+        SimpleNamespace(device_id=2, energy_type="water", timestamp=t3, flow_rate=1.25, consumption=2.0),
+    ]
+
+    result = build_realtime_load_trend(rows)
+
+    assert result == [
+        {"timestamp": t1, "total_load": 2.0, "total_consumption": 0.0},
+        {"timestamp": t2, "total_load": 3.333, "total_consumption": 2.5},
+        {"timestamp": t3, "total_load": 1.25, "total_consumption": 0.0},
     ]
