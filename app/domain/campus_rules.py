@@ -102,3 +102,32 @@ def build_subitem_statistics(summaries: Iterable[Any], device_by_id: dict[int, A
             }
         )
     return result
+
+
+def build_realtime_load_trend(rows: Iterable[Any]) -> list[dict]:
+    """Aggregate row-like realtime readings into timestamp buckets."""
+    buckets: dict[Any, dict[str, float]] = defaultdict(lambda: {"load": 0.0, "consumption": 0.0})
+    grouped_rows: dict[tuple[Any, Any], list[Any]] = defaultdict(list)
+    for row in rows:
+        grouped_rows[(getattr(row, "device_id"), getattr(row, "energy_type"))].append(row)
+
+    for group_rows in grouped_rows.values():
+        ordered_rows = sorted(group_rows, key=lambda row: getattr(row, "timestamp"))
+        previous_consumption = None
+        for row in ordered_rows:
+            timestamp = getattr(row, "timestamp")
+            bucket = buckets[timestamp]
+            bucket["load"] += float(getattr(row, "flow_rate", 0.0) or 0.0)
+            current_consumption = float(getattr(row, "consumption", 0.0) or 0.0)
+            if previous_consumption is not None:
+                bucket["consumption"] += max(0.0, current_consumption - previous_consumption)
+            previous_consumption = current_consumption
+
+    return [
+        {
+            "timestamp": timestamp,
+            "total_load": round(values["load"], 3),
+            "total_consumption": round(values["consumption"], 3),
+        }
+        for timestamp, values in sorted(buckets.items(), key=lambda item: item[0])
+    ]

@@ -14,7 +14,11 @@ from typing import Iterable, Optional
 
 from sqlmodel import Session, select
 
-from app.domain.campus_rules import build_energy_category_summary, build_subitem_statistics
+from app.domain.campus_rules import (
+    build_energy_category_summary,
+    build_realtime_load_trend,
+    build_subitem_statistics,
+)
 from app.domain.energy_rules import calculate_period_delta
 from app.models.tables import Alarm, Device, EnergyData, Location
 
@@ -110,7 +114,7 @@ class CampusService:
         building_rankings = CampusService._build_location_rankings(
             period_summaries, context, BUILDING_LOCATION_TYPES, top_n=5
         )
-        realtime_load_trend = CampusService._build_realtime_load_trend(trend_rows)
+        realtime_load_trend = build_realtime_load_trend(trend_rows)
         alarm_summary = CampusService._build_alarm_summary(alarm_rows, context)
 
         latest_load = realtime_load_trend[-1]["total_load"] if realtime_load_trend else 0.0
@@ -204,7 +208,7 @@ class CampusService:
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
         return {
             "time_window": {"start_time": start_time, "end_time": end_time},
-            "items": CampusService._build_realtime_load_trend(rows),
+            "items": build_realtime_load_trend(rows),
         }
 
     @staticmethod
@@ -404,33 +408,6 @@ class CampusService:
 
         ranked_items.sort(key=lambda item: item["total_consumption"], reverse=True)
         return ranked_items[:top_n]
-
-    @staticmethod
-    def _build_realtime_load_trend(rows: list[EnergyData]) -> list[dict]:
-        buckets: dict[datetime, dict[str, float]] = defaultdict(lambda: {"load": 0.0, "consumption": 0.0})
-        grouped_rows: dict[tuple[int, str], list[EnergyData]] = defaultdict(list)
-        for row in rows:
-            grouped_rows[(row.device_id, row.energy_type)].append(row)
-
-        for group_rows in grouped_rows.values():
-            ordered_rows = sorted(group_rows, key=lambda row: row.timestamp)
-            previous_consumption = None
-            for row in ordered_rows:
-                bucket = buckets[row.timestamp]
-                bucket["load"] += float(row.flow_rate or 0.0)
-                current_consumption = float(row.consumption or 0.0)
-                if previous_consumption is not None:
-                    bucket["consumption"] += max(0.0, current_consumption - previous_consumption)
-                previous_consumption = current_consumption
-
-        return [
-            {
-                "timestamp": timestamp,
-                "total_load": round(values["load"], 3),
-                "total_consumption": round(values["consumption"], 3),
-            }
-            for timestamp, values in sorted(buckets.items(), key=lambda item: item[0])
-        ]
 
     @staticmethod
     def _build_alarm_summary(rows: list[Alarm], context: CampusContext) -> dict:
