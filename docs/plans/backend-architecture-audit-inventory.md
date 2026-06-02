@@ -79,7 +79,8 @@
 6. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
 7. 已完成：`campus_service.py` 中 realtime load trend 纯聚合已迁入 `domain/campus_rules.py`。
 8. 已完成：`campus_service.py` 中 location rankings 纯聚合已迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
-9. `campus_service.py` 后续如继续整理，只能再选择一个独立 helper；当前剩余优先候选为告警摘要。
+9. 已完成：`campus_service.py` 中 alarm summary 摘要聚合已迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
+10. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
 
 ## 第一阶段禁止项
 
