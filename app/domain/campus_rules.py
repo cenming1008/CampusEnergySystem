@@ -192,3 +192,63 @@ def build_location_rankings(
 
     ranked_items.sort(key=lambda item: item["total_consumption"], reverse=True)
     return ranked_items[:top_n]
+
+
+def build_alarm_summary(
+    rows: Iterable[Any],
+    device_by_id: dict[int, Any],
+    locations_by_id: dict[int, Any],
+    target_types: set[str],
+    find_ancestor: Any,
+) -> dict:
+    """Aggregate row-like alarms into a campus alarm summary."""
+    rows = list(rows)
+    by_severity: dict[str, int] = defaultdict(int)
+    by_location: dict[int, int] = defaultdict(int)
+
+    unresolved_count = 0
+    for alarm in rows:
+        by_severity[getattr(alarm, "severity")] += 1
+        if not getattr(alarm, "is_resolved"):
+            unresolved_count += 1
+        device = device_by_id.get(getattr(alarm, "device_id"))
+        location_id = getattr(device, "location_id", None) if device else None
+        if location_id is not None:
+            target = find_ancestor(locations_by_id, location_id, target_types)
+            if target:
+                by_location[getattr(target, "id")] += 1
+
+    top_locations = []
+    for location_id, count in sorted(by_location.items(), key=lambda item: item[1], reverse=True)[:5]:
+        location = locations_by_id.get(location_id)
+        if location:
+            top_locations.append(
+                {
+                    "location_id": getattr(location, "id"),
+                    "name": getattr(location, "name"),
+                    "location_type": getattr(location, "location_type"),
+                    "alarm_count": count,
+                }
+            )
+
+    latest = [
+        {
+            "id": getattr(alarm, "id"),
+            "device_id": getattr(alarm, "device_id"),
+            "message": getattr(alarm, "message"),
+            "severity": getattr(alarm, "severity"),
+            "category": getattr(alarm, "category"),
+            "timestamp": getattr(alarm, "timestamp"),
+            "is_resolved": getattr(alarm, "is_resolved"),
+        }
+        for alarm in rows[:10]
+    ]
+
+    return {
+        "total_count": len(rows),
+        "unresolved_count": unresolved_count,
+        "resolved_count": len(rows) - unresolved_count,
+        "by_severity": dict(sorted(by_severity.items())),
+        "top_locations": top_locations,
+        "latest": latest,
+    }

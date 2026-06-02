@@ -15,6 +15,7 @@ from typing import Iterable, Optional
 from sqlmodel import Session, select
 
 from app.domain.campus_rules import (
+    build_alarm_summary,
     build_energy_category_summary,
     build_location_rankings,
     build_realtime_load_trend,
@@ -126,7 +127,13 @@ class CampusService:
             find_ancestor=CampusService._find_ancestor_location,
         )
         realtime_load_trend = build_realtime_load_trend(trend_rows)
-        alarm_summary = CampusService._build_alarm_summary(alarm_rows, context)
+        alarm_summary = build_alarm_summary(
+            alarm_rows,
+            context.device_by_id,
+            context.locations_by_id,
+            AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
+            find_ancestor=CampusService._find_ancestor_location,
+        )
 
         latest_load = realtime_load_trend[-1]["total_load"] if realtime_load_trend else 0.0
         total_consumption = sum(item["total_consumption"] for item in energy_category_summary)
@@ -238,7 +245,13 @@ class CampusService:
     ) -> dict:
         context = CampusService.build_context(session, allowed_device_ids)
         rows = CampusService._list_alarm_rows(session, start_time, end_time, allowed_device_ids)
-        summary = CampusService._build_alarm_summary(rows, context)
+        summary = build_alarm_summary(
+            rows,
+            context.device_by_id,
+            context.locations_by_id,
+            AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
+            find_ancestor=CampusService._find_ancestor_location,
+        )
         summary["time_window"] = {"start_time": start_time, "end_time": end_time}
         return summary
 
@@ -374,61 +387,6 @@ class CampusService:
                 )
             )
         return summaries
-
-    @staticmethod
-    def _build_alarm_summary(rows: list[Alarm], context: CampusContext) -> dict:
-        by_severity: dict[str, int] = defaultdict(int)
-        by_location: dict[int, int] = defaultdict(int)
-
-        unresolved_count = 0
-        for alarm in rows:
-            by_severity[alarm.severity] += 1
-            if not alarm.is_resolved:
-                unresolved_count += 1
-            device = context.device_by_id.get(alarm.device_id)
-            if device and device.location_id is not None:
-                target = CampusService._find_ancestor_location(
-                    context.locations_by_id,
-                    device.location_id,
-                    AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
-                )
-                if target:
-                    by_location[target.id] += 1
-
-        top_locations = []
-        for location_id, count in sorted(by_location.items(), key=lambda item: item[1], reverse=True)[:5]:
-            location = context.locations_by_id.get(location_id)
-            if location:
-                top_locations.append(
-                    {
-                        "location_id": location.id,
-                        "name": location.name,
-                        "location_type": location.location_type,
-                        "alarm_count": count,
-                    }
-                )
-
-        latest = [
-            {
-                "id": alarm.id,
-                "device_id": alarm.device_id,
-                "message": alarm.message,
-                "severity": alarm.severity,
-                "category": alarm.category,
-                "timestamp": alarm.timestamp,
-                "is_resolved": alarm.is_resolved,
-            }
-            for alarm in rows[:10]
-        ]
-
-        return {
-            "total_count": len(rows),
-            "unresolved_count": unresolved_count,
-            "resolved_count": len(rows) - unresolved_count,
-            "by_severity": dict(sorted(by_severity.items())),
-            "top_locations": top_locations,
-            "latest": latest,
-        }
 
     @staticmethod
     def _find_ancestor_location(
