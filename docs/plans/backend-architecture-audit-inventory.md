@@ -72,19 +72,20 @@
 后续建议：
 
 1. 已完成：`alarm_service.py` 中 storage managed categories 纯映射已迁入 `domain/alarm_rules.py`。
-2. `alarm_service.py` 后续如继续整理，只能再选择一个独立纯规则泄漏点。
-3. 已完成：`device_service.py` 中 legacy create registry defaults patch 已迁入 `domain/device_payloads.py`。
-4. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 泄漏点。
-5. 已完成：`campus_service.py` 中 energy category summary 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的能源分类标签依赖同步改为 domain 来源。
-6. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
-7. 已完成：`campus_service.py` 中 realtime load trend 纯聚合已迁入 `domain/campus_rules.py`。
-8. 已完成：`campus_service.py` 中 location rankings 纯聚合已迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
-9. 已完成：`campus_service.py` 中 alarm summary 摘要聚合已迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
-10. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
-11. 已完成：`location_service.py` 中 full_path / level 路径计算已迁入 `domain/location_rules.py`，数据库查询与对象赋值仍留 service。
-12. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
-13. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
-14. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
+2. 已完成：`alarm_service.py` 中 generic/media threshold managed categories 纯映射已迁入 `domain/alarm_rules.py`。
+3. `alarm_service.py` 后续如继续整理，只能再选择告警生命周期、规则 profile 编排或查询编排中的一个独立泄漏点。
+4. 已完成：`device_service.py` 中 legacy create registry defaults patch 已迁入 `domain/device_payloads.py`。
+5. `device_service.py` 后续如继续整理，只能再选择一个独立 profile/default 泄漏点。
+6. 已完成：`campus_service.py` 中 energy category summary 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的能源分类标签依赖同步改为 domain 来源。
+7. 已完成：`campus_service.py` 中 subitem statistics 纯聚合已迁入 `domain/campus_rules.py`，`analysis_service.py` 的分项标签依赖同步改为 domain 来源。
+8. 已完成：`campus_service.py` 中 realtime load trend 纯聚合已迁入 `domain/campus_rules.py`。
+9. 已完成：`campus_service.py` 中 location rankings 纯聚合已迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
+10. 已完成：`campus_service.py` 中 alarm summary 摘要聚合已迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
+11. `campus_service.py` 后续如继续整理，应优先评估查询 / context 编排是否仍需拆分，不再把纯聚合 helper 作为主要风险。
+12. 已完成：`location_service.py` 中 full_path / level 路径计算已迁入 `domain/location_rules.py`，数据库查询与对象赋值仍留 service。
+13. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
+14. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
+15. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
 
 ## 第一阶段禁止项
 
