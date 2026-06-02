@@ -13,7 +13,7 @@ from app.domain.device_payloads import (
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
-    is_compensation_device,
+    normalize_device_category,
     normalize_device_subtype_alias,
     normalize_device_type_alias,
     normalize_device_report_payload,
@@ -69,24 +69,9 @@ class DeviceService:
         }
 
     @staticmethod
-    def _normalize_device_category(
-        device_type: Optional[str],
-        device_subtype: Optional[str],
-        current_category: Optional[str],
-    ) -> Optional[str]:
-        """兼容旧数据读取：补偿器/SVG 不再对外暴露为 load。"""
-        if not is_compensation_device(device_type, device_subtype, current_category):
-            return current_category
-        if current_category == DeviceCategory.COMPENSATION.value:
-            return current_category
-        if current_category in (None, "", DeviceCategory.LOAD.value):
-            return DeviceCategory.COMPENSATION.value
-        return current_category
-
-    @staticmethod
     def _with_normalized_device_category(device: Any) -> Any:
         """返回补偿类设备类别已归一的只读副本。"""
-        normalized_category = DeviceService._normalize_device_category(
+        normalized_category = normalize_device_category(
             getattr(device, "device_type", None),
             getattr(device, "device_subtype", None),
             getattr(device, "device_category", None),

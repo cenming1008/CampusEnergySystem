@@ -166,7 +166,7 @@ def build_device_registry_default_patch(
         return {}
 
     patch: dict[str, Any] = {}
-    normalized_category = _normalize_device_category_for_defaults(
+    normalized_category = normalize_device_category(
         effective_type,
         device_subtype,
         device_category,
@@ -193,11 +193,12 @@ def build_device_registry_default_patch(
     return patch
 
 
-def _normalize_device_category_for_defaults(
+def normalize_device_category(
     device_type: Optional[str],
     device_subtype: Optional[str],
     current_category: Optional[str],
 ) -> Optional[str]:
+    """Normalize legacy compensation devices to the public compensation category."""
     if not is_compensation_device(device_type, device_subtype, current_category):
         return current_category
     if current_category == DeviceCategory.COMPENSATION.value:
