@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 
 from app.domain.campus_rules import (
     build_energy_category_summary,
+    build_location_rankings,
     build_realtime_load_trend,
     build_subitem_statistics,
 )
@@ -108,11 +109,21 @@ class CampusService:
         hierarchy_summary = CampusService._build_hierarchy_summary(context)
         energy_category_summary = build_energy_category_summary(period_summaries)
         subitem_statistics = build_subitem_statistics(period_summaries, context.device_by_id)
-        area_rankings = CampusService._build_location_rankings(
-            period_summaries, context, AREA_LOCATION_TYPES, top_n=5
+        area_rankings = build_location_rankings(
+            period_summaries,
+            context.device_by_id,
+            context.locations_by_id,
+            AREA_LOCATION_TYPES,
+            top_n=5,
+            find_ancestor=CampusService._find_ancestor_location,
         )
-        building_rankings = CampusService._build_location_rankings(
-            period_summaries, context, BUILDING_LOCATION_TYPES, top_n=5
+        building_rankings = build_location_rankings(
+            period_summaries,
+            context.device_by_id,
+            context.locations_by_id,
+            BUILDING_LOCATION_TYPES,
+            top_n=5,
+            find_ancestor=CampusService._find_ancestor_location,
         )
         realtime_load_trend = build_realtime_load_trend(trend_rows)
         alarm_summary = CampusService._build_alarm_summary(alarm_rows, context)
@@ -159,7 +170,14 @@ class CampusService:
         target_types = AREA_LOCATION_TYPES if dimension == "area" else BUILDING_LOCATION_TYPES
         rows = CampusService._list_energy_rows(session, start_time, end_time, allowed_device_ids)
         period_summaries = CampusService._build_period_energy_summaries(rows)
-        rankings = CampusService._build_location_rankings(period_summaries, context, target_types, top_n=20)
+        rankings = build_location_rankings(
+            period_summaries,
+            context.device_by_id,
+            context.locations_by_id,
+            target_types,
+            top_n=20,
+            find_ancestor=CampusService._find_ancestor_location,
+        )
         return {
             "dimension": dimension,
             "time_window": {
@@ -356,58 +374,6 @@ class CampusService:
                 )
             )
         return summaries
-
-    @staticmethod
-    def _build_location_rankings(
-        summaries: list[PeriodEnergySummary],
-        context: CampusContext,
-        target_types: set[str],
-        top_n: int,
-    ) -> list[dict]:
-        aggregates: dict[int, dict] = defaultdict(
-            lambda: {"consumption": 0.0, "load": 0.0, "load_count": 0, "energy_breakdown": defaultdict(float)}
-        )
-
-        for summary in summaries:
-            device = context.device_by_id.get(summary.device_id)
-            if not device or device.location_id is None:
-                continue
-            target = CampusService._find_ancestor_location(
-                context.locations_by_id,
-                device.location_id,
-                target_types,
-            )
-            if not target:
-                continue
-            item = aggregates[target.id]
-            consumption = float(summary.total_consumption or 0.0)
-            item["consumption"] += consumption
-            item["load"] += summary.load_sum
-            item["load_count"] += summary.load_count
-            item["energy_breakdown"][summary.energy_type] += consumption
-
-        ranked_items = []
-        for location_id, value in aggregates.items():
-            location = context.locations_by_id.get(location_id)
-            if not location:
-                continue
-            ranked_items.append(
-                {
-                    "location_id": location.id,
-                    "name": location.name,
-                    "location_type": location.location_type,
-                    "full_path": location.full_path,
-                    "total_consumption": round(float(value["consumption"]), 3),
-                    "avg_load": round(float(value["load"]) / max(int(value["load_count"]), 1), 3),
-                    "energy_breakdown": {
-                        energy_type: round(amount, 3)
-                        for energy_type, amount in sorted(value["energy_breakdown"].items(), key=lambda item: item[1], reverse=True)
-                    },
-                }
-            )
-
-        ranked_items.sort(key=lambda item: item["total_consumption"], reverse=True)
-        return ranked_items[:top_n]
 
     @staticmethod
     def _build_alarm_summary(rows: list[Alarm], context: CampusContext) -> dict:

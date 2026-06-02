@@ -131,3 +131,64 @@ def build_realtime_load_trend(rows: Iterable[Any]) -> list[dict]:
         }
         for timestamp, values in sorted(buckets.items(), key=lambda item: item[0])
     ]
+
+
+def build_location_rankings(
+    summaries: Iterable[Any],
+    device_by_id: dict[int, Any],
+    locations_by_id: dict[int, Any],
+    target_types: set[str],
+    top_n: int,
+    find_ancestor: Any,
+) -> list[dict]:
+    """Aggregate period summaries into ranked target locations."""
+    aggregates: dict[int, dict[str, Any]] = defaultdict(
+        lambda: {
+            "consumption": 0.0,
+            "load": 0.0,
+            "load_count": 0,
+            "energy_breakdown": defaultdict(float),
+        }
+    )
+
+    for summary in summaries:
+        device = device_by_id.get(getattr(summary, "device_id"))
+        location_id = getattr(device, "location_id", None) if device else None
+        if location_id is None:
+            continue
+        target = find_ancestor(locations_by_id, location_id, target_types)
+        if not target:
+            continue
+        item = aggregates[getattr(target, "id")]
+        consumption = float(getattr(summary, "total_consumption", 0.0) or 0.0)
+        item["consumption"] += consumption
+        item["load"] += float(getattr(summary, "load_sum", 0.0) or 0.0)
+        item["load_count"] += int(getattr(summary, "load_count", 0) or 0)
+        item["energy_breakdown"][getattr(summary, "energy_type")] += consumption
+
+    ranked_items = []
+    for location_id, value in aggregates.items():
+        location = locations_by_id.get(location_id)
+        if not location:
+            continue
+        ranked_items.append(
+            {
+                "location_id": getattr(location, "id"),
+                "name": getattr(location, "name"),
+                "location_type": getattr(location, "location_type"),
+                "full_path": getattr(location, "full_path"),
+                "total_consumption": round(float(value["consumption"]), 3),
+                "avg_load": round(float(value["load"]) / max(int(value["load_count"]), 1), 3),
+                "energy_breakdown": {
+                    energy_type: round(amount, 3)
+                    for energy_type, amount in sorted(
+                        value["energy_breakdown"].items(),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    )
+                },
+            }
+        )
+
+    ranked_items.sort(key=lambda item: item["total_consumption"], reverse=True)
+    return ranked_items[:top_n]
