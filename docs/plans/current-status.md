@@ -20,8 +20,13 @@
 - [x] 能源 endpoint 已改为直接从明确模块导入，不再从 `.shared` 导入。
 - [x] `alarm_service.py` 第一轮纯规则泄漏点已收口：storage managed categories 映射迁入 `domain/alarm_rules.py`。
 - [x] `alarm_service.py` 第二轮纯规则泄漏点已收口：generic/media threshold managed categories 映射迁入 `domain/alarm_rules.py`。
+- [x] `alarm_service.py` 第三轮纯规则泄漏点已收口：platform communication offline category/message 迁入 `domain/alarm_rules.py`。
 - [x] `device_service.py` 第一轮 profile/default 泄漏点已收口：legacy create registry defaults patch 迁入 `domain/device_payloads.py`。
 - [x] `device_service.py` 第二轮纯规则泄漏点已收口：compensation device category normalization 迁入 `domain/device_payloads.py`。
+- [x] `device_service.py` 第三轮纯规则泄漏点已收口：pending archive completeness 迁入 `domain/device_payloads.py`。
+- [x] `device_service.py` 第四轮纯规则泄漏点已收口：effective device type 解析迁入 `domain/device_payloads.py`。
+- [x] `device_service.py` 第五轮纯规则泄漏点已收口：read normalization patch 迁入 `domain/device_payloads.py`。
+- [x] `device_service.py` 第六轮纯规则泄漏点已收口：pending archive status 迁入 `domain/device_payloads.py`。
 - [x] `campus_service.py` 第一轮纯聚合泄漏点已收口：energy category summary 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第二轮纯聚合泄漏点已收口：subitem statistics 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`。
@@ -32,6 +37,9 @@
 - [x] `location_service.py` 第三轮统计聚合泄漏点已收口：location statistics payload 迁入 `domain/location_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第一轮纯规则泄漏点已收口：PQ power factor normalization 与 reference line formatting 迁入 `domain/compensation_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第二轮纯规则泄漏点已收口：health score primitive rules 迁入 `domain/compensation_rules.py`。
+- [x] `app/services/devices/compensation/monitor_service.py` 第三轮纯规则泄漏点已收口：capacitor bank circuit summary 迁入 `domain/compensation_rules.py`。
+- [x] `app/services/devices/compensation/monitor_service.py` 第四轮纯规则泄漏点已收口：capacitor bank temperature health 迁入 `domain/compensation_rules.py`。
+- [x] `app/services/devices/compensation/monitor_service.py` 第五轮纯规则泄漏点已收口：capacitor bank control mode resolution 迁入 `domain/compensation_rules.py`。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -49,9 +57,14 @@
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_storage_managed_categories_follow_present_payload_fields -q` 通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_threshold_managed_categories_follow_present_payload_fields -q` 通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_alarm_service.py::TestAlarmService::test_sync_platform_comm_alarm_creates_and_recovers_offline_instance -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_registry_default_patch_normalizes_legacy_compensation_device -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_normalize_device_category_maps_legacy_compensation_load -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py tests/test_device_management_use_cases.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_service_round2.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_energy_category_summary_sorts_and_preserves_response_shape -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_devices -q` 通过。
@@ -64,6 +77,12 @@
 - `./venv/bin/python -m pytest tests/test_location_domain.py::test_build_location_statistics_payload_counts_devices_and_children -q` 通过。
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_pq_model -q` 通过。
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_health_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_health_model_defaults_missing_dimensions_to_zero -q` 通过。
+- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_builds_temperature_health_from_threshold_and_alarm tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_pq_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_health_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_health_model_defaults_missing_dimensions_to_zero -q` 通过。
+- `./venv/bin/python -m pytest tests/test_compensation_domain.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_builds_temperature_health_from_threshold_and_alarm tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics -q` 通过。
+- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
@@ -72,5 +91,5 @@
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage 与 generic/media threshold managed categories 切片、`device_service.py` legacy create registry defaults patch 与 compensation category normalization 切片、`campus_service.py` 主要纯聚合 helper 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ 与健康评分基础规则切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories 与 platform communication offline category/message 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch 与 pending archive status 切片、`campus_service.py` 主要纯聚合 helper 下沉、`location_service.py` path calculation / tree node payload / statistics payload 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态与控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。

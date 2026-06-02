@@ -8,16 +8,19 @@ from sqlmodel import Session, select
 from app.core.logger import logger
 
 from app.domain.device_payloads import (
+    ARCHIVE_STATUS_PENDING as DEVICE_ARCHIVE_STATUS_PENDING,
+    build_device_read_normalization_patch,
     build_device_create_fields,
     build_device_registry_default_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
-    normalize_device_category,
+    is_device_archive_complete,
+    is_pending_device_archive,
     normalize_device_subtype_alias,
-    normalize_device_type_alias,
     normalize_device_report_payload,
     resolve_device_identity,
+    resolve_effective_device_type,
     resolve_compensation_subtype,
 )
 from app.models.tables import (
@@ -41,18 +44,12 @@ from app.services.location_service import LocationService
 class DeviceService:
     """设备服务类 - 统一管理设备和能源数据"""
 
-    ARCHIVE_STATUS_PENDING = "pending"
+    ARCHIVE_STATUS_PENDING = DEVICE_ARCHIVE_STATUS_PENDING
     ARCHIVE_STATUS_COMPLETE = "complete"
 
     @staticmethod
     def _effective_device_type(device: Any) -> Optional[str]:
-        subtype = resolve_compensation_subtype(
-            getattr(device, "device_type", None),
-            getattr(device, "device_subtype", None),
-        )
-        if subtype:
-            return subtype
-        return normalize_device_type_alias(getattr(device, "device_type", None))
+        return resolve_effective_device_type(device)
 
     @staticmethod
     def _resolve_location_fields(
@@ -71,63 +68,30 @@ class DeviceService:
     @staticmethod
     def _with_normalized_device_category(device: Any) -> Any:
         """返回补偿类设备类别已归一的只读副本。"""
-        normalized_category = normalize_device_category(
-            getattr(device, "device_type", None),
-            getattr(device, "device_subtype", None),
-            getattr(device, "device_category", None),
-        )
-        if normalized_category == getattr(device, "device_category", None):
+        patch = build_device_read_normalization_patch(device)
+        if not patch:
             return device
 
         # SQLModel/Pydantic v2 实例在当前运行态下不支持 copy.copy / model_copy，
         # 否则会触发 `__pydantic_extra__` 访问错误并导致设备读接口 500。
         if hasattr(device, "model_dump"):
             payload = device.model_dump()
-            payload["device_category"] = normalized_category
-            effective_subtype = DeviceService._effective_device_type(device)
-            if resolve_compensation_subtype(
-                getattr(device, "device_type", None),
-                getattr(device, "device_subtype", None),
-            ):
-                payload["device_subtype"] = effective_subtype
+            payload.update(patch)
             return type(device)(**payload)
 
         normalized_device = type("NormalizedDeviceView", (), {})()
         normalized_device.__dict__.update(getattr(device, "__dict__", {}))
-        normalized_device.device_category = normalized_category
-        effective_subtype = DeviceService._effective_device_type(device)
-        if resolve_compensation_subtype(
-            getattr(device, "device_type", None),
-            getattr(device, "device_subtype", None),
-        ):
-            normalized_device.device_subtype = effective_subtype
+        for field_name, value in patch.items():
+            setattr(normalized_device, field_name, value)
         return normalized_device
 
     @staticmethod
     def _is_pending_archive(device: Any) -> bool:
-        return getattr(device, "archive_status", DeviceService.ARCHIVE_STATUS_COMPLETE) == DeviceService.ARCHIVE_STATUS_PENDING
+        return is_pending_device_archive(device)
 
     @staticmethod
     def _is_archive_complete(device: Any) -> bool:
-        if not getattr(device, "sn", None):
-            return False
-        if not str(getattr(device, "name", "") or "").strip():
-            return False
-        if str(getattr(device, "name", "")).startswith("待完善设备-"):
-            return False
-        if not getattr(device, "device_type", None):
-            return False
-        if not getattr(device, "device_category", None):
-            return False
-        if not getattr(device, "energy_type", None):
-            return False
-        if not str(getattr(device, "location", "") or "").strip():
-            return False
-        if getattr(device, "rated_capacity", None) is None:
-            return False
-        if getattr(device, "device_category", None) == DeviceCategory.COMPENSATION.value and not getattr(device, "device_subtype", None):
-            return False
-        return True
+        return is_device_archive_complete(device)
     
     # ==================== 设备管理 ====================
     

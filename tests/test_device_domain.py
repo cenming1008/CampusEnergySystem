@@ -1,8 +1,10 @@
 import os
 import unittest
+from types import SimpleNamespace
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
+from app.domain import device_payloads
 from app.domain.device_payloads import (
     build_device_create_fields,
     build_device_registry_default_patch,
@@ -63,6 +65,105 @@ class TestDeviceDomainHelpers(unittest.TestCase):
             ),
             "water_meter",
         )
+
+    def test_resolve_effective_device_type_prefers_compensation_subtype(self):
+        device = SimpleNamespace(
+            device_type="compensation",
+            device_subtype="svg",
+        )
+
+        self.assertEqual(device_payloads.resolve_effective_device_type(device), "svg")
+
+    def test_resolve_effective_device_type_normalizes_legacy_type_alias(self):
+        device = SimpleNamespace(
+            device_type="reactive_power_compensator",
+            device_subtype=None,
+        )
+
+        self.assertEqual(device_payloads.resolve_effective_device_type(device), "capacitor_bank_controller")
+
+    def test_build_device_read_normalization_patch_returns_empty_when_category_already_current(self):
+        device = SimpleNamespace(
+            device_type="water_meter",
+            device_subtype=None,
+            device_category="water_meter",
+        )
+
+        self.assertEqual(device_payloads.build_device_read_normalization_patch(device), {})
+
+    def test_build_device_read_normalization_patch_adds_compensation_category_and_subtype(self):
+        device = SimpleNamespace(
+            device_type="reactive_power_compensator",
+            device_subtype=None,
+            device_category="load",
+        )
+
+        self.assertEqual(
+            device_payloads.build_device_read_normalization_patch(device),
+            {
+                "device_category": "compensation",
+                "device_subtype": "capacitor_bank_controller",
+            },
+        )
+
+    def test_is_device_archive_complete_requires_core_profile_fields(self):
+        incomplete = SimpleNamespace(
+            sn="PENDING-001",
+            name="待完善设备-PENDING-001",
+            device_type="load",
+            device_category="load",
+            device_subtype=None,
+            energy_type="electricity",
+            location="北区",
+            rated_capacity=100.0,
+        )
+        complete = SimpleNamespace(
+            sn="LOAD-001",
+            name="1号负荷",
+            device_type="load",
+            device_category="load",
+            device_subtype=None,
+            energy_type="electricity",
+            location="北区",
+            rated_capacity=100.0,
+        )
+
+        self.assertFalse(device_payloads.is_device_archive_complete(incomplete))
+        self.assertTrue(device_payloads.is_device_archive_complete(complete))
+
+    def test_is_device_archive_complete_requires_compensation_subtype(self):
+        missing_subtype = SimpleNamespace(
+            sn="CAP-001",
+            name="1号补偿柜",
+            device_type="compensation",
+            device_category="compensation",
+            device_subtype=None,
+            energy_type="electricity",
+            location="北区",
+            rated_capacity=100.0,
+        )
+        with_subtype = SimpleNamespace(
+            sn="CAP-002",
+            name="2号补偿柜",
+            device_type="compensation",
+            device_category="compensation",
+            device_subtype="capacitor_bank_controller",
+            energy_type="electricity",
+            location="北区",
+            rated_capacity=100.0,
+        )
+
+        self.assertFalse(device_payloads.is_device_archive_complete(missing_subtype))
+        self.assertTrue(device_payloads.is_device_archive_complete(with_subtype))
+
+    def test_is_pending_device_archive_matches_pending_status_only(self):
+        pending = SimpleNamespace(archive_status="pending")
+        complete = SimpleNamespace(archive_status="complete")
+        missing = SimpleNamespace()
+
+        self.assertTrue(device_payloads.is_pending_device_archive(pending))
+        self.assertFalse(device_payloads.is_pending_device_archive(complete))
+        self.assertFalse(device_payloads.is_pending_device_archive(missing))
 
     def test_describe_device_type_semantics_exposes_meter_role(self):
         semantics = describe_device_type_semantics("water_meter")

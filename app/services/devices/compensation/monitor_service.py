@@ -14,6 +14,8 @@ from sqlmodel import Session, select
 
 from app.core.settings import settings
 from app.domain.compensation_rules import (
+    build_capacitor_bank_circuit_summary,
+    build_capacitor_bank_temperature_health,
     build_pq_reference_line,
     clamp_health_score,
     comm_health_score,
@@ -21,6 +23,7 @@ from app.domain.compensation_rules import (
     max_defined_number,
     normalize_power_factor,
     optional_float,
+    resolve_capacitor_bank_control_mode,
     score_by_threshold,
     switching_health_score,
     voltage_stability_score,
@@ -186,16 +189,6 @@ class CompensationMonitorService:
         }
 
     @staticmethod
-    def _count_active_bits(value: Optional[int]) -> int:
-        if not isinstance(value, int):
-            return 0
-        count = 0
-        for bit in range(16):
-            if value & (1 << bit):
-                count += 1
-        return count
-
-    @staticmethod
     def _get_control_logs(session: Session, device_id: int, limit: int = 20) -> list[DeviceControlLog]:
         CapacitorBankControlCommandService.expire_pending_control_logs(session, device_id=device_id)
         return DeviceRepository.list_control_logs(session, device_id=device_id, limit=limit)
@@ -251,53 +244,16 @@ class CompensationMonitorService:
                 latest_log_created_at = getattr(log, "created_at", None)
                 break
 
-        def _log_is_newer_than(evidence_timestamp: Any) -> bool:
-            return (
-                bool(latest_log_mode)
-                and latest_log_created_at is not None
-                and evidence_timestamp is not None
-                and latest_log_created_at > evidence_timestamp
-            )
-
-        telemetry_mode = str(getattr(telemetry, "control_mode", "") or "").strip().lower()
-        if telemetry_mode == "manual":
-            if _log_is_newer_than(getattr(telemetry, "timestamp", None)):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "手动", "source": "telemetry", "state": "live"}
-        if telemetry_mode == "auto":
-            if _log_is_newer_than(getattr(telemetry, "timestamp", None)):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "自动", "source": "telemetry", "state": "live"}
-
-        profile_timestamp = getattr(profile, "snapshot_timestamp", None)
-        profile_mode = str(getattr(profile, "control_mode", "") or "").strip().lower()
-        if profile_mode in {"manual", "手动"}:
-            if _log_is_newer_than(profile_timestamp):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "手动", "source": "profile", "state": "live"}
-        if profile_mode in {"auto", "自动"}:
-            if _log_is_newer_than(profile_timestamp):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "自动", "source": "profile", "state": "live"}
-
-        scheme = (getattr(profile, "terminal_assignment_scheme", None) or "").strip()
-        if "手动" in scheme:
-            if _log_is_newer_than(profile_timestamp):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "手动", "source": "profile", "state": "live"}
-        if "自动" in scheme:
-            if _log_is_newer_than(profile_timestamp):
-                return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-            return {"value": "自动", "source": "profile", "state": "live"}
-
-        if latest_log_mode:
-            return {"value": latest_log_mode, "source": "control_log", "state": "live"}
-
-        return {
-            "value": "自动" if is_device_active else "待确认",
-            "source": "placeholder",
-            "state": "mock",
-        }
+        return resolve_capacitor_bank_control_mode(
+            telemetry_mode=getattr(telemetry, "control_mode", None),
+            telemetry_timestamp=getattr(telemetry, "timestamp", None),
+            profile_mode=getattr(profile, "control_mode", None),
+            profile_scheme=getattr(profile, "terminal_assignment_scheme", None),
+            profile_timestamp=getattr(profile, "snapshot_timestamp", None),
+            latest_log_mode=latest_log_mode,
+            latest_log_created_at=latest_log_created_at,
+            is_device_active=is_device_active,
+        )
 
     @staticmethod
     def _resolve_svg_control_mode(telemetry: Optional[SVGTelemetry]) -> dict[str, str]:
@@ -309,10 +265,11 @@ class CompensationMonitorService:
         return {"value": "待确认", "source": "placeholder", "state": "mock"}
 
     @staticmethod
-    def _get_configured_capacitor_bank_circuit_total(profile: Optional[CapacitorBankControlProfile]) -> int:
-        if profile is None:
-            return 24
-        explicit_counts: tuple[Optional[int], ...] = (
+    def _build_capacitor_bank_circuit_summary(
+        telemetry: Optional[CapacitorBankTelemetry],
+        profile: Optional[CapacitorBankControlProfile],
+    ) -> dict[str, Any]:
+        explicit_total_counts: tuple[Optional[int], ...] = () if profile is None else (
             profile.phase_a_circuit_total_count,
             profile.phase_b_circuit_total_count,
             profile.phase_c_circuit_total_count,
@@ -320,28 +277,11 @@ class CompensationMonitorService:
             profile.common_2_circuit_total_count,
             profile.common_3_circuit_total_count,
         )
-        if any(value is not None for value in explicit_counts):
-            return sum(max(0, int(value or 0)) for value in explicit_counts)
-
-        configured_total = int(profile.common_output_circuit_count or 0) + int(profile.split_output_circuit_count or 0)
-        return configured_total or 24
-
-    @staticmethod
-    def _build_capacitor_bank_circuit_summary(
-        telemetry: Optional[CapacitorBankTelemetry],
-        profile: Optional[CapacitorBankControlProfile],
-    ) -> dict[str, Any]:
-        total_count = max(1, CompensationMonitorService._get_configured_capacitor_bank_circuit_total(profile))
-        if telemetry is not None and telemetry.running_circuit_count is not None:
-            return {
-                "running_count": int(telemetry.running_circuit_count),
-                "total_count": total_count,
-                "has_realtime_state": True,
-                "source": "telemetry",
-                "state": "live",
-            }
-
-        bitmask_values = (
+        configured_output_counts: tuple[Optional[int], ...] = () if profile is None else (
+            profile.common_output_circuit_count,
+            profile.split_output_circuit_count,
+        )
+        telemetry_bitmasks = (
             getattr(telemetry, "circuit_state_phase_a", None),
             getattr(telemetry, "circuit_state_phase_b", None),
             getattr(telemetry, "circuit_state_phase_c", None),
@@ -349,46 +289,23 @@ class CompensationMonitorService:
             getattr(telemetry, "circuit_state_common_2", None),
             getattr(telemetry, "circuit_state_common_3", None),
         )
-        if any(value is not None for value in bitmask_values):
-            running_count = sum(CompensationMonitorService._count_active_bits(value) for value in bitmask_values)
-            return {
-                "running_count": running_count,
-                "total_count": total_count,
-                "has_realtime_state": True,
-                "source": "telemetry",
-                "state": "live",
-            }
+        profile_running_values: tuple[Optional[int], ...] = () if profile is None else (
+            profile.phase_a_circuit_running_count,
+            profile.phase_b_circuit_running_count,
+            profile.phase_c_circuit_running_count,
+            profile.common_group_1_running_count,
+            profile.common_group_2_running_count,
+            profile.common_group_3_running_count,
+        )
 
-        profile_running_count = getattr(profile, "running_circuit_count", None)
-        if profile_running_count is None and profile is not None:
-            profile_running_values = (
-                profile.phase_a_circuit_running_count,
-                profile.phase_b_circuit_running_count,
-                profile.phase_c_circuit_running_count,
-                profile.common_group_1_running_count,
-                profile.common_group_2_running_count,
-                profile.common_group_3_running_count,
-            )
-            if any(value is not None for value in profile_running_values):
-                profile_running_count = sum(max(0, int(value or 0)) for value in profile_running_values)
-
-        if profile_running_count is not None:
-            running_count = max(0, min(total_count, int(profile_running_count)))
-            return {
-                "running_count": running_count,
-                "total_count": total_count,
-                "has_realtime_state": True,
-                "source": "profile",
-                "state": "live",
-            }
-
-        return {
-            "running_count": 0,
-            "total_count": total_count,
-            "has_realtime_state": False,
-            "source": "configured_fallback",
-            "state": "mock",
-        }
+        return build_capacitor_bank_circuit_summary(
+            telemetry_running_count=getattr(telemetry, "running_circuit_count", None),
+            telemetry_bitmasks=telemetry_bitmasks,
+            explicit_total_counts=explicit_total_counts,
+            configured_output_counts=configured_output_counts,
+            profile_running_count=getattr(profile, "running_circuit_count", None),
+            profile_running_values=profile_running_values,
+        )
 
     @staticmethod
     def _build_capacitor_bank_temperature_health(
@@ -397,28 +314,12 @@ class CompensationMonitorService:
         *,
         cabinet_temperature: Optional[float],
     ) -> dict[str, Any]:
-        temp_alarm = getattr(telemetry, "temp_alarm", None)
-        if temp_alarm is True:
-            return CompensationMonitorService._build_metric("温度告警", source="telemetry", state="live")
-
-        threshold = getattr(profile, "temperature_upper_limit", None)
-        if cabinet_temperature is None:
-            return CompensationMonitorService._build_metric("待判断", source="missing", state="missing")
-
-        if threshold is not None:
-            current = float(cabinet_temperature)
-            upper_limit = float(threshold)
-            warning_margin = max(0.0, float(settings.compensation_temperature_warning_margin_c or 0.0))
-            if current >= upper_limit:
-                return CompensationMonitorService._build_metric("超过上限", source="profile", state="live")
-            if current >= upper_limit - warning_margin:
-                return CompensationMonitorService._build_metric("接近上限", source="profile", state="live")
-            return CompensationMonitorService._build_metric("正常", source="profile", state="live")
-
-        if temp_alarm is False:
-            return CompensationMonitorService._build_metric("正常", source="telemetry", state="live")
-
-        return CompensationMonitorService._build_metric("待判断", source="missing", state="missing")
+        return build_capacitor_bank_temperature_health(
+            temp_alarm=getattr(telemetry, "temp_alarm", None),
+            threshold=getattr(profile, "temperature_upper_limit", None),
+            cabinet_temperature=cabinet_temperature,
+            warning_margin=settings.compensation_temperature_warning_margin_c,
+        )
 
     @staticmethod
     def _build_capacitor_bank_monitor(

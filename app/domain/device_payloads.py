@@ -17,6 +17,8 @@ DEVICE_TYPE_ALIASES = {
 
 COMPENSATION_DEVICE_SUBTYPES = {"svg", "capacitor_bank_controller"}
 PLANNED_COMPENSATION_DEVICE_SUBTYPES = {"apf", "hybrid_compensation"}
+PENDING_DEVICE_NAME_PREFIX = "待完善设备-"
+ARCHIVE_STATUS_PENDING = "pending"
 
 
 def normalize_device_type_alias(device_type: Optional[str]) -> str:
@@ -57,6 +59,17 @@ def is_compensation_device(
     if (device_category or "").strip() == DeviceCategory.COMPENSATION.value:
         return True
     return resolve_compensation_subtype(device_type, device_subtype) is not None
+
+
+def resolve_effective_device_type(device: Any) -> Optional[str]:
+    """Resolve the semantic device type used for registry-backed profile lookups."""
+    subtype = resolve_compensation_subtype(
+        getattr(device, "device_type", None),
+        getattr(device, "device_subtype", None),
+    )
+    if subtype:
+        return subtype
+    return normalize_device_type_alias(getattr(device, "device_type", None))
 
 
 def resolve_device_identity(device_type: str, device_subtype: Optional[str] = None) -> dict[str, Optional[str]]:
@@ -206,6 +219,53 @@ def normalize_device_category(
     if current_category in (None, "", DeviceCategory.LOAD.value):
         return DeviceCategory.COMPENSATION.value
     return current_category
+
+
+def build_device_read_normalization_patch(device: Any) -> dict[str, Any]:
+    """Build field overrides for read-side legacy device normalization."""
+    normalized_category = normalize_device_category(
+        getattr(device, "device_type", None),
+        getattr(device, "device_subtype", None),
+        getattr(device, "device_category", None),
+    )
+    if normalized_category == getattr(device, "device_category", None):
+        return {}
+
+    patch: dict[str, Any] = {"device_category": normalized_category}
+    if resolve_compensation_subtype(
+        getattr(device, "device_type", None),
+        getattr(device, "device_subtype", None),
+    ):
+        patch["device_subtype"] = resolve_effective_device_type(device)
+    return patch
+
+
+def is_device_archive_complete(device: Any) -> bool:
+    """Return whether a pending device has enough profile fields to leave archive mode."""
+    if not getattr(device, "sn", None):
+        return False
+    if not str(getattr(device, "name", "") or "").strip():
+        return False
+    if str(getattr(device, "name", "")).startswith(PENDING_DEVICE_NAME_PREFIX):
+        return False
+    if not getattr(device, "device_type", None):
+        return False
+    if not getattr(device, "device_category", None):
+        return False
+    if not getattr(device, "energy_type", None):
+        return False
+    if not str(getattr(device, "location", "") or "").strip():
+        return False
+    if getattr(device, "rated_capacity", None) is None:
+        return False
+    if getattr(device, "device_category", None) == DeviceCategory.COMPENSATION.value and not getattr(device, "device_subtype", None):
+        return False
+    return True
+
+
+def is_pending_device_archive(device: Any) -> bool:
+    """Return whether a device is still waiting for archive/profile completion."""
+    return getattr(device, "archive_status", None) == ARCHIVE_STATUS_PENDING
 
 
 def describe_device_type_semantics(device_type: str) -> dict[str, Any]:

@@ -129,6 +129,7 @@ class AlarmTransitionPlan:
 SOURCE_DEVICE_NATIVE = "device_native"
 SOURCE_PLATFORM_RULE = "platform_rule"
 SOURCE_PLATFORM_COMM = "platform_comm"
+CATEGORY_COMMUNICATION_OFFLINE = "communication_offline"
 
 SVG_FAULT_RULES: list[tuple[str, str, str, str]] = [
     ("overvoltage_fault", "svg_overvoltage", "critical", "SVG 过压故障"),
@@ -156,6 +157,16 @@ def infer_severity(message: str) -> str:
     if any(keyword in message for keyword in ("过载", "异常", "超限", "偏高", "偏低")):
         return "warning"
     return "info"
+
+
+def build_platform_comm_offline_message(last_success_at: Optional[datetime]) -> str:
+    """Build the public platform communication offline alarm message."""
+    detail = (
+        f"最近成功接入时间 {last_success_at:%Y-%m-%d %H:%M:%S}"
+        if last_success_at is not None
+        else "暂无成功接入记录"
+    )
+    return f"设备通讯中断：{detail}"
 
 
 # ==================== 故障检测纯函数 ====================

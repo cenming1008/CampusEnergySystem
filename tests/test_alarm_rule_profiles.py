@@ -7,6 +7,21 @@ from app.domain.alarm_rule_profiles import (
 )
 
 
+def test_build_platform_comm_offline_message_uses_last_success_detail():
+    from datetime import datetime
+
+    from app.domain.alarm_rules import (
+        CATEGORY_COMMUNICATION_OFFLINE,
+        build_platform_comm_offline_message,
+    )
+
+    assert CATEGORY_COMMUNICATION_OFFLINE == "communication_offline"
+    assert build_platform_comm_offline_message(
+        datetime(2026, 5, 14, 9, 50, 0)
+    ) == "设备通讯中断：最近成功接入时间 2026-05-14 09:50:00"
+    assert build_platform_comm_offline_message(None) == "设备通讯中断：暂无成功接入记录"
+
+
 def test_resolve_generic_threshold_profile_uses_default_category_subtype_device_order():
     profile = resolve_generic_threshold_profile(
         {

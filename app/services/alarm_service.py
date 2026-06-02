@@ -46,7 +46,7 @@ class AlarmService:
     SOURCE_DEVICE_NATIVE = alarm_rules.SOURCE_DEVICE_NATIVE
     SOURCE_PLATFORM_RULE = alarm_rules.SOURCE_PLATFORM_RULE
     SOURCE_PLATFORM_COMM = alarm_rules.SOURCE_PLATFORM_COMM
-    CATEGORY_COMMUNICATION_OFFLINE = "communication_offline"
+    CATEGORY_COMMUNICATION_OFFLINE = alarm_rules.CATEGORY_COMMUNICATION_OFFLINE
 
     # ==================== 查询接口（仓储 pass-through） ====================
 
@@ -335,15 +335,10 @@ class AlarmService:
         source = AlarmService.SOURCE_PLATFORM_COMM
 
         if is_offline:
-            detail = (
-                f"最近成功接入时间 {last_success_at:%Y-%m-%d %H:%M:%S}"
-                if last_success_at is not None
-                else "暂无成功接入记录"
-            )
             return AlarmService.upsert_active_alarm(
                 session=session,
                 device_id=device_id,
-                message=f"设备通讯中断：{detail}",
+                message=alarm_rules.build_platform_comm_offline_message(last_success_at),
                 timestamp=timestamp,
                 severity="critical",
                 category=category,
