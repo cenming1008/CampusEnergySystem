@@ -13,7 +13,18 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from app.core.settings import settings
-from app.domain.compensation_rules import build_pq_reference_line, normalize_power_factor, optional_float
+from app.domain.compensation_rules import (
+    build_pq_reference_line,
+    clamp_health_score,
+    comm_health_score,
+    health_rating,
+    max_defined_number,
+    normalize_power_factor,
+    optional_float,
+    score_by_threshold,
+    switching_health_score,
+    voltage_stability_score,
+)
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog, SVGTelemetry
 from app.repositories.device_repository import DeviceRepository
@@ -30,7 +41,6 @@ class CompensationMonitorService:
     _HEALTH_VOLTAGE_THD_THRESHOLD = 5.0
     _HEALTH_CURRENT_THD_THRESHOLD = 5.0
     _HEALTH_TEMP_THRESHOLD = 55.0
-    _HEALTH_NOMINAL_VOLTAGE = 220.0
     _PQ_DEFAULT_P_MAX = 400.0
     _PQ_DEFAULT_Q_MAX = 200.0
 
@@ -43,24 +53,6 @@ class CompensationMonitorService:
         }
 
     @staticmethod
-    def _clamp_health_score(value: float) -> int:
-        return max(0, min(100, int(value + 0.5)))
-
-    @staticmethod
-    def _score_by_threshold(value: Optional[float], threshold: float) -> Optional[int]:
-        if value is None:
-            return 0
-        ratio = float(value) / threshold
-        if ratio <= 1:
-            return CompensationMonitorService._clamp_health_score(100 - ratio * 20)
-        return CompensationMonitorService._clamp_health_score(80 - (ratio - 1) * 40)
-
-    @staticmethod
-    def _max_defined_number(values: tuple[Optional[float], ...]) -> Optional[float]:
-        defined = [float(value) for value in values if value is not None]
-        return max(defined) if defined else None
-
-    @staticmethod
     def _is_realtime_fresh(timestamp: Any) -> bool:
         if timestamp is None:
             return False
@@ -70,43 +62,6 @@ class CompensationMonitorService:
         delta = now - timestamp
         return 0 <= delta.total_seconds() <= CompensationMonitorService._HEALTH_REALTIME_FRESH_THRESHOLD_SECONDS
 
-    @staticmethod
-    def _comm_health_score(ingestion_status: Optional[str], is_realtime_fresh: bool) -> Optional[int]:
-        if ingestion_status == "online":
-            return 100 if is_realtime_fresh else 70
-        if ingestion_status == "degraded":
-            return 55
-        if ingestion_status == "offline":
-            return 15
-        return 0
-
-    @staticmethod
-    def _voltage_stability_score(voltage: Optional[float]) -> Optional[int]:
-        if voltage is None:
-            return 0
-        deviation_pct = (abs(float(voltage) - CompensationMonitorService._HEALTH_NOMINAL_VOLTAGE) / CompensationMonitorService._HEALTH_NOMINAL_VOLTAGE) * 100
-        return CompensationMonitorService._clamp_health_score(100 - deviation_pct * 4)
-
-    @staticmethod
-    def _switching_health_score(flags: tuple[Optional[bool], ...]) -> Optional[int]:
-        if all(flag is None for flag in flags):
-            return 0
-        active_count = sum(1 for flag in flags if flag is True)
-        return CompensationMonitorService._clamp_health_score(100 - active_count * 18)
-
-    @staticmethod
-    def _health_rating(score: Optional[int]) -> dict[str, str]:
-        if score is None:
-            return {"rating": "暂无评级", "ratingTone": "neutral"}
-        if score >= 85:
-            return {"rating": "优秀", "ratingTone": "success"}
-        if score >= 70:
-            return {"rating": "良好", "ratingTone": "success"}
-        if score >= 50:
-            return {"rating": "关注", "ratingTone": "warning"}
-        return {"rating": "异常", "ratingTone": "danger"}
-
-    @staticmethod
     def _build_capacitor_bank_health_model(
         telemetry: Optional[CapacitorBankTelemetry],
         realtime: dict[str, Any],
@@ -114,12 +69,12 @@ class CompensationMonitorService:
         *,
         cabinet_temperature: Optional[float],
     ) -> dict[str, Any]:
-        vthd = CompensationMonitorService._max_defined_number((
+        vthd = max_defined_number((
             getattr(telemetry, "voltage_thd_a", None),
             getattr(telemetry, "voltage_thd_b", None),
             getattr(telemetry, "voltage_thd_c", None),
         ))
-        cthd = CompensationMonitorService._max_defined_number((
+        cthd = max_defined_number((
             getattr(telemetry, "current_harmonic_a", None),
             getattr(telemetry, "current_harmonic_b", None),
             getattr(telemetry, "current_harmonic_c", None),
@@ -137,7 +92,7 @@ class CompensationMonitorService:
             {
                 "key": "comm",
                 "label": "通讯链路",
-                "value": CompensationMonitorService._comm_health_score(
+                "value": comm_health_score(
                     ingestion_status,
                     CompensationMonitorService._is_realtime_fresh(realtime.get("timestamp")),
                 ),
@@ -145,7 +100,7 @@ class CompensationMonitorService:
             {
                 "key": "voltageHarmonic",
                 "label": "电压谐波",
-                "value": CompensationMonitorService._score_by_threshold(
+                "value": score_by_threshold(
                     vthd,
                     CompensationMonitorService._HEALTH_VOLTAGE_THD_THRESHOLD,
                 ),
@@ -153,7 +108,7 @@ class CompensationMonitorService:
             {
                 "key": "currentHarmonic",
                 "label": "电流谐波",
-                "value": CompensationMonitorService._score_by_threshold(
+                "value": score_by_threshold(
                     cthd,
                     CompensationMonitorService._HEALTH_CURRENT_THD_THRESHOLD,
                 ),
@@ -161,12 +116,12 @@ class CompensationMonitorService:
             {
                 "key": "switching",
                 "label": "投切动作",
-                "value": CompensationMonitorService._switching_health_score(switching_flags),
+                "value": switching_health_score(switching_flags),
             },
             {
                 "key": "temperature",
                 "label": "温度",
-                "value": CompensationMonitorService._score_by_threshold(
+                "value": score_by_threshold(
                     float(cabinet_temperature) if cabinet_temperature is not None else None,
                     CompensationMonitorService._HEALTH_TEMP_THRESHOLD,
                 ),
@@ -174,14 +129,14 @@ class CompensationMonitorService:
             {
                 "key": "voltageStability",
                 "label": "电压稳定",
-                "value": CompensationMonitorService._voltage_stability_score(realtime.get("voltage")),
+                "value": voltage_stability_score(realtime.get("voltage")),
             },
         ]
         defined_scores = [item["value"] for item in breakdown if item["value"] is not None]
-        score = CompensationMonitorService._clamp_health_score(sum(defined_scores) / len(defined_scores))
+        score = clamp_health_score(sum(defined_scores) / len(defined_scores))
         return {
             "score": score,
-            **CompensationMonitorService._health_rating(score),
+            **health_rating(score),
             "breakdown": breakdown,
         }
 
