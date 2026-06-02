@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, Iterable
 
 
 def calculate_location_path_fields(name: str, parent: Any | None) -> dict[str, int | str]:
@@ -29,6 +29,30 @@ def build_location_tree_node(location: Any, device_count: int) -> dict[str, Any]
         "manager": getattr(location, "manager"),
         "children": [],
     }
+
+
+def build_location_tree(
+    roots: Iterable[Any],
+    *,
+    max_depth: int | None,
+    get_device_count: Callable[[Any], int],
+    get_child_locations: Callable[[Any], Iterable[Any]],
+) -> list[dict[str, Any]]:
+    """Build a nested location tree using service-provided query callbacks."""
+
+    def build_node(location: Any, current_depth: int = 0) -> dict[str, Any]:
+        node = build_location_tree_node(
+            location,
+            device_count=get_device_count(location),
+        )
+
+        if max_depth is None or current_depth < max_depth:
+            for child in get_child_locations(location):
+                node["children"].append(build_node(child, current_depth + 1))
+
+        return node
+
+    return [build_node(root) for root in roots]
 
 
 def build_location_statistics_payload(

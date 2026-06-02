@@ -9,7 +9,7 @@ from app.core.logger import logger
 
 from app.domain.location_rules import (
     build_location_statistics_payload,
-    build_location_tree_node,
+    build_location_tree,
     calculate_location_path_fields,
 )
 from app.models.tables import Location, Device, EnergyData, LocationType
@@ -441,28 +441,23 @@ class LocationService:
         else:
             roots = LocationService.get_root_locations(session)
         
-        def build_tree(location: Location, current_depth: int = 0) -> Dict[str, Any]:
-            """递归构建树"""
-            # 获取设备数量
+        def get_device_count(location: Location) -> int:
             devices = LocationService.get_devices_by_location(
                 session, location.id, recursive=False
             )
-            
-            node = build_location_tree_node(location, device_count=len(devices))
-            
-            # 递归获取子节点
-            if max_depth is None or current_depth < max_depth:
-                children = LocationService.get_child_locations(
-                    session, location.id, recursive=False
-                )
-                for child in children:
-                    node["children"].append(
-                        build_tree(child, current_depth + 1)
-                    )
-            
-            return node
-        
-        return [build_tree(root) for root in roots]
+            return len(devices)
+
+        def get_children(location: Location) -> List[Location]:
+            return LocationService.get_child_locations(
+                session, location.id, recursive=False
+            )
+
+        return build_location_tree(
+            roots,
+            max_depth=max_depth,
+            get_device_count=get_device_count,
+            get_child_locations=get_children,
+        )
     
     @staticmethod
     def search_locations(
