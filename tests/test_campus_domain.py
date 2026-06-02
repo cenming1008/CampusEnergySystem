@@ -11,6 +11,7 @@ from app.domain.campus_rules import (
     build_realtime_load_trend,
     build_site_entities,
     build_subitem_statistics,
+    find_ancestor_location,
 )
 
 
@@ -197,6 +198,19 @@ def test_build_location_rankings_rolls_summaries_up_to_target_locations():
             "energy_breakdown": {"gas": 30.0},
         }
     ]
+
+
+def test_find_ancestor_location_walks_parent_chain_and_handles_missing_nodes():
+    locations_by_id = {
+        1: SimpleNamespace(id=1, location_type="campus", parent_id=None),
+        2: SimpleNamespace(id=2, location_type="area", parent_id=1),
+        3: SimpleNamespace(id=3, location_type="building", parent_id=2),
+        4: SimpleNamespace(id=4, location_type="floor", parent_id=99),
+    }
+
+    assert find_ancestor_location(locations_by_id, 3, {"area"}).id == 2
+    assert find_ancestor_location(locations_by_id, 3, {"campus"}).id == 1
+    assert find_ancestor_location(locations_by_id, 4, {"area"}) is None
 
 
 def test_build_alarm_summary_counts_status_severity_locations_and_latest():

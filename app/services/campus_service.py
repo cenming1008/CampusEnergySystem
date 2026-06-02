@@ -23,6 +23,7 @@ from app.domain.campus_rules import (
     build_realtime_load_trend,
     build_site_entities,
     build_subitem_statistics,
+    find_ancestor_location,
 )
 from app.models.tables import Alarm, Device, EnergyData, Location
 
@@ -110,7 +111,7 @@ class CampusService:
             context.locations_by_id,
             AREA_LOCATION_TYPES,
             top_n=5,
-            find_ancestor=CampusService._find_ancestor_location,
+            find_ancestor=find_ancestor_location,
         )
         building_rankings = build_location_rankings(
             period_summaries,
@@ -118,7 +119,7 @@ class CampusService:
             context.locations_by_id,
             BUILDING_LOCATION_TYPES,
             top_n=5,
-            find_ancestor=CampusService._find_ancestor_location,
+            find_ancestor=find_ancestor_location,
         )
         realtime_load_trend = build_realtime_load_trend(trend_rows)
         alarm_summary = build_alarm_summary(
@@ -126,7 +127,7 @@ class CampusService:
             context.device_by_id,
             context.locations_by_id,
             AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
-            find_ancestor=CampusService._find_ancestor_location,
+            find_ancestor=find_ancestor_location,
         )
 
         latest_load = realtime_load_trend[-1]["total_load"] if realtime_load_trend else 0.0
@@ -177,7 +178,7 @@ class CampusService:
             context.locations_by_id,
             target_types,
             top_n=20,
-            find_ancestor=CampusService._find_ancestor_location,
+            find_ancestor=find_ancestor_location,
         )
         return {
             "dimension": dimension,
@@ -244,7 +245,7 @@ class CampusService:
             context.device_by_id,
             context.locations_by_id,
             AREA_LOCATION_TYPES | BUILDING_LOCATION_TYPES,
-            find_ancestor=CampusService._find_ancestor_location,
+            find_ancestor=find_ancestor_location,
         )
         summary["time_window"] = {"start_time": start_time, "end_time": end_time}
         return summary
@@ -300,19 +301,3 @@ class CampusService:
                 return []
             statement = statement.where(Alarm.device_id.in_(allowed_device_ids))
         return list(session.exec(statement).all())
-
-    @staticmethod
-    def _find_ancestor_location(
-        locations_by_id: dict[int, Location],
-        location_id: int,
-        target_types: set[str],
-    ) -> Optional[Location]:
-        current_id = location_id
-        while current_id is not None:
-            location = locations_by_id.get(current_id)
-            if not location:
-                return None
-            if location.location_type in target_types:
-                return location
-            current_id = location.parent_id
-        return None

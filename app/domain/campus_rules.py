@@ -139,6 +139,23 @@ def build_period_energy_summaries(rows: Iterable[Any]) -> list[PeriodEnergySumma
     return summaries
 
 
+def find_ancestor_location(
+    locations_by_id: dict[int, Any],
+    location_id: int,
+    target_types: set[str],
+) -> Any | None:
+    """Find the nearest ancestor location matching the target types."""
+    current_id = location_id
+    while current_id is not None:
+        location = locations_by_id.get(current_id)
+        if not location:
+            return None
+        if getattr(location, "location_type", None) in target_types:
+            return location
+        current_id = getattr(location, "parent_id", None)
+    return None
+
+
 def build_energy_category_summary(summaries: Iterable[Any]) -> list[dict]:
     """Aggregate period energy summaries by energy category."""
     totals: dict[str, dict[str, float]] = defaultdict(
