@@ -297,17 +297,7 @@ class AlarmService:
             faults.extend(alarm_rules.evaluate_media_threshold_faults(data, media_profile.thresholds))
 
         # 仅对本次检测的字段做 recover 管理（保持原行为）
-        managed_categories: set[str] = set()
-        if "current" in data and data["current"] is not None:
-            managed_categories.add("current_overload")
-        if "voltage" in data and data["voltage"] is not None:
-            managed_categories.add("voltage_out_of_range")
-        if "flow_rate" in data and data["flow_rate"] is not None:
-            managed_categories.add("flow_rate_out_of_range")
-        if "pressure" in data and data["pressure"] is not None:
-            managed_categories.add("pressure_out_of_range")
-        if "temperature" in data and data["temperature"] is not None:
-            managed_categories.add("temperature_out_of_range")
+        managed_categories = alarm_rules.get_threshold_managed_categories(data)
 
         new_alarms = AlarmService._apply_fault_detection(
             session=session,

@@ -716,6 +716,24 @@ def get_capacitor_bank_managed_categories() -> set[str]:
     }
 
 
+THRESHOLD_MANAGED_CATEGORY_FIELDS: dict[str, str] = {
+    "current": "current_overload",
+    "voltage": "voltage_out_of_range",
+    "flow_rate": "flow_rate_out_of_range",
+    "pressure": "pressure_out_of_range",
+    "temperature": "temperature_out_of_range",
+}
+
+
+def get_threshold_managed_categories(data: dict[str, Any]) -> set[str]:
+    """Return generic/media platform alarm categories managed by present telemetry fields."""
+    return {
+        category
+        for field, category in THRESHOLD_MANAGED_CATEGORY_FIELDS.items()
+        if field in data and data[field] is not None
+    }
+
+
 def get_storage_managed_categories(storage_data: dict[str, Any]) -> set[str]:
     """Return storage platform alarm categories managed by present telemetry fields."""
     managed_categories: set[str] = set()
