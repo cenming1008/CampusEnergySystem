@@ -29,3 +29,39 @@ def build_location_tree_node(location: Any, device_count: int) -> dict[str, Any]
         "manager": getattr(location, "manager"),
         "children": [],
     }
+
+
+def build_location_statistics_payload(
+    location: Any,
+    devices: list[Any],
+    child_locations: list[Any],
+) -> dict[str, Any]:
+    """Build the public statistics payload for one location."""
+    device_count_by_energy: dict[Any, int] = {}
+    for device in devices:
+        energy_type = getattr(device, "energy_type")
+        device_count_by_energy[energy_type] = device_count_by_energy.get(energy_type, 0) + 1
+
+    device_count_by_category: dict[Any, int] = {}
+    for device in devices:
+        category = getattr(device, "device_category")
+        device_count_by_category[category] = device_count_by_category.get(category, 0) + 1
+
+    return {
+        "location": {
+            "id": getattr(location, "id"),
+            "name": getattr(location, "name"),
+            "type": getattr(location, "location_type"),
+            "full_path": getattr(location, "full_path"),
+            "level": getattr(location, "level"),
+        },
+        "device_count": {
+            "total": len(devices),
+            "active": sum(1 for device in devices if getattr(device, "is_active")),
+            "by_energy_type": device_count_by_energy,
+            "by_category": device_count_by_category,
+        },
+        "child_locations_count": len(child_locations),
+        "area_sqm": getattr(location, "area_sqm"),
+        "manager": getattr(location, "manager"),
+    }

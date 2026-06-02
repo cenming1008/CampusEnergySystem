@@ -7,7 +7,11 @@ from datetime import datetime
 from sqlmodel import Session, select, func
 from app.core.logger import logger
 
-from app.domain.location_rules import calculate_location_path_fields, build_location_tree_node
+from app.domain.location_rules import (
+    build_location_statistics_payload,
+    build_location_tree_node,
+    calculate_location_path_fields,
+)
 from app.models.tables import Location, Device, EnergyData, LocationType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 
@@ -412,43 +416,11 @@ class LocationService:
             session, location_id, recursive=recursive
         )
         
-        # 按能源类型统计设备数量
-        device_count_by_energy = {}
-        for device in devices:
-            energy_type = device.energy_type
-            device_count_by_energy[energy_type] = \
-                device_count_by_energy.get(energy_type, 0) + 1
-        
-        # 按设备类别统计
-        device_count_by_category = {}
-        for device in devices:
-            category = device.device_category
-            device_count_by_category[category] = \
-                device_count_by_category.get(category, 0) + 1
-        
         # 子位置统计
         child_locations = LocationService.get_child_locations(
             session, location_id, recursive=False
         )
-        
-        return {
-            "location": {
-                "id": location.id,
-                "name": location.name,
-                "type": location.location_type,
-                "full_path": location.full_path,
-                "level": location.level
-            },
-            "device_count": {
-                "total": len(devices),
-                "active": sum(1 for d in devices if d.is_active),
-                "by_energy_type": device_count_by_energy,
-                "by_category": device_count_by_category
-            },
-            "child_locations_count": len(child_locations),
-            "area_sqm": location.area_sqm,
-            "manager": location.manager
-        }
+        return build_location_statistics_payload(location, devices, child_locations)
     
     @staticmethod
     def get_location_tree(
