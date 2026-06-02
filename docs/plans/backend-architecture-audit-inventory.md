@@ -52,6 +52,7 @@
 | --- | --- | --- | --- | --- |
 | `app/domain/alarm_rule_profiles.py` | `keep` | 规则 profile 解析样板清晰 | 继续承接平台规则 profile | 新设备族规则优先补这里或相邻 domain |
 | `app/domain/alarm_rules.py` | `watch` | 文件较大但属于纯规则集合 | 后续可转 package | 只有增长压力明确时再拆 |
+| `app/domain/compensation_rules.py` | `keep` | 补偿设备监控纯规则落点，当前仅承接 PQ 归一与参考线格式 | 继续承接补偿监控纯计算 | 保持无 DB/HTTP/service 依赖 |
 | `app/domain/energy_rules.py` | `watch` | 文件较大但属于能源规则 | 后续可转 package | 保持无 DB/HTTP |
 | `app/domain/analysis_rules.py` | `watch` | 文件较大但属于分析规则 | 后续可转 package | 保持无 DB/HTTP |
 | `app/domain/device_payloads.py` | `keep` | payload 归一职责明确 | 继续作为接入 payload 规则入口 | 新协议 alias 不直接塞 endpoint |
@@ -87,6 +88,8 @@
 14. 已完成：`location_service.py` 中 location tree node payload 已迁入 `domain/location_rules.py`，递归遍历和查询仍留 service。
 15. 已完成：`location_service.py` 中 location statistics payload 与设备计数聚合已迁入 `domain/location_rules.py`，设备 / 子位置查询仍留 service。
 16. `location_service.py` 后续如继续整理，只能再选择位置树遍历或查询编排中的一个独立泄漏点。
+17. 已完成：`app/services/devices/compensation/monitor_service.py` 中 PQ power factor normalization 与 reference line formatting 已迁入 `domain/compensation_rules.py`。
+18. `app/services/devices/compensation/monitor_service.py` 后续如继续整理，只能再选择健康评分、回路摘要或温度状态中的一个独立纯规则泄漏点；控制命令相关逻辑保持 `plan_required` 边界。
 
 ## 第一阶段禁止项
 
