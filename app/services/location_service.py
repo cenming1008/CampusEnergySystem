@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlmodel import Session, select, func
 from app.core.logger import logger
 
-from app.domain.location_rules import calculate_location_path_fields
+from app.domain.location_rules import calculate_location_path_fields, build_location_tree_node
 from app.models.tables import Location, Device, EnergyData, LocationType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
 
@@ -476,18 +476,7 @@ class LocationService:
                 session, location.id, recursive=False
             )
             
-            node = {
-                "id": location.id,
-                "name": location.name,
-                "type": location.location_type,
-                "code": location.code,
-                "full_path": location.full_path,
-                "level": location.level,
-                "device_count": len(devices),
-                "area_sqm": location.area_sqm,
-                "manager": location.manager,
-                "children": []
-            }
+            node = build_location_tree_node(location, device_count=len(devices))
             
             # 递归获取子节点
             if max_depth is None or current_depth < max_depth:
