@@ -20,6 +20,7 @@
 - `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
 - `campus_service.py` 第四轮纯聚合泄漏点已收口：location rankings 迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
 - `campus_service.py` 第五轮摘要聚合泄漏点已收口：alarm summary 迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
+- `location_service.py` 第一轮纯规则泄漏点已收口：full_path / level 路径计算迁入 `domain/location_rules.py`，数据库查询与对象赋值仍保留在 service。
 
 ## 下一棒
 - 规则/预判角色：
@@ -43,11 +44,13 @@
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_location_rankings_rolls_summaries_up_to_target_locations -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_alarm_summary_counts_status_severity_locations_and_latest -q` 通过。
+- `./venv/bin/python -m pytest tests/test_location_domain.py tests/test_location_application_use_cases.py tests/test_endpoint_application_convergence.py -q` 通过。
 
 ## 剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage managed categories 切片、`device_service.py` legacy create registry defaults patch 切片，以及 `campus_service.py` 主要纯聚合 helper 下沉；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage managed categories 切片、`device_service.py` legacy create registry defaults patch 切片、`campus_service.py` 主要纯聚合 helper 下沉，以及 `location_service.py` path calculation 切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
 - `alarm_service.py` 仍是 `split_candidate`，但本轮只处理 storage managed categories 纯映射；后续继续整理时仍必须一次只选一个独立规则泄漏点。
 - `device_service.py` 仍是 `split_candidate`，但本轮只处理 legacy create registry defaults patch；后续继续整理时仍必须一次只选一个独立 profile/default 泄漏点。
 - `campus_service.py` 仍是 `split_candidate`，但已处理 energy category summary、subitem statistics、realtime load trend、location rankings 与 alarm summary；后续若继续整理，应先评估查询 / context 编排边界，不再优先寻找纯聚合 helper。
+- `location_service.py` 仍是 `split_candidate`，但本轮只处理路径计算；后续继续整理时只能再选择位置树或统计中的一个独立泄漏点。
