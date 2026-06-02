@@ -9,6 +9,7 @@ from app.domain.device_payloads import (
     describe_device_type_semantics,
     describe_energy_data_fields,
     get_device_type_config,
+    normalize_device_category,
     normalize_device_report_payload,
 )
 
@@ -44,6 +45,24 @@ class TestDeviceDomainHelpers(unittest.TestCase):
         self.assertEqual(patch["energy_type"], "electricity")
         self.assertEqual(patch["unit"], "kVAR")
         self.assertGreater(patch["rated_capacity"], 0)
+
+    def test_normalize_device_category_maps_legacy_compensation_load(self):
+        self.assertEqual(
+            normalize_device_category(
+                device_type="reactive_power_compensator",
+                device_subtype=None,
+                current_category="load",
+            ),
+            "compensation",
+        )
+        self.assertEqual(
+            normalize_device_category(
+                device_type="water_meter",
+                device_subtype=None,
+                current_category="water_meter",
+            ),
+            "water_meter",
+        )
 
     def test_describe_device_type_semantics_exposes_meter_role(self):
         semantics = describe_device_type_semantics("water_meter")
