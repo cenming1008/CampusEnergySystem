@@ -13,6 +13,7 @@ from typing import Any, Optional
 from sqlmodel import Session, select
 
 from app.core.settings import settings
+from app.domain.compensation_rules import build_pq_reference_line, normalize_power_factor, optional_float
 from app.domain.device_payloads import resolve_compensation_subtype
 from app.models.tables import CapacitorBankControlProfile, CapacitorBankTelemetry, Device, DeviceControlLog, SVGTelemetry
 from app.repositories.device_repository import DeviceRepository
@@ -185,43 +186,14 @@ class CompensationMonitorService:
         }
 
     @staticmethod
-    def _optional_float(value: Any) -> Optional[float]:
-        if value is None:
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    @staticmethod
-    def _normalize_power_factor(value: Any) -> Optional[float]:
-        numeric = CompensationMonitorService._optional_float(value)
-        if numeric is None:
-            return None
-        if numeric > 2:
-            numeric = numeric / 100.0
-        if numeric <= 0:
-            return None
-        return min(0.999, numeric)
-
-    @staticmethod
-    def _build_pq_reference_line(power_factor: float, *, role: str) -> dict[str, Any]:
-        normalized = round(power_factor, 3)
-        return {
-            "powerFactor": normalized,
-            "label": f"PF {normalized:.2f}",
-            "role": role,
-        }
-
-    @staticmethod
     def _build_capacitor_bank_pq_model(
         device: Device,
         realtime: dict[str, Any],
         profile: Optional[CapacitorBankControlProfile],
     ) -> dict[str, Any]:
-        p = CompensationMonitorService._optional_float(realtime.get("flow_rate"))
-        q = CompensationMonitorService._optional_float(realtime.get("reactive_power"))
-        rated_capacity = CompensationMonitorService._optional_float(getattr(device, "rated_capacity", None)) or 0.0
+        p = optional_float(realtime.get("flow_rate"))
+        q = optional_float(realtime.get("reactive_power"))
+        rated_capacity = optional_float(getattr(device, "rated_capacity", None)) or 0.0
 
         p_max = max(
             CompensationMonitorService._PQ_DEFAULT_P_MAX,
@@ -234,15 +206,15 @@ class CompensationMonitorService:
             abs(q or 0.0) * 1.2,
         )
 
-        threshold_pf = CompensationMonitorService._normalize_power_factor(
+        threshold_pf = normalize_power_factor(
             getattr(profile, "switch_on_power_factor", None) if profile else None,
         ) or 0.9
-        target_pf = CompensationMonitorService._normalize_power_factor(
+        target_pf = normalize_power_factor(
             getattr(profile, "switch_off_power_factor", None) if profile else None,
         ) or 0.95
         reference_lines = [
-            CompensationMonitorService._build_pq_reference_line(threshold_pf, role="threshold"),
-            CompensationMonitorService._build_pq_reference_line(target_pf, role="target"),
+            build_pq_reference_line(threshold_pf, role="threshold"),
+            build_pq_reference_line(target_pf, role="target"),
         ]
 
         return {
