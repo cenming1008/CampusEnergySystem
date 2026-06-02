@@ -279,3 +279,22 @@ def test_storage_managed_categories_follow_present_payload_fields():
     assert get_storage_managed_categories({"active_power": -151.0, "soc": None}) == {
         "storage_active_power_out_of_range",
     }
+
+
+def test_threshold_managed_categories_follow_present_payload_fields():
+    from app.domain.alarm_rules import get_threshold_managed_categories
+
+    assert get_threshold_managed_categories(
+        {
+            "current": 51.0,
+            "voltage": None,
+            "flow_rate": 0,
+            "pressure": 1.2,
+            "temperature": None,
+            "irrelevant": 123,
+        }
+    ) == {
+        "current_overload",
+        "flow_rate_out_of_range",
+        "pressure_out_of_range",
+    }
