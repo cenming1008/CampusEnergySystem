@@ -213,6 +213,14 @@ def resolve_capacitor_bank_control_log_mode(
     return ""
 
 
+def resolve_svg_control_mode(auto_mode: Optional[bool]) -> dict[str, str]:
+    if auto_mode is True:
+        return {"value": "自动", "source": "telemetry", "state": "live"}
+    if auto_mode is False:
+        return {"value": "手动", "source": "telemetry", "state": "live"}
+    return {"value": "待确认", "source": "placeholder", "state": "mock"}
+
+
 def resolve_capacitor_bank_control_mode(
     *,
     telemetry_mode: Optional[str],

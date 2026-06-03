@@ -51,6 +51,7 @@
 - [x] `app/services/devices/compensation/monitor_service.py` 第四轮纯规则泄漏点已收口：capacitor bank temperature health 迁入 `domain/compensation_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第五轮纯规则泄漏点已收口：capacitor bank control mode resolution 迁入 `domain/compensation_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第六轮纯规则泄漏点已收口：capacitor bank control log mode parsing 迁入 `domain/compensation_rules.py`。
+- [x] `app/services/devices/compensation/monitor_service.py` 第七轮纯规则泄漏点已收口：SVG control mode resolution 迁入 `domain/compensation_rules.py`。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -117,6 +118,8 @@
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder -q` 通过。
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_resolve_capacitor_bank_control_log_mode_accepts_only_successful_mode_logs -q` 先失败于缺少 `resolve_capacitor_bank_control_log_mode`，补实现后通过。
 - `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_resolve_svg_control_mode_preserves_telemetry_and_placeholder_payloads -q` 先失败于缺少 `resolve_svg_control_mode`，补实现后通过。
+- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py::TestCompensationMonitorServiceBoundary::test_build_monitor_marks_svg_as_read_only_capability -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
@@ -125,5 +128,5 @@
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析与控制日志模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析与 SVG 控制模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。

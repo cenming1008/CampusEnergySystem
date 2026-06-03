@@ -26,6 +26,7 @@ from app.domain.compensation_rules import (
     resolve_capacitor_bank_control_mode,
     resolve_capacitor_bank_control_log_mode,
     score_by_threshold,
+    resolve_svg_control_mode,
     switching_health_score,
     voltage_stability_score,
 )
@@ -251,12 +252,7 @@ class CompensationMonitorService:
 
     @staticmethod
     def _resolve_svg_control_mode(telemetry: Optional[SVGTelemetry]) -> dict[str, str]:
-        auto_mode = getattr(telemetry, "auto_mode", None)
-        if auto_mode is True:
-            return {"value": "自动", "source": "telemetry", "state": "live"}
-        if auto_mode is False:
-            return {"value": "手动", "source": "telemetry", "state": "live"}
-        return {"value": "待确认", "source": "placeholder", "state": "mock"}
+        return resolve_svg_control_mode(getattr(telemetry, "auto_mode", None))
 
     @staticmethod
     def _build_capacitor_bank_circuit_summary(

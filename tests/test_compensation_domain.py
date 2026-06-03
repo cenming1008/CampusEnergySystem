@@ -10,6 +10,7 @@ from app.domain.compensation_rules import (
     normalize_power_factor,
     score_by_threshold,
     resolve_capacitor_bank_control_log_mode,
+    resolve_svg_control_mode,
     switching_health_score,
     voltage_stability_score,
 )
@@ -230,3 +231,9 @@ def test_resolve_capacitor_bank_control_log_mode_accepts_only_successful_mode_lo
         action="manual_switch",
         reason="手动投切回执",
     ) == ""
+
+
+def test_resolve_svg_control_mode_preserves_telemetry_and_placeholder_payloads():
+    assert resolve_svg_control_mode(True) == {"value": "自动", "source": "telemetry", "state": "live"}
+    assert resolve_svg_control_mode(False) == {"value": "手动", "source": "telemetry", "state": "live"}
+    assert resolve_svg_control_mode(None) == {"value": "待确认", "source": "placeholder", "state": "mock"}
