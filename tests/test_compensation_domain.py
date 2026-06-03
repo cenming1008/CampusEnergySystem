@@ -9,6 +9,7 @@ from app.domain.compensation_rules import (
     max_defined_number,
     normalize_power_factor,
     score_by_threshold,
+    resolve_capacitor_bank_control_log_mode,
     switching_health_score,
     voltage_stability_score,
 )
@@ -201,3 +202,31 @@ def test_resolve_capacitor_bank_control_mode_uses_profile_then_placeholder():
         latest_log_created_at=None,
         is_device_active=False,
     ) == {"value": "待确认", "source": "placeholder", "state": "mock"}
+
+
+def test_resolve_capacitor_bank_control_log_mode_accepts_only_successful_mode_logs():
+    assert resolve_capacitor_bank_control_log_mode(
+        normalized_result="success",
+        action="manual_switch",
+        reason="控制台控制模式切换 -> 自动模式 | 设备回执已处理: 已切回自动模式",
+    ) == "自动"
+    assert resolve_capacitor_bank_control_log_mode(
+        normalized_result="success",
+        action="switch_control_mode",
+        reason="控制台控制模式切换 -> 手动模式",
+    ) == "手动"
+    assert resolve_capacitor_bank_control_log_mode(
+        normalized_result="failed",
+        action="manual_switch",
+        reason="控制台控制模式切换 -> 自动模式",
+    ) == ""
+    assert resolve_capacitor_bank_control_log_mode(
+        normalized_result="success",
+        action="manual_switch_test",
+        reason="控制台控制模式切换 -> 自动模式",
+    ) == ""
+    assert resolve_capacitor_bank_control_log_mode(
+        normalized_result="success",
+        action="manual_switch",
+        reason="手动投切回执",
+    ) == ""

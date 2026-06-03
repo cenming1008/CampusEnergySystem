@@ -105,7 +105,8 @@
 31. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank circuit summary 纯规则已迁入 `domain/compensation_rules.py`，telemetry/profile 字段抽取与监控 payload 组装仍留 service。
 32. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank temperature health 纯规则已迁入 `domain/compensation_rules.py`，warning margin 配置读取仍留 service。
 33. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank control mode resolution 纯规则已迁入 `domain/compensation_rules.py`，control log 读取与日志结果归一仍留 service。
-34. `app/services/devices/compensation/monitor_service.py` 后续如继续整理，需重新选择新的独立泄漏点；控制命令相关逻辑保持 `plan_required` 边界。
+34. 已完成：`app/services/devices/compensation/monitor_service.py` 中 capacitor bank control log mode parsing 纯规则已迁入 `domain/compensation_rules.py`，control log 查询与结果归一仍留 service。
+35. `app/services/devices/compensation/monitor_service.py` 后续如继续整理，需重新选择新的独立泄漏点；控制命令相关逻辑保持 `plan_required` 边界。
 
 ## 第一阶段禁止项
 

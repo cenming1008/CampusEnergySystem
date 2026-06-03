@@ -24,6 +24,7 @@ from app.domain.compensation_rules import (
     normalize_power_factor,
     optional_float,
     resolve_capacitor_bank_control_mode,
+    resolve_capacitor_bank_control_log_mode,
     score_by_threshold,
     switching_health_score,
     voltage_stability_score,
@@ -215,18 +216,11 @@ class CompensationMonitorService:
     def _resolve_control_mode_from_log(record: Optional[DeviceControlLog]) -> str:
         if record is None:
             return ""
-        if CapacitorBankControlCommandService.normalize_control_result(record.result) != "success":
-            return ""
-        if record.action not in {"switch_control_mode", "manual_switch"}:
-            return ""
-        reason = (record.reason or "").strip()
-        if "控制模式切换" not in reason:
-            return ""
-        if "手动模式" in reason:
-            return "手动"
-        if "自动模式" in reason:
-            return "自动"
-        return ""
+        return resolve_capacitor_bank_control_log_mode(
+            normalized_result=CapacitorBankControlCommandService.normalize_control_result(record.result),
+            action=record.action,
+            reason=record.reason,
+        )
 
     @staticmethod
     def _resolve_capacitor_bank_control_mode(

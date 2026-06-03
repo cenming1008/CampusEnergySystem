@@ -193,6 +193,26 @@ def build_capacitor_bank_temperature_health(
     return {"value": "待判断", "source": "missing", "state": "missing"}
 
 
+def resolve_capacitor_bank_control_log_mode(
+    *,
+    normalized_result: Optional[str],
+    action: Optional[str],
+    reason: Optional[str],
+) -> str:
+    if normalized_result != "success":
+        return ""
+    if action not in {"switch_control_mode", "manual_switch"}:
+        return ""
+    normalized_reason = str(reason or "").strip()
+    if "控制模式切换" not in normalized_reason:
+        return ""
+    if "手动模式" in normalized_reason:
+        return "手动"
+    if "自动模式" in normalized_reason:
+        return "自动"
+    return ""
+
+
 def resolve_capacitor_bank_control_mode(
     *,
     telemetry_mode: Optional[str],
