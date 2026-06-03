@@ -277,7 +277,7 @@ class AlarmService:
     ) -> list:
         """检查通用阈值数据（电压/电流）并创建/恢复告警。"""
         device_category, device_subtype = AlarmRepository.get_device_rule_identity(session, device_id)
-        if device_category == "compensation":
+        if alarm_rules.should_skip_generic_threshold_detection(device_category):
             return []
 
         raw_rules = AlarmService.load_thresholds()

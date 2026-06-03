@@ -17,6 +17,7 @@
 - `alarm_service.py` 第二轮纯规则泄漏点已收口：generic/media threshold managed categories 映射迁入 `domain/alarm_rules.py`，告警生命周期编排仍保留在 service。
 - `alarm_service.py` 第三轮纯规则泄漏点已收口：platform communication offline category/message 迁入 `domain/alarm_rules.py`，平台通讯告警创建 / 恢复编排仍保留在 service。
 - `alarm_service.py` 第四轮纯规则泄漏点已收口：alarm recovery decision 迁入 `domain/alarm_rules.py`，service 仍负责查询活跃告警并写回恢复状态。
+- `alarm_service.py` 第五轮纯规则泄漏点已收口：generic threshold compensation skip decision 迁入 `domain/alarm_rules.py`，service 仍负责查询设备规则身份与告警生命周期编排。
 - `device_service.py` 第一轮 profile/default 泄漏点已收口：legacy create registry defaults patch 迁入 `domain/device_payloads.py`，持久化、回滚和重复 SN 兼容仍保留在 service。
 - `device_service.py` 第二轮纯规则泄漏点已收口：compensation device category normalization 迁入 `domain/device_payloads.py`，只读对象复制仍保留在 service。
 - `device_service.py` 第三轮纯规则泄漏点已收口：pending archive completeness 迁入 `domain/device_payloads.py`，pending 状态流转触发仍保留在 service。
@@ -67,6 +68,8 @@
 - `./venv/bin/python -m pytest tests/test_alarm_service.py::TestAlarmService::test_sync_platform_comm_alarm_creates_and_recovers_offline_instance -q` 通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_compute_alarm_recovery_decision_backfills_instance_key_and_skips_active_hits -q` 先失败于缺少 `compute_alarm_recovery_decision`，补实现后通过。
 - `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_should_skip_generic_threshold_detection_for_compensation_category_only -q` 先失败于缺少 `should_skip_generic_threshold_detection`，补实现后通过。
+- `./venv/bin/python -m pytest tests/test_alarm_service.py::TestAlarmService::test_general_threshold_alarm_skips_compensation_devices -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_registry_default_patch_normalizes_legacy_compensation_device -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_normalize_device_category_maps_legacy_compensation_load -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py tests/test_device_management_use_cases.py -q` 通过。
@@ -110,10 +113,10 @@
 - `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py -q` 通过。
 
 ## 剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message 与 alarm recovery decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析与控制日志模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析与控制日志模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
 - 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
-- `alarm_service.py` 仍是 `split_candidate`，但已处理 storage、generic/media threshold managed categories、platform communication offline category/message 与 alarm recovery decision 纯规则；后续继续整理时必须一次只选一个独立生命周期、规则 profile 编排或查询编排泄漏点。
+- `alarm_service.py` 仍是 `split_candidate`，但已处理 storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 纯规则；后续继续整理时必须一次只选一个独立生命周期、规则 profile 编排或查询编排泄漏点。
 - `device_service.py` 仍是 `split_candidate`，但已处理 legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload；后续继续整理时必须一次只选一个独立 profile/default 编排或持久化边界泄漏点。
 - `campus_service.py` 仍是 `split_candidate`，但已处理 energy category summary、subitem statistics、realtime load trend、location rankings、alarm summary、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup；后续若继续整理，应先评估查询 / context 编排边界，不再优先寻找纯聚合 helper。
 - `location_service.py` 仍是 `split_candidate`，但已处理路径计算、tree node payload、statistics payload、tree traversal 和 location reference match；后续继续整理时只能再选择查询编排中的一个独立泄漏点。

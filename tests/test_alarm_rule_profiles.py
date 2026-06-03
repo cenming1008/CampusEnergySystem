@@ -44,6 +44,14 @@ def test_compute_alarm_recovery_decision_backfills_instance_key_and_skips_active
     assert missing_decision.should_recover is True
 
 
+def test_should_skip_generic_threshold_detection_for_compensation_category_only():
+    from app.domain.alarm_rules import should_skip_generic_threshold_detection
+
+    assert should_skip_generic_threshold_detection("compensation") is True
+    assert should_skip_generic_threshold_detection("load") is False
+    assert should_skip_generic_threshold_detection(None) is False
+
+
 def test_resolve_generic_threshold_profile_uses_default_category_subtype_device_order():
     profile = resolve_generic_threshold_profile(
         {
