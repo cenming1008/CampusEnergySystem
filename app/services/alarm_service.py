@@ -473,12 +473,13 @@ class AlarmService:
         )
         recovered_count = 0
         for alarm in active_alarms:
-            expected_key = alarm.instance_key or alarm_rules.build_instance_key(
-                alarm.device_id, alarm.category, alarm.source,
+            recovery_decision = alarm_rules.compute_alarm_recovery_decision(
+                alarm,
+                active_instance_keys,
             )
-            if alarm.instance_key != expected_key:
-                alarm.instance_key = expected_key
-            if expected_key in active_instance_keys:
+            if alarm.instance_key != recovery_decision.instance_key:
+                alarm.instance_key = recovery_decision.instance_key
+            if not recovery_decision.should_recover:
                 continue
             alarm.recovered_at = timestamp
             session.add(alarm)

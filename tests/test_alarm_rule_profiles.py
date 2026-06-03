@@ -22,6 +22,28 @@ def test_build_platform_comm_offline_message_uses_last_success_detail():
     assert build_platform_comm_offline_message(None) == "设备通讯中断：暂无成功接入记录"
 
 
+def test_compute_alarm_recovery_decision_backfills_instance_key_and_skips_active_hits():
+    from types import SimpleNamespace
+
+    from app.domain.alarm_rules import compute_alarm_recovery_decision
+
+    alarm = SimpleNamespace(
+        device_id=7,
+        category="current_overload",
+        source="platform_rule",
+        instance_key=None,
+    )
+    active_key = "7:platform_rule:current_overload"
+
+    active_decision = compute_alarm_recovery_decision(alarm, {active_key})
+    missing_decision = compute_alarm_recovery_decision(alarm, set())
+
+    assert active_decision.instance_key == active_key
+    assert active_decision.should_recover is False
+    assert missing_decision.instance_key == active_key
+    assert missing_decision.should_recover is True
+
+
 def test_resolve_generic_threshold_profile_uses_default_category_subtype_device_order():
     profile = resolve_generic_threshold_profile(
         {

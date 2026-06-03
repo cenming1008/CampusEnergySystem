@@ -116,6 +116,13 @@ class ResolveTransition:
     handling_note: Optional[str]
 
 
+@dataclass(frozen=True)
+class AlarmRecoveryDecision:
+    """Decision for whether an active alarm should be system-recovered."""
+    instance_key: str
+    should_recover: bool
+
+
 @dataclass
 class AlarmTransitionPlan:
     """一次故障检测周期的完整转换计划。"""
@@ -703,6 +710,22 @@ def compute_resolve_transition(
         resolved_at=timestamp,
         resolved_by=resolved_by,
         handling_note=handling_note,
+    )
+
+
+def compute_alarm_recovery_decision(
+    alarm: Any,
+    active_instance_keys: set[str],
+) -> AlarmRecoveryDecision:
+    """Return stable instance key and whether the alarm missed this detection cycle."""
+    instance_key = getattr(alarm, "instance_key", None) or build_instance_key(
+        getattr(alarm, "device_id"),
+        getattr(alarm, "category"),
+        getattr(alarm, "source"),
+    )
+    return AlarmRecoveryDecision(
+        instance_key=instance_key,
+        should_recover=instance_key not in active_instance_keys,
     )
 
 
