@@ -11,6 +11,7 @@ from app.domain.location_rules import (
     build_location_statistics_payload,
     build_location_tree,
     calculate_location_path_fields,
+    resolve_location_reference_match,
 )
 from app.models.tables import Location, Device, EnergyData, LocationType
 from app.core.exceptions import ResourceNotFoundException, DatabaseException
@@ -127,14 +128,26 @@ class LocationService:
         by_full_path = session.exec(
             select(Location).where(Location.full_path == normalized)
         ).first()
-        if by_full_path:
-            return by_full_path
+        full_path_match = resolve_location_reference_match(
+            raw_value=raw_value,
+            by_full_path=by_full_path,
+            by_code=None,
+            by_name=[],
+        )
+        if full_path_match:
+            return full_path_match
 
         by_code = session.exec(
             select(Location).where(Location.code == normalized)
         ).first()
-        if by_code:
-            return by_code
+        code_match = resolve_location_reference_match(
+            raw_value=raw_value,
+            by_full_path=None,
+            by_code=by_code,
+            by_name=[],
+        )
+        if code_match:
+            return code_match
 
         by_name = list(
             session.exec(
@@ -143,10 +156,12 @@ class LocationService:
                 .order_by(Location.level.desc(), Location.id.desc())
             ).all()
         )
-        if len(by_name) == 1:
-            return by_name[0]
-
-        return None
+        return resolve_location_reference_match(
+            raw_value=raw_value,
+            by_full_path=None,
+            by_code=None,
+            by_name=by_name,
+        )
     
     @staticmethod
     def get_all_locations(

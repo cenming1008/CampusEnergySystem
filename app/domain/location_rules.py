@@ -15,6 +15,28 @@ def calculate_location_path_fields(name: str, parent: Any | None) -> dict[str, i
     return {"level": 0, "full_path": f"/{name}"}
 
 
+def resolve_location_reference_match(
+    *,
+    raw_value: str | None,
+    by_full_path: Any | None,
+    by_code: Any | None,
+    by_name: Iterable[Any],
+) -> Any | None:
+    """Choose the matching location from service-provided lookup results."""
+    normalized = raw_value.strip() if raw_value else ""
+    if not normalized:
+        return None
+    if by_full_path:
+        return by_full_path
+    if by_code:
+        return by_code
+
+    name_matches = list(by_name)
+    if len(name_matches) == 1:
+        return name_matches[0]
+    return None
+
+
 def build_location_tree_node(location: Any, device_count: int) -> dict[str, Any]:
     """Build the public tree payload for one location node."""
     return {

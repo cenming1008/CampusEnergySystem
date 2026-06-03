@@ -5,6 +5,7 @@ from app.domain.location_rules import (
     build_location_statistics_payload,
     build_location_tree_node,
     calculate_location_path_fields,
+    resolve_location_reference_match,
 )
 
 
@@ -158,3 +159,40 @@ def test_build_location_statistics_payload_counts_devices_and_children():
         "area_sqm": 3000.0,
         "manager": "alice",
     }
+
+
+def test_resolve_location_reference_match_prefers_full_path_then_code_and_unique_name():
+    full_path_match = SimpleNamespace(id=1)
+    code_match = SimpleNamespace(id=2)
+    name_match = SimpleNamespace(id=3)
+
+    assert resolve_location_reference_match(
+        raw_value=" /园区/北区 ",
+        by_full_path=full_path_match,
+        by_code=code_match,
+        by_name=[name_match],
+    ) is full_path_match
+    assert resolve_location_reference_match(
+        raw_value="NORTH",
+        by_full_path=None,
+        by_code=code_match,
+        by_name=[name_match],
+    ) is code_match
+    assert resolve_location_reference_match(
+        raw_value="北区",
+        by_full_path=None,
+        by_code=None,
+        by_name=[name_match],
+    ) is name_match
+    assert resolve_location_reference_match(
+        raw_value="北区",
+        by_full_path=None,
+        by_code=None,
+        by_name=[name_match, SimpleNamespace(id=4)],
+    ) is None
+    assert resolve_location_reference_match(
+        raw_value=" ",
+        by_full_path=full_path_match,
+        by_code=code_match,
+        by_name=[name_match],
+    ) is None
