@@ -9,7 +9,6 @@ from app.core.logger import logger
 
 from app.domain.device_payloads import (
     ARCHIVE_STATUS_PENDING as DEVICE_ARCHIVE_STATUS_PENDING,
-    build_device_read_normalization_patch,
     build_device_create_fields,
     build_device_registry_default_patch,
     build_device_update_identity_patch,
@@ -23,6 +22,7 @@ from app.domain.device_payloads import (
     resolve_device_identity,
     resolve_effective_device_type,
     resolve_compensation_subtype,
+    with_device_read_normalization,
 )
 from app.models.tables import (
     CapacitorBankControlProfile,
@@ -69,22 +69,7 @@ class DeviceService:
     @staticmethod
     def _with_normalized_device_category(device: Any) -> Any:
         """返回补偿类设备类别已归一的只读副本。"""
-        patch = build_device_read_normalization_patch(device)
-        if not patch:
-            return device
-
-        # SQLModel/Pydantic v2 实例在当前运行态下不支持 copy.copy / model_copy，
-        # 否则会触发 `__pydantic_extra__` 访问错误并导致设备读接口 500。
-        if hasattr(device, "model_dump"):
-            payload = device.model_dump()
-            payload.update(patch)
-            return type(device)(**payload)
-
-        normalized_device = type("NormalizedDeviceView", (), {})()
-        normalized_device.__dict__.update(getattr(device, "__dict__", {}))
-        for field_name, value in patch.items():
-            setattr(normalized_device, field_name, value)
-        return normalized_device
+        return with_device_read_normalization(device)
 
     @staticmethod
     def _is_pending_archive(device: Any) -> bool:

@@ -14,6 +14,7 @@ from app.domain.device_payloads import (
     get_device_type_config,
     normalize_device_category,
     normalize_device_report_payload,
+    with_device_read_normalization,
 )
 
 
@@ -106,6 +107,34 @@ class TestDeviceDomainHelpers(unittest.TestCase):
                 "device_subtype": "capacitor_bank_controller",
             },
         )
+
+    def test_with_device_read_normalization_returns_same_object_when_no_patch_needed(self):
+        device = SimpleNamespace(
+            device_type="water_meter",
+            device_subtype=None,
+            device_category="water_meter",
+        )
+
+        self.assertIs(with_device_read_normalization(device), device)
+
+    def test_with_device_read_normalization_returns_patched_read_view_without_mutating_source(self):
+        device = SimpleNamespace(
+            id=7,
+            name="1号补偿设备",
+            device_type="reactive_power_compensator",
+            device_subtype=None,
+            device_category="load",
+        )
+
+        normalized = with_device_read_normalization(device)
+
+        self.assertIsNot(normalized, device)
+        self.assertEqual(normalized.id, 7)
+        self.assertEqual(normalized.name, "1号补偿设备")
+        self.assertEqual(normalized.device_category, "compensation")
+        self.assertEqual(normalized.device_subtype, "capacitor_bank_controller")
+        self.assertEqual(device.device_category, "load")
+        self.assertIsNone(device.device_subtype)
 
     def test_is_device_archive_complete_requires_core_profile_fields(self):
         incomplete = SimpleNamespace(

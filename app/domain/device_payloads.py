@@ -240,6 +240,26 @@ def build_device_read_normalization_patch(device: Any) -> dict[str, Any]:
     return patch
 
 
+def with_device_read_normalization(device: Any) -> Any:
+    """Return a read-only view with legacy device fields normalized."""
+    patch = build_device_read_normalization_patch(device)
+    if not patch:
+        return device
+
+    # SQLModel/Pydantic v2 instances in the current runtime cannot use
+    # copy.copy / model_copy safely because they may access __pydantic_extra__.
+    if hasattr(device, "model_dump"):
+        payload = device.model_dump()
+        payload.update(patch)
+        return type(device)(**payload)
+
+    normalized_device = type("NormalizedDeviceView", (), {})()
+    normalized_device.__dict__.update(getattr(device, "__dict__", {}))
+    for field_name, value in patch.items():
+        setattr(normalized_device, field_name, value)
+    return normalized_device
+
+
 def build_device_update_identity_patch(
     device: Any,
     *,
