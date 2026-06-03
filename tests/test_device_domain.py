@@ -6,6 +6,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test
 
 from app.domain import device_payloads
 from app.domain.device_payloads import (
+    build_device_semantic_profile,
     build_device_create_fields,
     build_device_registry_default_patch,
     build_device_update_identity_patch,
@@ -250,6 +251,32 @@ class TestDeviceDomainHelpers(unittest.TestCase):
 
         self.assertEqual(fields["public_fields"], ["consumption", "flow_rate"])
         self.assertIn("heat_flow", fields["specialized_fields"])
+
+    def test_build_device_semantic_profile_preserves_device_profile_payload_shape(self):
+        device = SimpleNamespace(
+            id=17,
+            name="1号水表",
+            device_type="water_meter",
+            device_subtype=None,
+            device_category="water_meter",
+            energy_type="water",
+            unit="m³/h",
+            rated_capacity=15.0,
+        )
+
+        profile = build_device_semantic_profile(device, semantic_type="water_meter")
+
+        self.assertEqual(profile["device_id"], 17)
+        self.assertEqual(profile["name"], "1号水表")
+        self.assertEqual(profile["device_type"], "water_meter")
+        self.assertIsNone(profile["device_subtype"])
+        self.assertEqual(profile["device_category"], "water_meter")
+        self.assertEqual(profile["energy_type"], "water")
+        self.assertEqual(profile["unit"], "m³/h")
+        self.assertEqual(profile["rated_capacity"], 15.0)
+        self.assertEqual(profile["object_role"], "meter")
+        self.assertEqual(profile["metering_role"], "dedicated_meter")
+        self.assertEqual(profile["energy_data_fields"]["public_fields"], ["consumption", "flow_rate"])
 
     def test_normalize_device_report_payload_maps_power_to_flow_rate(self):
         payload = normalize_device_report_payload(

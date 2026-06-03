@@ -30,6 +30,7 @@
 - [x] `device_service.py` 第六轮纯规则泄漏点已收口：pending archive status 迁入 `domain/device_payloads.py`。
 - [x] `device_service.py` 第七轮纯规则泄漏点已收口：update identity patch 迁入 `domain/device_payloads.py`。
 - [x] `device_service.py` 第八轮对象复制泄漏点已收口：read normalization view 迁入 `domain/device_payloads.py`。
+- [x] `device_service.py` 第九轮 profile payload 泄漏点已收口：semantic profile payload 迁入 `domain/device_payloads.py`。
 - [x] `campus_service.py` 第一轮纯聚合泄漏点已收口：energy category summary 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第二轮纯聚合泄漏点已收口：subitem statistics 迁入 `domain/campus_rules.py`。
 - [x] `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`。
@@ -79,6 +80,9 @@
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_with_device_read_normalization_returns_patched_read_view_without_mutating_source tests/test_device_domain.py::TestDeviceDomainHelpers::test_with_device_read_normalization_returns_same_object_when_no_patch_needed -q` 先失败于缺少 `with_device_read_normalization`，补实现后通过。
 - `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_semantic_profile_preserves_device_profile_payload_shape -q` 先失败于缺少 `build_device_semantic_profile`，补实现后通过。
+- `./venv/bin/python -m pytest tests/test_device_domain.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_device_service_round2.py::DeviceServiceRound2Test::test_get_device_semantic_profile_uses_normalized_category -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_energy_category_summary_sorts_and_preserves_response_shape -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_devices -q` 通过。
@@ -115,5 +119,5 @@
 - 第一阶段可判定：后续生产代码整理必须按单一泄漏点小步执行，必要时单独建立 PLAN。
 
 ## 当前剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message 与 alarm recovery decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status 与 update identity patch 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析与控制日志模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message 与 alarm recovery decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析与控制日志模式解析切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。

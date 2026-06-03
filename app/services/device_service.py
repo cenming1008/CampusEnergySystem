@@ -11,6 +11,7 @@ from app.domain.device_payloads import (
     ARCHIVE_STATUS_PENDING as DEVICE_ARCHIVE_STATUS_PENDING,
     build_device_create_fields,
     build_device_registry_default_patch,
+    build_device_semantic_profile,
     build_device_update_identity_patch,
     describe_device_type_semantics,
     describe_energy_data_fields,
@@ -515,21 +516,4 @@ class DeviceService:
         device = DeviceService.get_device_for_read(session, device_id)
         effective_subtype = DeviceService._effective_device_type(device)
         semantic_type = effective_subtype or device.device_type
-        device_type_profile = describe_device_type_semantics(semantic_type)
-        return {
-            "device_id": device.id,
-            "name": device.name,
-            "device_type": device.device_type,
-            "device_subtype": effective_subtype,
-            "device_category": device.device_category,
-            "energy_type": device.energy_type,
-            "unit": device.unit,
-            "rated_capacity": device.rated_capacity,
-            "object_role": device_type_profile["object_role"],
-            "metering_role": device_type_profile["metering_role"],
-            "point_kind": device_type_profile["point_kind"],
-            "measurement_subject": device_type_profile["measurement_subject"],
-            "consumption_unit": device_type_profile["consumption_unit"],
-            "flow_unit": device_type_profile["flow_unit"],
-            "energy_data_fields": describe_energy_data_fields(semantic_type),
-        }
+        return build_device_semantic_profile(device, semantic_type=semantic_type)

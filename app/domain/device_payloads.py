@@ -340,6 +340,31 @@ def describe_energy_data_fields(device_type: str) -> dict[str, Any]:
     }
 
 
+def build_device_semantic_profile(device: Any, *, semantic_type: str) -> dict[str, Any]:
+    """Build the public semantic profile payload for a device read model."""
+    device_type_profile = describe_device_type_semantics(semantic_type)
+    return {
+        "device_id": getattr(device, "id", None),
+        "name": getattr(device, "name", None),
+        "device_type": getattr(device, "device_type", None),
+        "device_subtype": resolve_compensation_subtype(
+            getattr(device, "device_type", None),
+            getattr(device, "device_subtype", None),
+        ) or normalize_device_subtype_alias(getattr(device, "device_subtype", None)),
+        "device_category": getattr(device, "device_category", None),
+        "energy_type": getattr(device, "energy_type", None),
+        "unit": getattr(device, "unit", None),
+        "rated_capacity": getattr(device, "rated_capacity", None),
+        "object_role": device_type_profile["object_role"],
+        "metering_role": device_type_profile["metering_role"],
+        "point_kind": device_type_profile["point_kind"],
+        "measurement_subject": device_type_profile["measurement_subject"],
+        "consumption_unit": device_type_profile["consumption_unit"],
+        "flow_unit": device_type_profile["flow_unit"],
+        "energy_data_fields": describe_energy_data_fields(semantic_type),
+    }
+
+
 def normalize_device_report_payload(device_type: str, data: dict[str, Any]) -> DeviceReportPayload:
     """将设备上报数据规范化成统一入库结构。"""
     config = get_device_type_config(device_type)
