@@ -10,14 +10,14 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlmodel import Session, select
-from sqlalchemy import func, or_
+from sqlmodel import Session
 
 from app.api.deps import ADMIN_ONLY
 from app.core.audit import _serialize_audit_value
 from app.core.database import get_session
 from app.core.response import success_response
 from app.models.tables import AuditEvent, User
+from app.services.audit_service import AuditService
 
 router = APIRouter()
 
@@ -57,36 +57,6 @@ def _to_response(event: AuditEvent) -> AuditEventResponse:
     )
 
 
-def _build_audit_statement(
-    action: Optional[str] = None,
-    actor: Optional[str] = None,
-    outcome: Optional[str] = None,
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None,
-    failed_only: bool = False,
-    denied_only: bool = False,
-):
-    """构建审计查询条件。"""
-    statement = select(AuditEvent)
-
-    if action:
-        statement = statement.where(AuditEvent.action == action)
-    if actor:
-        statement = statement.where(AuditEvent.actor == actor)
-    if outcome:
-        statement = statement.where(AuditEvent.outcome == outcome)
-    if failed_only:
-        statement = statement.where(or_(AuditEvent.outcome == "failed", AuditEvent.outcome == "denied"))
-    if denied_only:
-        statement = statement.where(AuditEvent.outcome == "denied")
-    if start_time:
-        statement = statement.where(AuditEvent.created_at >= start_time)
-    if end_time:
-        statement = statement.where(AuditEvent.created_at <= end_time)
-
-    return statement
-
-
 @router.get("/events", response_model=List[AuditEventResponse])
 def get_audit_events(
     action: Optional[str] = Query(None, description="按操作标识筛选"),
@@ -100,21 +70,16 @@ def get_audit_events(
     current_user: User = Depends(ADMIN_ONLY),
 ):
     """按条件查询审计事件，仅管理员可访问。"""
-    statement = _build_audit_statement(
+    events = AuditService.list_events(
+        session,
         action=action,
         actor=actor,
         outcome=outcome,
         start_time=start_time,
         end_time=end_time,
+        limit=limit,
+        offset=offset,
     )
-
-    statement = (
-        statement
-        .order_by(AuditEvent.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    )
-    events = list(session.exec(statement).all())
     return [_to_response(event) for event in events]
 
 
@@ -133,38 +98,20 @@ def search_audit_events(
     current_user: User = Depends(ADMIN_ONLY),
 ):
     """带总数和快捷筛选的审计查询接口。"""
-    base_statement = _build_audit_statement(
-        action=action,
-        actor=actor,
-        outcome=outcome,
-        start_time=start_time,
-        end_time=end_time,
-        failed_only=failed_only,
-        denied_only=denied_only,
-    )
-
-    count_statement = base_statement.with_only_columns(func.count()).order_by(None)
-    total = session.exec(count_statement).one()
-    page_statement = base_statement.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit)
-    events = list(session.exec(page_statement).all())
-
     return success_response(
-        data={
-            "items": [_to_response(event).model_dump() for event in events],
-            "total": int(total or 0),
-            "offset": offset,
-            "limit": limit,
-            "has_more": offset + len(events) < int(total or 0),
-            "filters": {
-                "action": action,
-                "actor": actor,
-                "outcome": outcome,
-                "failed_only": failed_only,
-                "denied_only": denied_only,
-                "start_time": start_time.isoformat() if start_time else None,
-                "end_time": end_time.isoformat() if end_time else None,
-            },
-        }
+        data=AuditService.search_events(
+            session,
+            action=action,
+            actor=actor,
+            outcome=outcome,
+            failed_only=failed_only,
+            denied_only=denied_only,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            offset=offset,
+            serialize_event=_to_response,
+        )
     )
 
 
@@ -175,31 +122,4 @@ def get_audit_summary(
     current_user: User = Depends(ADMIN_ONLY),
 ):
     """返回审计事件概览，便于后台快速查看近期风险。"""
-    start_time = datetime.now().timestamp() - hours * 3600
-    threshold = datetime.fromtimestamp(start_time)
-    events = list(
-        session.exec(
-            select(AuditEvent)
-            .where(AuditEvent.created_at >= threshold)
-            .order_by(AuditEvent.created_at.desc())
-        ).all()
-    )
-
-    by_outcome: dict[str, int] = {}
-    by_action: dict[str, int] = {}
-    for event in events:
-        by_outcome[event.outcome] = by_outcome.get(event.outcome, 0) + 1
-        by_action[event.action] = by_action.get(event.action, 0) + 1
-
-    top_actions = sorted(by_action.items(), key=lambda item: item[1], reverse=True)[:10]
-    return success_response(
-        data={
-            "window_hours": hours,
-            "total": len(events),
-            "outcomes": by_outcome,
-            "top_actions": [
-                {"action": action_name, "count": count}
-                for action_name, count in top_actions
-            ],
-        }
-    )
+    return success_response(data=AuditService.get_summary(session, hours=hours))

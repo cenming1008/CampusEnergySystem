@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.api.endpoints import analysis, auth, inspection, locations, maintenance, users
+from app.api.endpoints import analysis, audit, auth, inspection, locations, maintenance, users
 from app.api.endpoints.devices import data as device_data
 from app.api.endpoints.devices import ingestion_health
 from app.api.endpoints.devices import management
@@ -118,6 +118,104 @@ class TestEndpointApplicationConvergence(unittest.TestCase):
         self.assertEqual(result["data"], expected)
         mock_ensure_access.assert_called_once_with(session, current_user, 3)
         mock_use_case.assert_called_once_with(session=session, device_id=3)
+
+    @patch("app.api.endpoints.audit.AuditService.list_events")
+    def test_audit_events_endpoint_delegates_to_service(self, mock_list_events):
+        session = object()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        event = SimpleNamespace(
+            id=7,
+            action="device.toggle",
+            actor="admin",
+            target="device:1",
+            outcome="success",
+            actor_role="admin",
+            details='{"request_id":"req-1"}',
+            created_at=datetime(2026, 6, 4, 10, 0, 0),
+        )
+        mock_list_events.return_value = [event]
+
+        result = audit.get_audit_events(
+            action="device.toggle",
+            actor="admin",
+            outcome="success",
+            start_time=None,
+            end_time=None,
+            limit=50,
+            offset=10,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result[0].id, 7)
+        mock_list_events.assert_called_once_with(
+            session,
+            action="device.toggle",
+            actor="admin",
+            outcome="success",
+            start_time=None,
+            end_time=None,
+            limit=50,
+            offset=10,
+        )
+
+    @patch("app.api.endpoints.audit.AuditService.search_events")
+    def test_audit_search_endpoint_delegates_to_service(self, mock_search_events):
+        session = object()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        mock_search_events.return_value = {
+            "items": [],
+            "total": 0,
+            "offset": 0,
+            "limit": 100,
+            "has_more": False,
+            "filters": {"action": None},
+        }
+
+        result = audit.search_audit_events(
+            action=None,
+            actor=None,
+            outcome=None,
+            failed_only=True,
+            denied_only=False,
+            start_time=None,
+            end_time=None,
+            limit=100,
+            offset=0,
+            session=session,
+            current_user=current_user,
+        )
+
+        self.assertEqual(result["data"]["total"], 0)
+        mock_search_events.assert_called_once_with(
+            session,
+            action=None,
+            actor=None,
+            outcome=None,
+            failed_only=True,
+            denied_only=False,
+            start_time=None,
+            end_time=None,
+            limit=100,
+            offset=0,
+            serialize_event=audit._to_response,
+        )
+
+    @patch("app.api.endpoints.audit.AuditService.get_summary")
+    def test_audit_summary_endpoint_delegates_to_service(self, mock_get_summary):
+        session = object()
+        current_user = SimpleNamespace(username="admin", role="admin")
+        mock_get_summary.return_value = {
+            "window_hours": 24,
+            "total": 0,
+            "outcomes": {},
+            "top_actions": [],
+        }
+
+        result = audit.get_audit_summary(hours=24, session=session, current_user=current_user)
+
+        self.assertEqual(result["data"]["window_hours"], 24)
+        mock_get_summary.assert_called_once_with(session, hours=24)
 
     @patch("app.api.endpoints.inspection.create_inspection_task_use_case")
     def test_inspection_create_task_endpoint_delegates_to_application(self, mock_use_case):

@@ -55,6 +55,7 @@
 - [x] `app/services/devices/compensation/monitor_service.py` 第八轮 SVG payload 泄漏点已收口：SVG 容量利用率、回路摘要和柜温 metric 来源判断迁入 `domain/compensation_rules.py`。
 - [x] 后端规范护栏同步已完成：`app/README.md` 与审计库存已同步当前 endpoint/domain 分层，并新增 README / inventory 新鲜度与 domain 反向依赖护栏测试。
 - [x] 后端 service 边界护栏已完成：新增 service 禁止反向依赖 api/application 的测试，并将 `DeviceMonitorService.get_monitor_overview()` 改为 service 自有聚合能力，application 仅保留访问前置。
+- [x] `app/api/endpoints/audit.py` 厚 endpoint 泄漏点已收口：审计事件查询、分页计数和 summary 聚合迁入 `app/services/audit_service.py`，endpoint 保留 HTTP 参数、管理员依赖、响应模型和 `success_response` 包装。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -129,6 +130,8 @@
 - `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py tests/test_backend_layer_boundaries.py -q` 通过。
 - `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py::test_service_layer_does_not_import_api_or_application_layers -q` 先失败于 `app/services/device_monitor_service.py imports app.application.device_monitoring`，调整分层后通过。
 - `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py tests/test_device_monitor_service.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_device_monitor_overview_endpoint_delegates_to_application -q` 通过。
+- `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service -q` 先失败于 `app.api.endpoints.audit.AuditService` 不存在，补 service 后通过。
+- `./venv/bin/python -m pytest tests/test_audit.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_search_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_summary_endpoint_delegates_to_service -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
@@ -140,4 +143,5 @@
 - 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析、SVG 控制模式解析与 SVG payload metric 来源判断切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
 - 当前规范护栏已覆盖 README/库存同步和 domain 禁止反向依赖 api/application/services/integrations；endpoint/application/service 更细的 import 边界仍可后续按单独切片补充。
 - 当前 service 护栏已覆盖禁止反向依赖 api/application；后续如补更细边界，应优先评估 endpoint 是否只做 HTTP 适配、application 是否避免直接承接 SQL/ORM 查询。
+- `audit.py` 已完成查询下沉，但 endpoint 层仍有其他历史 direct SQL 特例，例如健康检查类探活或审计之外的管理查询；后续应按单一 endpoint 切片评估，避免一次性套宽规则。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。
