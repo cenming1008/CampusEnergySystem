@@ -142,11 +142,19 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 
 | 文件 | 说明 |
 |------|------|
-| `__init__.py` | 聚合 `management`、`data`、`health` 三个子路由。 |
+| `__init__.py` | 聚合设备主档、数据、监控、接入健康和设备族子路由。 |
 | `management.py` | 设备列表/详情/增删改、类型元数据、MQTT 控制指令下发。 |
 | `data.py` | HTTP 上报单设备测点数据、查询历史与统计（走统一上报用例）。 |
-| `health.py` | 单设备与概览维度的 MQTT 接入健康状态。 |
-| `shared.py` | 设备创建/更新/上报等 Pydantic 模型。 |
+| `monitoring.py` | 设备监控总览、实时状态、趋势与状态历史。 |
+| `ingestion_health.py` | 设备接入健康、接入记录与人工重放。 |
+| `compensation_svg.py` | 补偿类 SVG 子型扩展接口。 |
+| `compensation_capacitor_bank.py` | 补偿类电容补偿控制器子型扩展接口。 |
+| `storage.py` | 储能类设备监控扩展接口。 |
+| `schemas.py` | 设备域通用请求/响应模型。 |
+| `serializers.py` | 设备域通用轻量转换函数。 |
+| `health_serializers.py` | 设备接入健康专用转换函数。 |
+| `monitoring_serializers.py` | 设备监控专用转换函数。 |
+| `compensation_schemas.py` | 补偿类设备族共享请求/响应模型。 |
 
 ### `api/endpoints/energy/`
 
@@ -155,7 +163,10 @@ HTTP 路径前缀以 `router_registry.py` 为准（如设备模块为 `/devices`
 | `__init__.py` | 聚合能源数据与碳排放子路由。 |
 | `data.py` | 通用能源数据写入、查询、统计（走能源管理用例）。 |
 | `carbon.py` | 碳排放查询、汇总及手动试算（领域规则）。 |
-| `shared.py` | 能源与碳相关请求/响应模型及字段提取工具。 |
+| `schemas.py` | 能源与碳相关请求/响应模型。 |
+| `constants.py` | 能源与碳相关常量。 |
+| `serializers.py` | 能源与碳相关轻量转换函数。 |
+| `shared.py` | 历史兼容导出；新代码应直接导入 `schemas.py`、`constants.py` 或 `serializers.py`。 |
 
 ### `api/endpoints/data_cleanup/`
 

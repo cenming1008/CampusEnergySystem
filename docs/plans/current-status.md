@@ -53,6 +53,7 @@
 - [x] `app/services/devices/compensation/monitor_service.py` 第六轮纯规则泄漏点已收口：capacitor bank control log mode parsing 迁入 `domain/compensation_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第七轮纯规则泄漏点已收口：SVG control mode resolution 迁入 `domain/compensation_rules.py`。
 - [x] `app/services/devices/compensation/monitor_service.py` 第八轮 SVG payload 泄漏点已收口：SVG 容量利用率、回路摘要和柜温 metric 来源判断迁入 `domain/compensation_rules.py`。
+- [x] 后端规范护栏同步已完成：`app/README.md` 与审计库存已同步当前 endpoint/domain 分层，并新增 README / inventory 新鲜度与 domain 反向依赖护栏测试。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -123,6 +124,8 @@
 - `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py::TestCompensationMonitorServiceBoundary::test_build_monitor_marks_svg_as_read_only_capability -q` 通过。
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_build_svg_monitor_payload_parts_uses_telemetry_and_profile_counts -q` 先失败于缺少 `build_svg_monitor_payload_parts`，补实现后通过。
 - `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py -q` 通过。
+- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py::test_app_readme_describes_current_endpoint_layout tests/test_backend_architecture_audit_docs.py::test_backend_architecture_inventory_records_latest_compensation_svg_payload_slice -q` 先失败于 README / inventory 过时，补同步后通过。
+- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py tests/test_backend_layer_boundaries.py -q` 通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。
@@ -132,4 +135,5 @@
 
 ## 当前剩余风险
 - 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析、SVG 控制模式解析与 SVG payload metric 来源判断切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
+- 当前规范护栏已覆盖 README/库存同步和 domain 禁止反向依赖 api/application/services/integrations；endpoint/application/service 更细的 import 边界仍可后续按单独切片补充。
 - 若后续进入代码移动，必须按候选文件另起小步计划和测试闭环。
