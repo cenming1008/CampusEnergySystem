@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from app.domain import compensation_rules
 from app.domain.compensation_rules import (
+    build_svg_monitor_payload_parts,
     build_pq_reference_line,
     clamp_health_score,
     comm_health_score,
@@ -237,3 +238,100 @@ def test_resolve_svg_control_mode_preserves_telemetry_and_placeholder_payloads()
     assert resolve_svg_control_mode(True) == {"value": "自动", "source": "telemetry", "state": "live"}
     assert resolve_svg_control_mode(False) == {"value": "手动", "source": "telemetry", "state": "live"}
     assert resolve_svg_control_mode(None) == {"value": "待确认", "source": "placeholder", "state": "mock"}
+
+
+def test_build_svg_monitor_payload_parts_uses_telemetry_and_profile_counts():
+    parts = build_svg_monitor_payload_parts(
+        capacity_utilization=40.0,
+        profile_module_count=10,
+        rated_capacity=150.0,
+        reactive_power=30.0,
+        cabinet_temperature=36.5,
+        realtime_temperature=32.0,
+    )
+
+    assert parts["capacity_utilization_metric"] == {
+        "value": 40.0,
+        "source": "telemetry",
+        "state": "live",
+    }
+    assert parts["circuit_summary"] == {
+        "running_count": 4,
+        "total_count": 10,
+        "has_realtime_state": True,
+        "source": "telemetry",
+        "state": "live",
+    }
+    assert parts["compensation_level_metric"] == {
+        "value": 4,
+        "source": "telemetry",
+        "state": "live",
+    }
+    assert parts["cabinet_temperature_metric"] == {
+        "value": 36.5,
+        "source": "telemetry",
+        "state": "live",
+    }
+
+
+def test_build_svg_monitor_payload_parts_estimates_capacity_from_reactive_power():
+    parts = build_svg_monitor_payload_parts(
+        capacity_utilization=None,
+        profile_module_count=8,
+        rated_capacity=200.0,
+        reactive_power=-50.0,
+        cabinet_temperature=None,
+        realtime_temperature=31.2,
+    )
+
+    assert parts["capacity_utilization_metric"] == {
+        "value": 25.0,
+        "source": "estimated",
+        "state": "mock",
+    }
+    assert parts["circuit_summary"] == {
+        "running_count": 2,
+        "total_count": 8,
+        "has_realtime_state": True,
+        "source": "estimated",
+        "state": "mock",
+    }
+    assert parts["cabinet_temperature_metric"] == {
+        "value": 31.2,
+        "source": "realtime",
+        "state": "live",
+    }
+
+
+def test_build_svg_monitor_payload_parts_marks_missing_capacity_and_temperature():
+    parts = build_svg_monitor_payload_parts(
+        capacity_utilization=None,
+        profile_module_count=0,
+        rated_capacity=0.0,
+        reactive_power=None,
+        cabinet_temperature=None,
+        realtime_temperature=None,
+    )
+
+    assert parts["capacity_utilization_metric"] == {
+        "value": None,
+        "source": "missing",
+        "state": "missing",
+    }
+    assert parts["circuit_summary"] == {
+        "running_count": None,
+        "total_count": None,
+        "has_realtime_state": False,
+        "source": "missing",
+        "state": "missing",
+    }
+    assert parts["compensation_level_metric"] == {
+        "value": None,
+        "source": "missing",
+        "state": "missing",
+    }
+    assert parts["cabinet_temperature_metric"] == {
+        "value": None,
+        "source": "missing",
+        "state": "missing",
+    }

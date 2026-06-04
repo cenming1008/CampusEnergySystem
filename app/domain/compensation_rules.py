@@ -193,6 +193,87 @@ def build_capacitor_bank_temperature_health(
     return {"value": "待判断", "source": "missing", "state": "missing"}
 
 
+def build_monitor_metric(value: Any, *, source: str, state: str) -> dict[str, Any]:
+    return {
+        "value": value,
+        "source": source,
+        "state": state,
+    }
+
+
+def build_svg_monitor_payload_parts(
+    *,
+    capacity_utilization: Any,
+    profile_module_count: Any,
+    rated_capacity: Any,
+    reactive_power: Any,
+    cabinet_temperature: Any,
+    realtime_temperature: Any,
+) -> dict[str, Any]:
+    total_count = int(profile_module_count or 0)
+    total_count = total_count if total_count > 0 else None
+
+    resolved_capacity = optional_float(capacity_utilization)
+    capacity_source = "telemetry"
+    capacity_state = "live"
+    if resolved_capacity is None:
+        normalized_rated_capacity = optional_float(rated_capacity) or 0.0
+        normalized_reactive_power = optional_float(reactive_power)
+        if normalized_rated_capacity > 0 and normalized_reactive_power is not None:
+            resolved_capacity = round(
+                min(100.0, max(0.0, (abs(normalized_reactive_power) / normalized_rated_capacity) * 100.0)),
+                1,
+            )
+            capacity_source = "estimated"
+            capacity_state = "mock"
+        else:
+            capacity_source = "missing"
+            capacity_state = "missing"
+
+    running_count = None
+    circuit_source = "profile" if total_count is not None else "missing"
+    circuit_state = "live" if total_count is not None else "missing"
+    if resolved_capacity is not None and total_count is not None:
+        running_count = max(0, min(total_count, round((float(resolved_capacity) / 100.0) * total_count)))
+        circuit_source = capacity_source
+        circuit_state = "live" if capacity_state == "live" else "mock"
+
+    resolved_temperature = optional_float(cabinet_temperature)
+    temperature_source = "telemetry" if resolved_temperature is not None else "realtime"
+    temperature_state = "live" if resolved_temperature is not None else "missing"
+    if resolved_temperature is None:
+        resolved_temperature = optional_float(realtime_temperature)
+        if resolved_temperature is not None:
+            temperature_state = "live"
+        else:
+            temperature_source = "missing"
+
+    return {
+        "capacity_utilization_metric": build_monitor_metric(
+            resolved_capacity,
+            source=capacity_source,
+            state=capacity_state,
+        ),
+        "cabinet_temperature_metric": build_monitor_metric(
+            resolved_temperature,
+            source=temperature_source,
+            state=temperature_state,
+        ),
+        "compensation_level_metric": build_monitor_metric(
+            running_count,
+            source=circuit_source,
+            state=circuit_state,
+        ),
+        "circuit_summary": {
+            "running_count": running_count,
+            "total_count": total_count,
+            "has_realtime_state": resolved_capacity is not None and total_count is not None,
+            "source": circuit_source,
+            "state": circuit_state,
+        },
+    }
+
+
 def resolve_capacitor_bank_control_log_mode(
     *,
     normalized_result: Optional[str],

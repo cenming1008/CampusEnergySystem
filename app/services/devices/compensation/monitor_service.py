@@ -17,6 +17,7 @@ from app.domain.compensation_rules import (
     build_capacitor_bank_circuit_summary,
     build_capacitor_bank_temperature_health,
     build_pq_reference_line,
+    build_svg_monitor_payload_parts,
     clamp_health_score,
     comm_health_score,
     health_rating,
@@ -416,68 +417,24 @@ class CompensationMonitorService:
         telemetry = CompensationMonitorService._get_latest_svg_telemetry(session, device.id)
         profile = SVGService.get_operations_profile(session, device.id)
         control_mode = CompensationMonitorService._resolve_svg_control_mode(telemetry)
-        profile_module_count = int(getattr(profile, "module_count", 0) or 0)
-        total_count = profile_module_count if profile_module_count > 0 else None
-
-        capacity_utilization = getattr(telemetry, "capacity_utilization", None)
-        capacity_utilization_source = "telemetry"
-        capacity_utilization_state = "live"
-        if capacity_utilization is None:
-            rated_capacity = float(getattr(device, "rated_capacity", 0) or 0)
-            reactive_power = realtime.get("reactive_power")
-            if rated_capacity > 0 and reactive_power is not None:
-                capacity_utilization = round(min(100.0, max(0.0, (abs(float(reactive_power)) / rated_capacity) * 100.0)), 1)
-                capacity_utilization_source = "estimated"
-                capacity_utilization_state = "mock"
-            else:
-                capacity_utilization_source = "missing"
-                capacity_utilization_state = "missing"
-
-        running_count = None
-        circuit_source = "profile" if total_count is not None else "missing"
-        circuit_state = "live" if total_count is not None else "missing"
-        if capacity_utilization is not None and total_count is not None:
-            running_count = max(0, min(total_count, round((float(capacity_utilization) / 100.0) * total_count)))
-            circuit_source = capacity_utilization_source
-            circuit_state = "live" if capacity_utilization_state == "live" else "mock"
-
-        cabinet_temperature = getattr(telemetry, "cabinet_temp", None)
-        cabinet_temperature_source = "telemetry" if cabinet_temperature is not None else "realtime"
-        cabinet_temperature_state = "live" if cabinet_temperature is not None else "missing"
-        if cabinet_temperature is None:
-            cabinet_temperature = realtime.get("temperature")
-            if cabinet_temperature is not None:
-                cabinet_temperature_state = "live"
-            else:
-                cabinet_temperature_source = "missing"
+        svg_payload_parts = build_svg_monitor_payload_parts(
+            capacity_utilization=getattr(telemetry, "capacity_utilization", None),
+            profile_module_count=getattr(profile, "module_count", 0),
+            rated_capacity=getattr(device, "rated_capacity", None),
+            reactive_power=realtime.get("reactive_power"),
+            cabinet_temperature=getattr(telemetry, "cabinet_temp", None),
+            realtime_temperature=realtime.get("temperature"),
+        )
 
         return {
             "subtype": "svg",
             "control_mode": control_mode,
-            "circuit_summary": {
-                "running_count": running_count,
-                "total_count": total_count,
-                "has_realtime_state": capacity_utilization is not None and total_count is not None,
-                "source": circuit_source,
-                "state": circuit_state,
-            },
+            "circuit_summary": svg_payload_parts["circuit_summary"],
             "profile_status": None,
             "key_metrics": {
-                "capacity_utilization": CompensationMonitorService._build_metric(
-                    capacity_utilization,
-                    source=capacity_utilization_source,
-                    state=capacity_utilization_state,
-                ),
-                "cabinet_temperature": CompensationMonitorService._build_metric(
-                    cabinet_temperature,
-                    source=cabinet_temperature_source,
-                    state=cabinet_temperature_state,
-                ),
-                "compensation_level": CompensationMonitorService._build_metric(
-                    running_count,
-                    source=circuit_source,
-                    state=circuit_state,
-                ),
+                "capacity_utilization": svg_payload_parts["capacity_utilization_metric"],
+                "cabinet_temperature": svg_payload_parts["cabinet_temperature_metric"],
+                "compensation_level": svg_payload_parts["compensation_level_metric"],
             },
             "capabilities_summary": SVGService.get_control_capabilities(),
             "status_tags": [],
