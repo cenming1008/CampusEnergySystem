@@ -56,6 +56,7 @@
 - [x] 后端规范护栏同步已完成：`app/README.md` 与审计库存已同步当前 endpoint/domain 分层，并新增 README / inventory 新鲜度与 domain 反向依赖护栏测试。
 - [x] 后端 service 边界护栏已完成：新增 service 禁止反向依赖 api/application 的测试，并将 `DeviceMonitorService.get_monitor_overview()` 改为 service 自有聚合能力，application 仅保留访问前置。
 - [x] `app/api/endpoints/audit.py` 厚 endpoint 泄漏点已收口：审计事件查询、分页计数和 summary 聚合迁入 `app/services/audit_service.py`，endpoint 保留 HTTP 参数、管理员依赖、响应模型和 `success_response` 包装。
+- [x] `AuditService` 已纳入 `app.services` 统一导出，并补充 layer export 护栏。
 
 ## 当前阻塞
 - 当前无代码阻塞。
@@ -132,6 +133,7 @@
 - `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py tests/test_device_monitor_service.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_device_monitor_overview_endpoint_delegates_to_application -q` 通过。
 - `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service -q` 先失败于 `app.api.endpoints.audit.AuditService` 不存在，补 service 后通过。
 - `./venv/bin/python -m pytest tests/test_audit.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_search_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_summary_endpoint_delegates_to_service -q` 通过。
+- `./venv/bin/python -m pytest tests/test_layer_exports.py::TestLayerExports::test_services_exports_key_services_and_helpers -q` 先失败于 `AuditService` 未导出，补导出后通过。
 
 ## 当前验收判断
 - 第一阶段可判定：后端架构分层审计主题已建立正式 PLAN。

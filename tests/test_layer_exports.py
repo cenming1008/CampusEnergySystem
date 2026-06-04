@@ -31,6 +31,7 @@ class TestLayerExports(unittest.TestCase):
 
     def test_services_exports_key_services_and_helpers(self):
         self.assertTrue(hasattr(services, "DeviceService"))
+        self.assertTrue(hasattr(services, "AuditService"))
         self.assertTrue(hasattr(services, "UserService"))
         self.assertTrue(callable(services.process_payload))
         self.assertTrue(callable(services.auto_cleanup_data))

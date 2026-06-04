@@ -51,6 +51,7 @@
 - 后端规范护栏同步已完成：`app/README.md` 不再把 energy `shared.py` 描述为新增落点，审计库存已记录 SVG payload metric 来源判断切片，新增测试保护 README / inventory 新鲜度与 domain 层依赖方向。
 - 后端 service 边界护栏已完成：新增 service 禁止反向依赖 api/application 的测试，`DeviceMonitorService.get_monitor_overview()` 已改为 service 自有聚合能力，`application/device_monitoring.py` 仅保留访问前置和用户意图入口。
 - `app/api/endpoints/audit.py` 厚 endpoint 泄漏点已收口：审计事件查询、分页计数和 summary 聚合迁入 `app/services/audit_service.py`，endpoint 保留 HTTP 参数、管理员依赖、响应模型和 `success_response` 包装。
+- `AuditService` 已纳入 `app.services` 统一导出，并补充 layer export 护栏。
 
 ## 下一棒
 - 规则/预判角色：
@@ -126,6 +127,7 @@
 - `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py tests/test_device_monitor_service.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_device_monitor_overview_endpoint_delegates_to_application -q` 通过。
 - `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service -q` 先失败于 `app.api.endpoints.audit.AuditService` 不存在，补 service 后通过。
 - `./venv/bin/python -m pytest tests/test_audit.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_search_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_summary_endpoint_delegates_to_service -q` 通过。
+- `./venv/bin/python -m pytest tests/test_layer_exports.py::TestLayerExports::test_services_exports_key_services_and_helpers -q` 先失败于 `AuditService` 未导出，补导出后通过。
 
 ## 剩余风险
 - 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析、SVG 控制模式解析与 SVG payload metric 来源判断切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
