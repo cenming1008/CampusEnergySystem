@@ -205,7 +205,7 @@ app/application/
 
 - `get_device_monitor_overview_use_case(...)`
 
-该 use case 负责聚合设备档案、实时值、运行状态、接入健康、最近告警、控制日志、专属 monitor payload 和统一模板诊断字段。`DeviceMonitorService.get_monitor_overview(...)` 作为兼容 wrapper 保留，新的 HTTP overview 主路径优先调用 application use case。
+该 use case 负责访问前置，并委托 `DeviceMonitorService.get_monitor_overview(...)` 构建设备档案、实时值、运行状态、接入健康、最近告警、控制日志、专属 monitor payload 和统一模板诊断字段。新的 HTTP overview 主路径仍优先调用 application use case，service 保留稳定监控聚合能力。
 
 ---
 
@@ -468,7 +468,7 @@ MQTT 消息
 仍需注意：
 
 - `energy_management.py` 已承接 overview 编排；后续若出现更复杂的分层计量 / 分项分析流程，应继续增强 use case，而不是回堆 endpoint
-- `DeviceMonitorService.get_monitor_overview(...)` 当前作为兼容 wrapper 保留；新增监控 overview 主流程优先进入 `device_monitoring.py`
+- `DeviceMonitorService.get_monitor_overview(...)` 当前承接监控 overview 聚合能力；`device_monitoring.py` 负责访问前置和用户意图入口，不反向要求 service 调用 application
 - `telemetry_ingestion.py` 属于内部主流程，后续如果接入链路继续扩展，应继续保持它作为统一工作流入口
 - 前端主线页面如果需要稳定聚合口径，后端应优先新增稳定 use case / 聚合接口，而不是把逻辑继续堆回 endpoint
 - `auth.py` 已承接登录/刷新/登出主流程；登录限流闭包是唯一保留在 endpoint 的 HTTP 关注点，新增认证动作时不要把编排堆回 endpoint
