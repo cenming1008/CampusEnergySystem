@@ -951,4 +951,3 @@ git commit -m "docs: record backend reliability phase 1"
 - Existing Ruff debt remains visible without forcing unrelated cleanup.
 - The known migration failure is explicitly non-blocking and assigned to phase 2.
 - Full pytest, coverage, compile, dependency integrity, Ruff regression, and configured Mypy checks pass.
-

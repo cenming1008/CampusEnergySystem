@@ -190,4 +190,3 @@ HTTP / MQTT Consumer / Scheduler
 - `docs/plans/backend-architecture-audit-inventory.md`
 - `docs/guides/backend-guidelines.md`
 - `docs/guides/five-role-vibe-coding-framework.md`
-
