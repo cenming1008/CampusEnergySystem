@@ -16,7 +16,11 @@ from typing import Any, Dict, Optional
 from sqlmodel import Session
 
 from app.domain import analysis_rules
-from app.domain.campus_rules import ENERGY_CATEGORY_LABELS, SUB_ITEM_LABELS
+from app.domain.campus_rules import (
+    ENERGY_CATEGORY_LABELS,
+    SUB_ITEM_LABELS,
+    find_ancestor_location,
+)
 from app.domain.device_payloads import describe_device_type_semantics, describe_energy_data_fields
 from app.domain.energy_rules import calculate_energy_cost, get_energy_semantics
 from app.models.tables import EnergyData
@@ -190,7 +194,7 @@ class AnalysisService:
                 locations_by_id=context.locations_by_id,
                 target_types=AREA_LOCATION_TYPES,
                 top_n=top_n,
-                find_ancestor=CampusService._find_ancestor_location,
+                find_ancestor=find_ancestor_location,
             ),
             "buildings": analysis_rules.build_location_rankings(
                 device_stats=current_device_stats,
@@ -198,7 +202,7 @@ class AnalysisService:
                 locations_by_id=context.locations_by_id,
                 target_types=BUILDING_LOCATION_TYPES,
                 top_n=top_n,
-                find_ancestor=CampusService._find_ancestor_location,
+                find_ancestor=find_ancestor_location,
             ),
             "devices": analysis_rules.build_device_rankings(
                 device_stats=current_device_stats,
