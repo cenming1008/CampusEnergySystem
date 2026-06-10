@@ -1,143 +1,54 @@
 # Handoff
 
 ## 当前主题
-- 当前主主题：`后端架构分层审计与规范整理`
-- 当前执行依据：
-  - `docs/plans/PLAN-20260530-backend-architecture-layering-audit.md`
-  - `docs/superpowers/specs/2026-05-30-backend-architecture-audit-design.md`
 
----
+- `后端可靠性基线与渐进式解耦治理`
+- 正式 PLAN：`docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
+- 设计：`docs/superpowers/specs/2026-06-10-backend-reliability-and-decoupling-design.md`
+- 当前实施计划：`docs/superpowers/plans/2026-06-10-backend-reliability-phase1.md`
 
-## 阶段结论
-- 已确认本主题第一阶段定位为后端架构审计与规范护栏。
-- 第一阶段审计本身未移动生产代码；随后完成的 `energy/shared.py` 低风险 endpoint cleanup 仅调整模块导入和兼容导出，未改变 API 契约。
-- 审计分类固定为 `keep / watch / split_candidate / plan_required`。
-- 第一轮低风险 endpoint cleanup 已完成：`energy/shared.py` 拆为 `schemas.py`、`constants.py`、`serializers.py`，endpoint 新代码不再从 `.shared` 导入。
-- `alarm_service.py` 第一轮纯规则泄漏点已收口：storage managed categories 映射迁入 `domain/alarm_rules.py`，告警生命周期编排仍保留在 service。
-- `alarm_service.py` 第二轮纯规则泄漏点已收口：generic/media threshold managed categories 映射迁入 `domain/alarm_rules.py`，告警生命周期编排仍保留在 service。
-- `alarm_service.py` 第三轮纯规则泄漏点已收口：platform communication offline category/message 迁入 `domain/alarm_rules.py`，平台通讯告警创建 / 恢复编排仍保留在 service。
-- `alarm_service.py` 第四轮纯规则泄漏点已收口：alarm recovery decision 迁入 `domain/alarm_rules.py`，service 仍负责查询活跃告警并写回恢复状态。
-- `alarm_service.py` 第五轮纯规则泄漏点已收口：generic threshold compensation skip decision 迁入 `domain/alarm_rules.py`，service 仍负责查询设备规则身份与告警生命周期编排。
-- `device_service.py` 第一轮 profile/default 泄漏点已收口：legacy create registry defaults patch 迁入 `domain/device_payloads.py`，持久化、回滚和重复 SN 兼容仍保留在 service。
-- `device_service.py` 第二轮纯规则泄漏点已收口：compensation device category normalization 迁入 `domain/device_payloads.py`，只读对象复制仍保留在 service。
-- `device_service.py` 第三轮纯规则泄漏点已收口：pending archive completeness 迁入 `domain/device_payloads.py`，pending 状态流转触发仍保留在 service。
-- `device_service.py` 第四轮纯规则泄漏点已收口：effective device type 解析迁入 `domain/device_payloads.py`，service 仅保留兼容包装。
-- `device_service.py` 第五轮纯规则泄漏点已收口：read normalization patch 迁入 `domain/device_payloads.py`，读侧视图生成后续单独收口。
-- `device_service.py` 第六轮纯规则泄漏点已收口：pending archive status 迁入 `domain/device_payloads.py`，service 仅保留兼容常量与流程触发。
-- `device_service.py` 第七轮纯规则泄漏点已收口：update identity patch 迁入 `domain/device_payloads.py`，service 仅负责将 patch 写回设备对象并持久化。
-- `device_service.py` 第八轮对象复制泄漏点已收口：read normalization view 迁入 `domain/device_payloads.py`，service 仅保留兼容包装。
-- `device_service.py` 第九轮 profile payload 泄漏点已收口：semantic profile payload 迁入 `domain/device_payloads.py`，service 仅负责读取设备和选择语义类型。
-- `campus_service.py` 第一轮纯聚合泄漏点已收口：energy category summary 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
-- `campus_service.py` 第二轮纯聚合泄漏点已收口：subitem statistics 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
-- `campus_service.py` 第三轮纯聚合泄漏点已收口：realtime load trend 迁入 `domain/campus_rules.py`，驾驶舱查询与编排仍保留在 service。
-- `campus_service.py` 第四轮纯聚合泄漏点已收口：location rankings 迁入 `domain/campus_rules.py`，位置祖先定位仍由 service 作为 callback 提供。
-- `campus_service.py` 第五轮摘要聚合泄漏点已收口：alarm summary 迁入 `domain/campus_rules.py`，告警生命周期与规则触发仍留在 `alarm_service.py`。
-- `campus_service.py` 第六轮纯聚合泄漏点已收口：site entities / hierarchy summary 迁入 `domain/campus_rules.py`，context 构建、数据库查询与驾驶舱编排仍保留在 service。
-- `campus_service.py` 第七轮纯聚合泄漏点已收口：period energy summaries 迁入 `domain/campus_rules.py`，能源行查询仍保留在 service。
-- `campus_service.py` 第八轮纯规则泄漏点已收口：ancestor location lookup 迁入 `domain/campus_rules.py`，service 仅将 domain 函数作为聚合 callback 使用。
-- `location_service.py` 第一轮纯规则泄漏点已收口：full_path / level 路径计算迁入 `domain/location_rules.py`，数据库查询与对象赋值仍保留在 service。
-- `location_service.py` 第二轮轻量转换泄漏点已收口：location tree node payload 迁入 `domain/location_rules.py`，递归遍历和查询仍保留在 service。
-- `location_service.py` 第三轮统计聚合泄漏点已收口：location statistics payload 迁入 `domain/location_rules.py`，设备 / 子位置查询仍保留在 service。
-- `location_service.py` 第四轮树遍历泄漏点已收口：location tree traversal 迁入 `domain/location_rules.py`，service 仅提供设备计数和直接子位置查询 callback。
-- `location_service.py` 第五轮查询决策泄漏点已收口：location reference match 迁入 `domain/location_rules.py`，full_path / code / name 查询仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第一轮纯规则泄漏点已收口：PQ power factor normalization 与 reference line formatting 迁入 `domain/compensation_rules.py`，遥测查询与监控 payload 组装仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第二轮纯规则泄漏点已收口：health score primitive rules 迁入 `domain/compensation_rules.py`，健康模型 payload 组装仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第三轮纯规则泄漏点已收口：capacitor bank circuit summary 迁入 `domain/compensation_rules.py`，telemetry/profile 字段抽取与监控 payload 组装仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第四轮纯规则泄漏点已收口：capacitor bank temperature health 迁入 `domain/compensation_rules.py`，warning margin 配置读取仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第五轮纯规则泄漏点已收口：capacitor bank control mode resolution 迁入 `domain/compensation_rules.py`，control log 读取与日志结果归一仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第六轮纯规则泄漏点已收口：capacitor bank control log mode parsing 迁入 `domain/compensation_rules.py`，control log 查询与结果归一仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第七轮纯规则泄漏点已收口：SVG control mode resolution 迁入 `domain/compensation_rules.py`，SVG telemetry 查询和监控 payload 组装仍保留在 service。
-- `app/services/devices/compensation/monitor_service.py` 第八轮 SVG payload 泄漏点已收口：SVG 容量利用率、回路摘要和柜温 metric 来源判断迁入 `domain/compensation_rules.py`，SVG telemetry/profile 查询、控制模式解析调用和最终 monitor 响应装配仍保留在 service。
-- 后端规范护栏同步已完成：`app/README.md` 不再把 energy `shared.py` 描述为新增落点，审计库存已记录 SVG payload metric 来源判断切片，新增测试保护 README / inventory 新鲜度与 domain 层依赖方向。
-- 后端 service 边界护栏已完成：新增 service 禁止反向依赖 api/application 的测试，`DeviceMonitorService.get_monitor_overview()` 已改为 service 自有聚合能力，`application/device_monitoring.py` 仅保留访问前置和用户意图入口。
-- `app/api/endpoints/audit.py` 厚 endpoint 泄漏点已收口：审计事件查询、分页计数和 summary 聚合迁入 `app/services/audit_service.py`，endpoint 保留 HTTP 参数、管理员依赖、响应模型和 `success_response` 包装。
-- `AuditService` 已纳入 `app.services` 统一导出，并补充 layer export 护栏。
+## 已知信息
+
+- 用户已批准五阶段渐进治理路线。
+- 阶段 1 只处理测试、CI、依赖和静态质量门禁，不处理迁移实现、MQTT 或事务重构。
+- 当前 4 个 pytest 失败来自 `AnalysisService` 调用已删除的 `CampusService._find_ancestor_location`。
+- 旧 coverage/CI 使用 `unittest discover`，漏掉 66 个 pytest 风格测试。
+- 当前 Alembic offline upgrade 失败；阶段 1 只能保留显式非阻塞诊断，阶段 2 必须恢复为阻塞门禁。
+- Ruff 历史债务不能在阶段 1 全量清零，应建立机器可比较的 baseline，只阻止新增问题。
 
 ## 下一棒
-- 规则/预判角色：
-  - 后续进入生产代码整理前，先从 `docs/plans/backend-architecture-audit-inventory.md` 选择单一候选项。
-  - 若候选项为 `plan_required`，必须先建立或更新正式 `PLAN-*.md`。
-- 后端角色：
-  - 每轮只处理一个具体职责泄漏点，不做批量 service / endpoint 搬迁。
-  - 保持 API 路径、请求参数、响应模型和状态码兼容。
-  - 按候选项选择对应测试，必要时先补测试再改生产代码。
-- 验收角色：
-  - 核对本阶段是否仍只停留在审计和护栏。
-  - 后续每个生产代码整理阶段都要重新核对非目标和兼容边界。
 
-## 已验证
-- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py tests/test_layer_exports.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_threshold_managed_categories_follow_present_payload_fields -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_service.py::TestAlarmService::test_sync_platform_comm_alarm_creates_and_recovers_offline_instance -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_compute_alarm_recovery_decision_backfills_instance_key_and_skips_active_hits -q` 先失败于缺少 `compute_alarm_recovery_decision`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py tests/test_alarm_service.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_alarm_rule_profiles.py::test_should_skip_generic_threshold_detection_for_compensation_category_only -q` 先失败于缺少 `should_skip_generic_threshold_detection`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_alarm_service.py::TestAlarmService::test_general_threshold_alarm_skips_compensation_devices -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_registry_default_patch_normalizes_legacy_compensation_device -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_normalize_device_category_maps_legacy_compensation_load -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py tests/test_device_management_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_service_round2.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_update_identity_patch_normalizes_type_and_adds_missing_unit tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_update_identity_patch_preserves_existing_unit -q` 先失败于缺少 `build_device_update_identity_patch`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_with_device_read_normalization_returns_patched_read_view_without_mutating_source tests/test_device_domain.py::TestDeviceDomainHelpers::test_with_device_read_normalization_returns_same_object_when_no_patch_needed -q` 先失败于缺少 `with_device_read_normalization`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py tests/test_device_service_round2.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py::TestDeviceDomainHelpers::test_build_device_semantic_profile_preserves_device_profile_payload_shape -q` 先失败于缺少 `build_device_semantic_profile`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_device_domain.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_service_round2.py::DeviceServiceRound2Test::test_get_device_semantic_profile_uses_normalized_category -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_subitem_statistics_groups_by_device_category_and_ignores_missing_devices -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_realtime_load_trend_groups_rows_and_ignores_negative_deltas -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_location_rankings_rolls_summaries_up_to_target_locations -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_alarm_summary_counts_status_severity_locations_and_latest -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_site_entities_prefers_site_types_and_derives_roots_when_missing tests/test_campus_domain.py::test_build_hierarchy_summary_counts_locations_devices_and_meters -q` 先失败于缺少 `build_hierarchy_summary`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_build_period_energy_summaries_groups_rows_and_flags_meter_reset -q` 先失败于缺少 `build_period_energy_summaries`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py::test_find_ancestor_location_walks_parent_chain_and_handles_missing_nodes -q` 先失败于缺少 `find_ancestor_location`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_campus_domain.py tests/test_campus_endpoints.py tests/test_application_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py tests/test_location_application_use_cases.py tests/test_endpoint_application_convergence.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py::test_build_location_tree_node_preserves_response_shape -q` 通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py::test_build_location_statistics_payload_counts_devices_and_children -q` 通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py::test_build_location_tree_recurses_until_max_depth_with_service_callbacks -q` 先失败于缺少 `build_location_tree`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py tests/test_location_application_use_cases.py tests/test_endpoint_application_convergence.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py::test_resolve_location_reference_match_prefers_full_path_then_code_and_unique_name -q` 先失败于缺少 `resolve_location_reference_match`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_location_domain.py tests/test_location_application_use_cases.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_pq_model -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_health_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_health_model_defaults_missing_dimensions_to_zero -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_builds_temperature_health_from_threshold_and_alarm tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_pq_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_returns_backend_health_model tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_health_model_defaults_missing_dimensions_to_zero -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_builds_temperature_health_from_threshold_and_alarm tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_temperature_warning_margin_is_configurable tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_returns_capacitor_bank_compensation_monitor_semantics tests/test_device_monitor_service.py::TestDeviceMonitorService::test_monitor_overview_capacitor_bank_falls_back_to_profile_then_logs_then_placeholder -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_resolve_capacitor_bank_control_log_mode_accepts_only_successful_mode_logs -q` 先失败于缺少 `resolve_capacitor_bank_control_log_mode`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_resolve_svg_control_mode_preserves_telemetry_and_placeholder_payloads -q` 先失败于缺少 `resolve_svg_control_mode`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_compensation_monitor_service_boundary.py::TestCompensationMonitorServiceBoundary::test_build_monitor_marks_svg_as_read_only_capability -q` 通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py::test_build_svg_monitor_payload_parts_uses_telemetry_and_profile_counts -q` 先失败于缺少 `build_svg_monitor_payload_parts`，补实现后通过。
-- `./venv/bin/python -m pytest tests/test_compensation_domain.py tests/test_compensation_monitor_service_boundary.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py::test_app_readme_describes_current_endpoint_layout tests/test_backend_architecture_audit_docs.py::test_backend_architecture_inventory_records_latest_compensation_svg_payload_slice -q` 先失败于 README / inventory 过时，补同步后通过。
-- `./venv/bin/python -m pytest tests/test_backend_architecture_audit_docs.py tests/test_backend_layer_boundaries.py -q` 通过。
-- `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py::test_service_layer_does_not_import_api_or_application_layers -q` 先失败于 `app/services/device_monitor_service.py imports app.application.device_monitoring`，调整分层后通过。
-- `./venv/bin/python -m pytest tests/test_backend_layer_boundaries.py tests/test_device_monitor_service.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_device_monitor_overview_endpoint_delegates_to_application -q` 通过。
-- `./venv/bin/python -m pytest tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service -q` 先失败于 `app.api.endpoints.audit.AuditService` 不存在，补 service 后通过。
-- `./venv/bin/python -m pytest tests/test_audit.py tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_events_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_search_endpoint_delegates_to_service tests/test_endpoint_application_convergence.py::TestEndpointApplicationConvergence::test_audit_summary_endpoint_delegates_to_service -q` 通过。
-- `./venv/bin/python -m pytest tests/test_layer_exports.py::TestLayerExports::test_services_exports_key_services_and_helpers -q` 先失败于 `AuditService` 未导出，补导出后通过。
+### 后端角色
+
+- 严格按阶段 1 实施计划逐任务执行。
+- 先使用现有失败测试修复 AnalysisService，再修改工程门禁。
+- 不顺手处理 migration、readiness、MQTT、Unit of Work 或大型 service。
+- 每个任务按计划独立提交。
+
+### 验收角色
+
+- 核对全量 pytest 零失败。
+- 核对 coverage 与本地 pytest 使用相同测试人口。
+- 核对 push / pull_request / workflow_dispatch 均可触发 CI。
+- 核对 Ruff baseline 不允许新增或未同步移除的 finding。
+- 核对 migration 仍明确标为 phase 2 debt，而不是被删除或声称通过。
+
+### 规则 / 预判角色
+
+- 阶段 1 通过后，再建立阶段 2 的 migration inventory、设计和实施计划。
+- 阶段 2 必须覆盖 fresh database、representative existing database、offline SQL、deploy migration 和 readiness/rate-limit 状态码。
+
+## 限制条件
+
+- 保持 HTTP 路径、请求/响应 schema 和 MQTT topic 不变。
+- readiness 503、rate limit 429 属于阶段 2 的运行正确性修复。
+- 不使用双写维持新旧遥测路径。
+- 不新增 application -> concrete MQTT processor 依赖。
+- 不在没有独立计划的情况下调整 repository commit 默认值。
 
 ## 剩余风险
-- 当前已完成架构审计、文档护栏、`energy/shared.py` 低风险 endpoint cleanup、`alarm_service.py` storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 切片、`device_service.py` legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload 切片、`campus_service.py` 主要纯聚合 helper、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup 下沉、`location_service.py` path calculation / tree node payload / statistics payload / tree traversal / location reference match 切片，以及补偿监控 PQ、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析、SVG 控制模式解析与 SVG payload metric 来源判断切片；剩余风险集中在尚未处理的厚 service / 大 endpoint 独立泄漏点。
-- 当前规范护栏已覆盖 README/库存同步和 domain 禁止反向依赖 api/application/services/integrations；endpoint/application/service 更细的 import 边界仍可后续按单独切片补充。
-- 当前 service 护栏已覆盖禁止反向依赖 api/application；后续如补更细边界，应优先评估 endpoint 是否只做 HTTP 适配、application 是否避免直接承接 SQL/ORM 查询。
-- `audit.py` 已完成查询下沉，但 endpoint 层仍有其他历史 direct SQL 特例，例如健康检查类探活或审计之外的管理查询；后续应按单一 endpoint 切片评估，避免一次性套宽规则。
-- `energy/shared.py` 仅作为兼容导出保留；后续新增能源 endpoint 契约、常量或转换函数应直接进入明确模块。
-- 涉及控制链、权限、接口契约或历史专题边界的整理必须进入 `plan_required` 路径。
-- `alarm_service.py` 仍是 `split_candidate`，但已处理 storage、generic/media threshold managed categories、platform communication offline category/message、alarm recovery decision 与 generic threshold compensation skip decision 纯规则；后续继续整理时必须一次只选一个独立生命周期、规则 profile 编排或查询编排泄漏点。
-- `device_service.py` 仍是 `split_candidate`，但已处理 legacy create registry defaults patch、compensation category normalization、pending archive completeness、effective device type、read normalization patch、read normalization view、pending archive status、update identity patch 与 semantic profile payload；后续继续整理时必须一次只选一个独立 profile/default 编排或持久化边界泄漏点。
-- `campus_service.py` 仍是 `split_candidate`，但已处理 energy category summary、subitem statistics、realtime load trend、location rankings、alarm summary、site entities、hierarchy summary、period energy summaries 与 ancestor location lookup；后续若继续整理，应先评估查询 / context 编排边界，不再优先寻找纯聚合 helper。
-- `location_service.py` 仍是 `split_candidate`，但已处理路径计算、tree node payload、statistics payload、tree traversal 和 location reference match；后续继续整理时只能再选择查询编排中的一个独立泄漏点。
-- `app/services/devices/compensation/monitor_service.py` 仍是 `split_candidate`，但已处理 PQ 归一、参考线格式、健康评分基础规则、回路摘要、温度状态、控制模式解析、控制日志模式解析、SVG 控制模式解析和 SVG payload metric 来源判断；后续如继续整理需重新选择新的独立泄漏点，控制命令链路仍按 `plan_required` 处理。
+
+- CI 尚未实际在 GitHub 上运行，阶段 1 本地通过后仍需验收远端 workflow 证据。
+- 当前 constraints 方案需在临时干净 venv 验证，避免只对现有开发环境有效。
+- Ruff baseline 需要稳定归一化，避免单纯行号移动导致误报。
+- 阶段 2 前 migration 仍不是可信门禁。
