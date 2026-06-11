@@ -25,12 +25,7 @@ python-dotenv>=1.0.0
 redis>=5.0.0
 loguru>=0.7.2
 prometheus-client>=0.20.0
-coverage>=7.6.0
 httpx>=0.28.0
 
 # 定时任务
 apscheduler>=3.10.0
-
-# Python 静态质量工具（轻量启用，后续可逐步收紧）
-ruff==0.6.9
-mypy==1.11.2
