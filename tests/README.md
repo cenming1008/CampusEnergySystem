@@ -1,12 +1,12 @@
 # tests
 
-`tests/` 当前保持单层目录，默认通过 `unittest discover` 发现：
+`tests/` 当前保持单层目录，统一通过 pytest 发现和执行：
 
 ```bash
-./venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+./venv/bin/python -m pytest -q
 ```
 
-在没有同步调整覆盖率脚本、CI 和文档引用之前，不建议直接把现有测试拆到子目录或批量重命名。
+覆盖率、CI 和本地验收必须复用 pytest；不得再新增 `unittest discover` 独立入口。现有 `unittest.TestCase` 测试继续由 pytest 兼容收集。
 
 ## 当前分组
 

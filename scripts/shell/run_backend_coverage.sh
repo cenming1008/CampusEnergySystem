@@ -21,7 +21,7 @@ echo "==> Using Python: $PYTHON_BIN"
 echo "==> Backend coverage fail-under: ${BACKEND_COVERAGE_FAIL_UNDER}%"
 
 "$PYTHON_BIN" -m coverage erase
-"$PYTHON_BIN" -m coverage run -m unittest discover -s tests -p 'test_*.py'
+"$PYTHON_BIN" -m coverage run -m pytest -q
 "$PYTHON_BIN" -m coverage report --fail-under="$BACKEND_COVERAGE_FAIL_UNDER"
 
 if [ "$BACKEND_COVERAGE_XML" = "true" ]; then

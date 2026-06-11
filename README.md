@@ -27,7 +27,7 @@
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 cd frontend && npm install
 ```
 
@@ -64,6 +64,8 @@ npm run dev
 ```
 
 ### 方式 3：生产快速启动
+
+生产运行环境只安装 `requirements.txt`，不安装 `requirements-dev.txt` 中的测试与质量工具。
 
 ```bash
 cp env.prod.example .env.prod
@@ -221,7 +223,13 @@ alembic upgrade head
 ```bash
 source venv/bin/activate
 uvicorn app.main:app --reload
-pytest
+./venv/bin/python -m pytest -q
+```
+
+后端覆盖率入口使用同一 pytest 测试人口：
+
+```bash
+bash ./scripts/shell/run_backend_coverage.sh
 ```
 
 ### 前端
