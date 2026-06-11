@@ -1,0 +1,977 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "path": "app/api/deps.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/alarms.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/data_cleanup/__init__.py",
+      "code": "F401",
+      "message": "`.admin.cleanup_all_data` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/data_cleanup/__init__.py",
+      "code": "F401",
+      "message": "`.admin.get_cleanup_stats` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/data_cleanup/__init__.py",
+      "code": "F401",
+      "message": "`.basic.cleanup_data` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/data_cleanup/__init__.py",
+      "code": "F401",
+      "message": "`.basic.test_cleanup_endpoint` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/data_cleanup/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/device_groups.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/compensation_capacitor_bank.py",
+      "code": "F401",
+      "message": "`app.models.tables.CapacitorBankTelemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/compensation_capacitor_bank.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/compensation_svg.py",
+      "code": "F401",
+      "message": "`app.models.tables.SVGTelemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/compensation_svg.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/health_serializers.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/ingestion_health.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/management.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/devices/monitoring.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.carbon.calculate_carbon_manual` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.carbon.get_carbon_emissions` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.carbon.get_carbon_factors` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.carbon.get_carbon_summary` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.data.get_energy_data` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.data.get_energy_statistics` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.data.get_energy_types` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "F401",
+      "message": "`.data.save_energy_data` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/energy/data.py",
+      "code": "F401",
+      "message": "`app.core.response.success_response` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/frontend_errors.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/health.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/endpoints/reports.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/api/websocket.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/application/analysis.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/application/device_management.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/application/energy_management.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/application/reporting.py",
+      "code": "F821",
+      "message": "Undefined name `Alarm`",
+      "count": 1
+    },
+    {
+      "path": "app/application/reporting.py",
+      "code": "F821",
+      "message": "Undefined name `CarbonEmission`",
+      "count": 1
+    },
+    {
+      "path": "app/core/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/device_registry.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/error_handlers.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/lifecycle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/metrics.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/response.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/core/settings.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/domain/alarm_rule_profiles.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/domain/alarm_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/domain/analysis_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/domain/energy_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/domain/fdd_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/jkwf_lcd/__init__.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/compensation.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/device_extensions.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/payloads.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.compensation.extract_capacitor_bank_control_profile` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.compensation.extract_capacitor_bank_telemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.compensation.extract_svg_telemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.payloads.FIELD_ALIASES` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.payloads.MEANINGFUL_FIELDS` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "F401",
+      "message": "`app.integrations.mqtt.payloads.parse_numeric` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/integrations/mqtt/processor.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/main.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/models/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/models/compensation.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "F401",
+      "message": "`app.models.compensation.CapacitorBankControlProfile` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "F401",
+      "message": "`app.models.compensation.CapacitorBankTelemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "F401",
+      "message": "`app.models.compensation.SVGAssetProfile` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "F401",
+      "message": "`app.models.compensation.SVGConfig` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "F401",
+      "message": "`app.models.compensation.SVGTelemetry` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/models/tables.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/repositories/alarm_repository.py",
+      "code": "E711",
+      "message": "Comparison to `None` should be `cond is None`",
+      "count": 2
+    },
+    {
+      "path": "app/repositories/alarm_repository.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `False`; use `if not Alarm.is_resolved:` for false checks",
+      "count": 1
+    },
+    {
+      "path": "app/repositories/alarm_repository.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/repositories/base.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/repositories/device_repository.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/repositories/fdd_repository.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `False`; use `if not Alarm.is_resolved:` for false checks",
+      "count": 1
+    },
+    {
+      "path": "app/services/__init__.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "app/services/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "app/services/alarm_service.py",
+      "code": "F401",
+      "message": "`app.domain.alarm_rules.ActiveAlarmState` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/alarm_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/analysis_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/campus_service.py",
+      "code": "F401",
+      "message": "`app.domain.campus_rules.SITE_LOCATION_TYPES` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/campus_service.py",
+      "code": "F821",
+      "message": "Undefined name `Iterable`",
+      "count": 1
+    },
+    {
+      "path": "app/services/data_cleanup_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/device_group_service.py",
+      "code": "F841",
+      "message": "Local variable `group` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "app/services/device_group_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/device_monitor_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/device_service.py",
+      "code": "F401",
+      "message": "`app.domain.device_payloads.normalize_device_subtype_alias` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/device_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/control_command_service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RECEIPT_TIMEOUT` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/parameter_write_service.py",
+      "code": "F401",
+      "message": "`app.repositories.device_repository.DeviceRepository` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/parameter_write_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RECEIPT_TIMEOUT` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_ACCEPTED` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_FAILED` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_REJECTED` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_RUNNING` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_SUCCESS` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.CONTROL_RESULT_TIMEOUT` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.ControlProfileWritePreconditionError` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.PARAMETER_WRITE_SPECS` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "F401",
+      "message": "`app.services.devices.compensation.capacitor_bank.specs.PendingParameterWriteConflictError` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/capacitor_bank/service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/monitor_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/compensation/svg/service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/monitor_plugin_registry.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/monitor_template_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/devices/storage/monitor_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/energy_service.py",
+      "code": "F401",
+      "message": "`app.domain.device_payloads.describe_energy_data_fields` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/energy_service.py",
+      "code": "F401",
+      "message": "`app.domain.energy_rules` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/energy_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/inspection_service.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `if InspectionPoint.is_active:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "app/services/inspection_service.py",
+      "code": "F401",
+      "message": "`app.core.exceptions.DatabaseException` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/inspection_service.py",
+      "code": "F841",
+      "message": "Local variable `route` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "app/services/inspection_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/location_service.py",
+      "code": "E711",
+      "message": "Comparison to `None` should be `cond is None`",
+      "count": 1
+    },
+    {
+      "path": "app/services/location_service.py",
+      "code": "F401",
+      "message": "`app.models.tables.EnergyData` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/location_service.py",
+      "code": "F401",
+      "message": "`sqlmodel.func` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/location_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/maintenance_service.py",
+      "code": "F401",
+      "message": "`app.core.exceptions.DatabaseException` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/maintenance_service.py",
+      "code": "F401",
+      "message": "`sqlmodel.func` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/maintenance_service.py",
+      "code": "F401",
+      "message": "`sqlmodel.or_` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/maintenance_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/mqtt_processor.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/mqtt_realtime_bridge.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "app/services/mqtt_worker.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "app/services/report_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/scheduler_jobs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "app/services/scheduler_registry.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_alarm_endpoints.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_alarm_service.py",
+      "code": "F841",
+      "message": "Local variable `alarm_a` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "tests/test_application_use_cases.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_backend_architecture_audit_docs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_backend_layer_boundaries.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_backend_tooling_contracts.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_control_command_service_boundary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_control_profile_service_boundary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_ingestion.py",
+      "code": "F401",
+      "message": "`unittest.mock.MagicMock` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_ingestion.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_parameter_write_service_boundary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_capacitor_bank_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "tests/test_compensation_device_nested_api.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "tests/test_compensation_domain.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_compensation_monitor_service_boundary.py",
+      "code": "F841",
+      "message": "Local variable `now` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "tests/test_compensation_monitor_service_boundary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_data_cleanup_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_device_domain.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_device_monitor_plugin_registry.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_device_monitor_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "tests/test_endpoint_application_convergence.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_energy_domain.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_energy_endpoint_layering.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_ingestion_reliability.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_location_domain.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_module_boundaries.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_replay_ingestion_use_case.py",
+      "code": "F401",
+      "message": "`unittest.mock.call` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_replay_ingestion_use_case.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_reports_integration.py",
+      "code": "F841",
+      "message": "Local variable `fake_rows` is assigned to but never used",
+      "count": 2
+    },
+    {
+      "path": "tests/test_runtime_controls.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_scheduler_service.py",
+      "code": "F401",
+      "message": "`unittest.mock.MagicMock` imported but unused",
+      "count": 1
+    }
+  ]
+}
