@@ -15,6 +15,7 @@
 - [create_admin.py](/Users/todo/CampusEnergySystem/scripts/python/create_admin.py)：创建管理员
 - [check_config.py](/Users/todo/CampusEnergySystem/scripts/python/check_config.py)：检查配置
 - [check_production_readiness.py](/Users/todo/CampusEnergySystem/scripts/python/check_production_readiness.py)：检查生产环境配置是否满足上线要求
+- [check_ruff_regressions.py](/Users/todo/CampusEnergySystem/scripts/python/check_ruff_regressions.py)：维护并校验 Ruff 历史债务基线
 - [evaluate_capacity_baseline.py](/Users/todo/CampusEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
 - [replay_mqtt_failures.py](/Users/todo/CampusEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
 - [run_mqtt_ingest_worker.py](/Users/todo/CampusEnergySystem/scripts/python/run_mqtt_ingest_worker.py)：MQTT 入站采集 worker 入口
@@ -45,6 +46,12 @@ python scripts/python/create_admin.py
 
 # 容量基线判定
 python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/health_live.json --min-rps 20 --max-p95-ms 200 --min-success-rate 99 --expect-status-code 200
+
+# 校验 Ruff 历史债务基线
+./venv/bin/python scripts/python/check_ruff_regressions.py
+
+# 更新 Ruff 历史债务基线
+./venv/bin/python scripts/python/check_ruff_regressions.py --write-baseline
 ```
 
 ## 使用建议

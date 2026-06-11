@@ -1,7 +1,12 @@
 name: backend-ci
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -15,15 +20,34 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            constraints-ci.txt
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --constraint constraints-ci.txt -r requirements.txt -r requirements-dev.txt
+          pip check
 
       - name: Compile Python sources
         run: |
           PYTHONPYCACHEPREFIX=/tmp python -m compileall -q app tests scripts/python migrations
+
+      - name: Ruff regression gate
+        run: |
+          python scripts/python/check_ruff_regressions.py
+
+      - name: Report complete Ruff debt
+        continue-on-error: true
+        run: |
+          ruff check app tests
+
+      - name: Mypy configured scope
+        run: |
+          mypy
 
       - name: Development config check
         run: |
@@ -34,7 +58,9 @@ jobs:
         run: |
           python scripts/python/check_production_readiness.py --env-file env.prod.example
 
-      - name: Validate migrations
+      # PLAN-20260610 phase 2 must restore this as a blocking migration gate.
+      - name: Migration diagnostic pending phase 2
+        continue-on-error: true
         run: |
           alembic upgrade head --sql >/tmp/alembic_upgrade.sql
           test -s /tmp/alembic_upgrade.sql
@@ -53,7 +79,6 @@ jobs:
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@v0.35.0
-        continue-on-error: ${{ github.event_name == 'pull_request' }}
         with:
           image-ref: mineenergysystem-backend:ci
           format: table

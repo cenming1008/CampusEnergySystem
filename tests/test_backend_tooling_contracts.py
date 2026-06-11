@@ -94,6 +94,14 @@ def test_backend_ci_runs_automatic_pytest_and_ruff_regression_gates():
     assert "\n  push:" in content
     assert "\n  pull_request:" in content
     assert "\n  workflow_dispatch:" in content
+    assert "          cache: pip" in content
+    assert "          cache-dependency-path: |" in content
+    for dependency_path in [
+        "constraints-ci.txt",
+        "requirements.txt",
+        "requirements-dev.txt",
+    ]:
+        assert f"            {dependency_path}" in content
     assert (
         "pip install --constraint constraints-ci.txt "
         "-r requirements.txt -r requirements-dev.txt"
@@ -110,3 +118,14 @@ def test_backend_ci_quarantines_known_migration_failure_until_phase2():
 
     assert "continue-on-error: true" in migration_step
     assert "alembic upgrade head --sql" in migration_step
+
+
+def test_backend_ci_uses_read_only_permissions_and_blocking_image_scan():
+    content = read_text(".github/workflows/backend-ci.yml")
+    image_scan_step = workflow_step(content, "Scan backend image")
+
+    assert "\npermissions:\n  contents: read\n" in content
+    assert "uses: aquasecurity/trivy-action@" in image_scan_step
+    assert "exit-code: 1" in image_scan_step
+    assert "severity: CRITICAL,HIGH" in image_scan_step
+    assert "continue-on-error" not in image_scan_step
