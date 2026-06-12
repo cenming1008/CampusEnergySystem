@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`后端可靠性基线与渐进式解耦治理`
-- 当前总目标：先恢复可信测试、CI、迁移和运行基线，再按依赖顺序治理 MQTT 循环、事务所有权和剩余分层债务。
+- 当前总目标：先完成阶段 1 的远端 CI 验收与集成收口，再按正式设计进入阶段 2 的迁移、部署与运行可靠性治理。
 - 当前执行依据：
   - `docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
   - `docs/superpowers/specs/2026-06-10-backend-reliability-and-decoupling-design.md`
@@ -14,48 +14,45 @@
 ## 当前阶段
 
 - [x] 完成后端框架规范性、整齐度、可修改性和低耦合审查。
-- [x] 确认采用“最终目标彻底治理、执行过程渐进收敛”的路径。
-- [x] 完成并审核五阶段技术设计。
-- [x] 建立新的重量级主 PLAN。
-- [x] 编写阶段 1 逐文件、逐测试、逐提交实施计划。
-- [ ] 执行阶段 1：可信测试与 CI 基线。
-- [ ] 阶段 1 验收通过后设计阶段 2：迁移、部署与运行可靠性。
+- [x] 完成阶段 1 可信测试、依赖、CI 与静态质量门禁实现。
+- [x] 完成阶段 1 本地独立验收。
+- [ ] 推送分支后核对远端 GitHub CI 运行证据。
+- [ ] 远端 CI 通过后，由规则 / 预判角色建立阶段 2 迁移清单、设计与实施计划。
 
 ## 当前阻塞
 
-- 无方案阻塞。
-- 当前全量 pytest 有 4 个已定位失败，必须作为阶段 1 第一项修复。
-- 当前 Alembic 离线验证失败属于阶段 2；阶段 1 自动化 CI 时只能显式标记为非阻塞诊断，不得伪装为已通过。
+- 无本地实现阻塞。
+- 远端 GitHub CI 尚未运行，阶段 1 还缺推送后的远端验收证据。
+- Alembic migration 验证仍是阶段 2 非阻塞债务，不阻塞阶段 1 本地结论。
 
 ## 当前待办
 
-1. 按 `2026-06-10-backend-reliability-phase1.md` 执行 AnalysisService 回归修复。
-2. 将 coverage 和 CI 统一到完整 pytest 测试人口。
-3. 拆分 runtime/dev 依赖并建立 CI constraints。
-4. 建立 Ruff 历史基线和新增债务门禁。
-5. 完成阶段 1 全量验收并记录 CI 运行证据。
+1. 由验收 / 集成角色推送当前阶段 1 分支并核对 `push`、`pull_request` 或 `workflow_dispatch` 的实际运行结果。
+2. 若远端 CI 失败，只在阶段 1 范围内修复测试、依赖、CI 或质量门禁问题，不扩到 migration、MQTT 或事务治理。
+3. 远端 CI 通过后，由规则 / 预判角色先建立阶段 2 的 migration inventory、技术设计和实施计划，再交后端实现。
 
 ## 当前验证结论
 
-- 设计文档已完成占位符、范围、兼容边界和阶段门禁自审。
-- 当前审计基线：
-  - pytest 收集 541 项。
-  - 全量结果为 537 passed、4 failed。
-  - 架构专项测试 33 passed。
-  - `unittest discover` 只运行 475 项，证明旧 CI 测试人口不完整。
-  - Ruff 当前存在历史问题，阶段 1 采用 no-new-debt 基线，不做无关批量修复。
-  - Alembic offline upgrade 当前失败，归入阶段 2。
+- 当前阶段 1 HEAD：`7355fb3c`。
+- compile 通过。
+- `pip check` 返回 `No broken requirements found`。
+- 架构与工具护栏：36 passed。
+- Ruff no-new-debt gate 通过，历史基线保持 168 findings。
+- Mypy 配置范围内 2 files 通过；尚非全应用类型检查。
+- 全量 pytest：570 passed、3 warnings。
+- coverage：73%，高于 57% 门槛，且使用与本地一致的 pytest 测试人口。
+- `git diff --check` 通过。
+- 阶段 1 未修改 MQTT 或事务生产代码。
 
 ## 当前剩余风险
 
-- 阶段 1 尚未执行，当前分支不能视为后端可靠性基线已恢复。
-- CI 自动触发后会扩大执行频率，需要确保测试、依赖锁和 Ruff baseline 在同一提交中闭环。
-- migration diagnostic 在阶段 1 暂时非阻塞；阶段 2 未恢复阻塞门禁前，不能宣称部署链可靠。
-- MQTT、事务和大型 service 暂未改动，必须等待对应阶段计划。
+- 远端 GitHub CI 尚未运行，自动触发、缓存和安全扫描的实际平台证据待补。
+- Alembic offline / fresh database / representative existing database 迁移链仍未恢复可信，必须在阶段 2 独立治理。
+- 3 条非阻塞警告来自 LibreSSL 和测试环境默认 `SECRET_KEY`。
+- MQTT 循环、事务所有权和大型 service 分层债务均未进入本阶段。
 
 ## 当前验收判断
 
-- 技术设计：通过。
-- 实施计划：已完成，待选择执行方式。
-- 生产代码：本轮未修改。
-- 当前主题：已从后端架构审计切换为后端可靠性与渐进式解耦治理。
+- 阶段 1 本地实现与验收：通过。
+- 阶段 1 远端 CI 验收：待推送后验证。
+- 下一接手角色：验收 / 集成；远端证据完成后再交规则 / 预判角色准备阶段 2。

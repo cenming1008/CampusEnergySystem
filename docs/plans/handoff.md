@@ -4,51 +4,50 @@
 
 - `后端可靠性基线与渐进式解耦治理`
 - 正式 PLAN：`docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
-- 设计：`docs/superpowers/specs/2026-06-10-backend-reliability-and-decoupling-design.md`
-- 当前实施计划：`docs/superpowers/plans/2026-06-10-backend-reliability-phase1.md`
+- 当前阶段：阶段 1 本地验收已通过，远端 GitHub CI 待推送后验证。
+- 当前阶段 1 HEAD：`7355fb3c`。
 
-## 已知信息
+## 已完成
 
-- 用户已批准五阶段渐进治理路线。
-- 阶段 1 只处理测试、CI、依赖和静态质量门禁，不处理迁移实现、MQTT 或事务重构。
-- 当前 4 个 pytest 失败来自 `AnalysisService` 调用已删除的 `CampusService._find_ancestor_location`。
-- 旧 coverage/CI 使用 `unittest discover`，漏掉 66 个 pytest 风格测试。
-- 当前 Alembic offline upgrade 失败；阶段 1 只能保留显式非阻塞诊断，阶段 2 必须恢复为阻塞门禁。
-- Ruff 历史债务不能在阶段 1 全量清零，应建立机器可比较的 baseline，只阻止新增问题。
+- 修复 AnalysisService 祖先位置查询回归。
+- 统一 pytest 为本地、coverage 和 CI 的测试入口。
+- 拆分 runtime / development 依赖并建立精确 CI constraints。
+- 建立 Ruff 历史基线与 no-new-debt gate。
+- 完成自动 CI workflow、工具契约测试和本地独立验收。
+- 本地证据：compile 通过，依赖无破损，护栏 36 passed，Ruff 168 findings unchanged，Mypy 2 files success，全量 pytest 570 passed、3 warnings，coverage 73% > 57%，`git diff --check` 通过。
 
 ## 下一棒
 
-### 后端角色
+### 验收 / 集成角色
 
-- 严格按阶段 1 实施计划逐任务执行。
-- 先使用现有失败测试修复 AnalysisService，再修改工程门禁。
-- 不顺手处理 migration、readiness、MQTT、Unit of Work 或大型 service。
-- 每个任务按计划独立提交。
-
-### 验收角色
-
-- 核对全量 pytest 零失败。
-- 核对 coverage 与本地 pytest 使用相同测试人口。
-- 核对 push / pull_request / workflow_dispatch 均可触发 CI。
-- 核对 Ruff baseline 不允许新增或未同步移除的 finding。
-- 核对 migration 仍明确标为 phase 2 debt，而不是被删除或声称通过。
+- 优先推送阶段 1 分支并核对远端 GitHub CI 实际运行证据。
+- 核对 `push`、`pull_request`、`workflow_dispatch` 触发能力以及阻塞式 Trivy 扫描。
+- 远端 CI 通过后，给出阶段 1 正式收口结论；若失败，只打回阶段 1 范围内的问题。
 
 ### 规则 / 预判角色
 
-- 阶段 1 通过后，再建立阶段 2 的 migration inventory、设计和实施计划。
-- 阶段 2 必须覆盖 fresh database、representative existing database、offline SQL、deploy migration 和 readiness/rate-limit 状态码。
+- 仅在阶段 1 远端 CI 证据通过后，建立阶段 2 migration inventory、技术设计与实施计划。
+- 阶段 2 必须覆盖 fresh database、representative existing database、offline SQL、deploy migration、readiness 503 和 rate limit 429。
+
+### 后端角色
+
+- 阶段 2 正式设计和实施计划建立前，不修改 migration、部署、readiness 或 rate limit 生产逻辑。
+- 不提前处理 MQTT 依赖反转、Unit of Work 或大型 service 拆分。
 
 ## 限制条件
 
-- 保持 HTTP 路径、请求/响应 schema 和 MQTT topic 不变。
-- readiness 503、rate limit 429 属于阶段 2 的运行正确性修复。
-- 不使用双写维持新旧遥测路径。
-- 不新增 application -> concrete MQTT processor 依赖。
-- 不在没有独立计划的情况下调整 repository commit 默认值。
+- 保持 HTTP 路径、请求 / 响应 schema、MQTT topic 和主要业务行为兼容。
+- Alembic migration 在阶段 1 CI 中仍是明确的 Phase 2 非阻塞诊断，不得写成已通过。
+- Mypy 当前只覆盖配置中的 2 个文件，不得表述为全应用类型检查。
+- 阶段 1 未修改 MQTT 或事务生产代码。
 
 ## 剩余风险
 
-- CI 尚未实际在 GitHub 上运行，阶段 1 本地通过后仍需验收远端 workflow 证据。
-- 当前 constraints 方案需在临时干净 venv 验证，避免只对现有开发环境有效。
-- Ruff baseline 需要稳定归一化，避免单纯行号移动导致误报。
-- 阶段 2 前 migration 仍不是可信门禁。
+- 远端 GitHub CI 尚未运行，平台侧证据待补。
+- Alembic migration 链仍不可信，必须在阶段 2 恢复为阻塞门禁。
+- LibreSSL 与默认 `SECRET_KEY` 产生 3 条非阻塞测试警告。
+
+## 交接结论
+
+- 当前优先交接给验收 / 集成角色。
+- 远端 CI 验收完成后，才交规则 / 预判角色准备阶段 2。
