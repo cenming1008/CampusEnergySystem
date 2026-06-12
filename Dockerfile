@@ -12,10 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements.txt constraints-ci.txt ./
 RUN pip install --no-cache-dir --prefix=/install \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     --trusted-host pypi.tuna.tsinghua.edu.cn \
+    --constraint constraints-ci.txt \
+    setuptools==82.0.1 \
+    wheel==0.47.0 \
     -r requirements.txt
 
 # ---- Runtime stage ----

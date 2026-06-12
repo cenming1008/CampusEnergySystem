@@ -87,6 +87,39 @@ def test_test_and_quality_tools_live_in_development_requirements():
         assert package not in runtime
 
 
+def test_runtime_and_ci_constraints_exclude_unused_python_multipart():
+    runtime = parse_requirements(read_text("requirements.txt"))
+    constraints = parse_requirements(read_text("constraints-ci.txt"))
+
+    assert "python-multipart" not in runtime
+    assert "python-multipart" not in constraints
+
+
+def test_ci_constraints_pin_secure_packaging_tools():
+    constraints = parse_requirements(read_text("constraints-ci.txt"))
+
+    assert str(constraints["setuptools"].specifier) == "==82.0.1"
+    assert str(constraints["wheel"].specifier) == "==0.47.0"
+
+
+def test_backend_image_uses_ci_constraints_and_bundles_packaging_tools():
+    content = read_text("Dockerfile")
+    builder, runtime = content.split("# ---- Runtime stage ----", 1)
+    normalized_builder = " ".join(builder.split())
+    normalized_runtime = " ".join(runtime.split())
+
+    assert any(
+        line.startswith("COPY ") and "constraints-ci.txt" in line
+        for line in builder.splitlines()
+    )
+    assert "--prefix=/install" in normalized_builder
+    assert "--constraint constraints-ci.txt" in normalized_builder
+    assert "-r requirements.txt" in normalized_builder
+    assert "setuptools==82.0.1" in normalized_builder
+    assert "wheel==0.47.0" in normalized_builder
+    assert "COPY --from=builder /install /usr/local" in normalized_runtime
+
+
 def test_root_readme_uses_ci_constraints_for_local_backend_development():
     content = " ".join(read_text("README.md").split())
 
@@ -137,4 +170,5 @@ def test_backend_ci_uses_read_only_permissions_and_blocking_image_scan():
     assert "uses: aquasecurity/trivy-action@" in image_scan_step
     assert "exit-code: 1" in image_scan_step
     assert "severity: CRITICAL,HIGH" in image_scan_step
+    assert "ignore-unfixed: true" in image_scan_step
     assert "continue-on-error" not in image_scan_step
