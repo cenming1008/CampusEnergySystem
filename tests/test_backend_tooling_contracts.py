@@ -117,7 +117,15 @@ def test_backend_image_uses_ci_constraints_and_bundles_packaging_tools():
     assert "-r requirements.txt" in normalized_builder
     assert "setuptools==82.0.1" in normalized_builder
     assert "wheel==0.47.0" in normalized_builder
-    assert "COPY --from=builder /install /usr/local" in normalized_runtime
+    uninstall_packaging_tools = (
+        "python -m pip uninstall --yes setuptools wheel"
+    )
+    copy_builder_install = "COPY --from=builder /install /usr/local"
+    assert uninstall_packaging_tools in normalized_runtime
+    assert copy_builder_install in normalized_runtime
+    assert normalized_runtime.index(uninstall_packaging_tools) < (
+        normalized_runtime.index(copy_builder_install)
+    )
 
 
 def test_root_readme_uses_ci_constraints_for_local_backend_development():

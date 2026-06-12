@@ -34,6 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python -m pip uninstall --yes setuptools wheel
+
 COPY --from=builder /install /usr/local
 
 COPY . .
