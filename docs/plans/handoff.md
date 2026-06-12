@@ -5,7 +5,7 @@
 - `后端可靠性基线与渐进式解耦治理`
 - 正式 PLAN：`docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
 - 当前阶段：阶段 1 本地验收已通过，远端 GitHub CI 待推送后验证。
-- 当前阶段 1 HEAD：`7355fb3c`。
+- Task 1-7 本地验收基线提交：`7355fb3c`。
 
 ## 已完成
 

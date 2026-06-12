@@ -33,7 +33,7 @@
 
 ## 当前验证结论
 
-- 当前阶段 1 HEAD：`7355fb3c`。
+- Task 1-7 本地验收基线提交：`7355fb3c`。
 - compile 通过。
 - `pip check` 返回 `No broken requirements found`。
 - 架构与工具护栏：36 passed。
