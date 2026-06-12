@@ -27,7 +27,7 @@
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install --constraint constraints-ci.txt -r requirements.txt -r requirements-dev.txt
 cd frontend && npm install
 ```
 

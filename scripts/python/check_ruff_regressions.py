@@ -165,7 +165,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--write-baseline",
         action="store_true",
-        help="Replace the baseline with current Ruff findings",
+        help=(
+            "Create a missing baseline or update an existing baseline only when "
+            "current Ruff findings have not increased"
+        ),
     )
     return parser.parse_args()
 
@@ -174,6 +177,15 @@ def main() -> int:
     args = parse_args()
     current = collect_ruff_findings()
     if args.write_baseline:
+        if args.baseline.exists():
+            baseline = load_baseline(args.baseline)
+            new, _ = diff_findings(baseline, current)
+            if new:
+                print_findings(
+                    "Cannot update Ruff baseline with new findings:",
+                    new,
+                )
+                return 1
         write_baseline(args.baseline, current)
         print(f"Wrote Ruff baseline with {sum(current.values())} findings")
         return 0

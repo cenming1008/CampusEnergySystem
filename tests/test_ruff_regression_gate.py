@@ -364,3 +364,73 @@ def test_main_writes_current_findings_only_when_explicitly_requested(
     assert gate.main() == 0
     assert gate.load_baseline(baseline_path) == current
     assert capsys.readouterr().out == "Wrote Ruff baseline with 3 findings\n"
+
+
+@pytest.mark.parametrize(
+    "current",
+    [
+        Counter({("app/a.py", "F401", "unused import"): 2}),
+        Counter(
+            {
+                ("app/a.py", "F401", "unused import"): 1,
+                ("app/b.py", "F821", "undefined name"): 1,
+            }
+        ),
+    ],
+    ids=["increased-count", "new-identity"],
+)
+def test_main_write_baseline_rejects_new_debt_and_preserves_existing_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    current: Counter[Finding],
+):
+    baseline_path = tmp_path / "ruff-baseline.json"
+    baseline = Counter({("app/a.py", "F401", "unused import"): 1})
+    gate.write_baseline(baseline_path, baseline)
+    original_content = baseline_path.read_text(encoding="utf-8")
+    monkeypatch.setattr(gate, "collect_ruff_findings", lambda: current)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_ruff_regressions.py",
+            "--baseline",
+            str(baseline_path),
+            "--write-baseline",
+        ],
+    )
+
+    assert gate.main() == 1
+    output = capsys.readouterr().out
+    assert "Cannot update Ruff baseline with new findings:" in output
+    assert baseline_path.read_text(encoding="utf-8") == original_content
+
+
+def test_main_write_baseline_allows_existing_debt_to_shrink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    baseline_path = tmp_path / "ruff-baseline.json"
+    baseline = Counter(
+        {
+            ("app/a.py", "F401", "unused import"): 2,
+            ("app/b.py", "F821", "undefined name"): 1,
+        }
+    )
+    current = Counter({("app/a.py", "F401", "unused import"): 1})
+    gate.write_baseline(baseline_path, baseline)
+    monkeypatch.setattr(gate, "collect_ruff_findings", lambda: current)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_ruff_regressions.py",
+            "--baseline",
+            str(baseline_path),
+            "--write-baseline",
+        ],
+    )
+
+    assert gate.main() == 0
+    assert gate.load_baseline(baseline_path) == current

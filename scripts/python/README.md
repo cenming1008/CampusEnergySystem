@@ -50,12 +50,13 @@ python scripts/python/evaluate_capacity_baseline.py --report artifacts/load/heal
 # 校验 Ruff 历史债务基线
 ./venv/bin/python scripts/python/check_ruff_regressions.py
 
-# 更新 Ruff 历史债务基线
+# 首次创建基线，或在历史债务收缩后同步基线
 ./venv/bin/python scripts/python/check_ruff_regressions.py --write-baseline
 ```
 
 ## 使用建议
 
+- `--write-baseline` 只允许首次创建或收缩现有基线；发现新增 finding 或 count 时会拒绝写入。基线 JSON 的手工修改仍必须经过 code review。
 - 改真实设备接入时，优先调整设备侧网关或现场工控机工程；系统侧只约定 MQTT topic / payload、字段归一和入库规则
 - 当前数据库结构应优先通过 `python -m alembic upgrade head` 维护，不再把重建数据库当正式流程
 - 详细总览见 [scripts/README.md](/Users/todo/CampusEnergySystem/scripts/README.md)

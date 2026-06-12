@@ -87,6 +87,15 @@ def test_test_and_quality_tools_live_in_development_requirements():
         assert package not in runtime
 
 
+def test_root_readme_uses_ci_constraints_for_local_backend_development():
+    content = " ".join(read_text("README.md").split())
+
+    assert (
+        "pip install --constraint constraints-ci.txt "
+        "-r requirements.txt -r requirements-dev.txt"
+    ) in content
+
+
 def test_backend_ci_runs_automatic_pytest_and_ruff_regression_gates():
     content = read_text(".github/workflows/backend-ci.yml")
     normalized_content = " ".join(content.split())
