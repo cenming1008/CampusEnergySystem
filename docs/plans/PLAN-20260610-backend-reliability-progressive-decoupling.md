@@ -103,6 +103,8 @@ HTTP / MQTT Consumer / Scheduler
 - 将 pytest、coverage、Ruff、Mypy 移入明确的开发依赖。
 - 建立精确 CI constraints。
 - 建立 Ruff 历史基线，只阻止新增问题。
+- Ruff baseline writer 的有效变更只允许首次创建或收缩；检测到新增 finding 时拒绝写入。
+- 根 README 的本地开发安装入口使用 `constraints-ci.txt`，与 CI 解析同一组依赖版本。
 - 当前已知迁移失败在本阶段以显式非阻塞诊断保留，阶段 2 恢复为阻塞门禁。
 
 执行依据：
@@ -184,7 +186,8 @@ HTTP / MQTT Consumer / Scheduler
 - 2026-06-10：完成后端全量架构复核，综合判断为方向正确但可靠性与低耦合不足。
 - 2026-06-10：用户批准“最终目标彻底治理、执行采用渐进路径”。
 - 2026-06-10：设计文档通过审核，正式建立五阶段重量级治理主题。
-- 2026-06-12：阶段 1 本地实现与独立验收完成；compile 通过，依赖无破损，护栏 36 passed，Ruff 基线保持 168 findings，Mypy 配置范围 2 files 通过，全量 pytest 570 passed、3 warnings，coverage 73%（门槛 57%），`git diff --check` 通过。
+- 2026-06-12：阶段 1 Task 1-7 初始本地验收基线提交为 `7355fb3c`；最终审查修复与最新本地验证提交为 `2ce60f08`。
+- 2026-06-12：最终本地验证完成；compile 通过，依赖无破损，护栏 40 passed，Ruff 基线保持 168 findings，Mypy 配置范围 2 files 通过，全量 pytest 574 passed、3 warnings，coverage 73%（门槛 57%），`coverage.xml` 已生成，`git diff --check` 通过。
 - 2026-06-12：远端 GitHub CI 尚未运行，保留为推送后的验收动作；Alembic migration 继续作为阶段 2 非阻塞债务，未提前修改 MQTT 或事务生产代码。
 
 ## 相关文档

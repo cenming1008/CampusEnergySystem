@@ -34,13 +34,16 @@
 ## 当前验证结论
 
 - Task 1-7 本地验收基线提交：`7355fb3c`。
+- 最终审查修复与最新本地验证提交：`2ce60f08`。
 - compile 通过。
 - `pip check` 返回 `No broken requirements found`。
-- 架构与工具护栏：36 passed。
+- 架构与工具护栏：40 passed。
 - Ruff no-new-debt gate 通过，历史基线保持 168 findings。
+- Ruff baseline writer 的有效变更只允许首次创建或收缩，含新增 finding 时拒绝写入。
+- 根 README 的本地开发安装入口已使用 `constraints-ci.txt`，与 CI 解析同一组依赖版本。
 - Mypy 配置范围内 2 files 通过；尚非全应用类型检查。
-- 全量 pytest：570 passed、3 warnings。
-- coverage：73%，高于 57% 门槛，且使用与本地一致的 pytest 测试人口。
+- 全量 pytest：574 passed、3 warnings。
+- coverage：73%，高于 57% 门槛，使用与本地一致的 pytest 测试人口，且已生成 `coverage.xml`。
 - `git diff --check` 通过。
 - 阶段 1 未修改 MQTT 或事务生产代码。
 

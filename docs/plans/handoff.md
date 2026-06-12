@@ -6,6 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
 - 当前阶段：阶段 1 本地验收已通过，远端 GitHub CI 待推送后验证。
 - Task 1-7 本地验收基线提交：`7355fb3c`。
+- 最终审查修复与最新本地验证提交：`2ce60f08`。
 
 ## 已完成
 
@@ -13,8 +14,10 @@
 - 统一 pytest 为本地、coverage 和 CI 的测试入口。
 - 拆分 runtime / development 依赖并建立精确 CI constraints。
 - 建立 Ruff 历史基线与 no-new-debt gate。
+- Ruff baseline writer 的有效变更只允许首次创建或收缩，含新增 finding 时拒绝写入。
+- 根 README 的本地开发安装入口已使用 `constraints-ci.txt`，与 CI 解析同一组依赖版本。
 - 完成自动 CI workflow、工具契约测试和本地独立验收。
-- 本地证据：compile 通过，依赖无破损，护栏 36 passed，Ruff 168 findings unchanged，Mypy 2 files success，全量 pytest 570 passed、3 warnings，coverage 73% > 57%，`git diff --check` 通过。
+- 本地证据：compile 通过，依赖无破损，护栏 40 passed，Ruff 168 findings unchanged，Mypy 2 files success，全量 pytest 574 passed、3 warnings，coverage 73% > 57% 且已生成 `coverage.xml`，`git diff --check` 通过。
 
 ## 下一棒
 
