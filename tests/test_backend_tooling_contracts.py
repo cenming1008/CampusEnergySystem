@@ -117,6 +117,13 @@ def test_ci_constraints_pin_secure_packaging_tools():
     assert str(constraints["wheel"].specifier) == "==0.47.0"
 
 
+def test_ci_constraints_pin_secure_transitive_runtime_dependencies():
+    constraints = parse_requirements(read_text("constraints-ci.txt"))
+
+    assert str(constraints["mako"].specifier) == "==1.3.12"
+    assert str(constraints["urllib3"].specifier) == "==2.7.0"
+
+
 def test_backend_image_uses_ci_constraints_and_bundles_packaging_tools():
     content = read_text("Dockerfile")
     builder, runtime = content.split("# ---- Runtime stage ----", 1)
