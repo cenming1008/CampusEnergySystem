@@ -1,6 +1,6 @@
 # PLAN-20260610 后端可靠性基线与渐进式解耦治理
 
-> 状态：阶段 1 本地验收完成，远端 CI 待推送后验证；阶段 2 待立项 | 负责人：规则 -> 后端 -> 验收 | 更新时间：2026-06-12
+> 状态：阶段 1 已完成并通过远端 CI；阶段 2 进入迁移清单与实施计划准备 | 负责人：规则 -> 预判 -> 后端 -> 验收 | 更新时间：2026-06-13
 
 ---
 
@@ -95,7 +95,7 @@ HTTP / MQTT Consumer / Scheduler
 
 ### 阶段 1：可信测试与 CI 基线
 
-状态：本地实现与独立验收已完成；远端 GitHub CI 运行证据待分支推送后补齐。
+状态：已完成。远端 GitHub Actions `backend-ci` run `27456526020` 全链路通过。
 
 - 修复当前 4 个 pytest 回归。
 - 统一 pytest 为本地、coverage 和 CI 的测试入口。
@@ -105,6 +105,10 @@ HTTP / MQTT Consumer / Scheduler
 - 建立 Ruff 历史基线，只阻止新增问题。
 - Ruff baseline writer 的有效变更只允许首次创建或收缩；检测到新增 finding 时拒绝写入。
 - 根 README 的本地开发安装入口使用 `constraints-ci.txt`，与 CI 解析同一组依赖版本。
+- 后端最低运行基线统一为 Python 3.10+。
+- OAuth2 表单解析依赖锁定为 `python-multipart==0.0.32`，并由真实 URL-encoded 登录请求测试保护。
+- Docker 运行时清理旧 packaging metadata，锁定安全版 setuptools、wheel、Mako 与 urllib3。
+- Trivy 对可修复 HIGH / CRITICAL 保持阻塞，扫描结果为 Debian 与 Python packages 均 0 findings。
 - 当前已知迁移失败在本阶段以显式非阻塞诊断保留，阶段 2 恢复为阻塞门禁。
 
 执行依据：
@@ -112,6 +116,8 @@ HTTP / MQTT Consumer / Scheduler
 - `docs/superpowers/plans/2026-06-10-backend-reliability-phase1.md`
 
 ### 阶段 2：迁移、部署与运行可靠性
+
+状态：规则 / 预判角色正在建立 migration inventory、详细设计和实施计划；生产代码尚未开始修改。
 
 - 将动态 Alembic 基线固化为确定性 schema snapshot。
 - 修复离线迁移链。
@@ -171,8 +177,8 @@ HTTP / MQTT Consumer / Scheduler
 
 ## 验收标准
 
-- [ ] 全量后端测试和架构护栏在 push / pull_request 自动执行并通过。
-- [ ] 新 Ruff 违规会阻止合并，历史基线不会静默增长。
+- [x] 全量后端测试和架构护栏在 push / pull_request 自动执行并通过。
+- [x] 新 Ruff 违规会阻止合并，历史基线不会静默增长。
 - [ ] 新库和代表性已有 PostgreSQL 数据库可迁移至 head。
 - [ ] 部署在应用 ready 前完成 migration。
 - [ ] application 与 MQTT integration 不存在循环依赖。
@@ -187,8 +193,12 @@ HTTP / MQTT Consumer / Scheduler
 - 2026-06-10：用户批准“最终目标彻底治理、执行采用渐进路径”。
 - 2026-06-10：设计文档通过审核，正式建立五阶段重量级治理主题。
 - 2026-06-12：阶段 1 Task 1-7 初始本地验收基线提交为 `7355fb3c`；最终审查修复与最新本地验证提交为 `2ce60f08`。
-- 2026-06-12：最终本地验证完成；compile 通过，依赖无破损，护栏 40 passed，Ruff 基线保持 168 findings，Mypy 配置范围 2 files 通过，全量 pytest 574 passed、3 warnings，coverage 73%（门槛 57%），`coverage.xml` 已生成，`git diff --check` 通过。
-- 2026-06-12：远端 GitHub CI 尚未运行，保留为推送后的验收动作；Alembic migration 继续作为阶段 2 非阻塞债务，未提前修改 MQTT 或事务生产代码。
+- 2026-06-12：阶段 1 首轮本地验证完成；compile 通过，依赖无破损，护栏 40 passed，Ruff 基线保持 168 findings，Mypy 配置范围 2 files 通过，全量 pytest 574 passed、3 warnings，coverage 73%（门槛 57%），`coverage.xml` 已生成，`git diff --check` 通过。
+- 2026-06-12：当日远端 GitHub CI 尚未运行；该待验状态已由 2026-06-13 的成功运行取代。Alembic migration 继续作为阶段 2 债务，未提前修改 MQTT 或事务生产代码。
+- 2026-06-13：首次远端 Trivy 运行暴露旧 packaging metadata、OAuth 表单依赖和新发布的传递依赖漏洞；按 TDD 和两轮独立复核完成修复。
+- 2026-06-13：后端最低版本统一为 Python 3.10+；锁定 `python-multipart==0.0.32`、`setuptools==82.0.1`、`wheel==0.47.0`、`Mako==1.3.12`、`urllib3==2.7.0`。
+- 2026-06-13：远端 `backend-ci` run `27456526020` 在提交 `1dfd2314` 上通过；580 tests、coverage 73%、Ruff 168 unchanged、Mypy 2 files success、Docker build、production Compose、阻塞式 Trivy 和 `backend-coverage-xml` 上传均通过。
+- 2026-06-13：阶段 1 正式收口，阶段门禁满足；下一棒切换至规则 / 预判角色建立阶段 2 migration inventory 和实施计划。
 
 ## 相关文档
 

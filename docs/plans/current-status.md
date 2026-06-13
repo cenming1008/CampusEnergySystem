@@ -3,59 +3,59 @@
 ## 当前总目标
 
 - 当前主主题：`后端可靠性基线与渐进式解耦治理`
-- 当前总目标：先完成阶段 1 的远端 CI 验收与集成收口，再按正式设计进入阶段 2 的迁移、部署与运行可靠性治理。
+- 当前总目标：阶段 1 已正式收口；当前由规则 / 预判角色准备阶段 2A Alembic 链可信化设计与实施计划。
 - 当前执行依据：
   - `docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
   - `docs/superpowers/specs/2026-06-10-backend-reliability-and-decoupling-design.md`
   - `docs/superpowers/plans/2026-06-10-backend-reliability-phase1.md`
-
----
+  - `docs/plans/backend-reliability-phase2-inventory.md`
 
 ## 当前阶段
 
 - [x] 完成后端框架规范性、整齐度、可修改性和低耦合审查。
 - [x] 完成阶段 1 可信测试、依赖、CI 与静态质量门禁实现。
 - [x] 完成阶段 1 本地独立验收。
-- [ ] 推送分支后核对远端 GitHub CI 运行证据。
-- [ ] 远端 CI 通过后，由规则 / 预判角色建立阶段 2 迁移清单、设计与实施计划。
+- [x] 完成远端 GitHub CI、Docker、Compose、Trivy 和 coverage artifact 验收。
+- [x] 建立阶段 2 migration、部署和运行语义事实清单。
+- [ ] 由规则角色确认阶段 2 拆分为 2A Alembic 链可信化、2B 部署与运行语义。
+- [ ] 编写并批准阶段 2A 详细设计与实施计划。
 
 ## 当前阻塞
 
-- 无本地实现阻塞。
-- 远端 GitHub CI 尚未运行，阶段 1 还缺推送后的远端验收证据。
-- Alembic migration 验证仍是阶段 2 非阻塞债务，不阻塞阶段 1 本地结论。
-
-## 当前待办
-
-1. 由验收 / 集成角色推送当前阶段 1 分支并核对 `push`、`pull_request` 或 `workflow_dispatch` 的实际运行结果。
-2. 若远端 CI 失败，只在阶段 1 范围内修复测试、依赖、CI 或质量门禁问题，不扩到 migration、MQTT 或事务治理。
-3. 远端 CI 通过后，由规则 / 预判角色先建立阶段 2 的 migration inventory、技术设计和实施计划，再交后端实现。
+- 无阶段 1 阻塞。
+- 阶段 2A 生产代码受设计门禁约束，尚未开始修改。
+- 当前 migration 链的 fresh、offline 和 representative existing database 路径均不可信。
 
 ## 当前验证结论
 
-- Task 1-7 本地验收基线提交：`7355fb3c`。
-- 最终审查修复与最新本地验证提交：`2ce60f08`。
-- compile 通过。
-- `pip check` 返回 `No broken requirements found`。
-- 架构与工具护栏：40 passed。
-- Ruff no-new-debt gate 通过，历史基线保持 168 findings。
-- Ruff baseline writer 的有效变更只允许首次创建或收缩，含新增 finding 时拒绝写入。
-- 根 README 的本地开发安装入口已使用 `constraints-ci.txt`，与 CI 解析同一组依赖版本。
-- Mypy 配置范围内 2 files 通过；尚非全应用类型检查。
-- 全量 pytest：574 passed、3 warnings。
-- coverage：73%，高于 57% 门槛，使用与本地一致的 pytest 测试人口，且已生成 `coverage.xml`。
-- `git diff --check` 通过。
-- 阶段 1 未修改 MQTT 或事务生产代码。
+- 阶段 1 最终提交：`1dfd2314`。
+- 远端 `backend-ci` run：`27456526020`，结论 success。
+- 远端全量 pytest：580 passed、1 warning。
+- coverage：73%，已上传 `backend-coverage-xml` artifact。
+- Ruff baseline：168 findings unchanged。
+- Mypy 配置范围：2 files success。
+- Docker image build 与 production Compose validation 通过。
+- Trivy 阻塞式 HIGH / CRITICAL 扫描通过，Debian 与 Python packages 均 0 findings。
+- 后端最低版本已统一为 Python 3.10+。
+
+## 当前待办
+
+1. 规则角色确认阶段 2A / 2B 拆分和契约边界。
+2. 先为阶段 2A 编写正式设计，覆盖确定性基线、offline SQL、三类数据库 fixture、schema reconciliation 和 CI 阻塞门禁。
+3. 设计获批后编写阶段 2A TDD 实施计划，并继续采用 Subagent-Driven 逐任务分派和逐项复核。
+4. 阶段 2A 验收通过后，再建立阶段 2B 的部署与 HTTP 运行语义实施计划。
 
 ## 当前剩余风险
 
-- 远端 GitHub CI 尚未运行，自动触发、缓存和安全扫描的实际平台证据待补。
-- Alembic offline / fresh database / representative existing database 迁移链仍未恢复可信，必须在阶段 2 独立治理。
-- 3 条非阻塞警告来自 LibreSSL 和测试环境默认 `SECRET_KEY`。
-- MQTT 循环、事务所有权和大型 service 分层债务均未进入本阶段。
+- `20260325_0001` 仍依赖当前 ORM metadata 动态建表。
+- offline SQL 在 `20260412_0003` 稳定失败，后续多个 revision 仍有在线查询。
+- Alembic head 不能证明现有库 schema 完整。
+- 部署脚本未显式执行 migration，且使用 liveness 代替 readiness。
+- readiness 失败仍返回 HTTP 200；全局 rate limit 仍可能返回 HTTP 500。
+- GitHub Actions 提示 Node.js 20 action runtime 将被弃用，属于后续 CI 维护项，不阻塞阶段 1。
 
 ## 当前验收判断
 
-- 阶段 1 本地实现与验收：通过。
-- 阶段 1 远端 CI 验收：待推送后验证。
-- 下一接手角色：验收 / 集成；远端证据完成后再交规则 / 预判角色准备阶段 2。
+- 阶段 1：通过并正式收口。
+- 阶段 2 预判：完成。
+- 下一接手角色：规则；设计批准后交后端。

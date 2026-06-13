@@ -43,7 +43,7 @@
 - Modify: `app/services/analysis_service.py:15-27`
 - Test: `tests/test_analysis_service.py`
 
-- [ ] **Step 1: Run the focused existing test and verify RED**
+- [x] **Step 1: Run the focused existing test and verify RED**
 
 Run:
 
@@ -57,7 +57,7 @@ Expected: FAIL with:
 AttributeError: type object 'CampusService' has no attribute '_find_ancestor_location'
 ```
 
-- [ ] **Step 2: Import the domain-owned lookup**
+- [x] **Step 2: Import the domain-owned lookup**
 
 Change the campus rules import to:
 
@@ -69,7 +69,7 @@ from app.domain.campus_rules import (
 )
 ```
 
-- [ ] **Step 3: Replace both stale callbacks**
+- [x] **Step 3: Replace both stale callbacks**
 
 Change both ranking calls from:
 
@@ -85,7 +85,7 @@ find_ancestor=find_ancestor_location,
 
 Keep `CampusService` imported because `build_context(...)` remains its responsibility.
 
-- [ ] **Step 4: Run the analysis tests and verify GREEN**
+- [x] **Step 4: Run the analysis tests and verify GREEN**
 
 Run:
 
@@ -95,7 +95,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the regression repair**
+- [x] **Step 5: Commit the regression repair**
 
 ```bash
 git add app/services/analysis_service.py
@@ -107,7 +107,7 @@ git commit -m "fix: use domain ancestor lookup in analysis"
 **Files:**
 - Create: `tests/test_backend_tooling_contracts.py`
 
-- [ ] **Step 1: Add repository text helpers and coverage contract**
+- [x] **Step 1: Add repository text helpers and coverage contract**
 
 Create:
 
@@ -129,7 +129,7 @@ def test_backend_coverage_uses_pytest_discovery():
     assert "unittest discover" not in content
 ```
 
-- [ ] **Step 2: Add dependency split contract**
+- [x] **Step 2: Add dependency split contract**
 
 Append:
 
@@ -149,7 +149,7 @@ def test_test_and_quality_tools_live_in_development_requirements():
         }
 ```
 
-- [ ] **Step 3: Add CI trigger and gate contract**
+- [x] **Step 3: Add CI trigger and gate contract**
 
 Append:
 
@@ -176,7 +176,7 @@ def test_backend_ci_quarantines_known_migration_failure_until_phase2():
     assert "alembic upgrade head --sql" in content
 ```
 
-- [ ] **Step 4: Run the new contracts and verify RED**
+- [x] **Step 4: Run the new contracts and verify RED**
 
 Run:
 
@@ -186,7 +186,7 @@ Run:
 
 Expected: FAIL because `requirements-dev.txt` does not exist and the coverage/CI paths still use the old configuration.
 
-- [ ] **Step 5: Commit the failing contracts**
+- [x] **Step 5: Commit the failing contracts**
 
 ```bash
 git add tests/test_backend_tooling_contracts.py
@@ -200,7 +200,7 @@ git commit -m "test: define backend reliability tooling contracts"
 - Create: `constraints-ci.txt`
 - Modify: `requirements.txt:25-36`
 
-- [ ] **Step 1: Create exact development requirements**
+- [x] **Step 1: Create exact development requirements**
 
 Create `requirements-dev.txt`:
 
@@ -211,7 +211,7 @@ ruff==0.6.9
 mypy==1.11.2
 ```
 
-- [ ] **Step 2: Remove quality tools from runtime requirements**
+- [x] **Step 2: Remove quality tools from runtime requirements**
 
 Remove these lines from `requirements.txt`:
 
@@ -225,7 +225,7 @@ mypy==1.11.2
 
 Keep application runtime dependencies unchanged.
 
-- [ ] **Step 3: Create the exact CI constraints file**
+- [x] **Step 3: Create the exact CI constraints file**
 
 Create `constraints-ci.txt` with:
 
@@ -253,7 +253,7 @@ httpx==0.28.1
 idna==3.13
 iniconfig==2.1.0
 loguru==0.7.3
-Mako==1.3.11
+Mako==1.3.12
 MarkupSafe==3.0.3
 mypy==1.11.2
 mypy_extensions==1.1.0
@@ -271,7 +271,7 @@ Pygments==2.20.0
 pytest==8.4.2
 python-dotenv==1.2.1
 python-jose==3.5.0
-python-multipart==0.0.6
+python-multipart==0.0.32
 PyYAML==6.0.3
 redis==7.0.1
 requests==2.32.5
@@ -285,7 +285,7 @@ tomli==2.4.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzlocal==5.3.1
-urllib3==2.6.3
+urllib3==2.7.0
 uvicorn==0.39.0
 uvloop==0.22.1
 watchfiles==1.1.1
@@ -294,7 +294,7 @@ websockets==15.0.1
 
 This file is the accepted phase 1 lock snapshot. Dependency upgrades require regenerating and reviewing the diff rather than loosening CI installation.
 
-- [ ] **Step 4: Verify a clean dependency resolution**
+- [x] **Step 4: Verify a clean dependency resolution**
 
 Run in a temporary virtual environment:
 
@@ -310,7 +310,7 @@ python3 -m venv /tmp/campus-backend-phase1-venv
 
 Expected: installation succeeds and `pip check` reports no broken requirements.
 
-- [ ] **Step 5: Run the dependency contract**
+- [x] **Step 5: Run the dependency contract**
 
 Run:
 
@@ -320,7 +320,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit dependency declarations**
+- [x] **Step 6: Commit dependency declarations**
 
 ```bash
 git add requirements.txt requirements-dev.txt constraints-ci.txt
@@ -334,7 +334,7 @@ git commit -m "build: separate backend development dependencies"
 - Modify: `tests/README.md:1-10`
 - Modify: `README.md:215-230`
 
-- [ ] **Step 1: Replace unittest discovery in coverage**
+- [x] **Step 1: Replace unittest discovery in coverage**
 
 Change:
 
@@ -352,7 +352,7 @@ to:
 "$PYTHON_BIN" -m coverage report --fail-under="$BACKEND_COVERAGE_FAIL_UNDER"
 ```
 
-- [ ] **Step 2: Update the tests README canonical command**
+- [x] **Step 2: Update the tests README canonical command**
 
 Replace the opening discovery section with:
 
@@ -370,7 +370,7 @@ Replace the opening discovery section with:
 
 Keep the existing test grouping below this section.
 
-- [ ] **Step 3: Update the root README verification command**
+- [x] **Step 3: Update the root README verification command**
 
 In the backend command block, replace bare `pytest` with:
 
@@ -388,7 +388,7 @@ bash ./scripts/shell/run_backend_coverage.sh
 ```
 ```
 
-- [ ] **Step 4: Run the coverage discovery contract**
+- [x] **Step 4: Run the coverage discovery contract**
 
 Run:
 
@@ -398,7 +398,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the coverage entrypoint**
+- [x] **Step 5: Run the coverage entrypoint**
 
 Run:
 
@@ -409,7 +409,7 @@ BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=false \
 
 Expected: all pytest tests pass and total statement coverage is at least 57%.
 
-- [ ] **Step 6: Commit canonical pytest discovery**
+- [x] **Step 6: Commit canonical pytest discovery**
 
 ```bash
 git add scripts/shell/run_backend_coverage.sh tests/README.md README.md
@@ -423,7 +423,7 @@ git commit -m "test: use pytest as canonical backend test entry"
 - Create: `tests/test_ruff_regression_gate.py`
 - Create: `config/quality/ruff-baseline.json`
 
-- [ ] **Step 1: Add failing normalization tests**
+- [x] **Step 1: Add failing normalization tests**
 
 Create `tests/test_ruff_regression_gate.py`:
 
@@ -475,7 +475,7 @@ def test_diff_findings_reports_new_and_resolved_counts():
     assert resolved == Counter({("app/a.py", "F401", "unused import"): 1})
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run:
 
@@ -485,7 +485,7 @@ Run:
 
 Expected: FAIL because `scripts.python.check_ruff_regressions` does not exist.
 
-- [ ] **Step 3: Implement the Ruff regression checker**
+- [x] **Step 3: Implement the Ruff regression checker**
 
 Create `scripts/python/check_ruff_regressions.py`:
 
@@ -640,7 +640,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: Run unit tests and verify GREEN**
+- [x] **Step 4: Run unit tests and verify GREEN**
 
 Run:
 
@@ -650,7 +650,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Generate the checked-in baseline**
+- [x] **Step 5: Generate the checked-in baseline**
 
 Run:
 
@@ -660,7 +660,7 @@ Run:
 
 Expected: `config/quality/ruff-baseline.json` is created and reports the current finding count.
 
-- [ ] **Step 6: Verify the no-new-debt gate**
+- [x] **Step 6: Verify the no-new-debt gate**
 
 Run:
 
@@ -670,7 +670,7 @@ Run:
 
 Expected: PASS with `Ruff baseline unchanged`.
 
-- [ ] **Step 7: Commit the Ruff gate**
+- [x] **Step 7: Commit the Ruff gate**
 
 ```bash
 git add \
@@ -687,7 +687,7 @@ git commit -m "test: prevent new backend Ruff debt"
 - Modify: `scripts/SCRIPT_LIST.md`
 - Modify: `scripts/python/README.md`
 
-- [ ] **Step 1: Enable automatic triggers**
+- [x] **Step 1: Enable automatic triggers**
 
 Change the workflow trigger to:
 
@@ -698,7 +698,7 @@ on:
   workflow_dispatch:
 ```
 
-- [ ] **Step 2: Install exact runtime and development dependencies**
+- [x] **Step 2: Install exact runtime and development dependencies**
 
 Replace the install command with:
 
@@ -710,7 +710,7 @@ Replace the install command with:
           pip check
 ```
 
-- [ ] **Step 3: Add the Ruff regression and Mypy scope checks**
+- [x] **Step 3: Add the Ruff regression and Mypy scope checks**
 
 After compile, add:
 
@@ -729,7 +729,7 @@ After compile, add:
           mypy
 ```
 
-- [ ] **Step 4: Quarantine the known migration failure explicitly**
+- [x] **Step 4: Quarantine the known migration failure explicitly**
 
 Replace the blocking migration step with:
 
@@ -747,7 +747,7 @@ Add this comment immediately above the step:
       # PLAN-20260610 phase 2 must restore this as a blocking migration gate.
 ```
 
-- [ ] **Step 5: Keep pytest coverage as the single test execution**
+- [x] **Step 5: Keep pytest coverage as the single test execution**
 
 Keep:
 
@@ -759,7 +759,7 @@ Keep:
 
 Do not add a second standalone unittest or pytest invocation to the workflow.
 
-- [ ] **Step 6: Document the quality script**
+- [x] **Step 6: Document the quality script**
 
 Add to the Python scripts section of `scripts/SCRIPT_LIST.md`:
 
@@ -780,7 +780,7 @@ Add usage:
 ./venv/bin/python scripts/python/check_ruff_regressions.py --write-baseline
 ```
 
-- [ ] **Step 7: Run CI contract tests**
+- [x] **Step 7: Run CI contract tests**
 
 Run:
 
@@ -790,7 +790,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit the CI gate**
+- [x] **Step 8: Commit the CI gate**
 
 ```bash
 git add \
@@ -805,7 +805,7 @@ git commit -m "ci: automate complete backend quality gate"
 **Files:**
 - Verify only.
 
-- [ ] **Step 1: Verify compile and installed dependencies**
+- [x] **Step 1: Verify compile and installed dependencies**
 
 Run:
 
@@ -816,7 +816,7 @@ PYTHONPYCACHEPREFIX=/tmp ./venv/bin/python -m compileall -q app tests scripts/py
 
 Expected: both commands succeed.
 
-- [ ] **Step 2: Verify the architecture and tooling guardrails**
+- [x] **Step 2: Verify the architecture and tooling guardrails**
 
 Run:
 
@@ -831,7 +831,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Verify the Ruff regression gate**
+- [x] **Step 3: Verify the Ruff regression gate**
 
 Run:
 
@@ -841,7 +841,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 4: Verify the configured Mypy scope**
+- [x] **Step 4: Verify the configured Mypy scope**
 
 Run:
 
@@ -851,7 +851,7 @@ Run:
 
 Expected: PASS for the configured files. Record explicitly that this is not yet whole-application typing coverage.
 
-- [ ] **Step 5: Run canonical full pytest**
+- [x] **Step 5: Run canonical full pytest**
 
 Run:
 
@@ -861,7 +861,7 @@ Run:
 
 Expected: zero failures.
 
-- [ ] **Step 6: Run canonical coverage**
+- [x] **Step 6: Run canonical coverage**
 
 Run:
 
@@ -872,7 +872,7 @@ BACKEND_COVERAGE_FAIL_UNDER=57 BACKEND_COVERAGE_XML=true \
 
 Expected: zero test failures, coverage at least 57%, and `coverage.xml` created.
 
-- [ ] **Step 7: Verify working tree scope**
+- [x] **Step 7: Verify working tree scope**
 
 Run:
 
@@ -893,7 +893,7 @@ Expected: only phase 1 files are changed and no whitespace errors are reported.
 - Modify: `docs/plans/daily/2026-06/2026-06-10-status.md`
 - Modify: `docs/plans/daily/2026-06/2026-06-10-handoff.md`
 
-- [ ] **Step 1: Update the main PLAN**
+- [x] **Step 1: Update the main PLAN**
 
 Change phase 1 from pending to complete only when Task 7 evidence is green. Record:
 
@@ -901,7 +901,7 @@ Change phase 1 from pending to complete only when Task 7 evidence is green. Reco
 - 2026-06-10：阶段 1 完成；全量 pytest 零失败，coverage 使用同一 pytest 测试人口，自动 CI 和 Ruff 新增债务门禁生效。
 ```
 
-- [ ] **Step 2: Update current status**
+- [x] **Step 2: Update current status**
 
 Record:
 
@@ -910,7 +910,7 @@ Record:
 - migration validation remains a named non-blocking diagnostic,
 - no MQTT or transaction production code changed in phase 1.
 
-- [ ] **Step 3: Update handoff**
+- [x] **Step 3: Update handoff**
 
 Hand off to:
 
@@ -918,7 +918,7 @@ Hand off to:
 - backend role only after a phase 2 design and implementation plan exists,
 - acceptance role to verify CI run evidence when the branch is pushed.
 
-- [ ] **Step 4: Update daily snapshots**
+- [x] **Step 4: Update daily snapshots**
 
 Record the same final status and actionable handoff in:
 
@@ -927,7 +927,7 @@ docs/plans/daily/2026-06/2026-06-10-status.md
 docs/plans/daily/2026-06/2026-06-10-handoff.md
 ```
 
-- [ ] **Step 5: Commit phase 1 evidence**
+- [x] **Step 5: Commit phase 1 evidence**
 
 ```bash
 git add \
@@ -938,6 +938,79 @@ git add \
   docs/plans/daily/2026-06/2026-06-10-handoff.md
 git commit -m "docs: record backend reliability phase 1"
 ```
+
+## Task 9: Close Remote CI Security Findings
+
+**Files:**
+- Modify: `Dockerfile`
+- Modify: `.github/workflows/backend-ci.yml`
+- Modify: `requirements.txt`
+- Modify: `constraints-ci.txt`
+- Modify: `pyproject.toml`
+- Modify: `scripts/shell/install_dependencies.sh`
+- Modify: `tests/test_backend_tooling_contracts.py`
+- Create: `tests/test_auth_form_endpoint.py`
+
+- [x] **Step 1: Reproduce the blocking Trivy findings**
+
+Run backend CI on the pushed branch and retain the failed run evidence:
+
+```text
+27402559895
+27452501803
+27453310029
+```
+
+Expected: failures identify fixable Python package findings rather than being bypassed.
+
+- [x] **Step 2: Keep the Trivy gate blocking**
+
+Keep `exit-code: 1` for `CRITICAL,HIGH`, and add `ignore-unfixed: true` so the gate blocks fixable findings while reporting unfixed base-image debt.
+
+- [x] **Step 3: Repair the runtime image dependency metadata**
+
+Install constrained `setuptools==82.0.1` and `wheel==0.47.0` in the builder, remove stale runtime copies before copying `/install`, and protect the Dockerfile ordering with tooling contracts.
+
+- [x] **Step 4: Restore the required OAuth form dependency securely**
+
+Pin `python-multipart==0.0.32` in runtime requirements and CI constraints. Add a TestClient request that posts `application/x-www-form-urlencoded` credentials to the login endpoint.
+
+- [x] **Step 5: Make Python 3.10 the explicit backend minimum**
+
+Align Ruff, Mypy, CI, Docker, README, and the dependency installer with Python 3.10+. The installer must reject Python 3.9 before dependency installation.
+
+- [x] **Step 6: Patch fixable transitive vulnerabilities**
+
+Pin:
+
+```text
+Mako==1.3.12
+urllib3==2.7.0
+```
+
+Expected: the versions match the fixed versions reported by Trivy.
+
+- [x] **Step 7: Verify locally in a clean Python 3.10 environment**
+
+Expected evidence:
+
+```text
+580 passed
+73% coverage
+Ruff baseline unchanged: 168 findings
+Success: no issues found in 2 source files
+No broken requirements found
+```
+
+- [x] **Step 8: Verify the complete remote gate**
+
+Run:
+
+```text
+https://github.com/cenming1008/CampusEnergySystem/actions/runs/27456526020
+```
+
+Expected: dependency install, compile, Ruff, Mypy, config checks, pytest coverage, Docker build, production Compose validation, blocking Trivy scan, and coverage artifact upload all pass.
 
 ## Phase 1 Done Criteria
 
@@ -950,4 +1023,7 @@ git commit -m "docs: record backend reliability phase 1"
 - Ruff historical debt is checked in and cannot grow silently.
 - Existing Ruff debt remains visible without forcing unrelated cleanup.
 - The known migration failure is explicitly non-blocking and assigned to phase 2.
+- The backend runtime baseline is Python 3.10+ and OAuth form parsing uses a non-vulnerable multipart dependency.
+- The backend image has no fixable HIGH or CRITICAL findings under the blocking Trivy policy.
+- The remote backend CI uploads `backend-coverage-xml`.
 - Full pytest, coverage, compile, dependency integrity, Ruff regression, and configured Mypy checks pass.
