@@ -16,6 +16,7 @@ paho-mqtt>=1.6.1
 
 
 python-jose[cryptography]
+python-multipart==0.0.32
 passlib[bcrypt]
 bcrypt==4.3.0
 

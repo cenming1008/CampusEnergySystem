@@ -11,19 +11,13 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 echo "🔍 检查 Python 环境..."
 "$PYTHON_BIN" --version
 
-PYTHON_VERSION=$("$PYTHON_BIN" - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import sys
-print(f"{sys.version_info.major}.{sys.version_info.minor}")
-PY
-)
 
-case "$PYTHON_VERSION" in
-    3.10|3.11|3.12|3.13)
-        ;;
-    *)
-        echo "⚠️  当前 Python 版本为 $PYTHON_VERSION，项目推荐使用 3.10+"
-        ;;
-esac
+if sys.version_info < (3, 10):
+    current = f"{sys.version_info.major}.{sys.version_info.minor}"
+    raise SystemExit(f"当前 Python {current}，后端最低要求 Python 3.10")
+PY
 
 if [ ! -d "venv" ]; then
     echo "📦 创建虚拟环境..."

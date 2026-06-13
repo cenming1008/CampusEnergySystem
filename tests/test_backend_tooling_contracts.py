@@ -87,12 +87,27 @@ def test_test_and_quality_tools_live_in_development_requirements():
         assert package not in runtime
 
 
-def test_runtime_and_ci_constraints_exclude_unused_python_multipart():
+def test_runtime_and_ci_constraints_pin_secure_python_multipart():
     runtime = parse_requirements(read_text("requirements.txt"))
     constraints = parse_requirements(read_text("constraints-ci.txt"))
 
-    assert "python-multipart" not in runtime
-    assert "python-multipart" not in constraints
+    assert str(runtime["python-multipart"].specifier) == "==0.0.32"
+    assert str(constraints["python-multipart"].specifier) == "==0.0.32"
+
+
+def test_backend_tooling_targets_python_310():
+    pyproject = read_text("pyproject.toml")
+    workflow = read_text(".github/workflows/backend-ci.yml")
+    dockerfile = read_text("Dockerfile")
+    install_script = read_text("scripts/shell/install_dependencies.sh")
+    readme = read_text("README.md")
+
+    assert 'target-version = "py310"' in pyproject
+    assert 'python_version = "3.10"' in pyproject
+    assert 'python-version: "3.10"' in workflow
+    assert dockerfile.count("FROM python:3.10-slim") == 2
+    assert "sys.version_info < (3, 10)" in install_script
+    assert "Python 3.10+" in readme
 
 
 def test_ci_constraints_pin_secure_packaging_tools():

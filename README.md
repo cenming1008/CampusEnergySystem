@@ -24,6 +24,8 @@
 
 1. 安装依赖
 
+后端要求 Python 3.10+。
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate

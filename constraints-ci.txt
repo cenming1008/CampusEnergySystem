@@ -39,6 +39,7 @@ Pygments==2.20.0
 pytest==8.4.2
 python-dotenv==1.2.1
 python-jose==3.5.0
+python-multipart==0.0.32
 PyYAML==6.0.3
 redis==7.0.1
 requests==2.32.5

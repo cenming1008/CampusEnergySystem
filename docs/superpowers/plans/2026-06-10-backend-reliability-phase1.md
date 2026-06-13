@@ -6,7 +6,7 @@
 
 **Architecture:** Keep this phase limited to test reliability and engineering tooling. Repair the stale analysis dependency, make pytest the single discovery path, split runtime and development dependencies, add a normalized Ruff debt baseline, and automate those checks on push and pull requests. Keep the known Alembic failure visible but non-blocking until phase 2.
 
-**Tech Stack:** Python 3.9/3.10, pytest, Coverage.py, Ruff, Mypy, GitHub Actions, Bash.
+**Tech Stack:** Python 3.10+, pytest, Coverage.py, Ruff, Mypy, GitHub Actions, Bash.
 
 ---
 
