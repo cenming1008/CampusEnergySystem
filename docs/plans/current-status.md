@@ -8,8 +8,8 @@
 
 ## 当前阶段
 
-- [x] 完成 Task 1 主题治理、固定契约和迁移门禁实测。
-- [ ] 由后端角色实施 Task 2 纯领域模型，不触碰 ORM、数据库或 migration。
+- [ ] Task 1 治理实现已提交，当前处于质量整改 / 复核阶段，尚未验收通过。
+- [ ] 由后端角色实施 Task 2 纯领域模型；主题切换门禁已满足，不触碰 ORM、数据库或 migration。
 - [ ] Task 3 持久化模型与迁移；当前阻塞。
 - [ ] 阶段 A：仿真遥测。
 - [ ] 阶段 B：控制与规则闭环。
@@ -17,6 +17,8 @@
 
 ## 当前阻塞
 
+- 主题切换门禁已满足：阶段 2A 经用户批准暂停，并已保存主题切换时的 status/handoff 快照。
+- 持久化准入门禁未满足：offline SQL 失败，fresh 和两类 existing database 路径缺少 fixture 与通过证据。
 - offline SQL 门禁失败：配置 PostgreSQL URL 后，`alembic upgrade head --sql` 在 revision `20260412_0003` 的 `result.fetchone()` 处报 `AttributeError: 'NoneType' object has no attribute 'fetchone'`。
 - fresh、migration-built existing、runtime-sync existing 三类 PostgreSQL fixture 缺失，三条升级路径没有通过证据。
 - Task 3 及所有依赖持久化的后续任务阻塞；不得修改数据库模型或 migration。
@@ -25,6 +27,8 @@
 ## 当前验证结论
 
 - `tests/test_backend_tooling_contracts.py`：13 passed。
+- 主题切换门禁：通过。
+- 持久化准入门禁：失败。
 - offline SQL：失败，不通过。
 - fresh PostgreSQL：未验证，不通过门禁。
 - migration-built existing：未验证，不通过门禁。
@@ -40,10 +44,11 @@
 
 ## 当前待办
 
-1. 后端角色按正式 PLAN 实施 Task 2 纯领域模型和单元测试。
-2. 在任何持久化实现前，恢复后端可靠性阶段 2A 并取得 offline、fresh 和两类 existing database 的完整通过证据。
-3. 门禁通过后再解除 Task 3 及其下游持久化依赖阻塞。
-4. 每一验收阶段结束时核对固定契约、非目标和可重复证据。
+1. 完成 Task 1 质量整改，并由验收角色复核治理文档；当前不得声称 Task 1 验收通过。
+2. 后端角色按正式 PLAN 的最小验收契约实施 Task 2 纯领域模型和单元测试；Task 2 只依赖已满足的主题切换门禁。
+3. 在任何持久化实现前，恢复后端可靠性阶段 2A 并取得 offline、fresh 和两类 existing database 的完整通过证据。
+4. 持久化准入门禁通过后再解除 Task 3 及其下游持久化依赖阻塞。
+5. 每一验收阶段结束时核对固定契约、非目标和可重复证据。
 
 ## 当前剩余风险
 
@@ -54,7 +59,7 @@
 
 ## 当前验收判断
 
-- Task 1：治理内容已完成，待提交后复核。
-- Task 2：允许作为下一棒。
+- Task 1：治理实现已提交，质量整改 / 复核中；未判定通过。
+- Task 2：主题切换门禁已满足，具备纯领域实现准入条件。
 - Task 3 及依赖持久化任务：打回门禁，保持阻塞。
-- 下一接手角色：后端；仅限 Task 2 纯领域模型。
+- 下一接手角色：验收，复核 Task 1 质量整改；其后交后端实施 Task 2 纯领域模型。
