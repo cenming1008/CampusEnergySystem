@@ -18,9 +18,9 @@
 ## 数据边界
 
 - 当前 `campus_energy` 数据经用户确认可清除。
-- 所有破坏性操作只允许针对以下三个临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。
-- 三条临时路径全部通过后才允许重建 `campus_energy`。
-- 临时验证工具必须按精确名称白名单校验，不得创建、删除或修改上述三个名称之外的数据库。
+- 迁移临时验证工具及临时验证流程中的所有破坏性操作只允许针对以下三个精确临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。
+- Task 8 的 `campus_energy` 重建是临时验证工具之外的独立后置动作；三条临时路径全部通过后才允许执行该动作。
+- 临时验证工具必须按精确名称白名单校验，不得创建、删除或修改上述三个临时数据库之外的数据库，也不得操作 `campus_energy`。
 - Redis 与 MQTT 的数据、容器和卷不在本阶段清理范围内。
 
 ## 非目标
@@ -67,7 +67,7 @@
 ## 风险与控制
 
 - 静态基线遗漏运行时对象：重建前以三路径指纹和启动必需对象清单双重核对。
-- 误删数据库：临时工具只接受 `ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip` 三个精确名称；`campus_energy` 重建作为独立、后置步骤。
+- 误删数据库：临时验证工具和流程只接受 `ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip` 三个精确名称；Task 8 重建 `campus_energy` 是工具之外、通过全部临时验证后才执行的独立后置步骤。
 - 归档文件仍被 Alembic 加载：契约测试要求旧 revision 离开 `migrations/versions/`。
 - TimescaleDB 与普通 PostgreSQL 行为不同：本地和 CI 均使用 PostgreSQL 14 对应的 TimescaleDB 环境。
 

@@ -22,7 +22,7 @@
 - offline SQL 在旧 revision `20260412_0003` 的 `result.fetchone()` 处稳定失败。
 - 旧根迁移使用动态 ORM metadata，应用启动仍可能执行 schema mutation，CI migration 仍允许失败。
 - PostgreSQL Docker 服务可用不是 offline SQL 失败的根因；迁移链本身不满足确定性与离线生成契约。
-- 所有破坏性操作只允许针对三个精确名称的临时库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`；`campus_energy` 只可在三条临时路径全部通过后重建。
+- 迁移临时验证工具和流程中的所有破坏性操作只允许针对三个精确名称的临时库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。Task 8 重建 `campus_energy` 是工具之外的独立后置动作，只可在三条临时路径全部通过后执行。
 
 ## 固定边界
 

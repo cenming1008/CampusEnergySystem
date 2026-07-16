@@ -10,12 +10,12 @@
 
 - 旧根 migration 依赖 ORM metadata，无法保证同 revision 复现同 schema。
 - 旧链 offline SQL 在 `20260412_0003` 的在线结果读取处失败；开启 Docker 不会修复该链缺陷。
-- 当前 `campus_energy` 数据可丢弃，但只能在三条临时路径全部通过后执行一次后置重建。
+- 当前 `campus_energy` 数据可丢弃；Task 8 重建它是临时验证工具之外的独立后置动作，只能在三条临时路径全部通过后执行。
 - 园区光储 Task 1、Task 2 已正式完成，相关提交保留至 `efbbe808`；Task 3 未开始。
 
 ## 固定契约
 
-- 所有破坏性操作仅允许三个精确名称的临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`；验证工具必须拒绝其他任何数据库名称。
+- 迁移临时验证工具和流程中的所有破坏性操作仅允许三个精确名称的临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`；验证工具必须拒绝其他任何数据库名称，并且不得操作 `campus_energy`。
 - 新根 revision 为 `20260716_0001`；储能 Task 3 后续使用 `20260716_0002`，其 down revision 为 `20260716_0001`。
 - online、offline、roundtrip 三条路径必须产生一致的规范化 schema 指纹。
 - 应用启动只校验 schema，不创建表、不补字段或索引、不执行 hypertable DDL。

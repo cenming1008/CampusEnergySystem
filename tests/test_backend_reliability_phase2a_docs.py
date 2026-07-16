@@ -43,13 +43,18 @@ def test_phase2a_allows_only_three_exact_temporary_databases():
         "ces_migration_roundtrip",
     }
     assert (
-        "所有破坏性操作只允许针对以下三个临时数据库："
+        "迁移临时验证工具及临时验证流程中的所有破坏性操作只允许针对以下三个精确临时数据库："
         "`ces_migration_fresh`、`ces_migration_offline`、"
         "`ces_migration_roundtrip`。"
     ) in plan
     assert set(re.findall(r"`(ces_migration_[a-z0-9_]+)`", governance)) == allowed_names
     assert "任意 `ces_migration_` 前缀" not in governance
     assert "只允许针对 `ces_migration_` 前缀" not in governance
+    assert "Task 8 的 `campus_energy` 重建是临时验证工具之外的独立后置动作" in plan
+    assert "三条临时路径全部通过后才允许执行" in plan
+    assert "\n- 所有破坏性操作只允许针对以下三个临时数据库" not in governance
+    assert "\n- 所有破坏性操作只允许针对三个精确名称的临时库" not in governance
+    assert "\n- 所有破坏性操作仅允许三个精确名称的临时数据库" not in governance
 
 
 def test_storage_resumes_only_after_the_complete_phase2a_gate():
@@ -59,7 +64,7 @@ def test_storage_resumes_only_after_the_complete_phase2a_gate():
 
     assert "新根 revision：`20260716_0001`" in plan
     assert "后续储能 revision：`20260716_0002`" in plan
-    assert "三条临时路径全部通过后才允许重建 `campus_energy`" in plan
+    assert "三条临时路径全部通过后才允许执行该动作" in plan
     assert "阶段 2A 全部验收通过" in plan
     assert "三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁" in plan
     assert "阶段 2A 全部验收通过" in status
