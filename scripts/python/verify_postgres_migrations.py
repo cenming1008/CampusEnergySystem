@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import closing
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -91,6 +92,19 @@ def build_database_url(admin_url: str, database_name: str) -> str:
     )
 
 
+def build_psycopg2_url(
+    admin_url: str, database_name: str | None = None
+) -> str:
+    """Render a driverless URL accepted directly by psycopg2."""
+    parsed = make_url(admin_url)
+    if database_name is not None:
+        validate_temporary_database_name(database_name)
+        parsed = parsed.set(database=database_name)
+    return parsed.set(drivername="postgresql").render_as_string(
+        hide_password=False
+    )
+
+
 class PostgresBackend:
     """Own the safe database lifecycle and Alembic subprocess boundaries."""
 
@@ -100,6 +114,9 @@ class PostgresBackend:
     def _target_url(self, name: str) -> str:
         return build_database_url(self._admin_url, name)
 
+    def _psycopg2_url(self, name: str | None = None) -> str:
+        return build_psycopg2_url(self._admin_url, name)
+
     def _run_alembic(self, name: str, arguments: list[str]) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["DATABASE_URL"] = self._target_url(name)
@@ -108,20 +125,21 @@ class PostgresBackend:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env=environment,
             cwd=REPOSITORY_ROOT,
         )
 
     def create_database(self, name: str) -> None:
         validate_temporary_database_name(name)
-        with psycopg2.connect(self._admin_url) as connection:
+        with closing(psycopg2.connect(self._psycopg2_url())) as connection:
             connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             with connection.cursor() as cursor:
                 cursor.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
 
     def drop_database(self, name: str) -> None:
         validate_temporary_database_name(name)
-        with psycopg2.connect(self._admin_url) as connection:
+        with closing(psycopg2.connect(self._psycopg2_url())) as connection:
             connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -150,22 +168,32 @@ class PostgresBackend:
         return completed.stdout
 
     def apply_offline_sql(self, name: str, sql_text: str) -> None:
-        target_url = self._target_url(name)
-        with psycopg2.connect(target_url) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(sql_text)
+        target_url = self._psycopg2_url(name)
+        with closing(psycopg2.connect(target_url)) as connection:
+            with connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql_text)
 
     def fingerprint(self, name: str) -> dict[str, object]:
-        target_url = self._target_url(name)
-        with psycopg2.connect(target_url) as connection:
-            return collect_schema_fingerprint(connection)
+        target_url = self._psycopg2_url(name)
+        with closing(psycopg2.connect(target_url)) as connection:
+            with connection:
+                return collect_schema_fingerprint(connection)
 
 
 def cleanup_databases(backend: MigrationBackend) -> None:
     """Drop only the three exact temporary database names."""
+    failures: list[str] = []
     for database_name in PATH_DATABASES.values():
         validate_temporary_database_name(database_name)
-        backend.drop_database(database_name)
+        try:
+            backend.drop_database(database_name)
+        except Exception as error:
+            failures.append(f"{database_name} ({type(error).__name__})")
+    if failures:
+        raise MigrationVerificationError(
+            "could not drop fixed migration databases: " + ", ".join(failures)
+        )
 
 
 def _not_started(path: MigrationPath) -> PathResult:
@@ -363,8 +391,13 @@ def main(argv: list[str] | None = None) -> int:
 
     backend = PostgresBackend(admin_url)
     if arguments.cleanup:
-        cleanup_databases(backend)
-        return 0
+        try:
+            cleanup_databases(backend)
+        except MigrationVerificationError as error:
+            print(f"cleanup failed: {error}", file=sys.stderr)
+            return 1
+        else:
+            return 0
 
     result = execute_verification(backend, keep_success=arguments.keep_success)
     payload = _result_payload(result)

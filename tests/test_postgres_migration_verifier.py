@@ -575,6 +575,27 @@ def test_cleanup_calls_only_the_three_fixed_database_names():
     assert len(dropped) == 3
 
 
+def test_cleanup_attempts_all_fixed_databases_and_aggregates_failures():
+    from scripts.python.verify_postgres_migrations import cleanup_databases
+
+    backend = FakeMigrationBackend(
+        fail_at=("drop_database", "ces_migration_fresh")
+    )
+
+    with pytest.raises(MigrationVerificationError) as captured:
+        cleanup_databases(backend)
+
+    dropped = [call[1] for call in backend.calls if call[0] == "drop_database"]
+    assert dropped == [
+        "ces_migration_fresh",
+        "ces_migration_offline",
+        "ces_migration_roundtrip",
+    ]
+    assert "ces_migration_fresh" in str(captured.value)
+    assert "RuntimeError" in str(captured.value)
+    assert "failed at drop_database" not in str(captured.value)
+
+
 def test_postgres_backend_runs_alembic_with_safe_arguments_and_target_environment(
     monkeypatch,
 ):
@@ -604,6 +625,7 @@ def test_postgres_backend_runs_alembic_with_safe_arguments_and_target_environmen
     assert all(isinstance(call[0], list) for call in calls)
     assert all(call[1]["check"] is True for call in calls)
     assert all(call[1]["capture_output"] is True for call in calls)
+    assert all(call[1]["encoding"] == "utf-8" for call in calls)
     assert all(call[1].get("shell", False) is False for call in calls)
     assert calls[0][1]["env"]["DATABASE_URL"].endswith("/ces_migration_fresh")
     assert "admin:secret@localhost:5432" in calls[0][1]["env"]["DATABASE_URL"]
@@ -645,8 +667,9 @@ def test_postgres_backend_rejects_unsafe_names_before_external_calls(
 
 
 class BackendCursor:
-    def __init__(self):
+    def __init__(self, *, fail_on_execute=False):
         self.calls = []
+        self.fail_on_execute = fail_on_execute
 
     def __enter__(self):
         return self
@@ -656,12 +679,15 @@ class BackendCursor:
 
     def execute(self, query, parameters=None):
         self.calls.append((query, parameters))
+        if self.fail_on_execute:
+            raise RuntimeError("cursor execution failed")
 
 
 class BackendConnection:
-    def __init__(self):
-        self.fake_cursor = BackendCursor()
+    def __init__(self, *, fail_on_execute=False):
+        self.fake_cursor = BackendCursor(fail_on_execute=fail_on_execute)
         self.isolation_levels = []
+        self.close_count = 0
 
     def __enter__(self):
         return self
@@ -674,6 +700,9 @@ class BackendConnection:
 
     def set_isolation_level(self, level):
         self.isolation_levels.append(level)
+
+    def close(self):
+        self.close_count += 1
 
 
 def test_management_connections_enable_autocommit(monkeypatch):
@@ -699,6 +728,8 @@ def test_management_connections_enable_autocommit(monkeypatch):
     assert drop_connection.isolation_levels == [
         verifier.ISOLATION_LEVEL_AUTOCOMMIT
     ]
+    assert create_connection.close_count == 1
+    assert drop_connection.close_count == 1
 
 
 def test_drop_database_terminates_connections_before_whitelisted_drop(monkeypatch):
@@ -741,6 +772,7 @@ def test_apply_offline_sql_connects_to_target_and_executes_sql(monkeypatch):
         "postgresql://admin:secret@localhost:5432/ces_migration_offline"
     ]
     assert connection.fake_cursor.calls == [("SELECT 42;", None)]
+    assert connection.close_count == 1
 
 
 def test_fingerprint_connects_to_target_and_collects_schema(monkeypatch):
@@ -771,6 +803,102 @@ def test_fingerprint_connects_to_target_and_collects_schema(monkeypatch):
     ]
     assert collected == [connection]
     assert fingerprint == {"objects": {"table.device": {}}}
+    assert connection.close_count == 1
+
+
+@pytest.mark.parametrize(
+    ("method_name", "arguments"),
+    [
+        ("create_database", ("ces_migration_fresh",)),
+        ("drop_database", ("ces_migration_fresh",)),
+        ("apply_offline_sql", ("ces_migration_offline", "SELECT 1;")),
+    ],
+)
+def test_database_connections_close_when_cursor_execution_fails(
+    monkeypatch, method_name, arguments
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connection = BackendConnection(fail_on_execute=True)
+    monkeypatch.setattr(verifier.psycopg2, "connect", lambda _url: connection)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    with pytest.raises(RuntimeError, match="cursor execution failed"):
+        getattr(backend, method_name)(*arguments)
+
+    assert connection.close_count == 1
+
+
+def test_fingerprint_connection_closes_when_collection_fails(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connection = BackendConnection()
+    monkeypatch.setattr(verifier.psycopg2, "connect", lambda _url: connection)
+    monkeypatch.setattr(
+        verifier,
+        "collect_schema_fingerprint",
+        lambda _connection: (_ for _ in ()).throw(RuntimeError("catalog failed")),
+    )
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    with pytest.raises(RuntimeError, match="catalog failed"):
+        backend.fingerprint("ces_migration_fresh")
+
+    assert connection.close_count == 1
+
+
+def test_backend_keeps_alembic_driver_url_but_uses_driverless_psycopg2_urls(
+    monkeypatch,
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    admin_url = (
+        "postgresql+psycopg2://admin:p%40ss%2Fword@localhost:5432/postgres"
+        "?application_name=migrate&sslmode=require"
+    )
+    connected_urls = []
+    subprocess_environments = []
+
+    def fake_connect(url):
+        connected_urls.append(url)
+        return BackendConnection()
+
+    def fake_run(arguments, **kwargs):
+        subprocess_environments.append(kwargs["env"])
+        return subprocess.CompletedProcess(arguments, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(verifier.psycopg2, "connect", fake_connect)
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        verifier,
+        "collect_schema_fingerprint",
+        lambda _connection: {"objects": {}},
+    )
+    backend = verifier.PostgresBackend(admin_url)
+
+    backend.create_database("ces_migration_fresh")
+    backend.apply_offline_sql("ces_migration_offline", "SELECT 1;")
+    backend.fingerprint("ces_migration_roundtrip")
+    backend.upgrade("ces_migration_fresh")
+
+    assert connected_urls == [
+        "postgresql://admin:p%40ss%2Fword@localhost:5432/postgres"
+        "?application_name=migrate&sslmode=require",
+        "postgresql://admin:p%40ss%2Fword@localhost:5432/ces_migration_offline"
+        "?application_name=migrate&sslmode=require",
+        "postgresql://admin:p%40ss%2Fword@localhost:5432/ces_migration_roundtrip"
+        "?application_name=migrate&sslmode=require",
+    ]
+    alembic_url = subprocess_environments[0]["DATABASE_URL"]
+    assert alembic_url.startswith("postgresql+psycopg2://")
+    assert "p%40ss%2Fword" in alembic_url
+    assert alembic_url.endswith(
+        "/ces_migration_fresh?application_name=migrate&sslmode=require"
+    )
 
 
 @pytest.mark.parametrize(
@@ -867,3 +995,31 @@ def test_cli_reports_exact_failed_step_without_leaking_password(
     assert password not in captured.out
     assert password not in captured.err
     assert password not in payload_text
+
+
+def test_cleanup_cli_reports_failure_without_traceback_or_password(
+    monkeypatch, capsys
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    password = "cleanup-password-must-stay-secret"
+    backend = FakeMigrationBackend(
+        fail_at=("drop_database", "ces_migration_offline")
+    )
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+
+    exit_code = verifier.main(
+        [
+            "--admin-url",
+            f"postgresql+psycopg2://admin:{password}@localhost/postgres",
+            "--cleanup",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "cleanup failed" in captured.err
+    assert "ces_migration_offline" in captured.err
+    assert "Traceback" not in captured.err
+    assert password not in captured.out
+    assert password not in captured.err
