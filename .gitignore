@@ -45,6 +45,7 @@ wheels/
 
 # Claude/Codex worktree 临时目录
 /.claude/worktrees/
+/.worktrees/
 /.claude/settings.local.json
 /.cursor/
 /.superpowers/
