@@ -158,6 +158,7 @@ def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
             ],
             CONSTRAINTS_SQL: [
                 (
+                    1001,
                     "device",
                     "device_pkey",
                     "PRIMARY KEY",
@@ -170,6 +171,7 @@ def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
                     None,
                 ),
                 (
+                    1002,
                     "device",
                     "device_location_id_fkey",
                     "FOREIGN KEY",
@@ -259,6 +261,7 @@ def test_collect_schema_fingerprint_preserves_composite_foreign_key_pairing():
     def fingerprint_for(references):
         rows = [
             (
+                2001,
                 "child",
                 "child_parent_fkey",
                 "FOREIGN KEY",
@@ -311,6 +314,7 @@ def test_collect_schema_fingerprint_preserves_composite_foreign_key_pairing():
 
 def test_collect_schema_fingerprint_deduplicates_constraint_catalog_rows():
     duplicate_row = (
+        3001,
         "child",
         "child_parent_fkey",
         "FOREIGN KEY",
@@ -346,6 +350,7 @@ def test_non_foreign_constraints_do_not_contain_foreign_columns(constraint_type)
                 PUBLIC_COLUMNS_SQL: [],
                 CONSTRAINTS_SQL: [
                     (
+                        3101,
                         "device",
                         "device_identity_key",
                         constraint_type,
@@ -370,6 +375,67 @@ def test_non_foreign_constraints_do_not_contain_foreign_columns(constraint_type)
     assert "column_mappings" not in constraint
 
 
-def test_constraints_query_pairs_referenced_columns_by_unique_position():
-    assert "kcu.position_in_unique_constraint" in CONSTRAINTS_SQL
-    assert "ccu.ordinal_position = kcu.position_in_unique_constraint" in CONSTRAINTS_SQL
+def test_constraints_query_pairs_columns_by_constraint_array_ordinality():
+    assert "unnest(con.conkey) WITH ORDINALITY" in CONSTRAINTS_SQL
+    assert "con.confkey[local_key.ordinality::integer]" in CONSTRAINTS_SQL
+
+
+def test_same_named_constraints_on_different_tables_remain_isolated_by_oid():
+    fingerprint = collect_schema_fingerprint(
+        FakeConnection(
+            {
+                PUBLIC_COLUMNS_SQL: [],
+                CONSTRAINTS_SQL: [
+                    (
+                        4101,
+                        "first_child",
+                        "shared_parent_fkey",
+                        "FOREIGN KEY",
+                        "first_parent_id",
+                        "first_parent",
+                        "id",
+                        "NO ACTION",
+                        "CASCADE",
+                        1,
+                        1,
+                    ),
+                    (
+                        4201,
+                        "second_child",
+                        "shared_parent_fkey",
+                        "FOREIGN KEY",
+                        "second_parent_code",
+                        "second_parent",
+                        "code",
+                        "NO ACTION",
+                        "RESTRICT",
+                        1,
+                        1,
+                    ),
+                ],
+                INDEXES_SQL: [],
+                HYPERTABLE_SQL: [],
+            }
+        )
+    )
+
+    first = fingerprint["objects"][
+        "table.first_child.constraint.shared_parent_fkey"
+    ]
+    second = fingerprint["objects"][
+        "table.second_child.constraint.shared_parent_fkey"
+    ]
+    assert first["column_mappings"][0]["foreign_table"] == "first_parent"
+    assert first["column_mappings"][0]["foreign_column"] == "id"
+    assert second["column_mappings"][0]["foreign_table"] == "second_parent"
+    assert second["column_mappings"][0]["foreign_column"] == "code"
+
+
+def test_constraints_query_uses_pg_constraint_oid_relationships():
+    assert "pg_catalog.pg_constraint" in CONSTRAINTS_SQL
+    assert "con.oid AS constraint_oid" in CONSTRAINTS_SQL
+    assert "con.conrelid" in CONSTRAINTS_SQL
+    assert "con.confrelid" in CONSTRAINTS_SQL
+    assert "unnest(con.conkey) WITH ORDINALITY" in CONSTRAINTS_SQL
+    assert "con.confkey[" in CONSTRAINTS_SQL
+    assert "information_schema" not in CONSTRAINTS_SQL

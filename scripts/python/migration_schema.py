@@ -36,22 +36,52 @@ ORDER BY table_name, ordinal_position
 """
 
 CONSTRAINTS_SQL = """
-SELECT tc.table_name, tc.constraint_name, tc.constraint_type,
-       kcu.column_name, ccu.table_name AS foreign_table,
-       ccu.column_name AS foreign_column,
-       rc.update_rule, rc.delete_rule,
-       kcu.ordinal_position, kcu.position_in_unique_constraint
-FROM information_schema.table_constraints tc
-LEFT JOIN information_schema.key_column_usage kcu
-  ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-LEFT JOIN information_schema.referential_constraints rc
-  ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
-LEFT JOIN information_schema.key_column_usage ccu
-  ON ccu.constraint_schema = rc.unique_constraint_schema
- AND ccu.constraint_name = rc.unique_constraint_name
- AND ccu.ordinal_position = kcu.position_in_unique_constraint
-WHERE tc.table_schema = 'public'
-ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position
+SELECT con.oid AS constraint_oid,
+       rel.relname AS table_name,
+       con.conname AS constraint_name,
+       CASE con.contype
+         WHEN 'p' THEN 'PRIMARY KEY'
+         WHEN 'u' THEN 'UNIQUE'
+         WHEN 'f' THEN 'FOREIGN KEY'
+         WHEN 'c' THEN 'CHECK'
+         WHEN 'x' THEN 'EXCLUDE'
+         ELSE con.contype::text
+       END AS constraint_type,
+       local_att.attname AS column_name,
+       foreign_rel.relname AS foreign_table,
+       foreign_att.attname AS foreign_column,
+       CASE con.confupdtype
+         WHEN 'a' THEN 'NO ACTION'
+         WHEN 'r' THEN 'RESTRICT'
+         WHEN 'c' THEN 'CASCADE'
+         WHEN 'n' THEN 'SET NULL'
+         WHEN 'd' THEN 'SET DEFAULT'
+         ELSE NULL
+       END AS update_rule,
+       CASE con.confdeltype
+         WHEN 'a' THEN 'NO ACTION'
+         WHEN 'r' THEN 'RESTRICT'
+         WHEN 'c' THEN 'CASCADE'
+         WHEN 'n' THEN 'SET NULL'
+         WHEN 'd' THEN 'SET DEFAULT'
+         ELSE NULL
+       END AS delete_rule,
+       local_key.ordinality AS ordinal_position,
+       CASE WHEN con.contype = 'f' THEN local_key.ordinality ELSE NULL END
+         AS referenced_position
+FROM pg_catalog.pg_constraint con
+JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+JOIN pg_catalog.pg_namespace namespace ON namespace.oid = rel.relnamespace
+LEFT JOIN LATERAL unnest(con.conkey) WITH ORDINALITY
+  AS local_key(attnum, ordinality) ON TRUE
+LEFT JOIN pg_catalog.pg_attribute local_att
+  ON local_att.attrelid = con.conrelid AND local_att.attnum = local_key.attnum
+LEFT JOIN pg_catalog.pg_class foreign_rel ON foreign_rel.oid = con.confrelid
+LEFT JOIN pg_catalog.pg_attribute foreign_att
+  ON foreign_att.attrelid = con.confrelid
+ AND foreign_att.attnum = con.confkey[local_key.ordinality::integer]
+WHERE namespace.nspname = 'public'
+ORDER BY rel.relname, con.conname, con.oid, local_key.ordinality
 """
 
 INDEXES_SQL = """
@@ -215,6 +245,7 @@ def collect_schema_fingerprint(connection: Any) -> dict[str, Any]:
         cursor.execute(CONSTRAINTS_SQL)
         for row in cursor.fetchall():
             (
+                _constraint_oid,
                 table,
                 constraint_name,
                 constraint_type,
