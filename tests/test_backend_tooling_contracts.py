@@ -2,7 +2,6 @@ from pathlib import Path
 
 from packaging.requirements import Requirement
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -182,14 +181,32 @@ def test_backend_ci_runs_automatic_pytest_and_ruff_regression_gates():
     assert "bash ./scripts/shell/run_backend_coverage.sh" in content
 
 
-def test_backend_ci_quarantines_known_migration_failure_until_phase2():
+def test_backend_ci_blocks_on_timescaledb_migration_verification():
     content = read_text(".github/workflows/backend-ci.yml")
     migration_step = workflow_step(
-        content, "Migration diagnostic pending phase 2"
+        content, "Verify deterministic migrations"
     )
 
-    assert "continue-on-error: true" in migration_step
-    assert "alembic upgrade head --sql" in migration_step
+    assert "continue-on-error" not in migration_step
+    assert "test_migration_baseline_contract.py" in migration_step
+    assert "test_postgres_migration_verifier.py" in migration_step
+    assert "verify_postgres_migrations.py" in migration_step
+    assert '"$MIGRATION_ADMIN_URL"' in migration_step
+    assert "timescale/timescaledb:2.17.2-pg14" in content
+    assert "POSTGRES_USER: migration_ci" in content
+    assert "POSTGRES_PASSWORD: migration_ci_password" in content
+    assert "POSTGRES_DB: postgres" in content
+    assert "- 5432:5432" in content
+    assert 'pg_isready -U migration_ci -d postgres' in content
+    assert "--health-interval 5s" in content
+    assert "--health-timeout 5s" in content
+    assert "--health-retries 12" in content
+    migration_url = (
+        "postgresql://migration_ci:migration_ci_password@localhost:5432/postgres"
+    )
+    assert f"DATABASE_URL: {migration_url}" in content
+    assert f"MIGRATION_ADMIN_URL: {migration_url}" in content
+    assert "Migration diagnostic pending phase 2" not in content
 
 
 def test_backend_ci_uses_read_only_permissions_and_blocking_image_scan():

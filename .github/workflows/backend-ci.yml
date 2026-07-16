@@ -11,6 +11,23 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:2.17.2-pg14
+        env:
+          POSTGRES_USER: migration_ci
+          POSTGRES_PASSWORD: migration_ci_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U migration_ci -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://migration_ci:migration_ci_password@localhost:5432/postgres
+      MIGRATION_ADMIN_URL: postgresql://migration_ci:migration_ci_password@localhost:5432/postgres
 
     steps:
       - name: Checkout
@@ -58,12 +75,10 @@ jobs:
         run: |
           python scripts/python/check_production_readiness.py --env-file env.prod.example
 
-      # PLAN-20260610 phase 2 must restore this as a blocking migration gate.
-      - name: Migration diagnostic pending phase 2
-        continue-on-error: true
+      - name: Verify deterministic migrations
         run: |
-          alembic upgrade head --sql >/tmp/alembic_upgrade.sql
-          test -s /tmp/alembic_upgrade.sql
+          python -m pytest -q tests/test_migration_baseline_contract.py tests/test_postgres_migration_verifier.py
+          python scripts/python/verify_postgres_migrations.py --admin-url "$MIGRATION_ADMIN_URL"
 
       - name: Run backend tests with coverage
         run: |
