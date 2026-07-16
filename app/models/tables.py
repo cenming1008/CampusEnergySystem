@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 from enum import Enum
+from typing import Optional
 
+from sqlalchemy import Index, text
 from sqlmodel import Field, SQLModel
 
 
@@ -198,6 +199,16 @@ class DeviceIngestionHealth(SQLModel, table=True):
     """设备接入健康状态表。"""
 
     __tablename__ = "device_ingestion_health"
+    __table_args__ = (
+        Index(
+            "idx_device_ingestion_health_last_success",
+            text("last_success_at DESC"),
+        ),
+        Index(
+            "idx_device_ingestion_health_last_failure",
+            text("last_failure_at DESC"),
+        ),
+    )
 
     device_id: int = Field(primary_key=True, foreign_key="device.id", description="设备ID")
     last_message_at: Optional[datetime] = Field(default=None, index=True, description="最近一次接收到消息的时间")
@@ -214,6 +225,11 @@ class AuditEvent(SQLModel, table=True):
     """安全与运维关键操作审计事件。"""
 
     __tablename__ = "audit_event"
+    __table_args__ = (
+        Index("idx_audit_event_action_created_at", "action", text("created_at DESC")),
+        Index("idx_audit_event_actor_created_at", "actor", text("created_at DESC")),
+        Index("idx_audit_event_outcome_created_at", "outcome", text("created_at DESC")),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     action: str = Field(index=True, description="操作标识")
@@ -229,6 +245,19 @@ class MqttIngestionRecord(SQLModel, table=True):
     """MQTT 消息接入台账，用于幂等、防重和失败留痕。"""
 
     __tablename__ = "mqtt_ingestion_record"
+    __table_args__ = (
+        Index(
+            "idx_mqtt_ingestion_record_device_received",
+            "device_id",
+            text("received_at DESC"),
+        ),
+        Index(
+            "idx_mqtt_ingestion_record_status_received",
+            "status",
+            text("received_at DESC"),
+        ),
+        Index("idx_mqtt_ingestion_record_next_retry_at", "next_retry_at"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     fingerprint: str = Field(index=True, unique=True, description="消息指纹")
@@ -260,6 +289,18 @@ class EnergyData(SQLModel, table=True):
     """
     
     __tablename__ = "energydata"
+    __table_args__ = (
+        Index(
+            "idx_energydata_device_timestamp",
+            "device_id",
+            text("timestamp DESC"),
+        ),
+        Index(
+            "idx_energydata_energy_type_timestamp",
+            "energy_type",
+            text("timestamp DESC"),
+        ),
+    )
     
     # 联合主键
     device_id: int = Field(primary_key=True, foreign_key="device.id", description="设备ID")
@@ -294,6 +335,20 @@ class Alarm(SQLModel, table=True):
     """告警生命周期实例表。"""
 
     __tablename__ = "alarm"
+    __table_args__ = (
+        Index(
+            "idx_alarm_device_resolved_timestamp",
+            "device_id",
+            "is_resolved",
+            text("timestamp DESC"),
+        ),
+        Index(
+            "idx_alarm_instance_recovered_last_seen",
+            "instance_key",
+            "recovered_at",
+            text("last_seen_at DESC"),
+        ),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(index=True, foreign_key="device.id")
     instance_key: Optional[str] = Field(default=None, index=True, description="稳定实例键")
@@ -620,7 +675,7 @@ class DeviceGroupMembership(SQLModel, table=True):
     note: Optional[str] = Field(default=None, description="备注")
 
 
-from app.models.compensation import (
+from app.models.compensation import (  # noqa: E402, F401
     CapacitorBankControlProfile,
     CapacitorBankTelemetry,
     SVGAssetProfile,

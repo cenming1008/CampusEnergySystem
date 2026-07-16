@@ -1,6 +1,8 @@
 import ast
 from pathlib import Path
 
+from app.models.tables import SQLModel
+
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE = ROOT / "migrations" / "versions"
 ARCHIVE = ROOT / "docs" / "archive" / "migrations" / "legacy-pre-20260716"
@@ -117,17 +119,28 @@ def test_only_static_root_is_active():
 
 def test_baseline_is_offline_safe_and_static():
     text = (ACTIVE / "20260716_0001_campus_baseline.py").read_text(encoding="utf-8")
+    tree = ast.parse(text)
     forbidden = [
         "SQLModel",
         ".metadata",
-        "op.get_bind",
-        "inspect(",
-        "fetchone",
         "information_schema",
-        "from app",
     ]
     for token in forbidden:
         assert token not in text
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert all(
+                alias.name != "app" and not alias.name.startswith("app.")
+                for alias in node.names
+            )
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "app" and not (node.module or "").startswith("app.")
+        if isinstance(node, ast.Call):
+            assert not (isinstance(node.func, ast.Name) and node.func.id == "inspect")
+            assert not (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"get_bind", "fetchone"}
+            )
     assert 'revision = "20260716_0001"' in text
     assert "down_revision = None" in text
     assert text.count("op.create_table(") == len(REQUIRED_TABLES)
@@ -185,3 +198,21 @@ def test_baseline_includes_all_runtime_query_indexes_with_exact_ordering():
 
     assert actual == RUNTIME_INDEXES
     assert dropped >= RUNTIME_INDEXES.keys()
+
+
+def test_model_metadata_includes_all_runtime_query_indexes_with_exact_ordering():
+    actual = {}
+    for name, (table_name, _) in RUNTIME_INDEXES.items():
+        table = SQLModel.metadata.tables[table_name]
+        index = next((candidate for candidate in table.indexes if candidate.name == name), None)
+        if index is None:
+            continue
+        columns = tuple(
+            expression.name
+            if getattr(expression, "name", None) is not None
+            else str(expression.compile())
+            for expression in index.expressions
+        )
+        actual[name] = (table_name, columns)
+
+    assert actual == RUNTIME_INDEXES
