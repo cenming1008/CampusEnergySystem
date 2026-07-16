@@ -15,7 +15,7 @@
 - `DB_AUTO_CREATE_TABLES=False`、`DB_RUNTIME_SCHEMA_SYNC=False` 下执行 `init_db()` 成功，前后结构指纹不变。
 - 全量 `727 passed, 2 skipped, 5 warnings`，覆盖率 74%，Ruff 基线、compileall 和 diff 门禁通过。
 - Ruff 基线只删除 10 条已修复 finding：168 条降至 158 条；新增 0 条，剩余集合完全一致。
-- CI workflow 配置已通过本地契约及 YAML/Compose 解析；契约确认固定 `timescale/timescaledb:2.17.2-pg14` service image 且无 `continue-on-error`。真实三路径 verifier 已在现有 `latest-pg14` 开发容器通过；远端 GitHub Actions 本轮未实际运行。
+- CI workflow 配置已通过本地契约及 YAML/Compose 解析；独立临时 `timescale/timescaledb:2.17.2-pg14` 容器（image ID `sha256:11505c6957fd755f9ee6e1938988fde0a5f0f3f16943aa522e3d94bb316609e7`，`127.0.0.1:55432`）已真实完成三路径验证：各 628 个对象且指纹一致，三个临时库均为 `20260716_0001` 且 `public.energydata` 为 hypertable，随后数据库与容器均已清理。现有 `latest-pg14` 也在 Task 5/8 通过但不替代固定版本证据；workflow 无 `continue-on-error`，远端 GitHub Actions 本轮未实际运行。
 - 提交 `2c738e61` 同时同步了 Ruff 质量 baseline（纯删除 10 条已修复 finding）；后续证据提交不改写该历史提交。
 
 ## 下一棒：Task 9 规则/验收

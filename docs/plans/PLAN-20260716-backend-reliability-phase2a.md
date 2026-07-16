@@ -82,7 +82,7 @@
 - [x] fresh、offline、roundtrip 三条真实数据库路径均得到 628 个对象，规范化指纹共同 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
 - [x] 经用户批准可清除的 `campus_energy` 已在三路径门禁通过后重建，revision 为 `20260716_0001`，包含 26 张 public 表和 `energydata` hypertable。
 - [x] `init_db()` 在两个 schema mutation flags 均为 `False` 时前后指纹不变，启动仅校验。
-- [x] CI workflow 配置已通过本地契约测试及 YAML/Compose 解析；契约确认固定 `timescale/timescaledb:2.17.2-pg14` service image 且迁移步骤无 `continue-on-error`。本地真实三路径使用现有 `latest-pg14` 开发容器；远端 GitHub Actions 本轮未实际运行。
+- [x] CI workflow 配置已通过本地契约测试及 YAML/Compose 解析；独立临时 `timescale/timescaledb:2.17.2-pg14` 容器（image ID `sha256:11505c6957fd755f9ee6e1938988fde0a5f0f3f16943aa522e3d94bb316609e7`，`127.0.0.1:55432`）已真实完成三路径验证：各 628 个对象且指纹一致，三个临时库均为 `20260716_0001` 且 `public.energydata` 为 hypertable，随后数据库与容器均已清理。现有 `latest-pg14` 也在 Task 5/8 通过，但不替代固定版本证据；迁移步骤无 `continue-on-error`，远端 GitHub Actions 本轮未实际运行。
 - [x] 全量测试 `727 passed, 2 skipped, 5 warnings`；覆盖率 74%；Ruff 基线检查、compileall 与 diff 检查通过。
 - [x] Redis 与 MQTT volumes 未修改；MQTT health 不在本阶段范围内。
 - 验收证据：`docs/plans/backend-reliability-phase2a-acceptance.md`。

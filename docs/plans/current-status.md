@@ -12,7 +12,7 @@
 - [x] 数据库名称安全、schema 指纹与隔离迁移验证工具。
 - [x] 静态根基线 `20260716_0001` 与旧链归档。
 - [x] online、offline、roundtrip 三路径一致性。
-- [x] 启动只校验；CI workflow 阻断配置已通过本地契约及 YAML/Compose 解析，契约确认固定 TimescaleDB 2.17.2 service image；本地真实三路径使用现有 `latest-pg14` 开发容器，远端 GitHub Actions 本轮未实际运行。
+- [x] 启动只校验；CI workflow 阻断配置已通过本地契约及 YAML/Compose 解析。独立固定 TimescaleDB `2.17.2-pg14` 临时容器已真实完成三路径验证（各 628 个对象、指纹一致、revision `20260716_0001`、`public.energydata` hypertable）并完成数据库与容器清理；现有 `latest-pg14` 也在 Task 5/8 通过但不替代固定版本证据。远端 GitHub Actions 本轮未实际运行。
 - [x] Task 8：重建经批准可清除的 `campus_energy` 并完成本地验收。
 - [ ] Task 9：交还园区光储主主题，更新储能 revision 契约与 daily 完成快照。
 

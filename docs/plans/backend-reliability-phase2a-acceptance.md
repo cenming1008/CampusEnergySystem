@@ -125,7 +125,8 @@ Ruff 基线由 168 条缩减为 158 条。严格集合比较结果为：新增 0
 ## CI 配置验证边界
 
 - CI workflow 配置已通过本地契约测试及 YAML/Compose 配置解析；契约确认 workflow 的 service image 固定为 `timescale/timescaledb:2.17.2-pg14`。
-- 本地真实三路径运行在现有 `timescale/timescaledb:latest-pg14` 开发容器上并通过；这不能替代固定 2.17.2 镜像在远端 workflow 中的实际运行证据。
+- 独立临时容器 `timescale/timescaledb:2.17.2-pg14` 已在本地真实运行，image ID 为 `sha256:11505c6957fd755f9ee6e1938988fde0a5f0f3f16943aa522e3d94bb316609e7`，监听 `127.0.0.1:55432`。fresh、offline、roundtrip 三条路径各得到 628 个对象且指纹一致；三个临时数据库 revision 均为 `20260716_0001`，`public.energydata` 均为 hypertable。验证结束后，三个临时数据库与该独立容器均已清理。
+- 现有 `timescale/timescaledb:latest-pg14` 开发容器也在 Task 5 与 Task 8 通过三路径和重建验收；该证据与上述固定 2.17.2 真实验证并存，不能互相替代。
 - workflow 中的迁移步骤无 `continue-on-error`，配置语义为失败即阻断。
 - 远端 GitHub Actions 本轮未实际运行，因此本记录不声称远端 CI 已绿；后续推送后仍需以远端运行结果作为仓库托管环境证据。
 - 提交 `2c738e61` 在写入 Task 8 验收文档的同时同步更新了 Ruff 质量 baseline（纯删除 10 条已修复 finding）；本次后续提交只补充可复现证据与边界表述，不改写该历史提交。
