@@ -95,6 +95,30 @@ def test_direction_change_obeys_ramp_before_crossing_zero():
     assert result.run_state == "discharging"
 
 
+def test_upper_soc_limit_allows_ramped_discharge_during_direction_change():
+    result = step_storage(
+        config(energy_kwh=10_000.0, ramp_kw_per_second=25.0),
+        StorageState(soc=90.0, actual_power_kw=-100.0),
+        requested_power_kw=100.0,
+        seconds=1.0,
+    )
+
+    assert result.actual_power_kw == -75.0
+    assert result.run_state == "discharging"
+
+
+def test_lower_soc_limit_allows_ramped_charge_during_direction_change():
+    result = step_storage(
+        config(energy_kwh=10_000.0, ramp_kw_per_second=25.0),
+        StorageState(soc=10.0, actual_power_kw=100.0),
+        requested_power_kw=-100.0,
+        seconds=1.0,
+    )
+
+    assert result.actual_power_kw == 75.0
+    assert result.run_state == "charging"
+
+
 def test_charge_power_is_recalculated_to_reach_upper_soc_limit_exactly():
     result = step_storage(
         config(charge_efficiency=0.8),
@@ -135,6 +159,42 @@ def test_step_returns_a_new_state_without_mutating_frozen_inputs():
         initial.soc = 51.0
     with pytest.raises(FrozenInstanceError):
         asset.energy_kwh = 600.0
+
+
+def test_ambient_temperature_changes_temperature_response():
+    asset = config()
+    initial = StorageState(soc=50.0, temperature_c=25.0)
+
+    cold_result = step_storage(
+        asset,
+        initial,
+        requested_power_kw=0.0,
+        seconds=3600.0,
+        ambient_temperature_c=10.0,
+    )
+    hot_result = step_storage(
+        asset,
+        initial,
+        requested_power_kw=0.0,
+        seconds=3600.0,
+        ambient_temperature_c=40.0,
+    )
+
+    assert math.isfinite(cold_result.temperature_c)
+    assert math.isfinite(hot_result.temperature_c)
+    assert cold_result.temperature_c < hot_result.temperature_c
+
+
+@pytest.mark.parametrize("invalid", [math.nan, math.inf, -math.inf])
+def test_non_finite_ambient_temperature_is_rejected(invalid):
+    with pytest.raises(ValueError):
+        step_storage(
+            config(),
+            StorageState(soc=50.0),
+            requested_power_kw=0.0,
+            seconds=60.0,
+            ambient_temperature_c=invalid,
+        )
 
 
 @pytest.mark.parametrize("invalid", [math.nan, math.inf, -math.inf])

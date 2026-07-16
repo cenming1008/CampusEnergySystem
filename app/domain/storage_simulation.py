@@ -96,6 +96,7 @@ def _apply_ramp_limit(
 
 def _updated_temperature(
     temperature_c: float,
+    ambient_temperature_c: float,
     actual_power_kw: float,
     rated_power_kw: float,
     seconds: float,
@@ -107,7 +108,7 @@ def _updated_temperature(
     utilization = min(abs(actual_power_kw) / rated_power_kw, 1.0)
     temperature = (
         temperature_c * (1.0 - ambient_response)
-        + 25.0 * ambient_response
+        + ambient_temperature_c * ambient_response
         + utilization * 0.5 * heating_window
     )
     _require_finite("temperature_c result", temperature)
@@ -119,12 +120,14 @@ def step_storage(
     state: StorageState,
     requested_power_kw: float,
     seconds: float,
+    ambient_temperature_c: float = 25.0,
 ) -> StorageState:
     """Advance storage state without mutating the supplied configuration or state."""
     _validate_config(config)
     _validate_state(state)
     _require_finite("requested_power_kw", requested_power_kw)
     _require_finite("seconds", seconds)
+    _require_finite("ambient_temperature_c", ambient_temperature_c)
     if seconds <= 0:
         raise ValueError("seconds must be greater than zero")
     if not config.soc_min <= state.soc <= config.soc_max:
@@ -140,9 +143,9 @@ def step_storage(
     )
 
     saturated_soc = None
-    if state.soc >= config.soc_max and requested_power_kw > 0:
+    if state.soc >= config.soc_max and actual_power_kw > 0:
         actual_power_kw = 0.0
-    elif state.soc <= config.soc_min and requested_power_kw < 0:
+    elif state.soc <= config.soc_min and actual_power_kw < 0:
         actual_power_kw = 0.0
     elif actual_power_kw > 0:
         charge_room_kwh = (config.soc_max - state.soc) / 100.0 * config.energy_kwh
@@ -185,6 +188,7 @@ def step_storage(
         actual_power_kw=actual_power_kw,
         temperature_c=_updated_temperature(
             state.temperature_c,
+            ambient_temperature_c,
             actual_power_kw,
             config.power_kw,
             seconds,
