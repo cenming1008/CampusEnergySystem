@@ -288,21 +288,24 @@ def execute_verification(
             return VerificationResult(tuple(results))
 
     result = VerificationResult(tuple(results))
-    try:
-        fresh = results[0].fingerprint
-        offline = results[1].fingerprint
-        roundtrip = results[2].fingerprint
-        if fresh is None or offline is None or roundtrip is None:
-            raise MigrationVerificationError("completed path has no fingerprint")
-        compare_fingerprints(fresh, offline)
-        compare_fingerprints(fresh, roundtrip)
-    except MigrationVerificationError as error:
-        failed = replace(
-            results[-1],
-            success=False,
-            failed_step=f"compare_fingerprints: {error}",
-        )
-        return VerificationResult((*results[:-1], failed))
+    fresh = results[0].fingerprint
+    offline = results[1].fingerprint
+    roundtrip = results[2].fingerprint
+    if fresh is None or offline is None or roundtrip is None:
+        raise MigrationVerificationError("completed path has no fingerprint")
+
+    for index, candidate in ((1, offline), (2, roundtrip)):
+        try:
+            compare_fingerprints(fresh, candidate)
+        except MigrationVerificationError:
+            failed = replace(
+                results[index],
+                success=False,
+                failed_step=f"{results[index].path.value}.compare_fingerprints",
+            )
+            compared = [*results]
+            compared[index] = failed
+            return VerificationResult(tuple(compared))
 
     if keep_success:
         return result

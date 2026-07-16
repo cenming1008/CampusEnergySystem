@@ -615,6 +615,194 @@ def test_postgres_backend_runs_alembic_with_safe_arguments_and_target_environmen
     )
 
 
+@pytest.mark.parametrize(
+    ("method_name", "arguments"),
+    [
+        ("create_database", ("campus_energy",)),
+        ("drop_database", ("campus_energy",)),
+        ("upgrade", ("campus_energy",)),
+        ("downgrade_to_base", ("campus_energy",)),
+        ("apply_offline_sql", ("campus_energy", "SELECT 1;")),
+        ("fingerprint", ("campus_energy",)),
+    ],
+)
+def test_postgres_backend_rejects_unsafe_names_before_external_calls(
+    monkeypatch, method_name, arguments
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    def unexpected_call(*_args, **_kwargs):
+        pytest.fail("unsafe database name reached an external call")
+
+    monkeypatch.setattr(verifier.psycopg2, "connect", unexpected_call)
+    monkeypatch.setattr(verifier.subprocess, "run", unexpected_call)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    with pytest.raises(MigrationVerificationError):
+        getattr(backend, method_name)(*arguments)
+
+
+class BackendCursor:
+    def __init__(self):
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def execute(self, query, parameters=None):
+        self.calls.append((query, parameters))
+
+
+class BackendConnection:
+    def __init__(self):
+        self.fake_cursor = BackendCursor()
+        self.isolation_levels = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def cursor(self):
+        return self.fake_cursor
+
+    def set_isolation_level(self, level):
+        self.isolation_levels.append(level)
+
+
+def test_management_connections_enable_autocommit(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connections = [BackendConnection(), BackendConnection()]
+    monkeypatch.setattr(
+        verifier.psycopg2,
+        "connect",
+        lambda _url: connections.pop(0),
+    )
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+    create_connection, drop_connection = tuple(connections)
+
+    backend.create_database("ces_migration_fresh")
+    backend.drop_database("ces_migration_fresh")
+
+    assert create_connection.isolation_levels == [
+        verifier.ISOLATION_LEVEL_AUTOCOMMIT
+    ]
+    assert drop_connection.isolation_levels == [
+        verifier.ISOLATION_LEVEL_AUTOCOMMIT
+    ]
+
+
+def test_drop_database_terminates_connections_before_whitelisted_drop(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connection = BackendConnection()
+    monkeypatch.setattr(verifier.psycopg2, "connect", lambda _url: connection)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    backend.drop_database("ces_migration_roundtrip")
+
+    terminate, drop = connection.fake_cursor.calls
+    assert "pg_terminate_backend" in terminate[0]
+    assert terminate[1] == ("ces_migration_roundtrip",)
+    assert "DROP DATABASE IF EXISTS" in repr(drop[0])
+    assert "ces_migration_roundtrip" in repr(drop[0])
+    assert drop[1] is None
+
+
+def test_apply_offline_sql_connects_to_target_and_executes_sql(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connection = BackendConnection()
+    connected_urls = []
+
+    def fake_connect(url):
+        connected_urls.append(url)
+        return connection
+
+    monkeypatch.setattr(verifier.psycopg2, "connect", fake_connect)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    backend.apply_offline_sql("ces_migration_offline", "SELECT 42;")
+
+    assert connected_urls == [
+        "postgresql://admin:secret@localhost:5432/ces_migration_offline"
+    ]
+    assert connection.fake_cursor.calls == [("SELECT 42;", None)]
+
+
+def test_fingerprint_connects_to_target_and_collects_schema(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    connection = BackendConnection()
+    connected_urls = []
+    collected = []
+
+    def fake_connect(url):
+        connected_urls.append(url)
+        return connection
+
+    def fake_collect(candidate):
+        collected.append(candidate)
+        return {"objects": {"table.device": {}}}
+
+    monkeypatch.setattr(verifier.psycopg2, "connect", fake_connect)
+    monkeypatch.setattr(verifier, "collect_schema_fingerprint", fake_collect)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    fingerprint = backend.fingerprint("ces_migration_fresh")
+
+    assert connected_urls == [
+        "postgresql://admin:secret@localhost:5432/ces_migration_fresh"
+    ]
+    assert collected == [connection]
+    assert fingerprint == {"objects": {"table.device": {}}}
+
+
+@pytest.mark.parametrize(
+    ("mismatched_database", "expected_failed_step"),
+    [
+        ("ces_migration_offline", "offline.compare_fingerprints"),
+        ("ces_migration_roundtrip", "roundtrip.compare_fingerprints"),
+    ],
+)
+def test_fingerprint_mismatch_marks_exact_path_and_preserves_all_databases(
+    mismatched_database, expected_failed_step
+):
+    from scripts.python.verify_postgres_migrations import execute_verification
+
+    fingerprints = {
+        "ces_migration_fresh": {"objects": {"table.device": {}}},
+        "ces_migration_offline": {"objects": {"table.device": {}}},
+        "ces_migration_roundtrip": {"objects": {"table.device": {}}},
+    }
+    fingerprints[mismatched_database] = {
+        "objects": {"table.device": {"type": "different"}}
+    }
+    backend = FakeMigrationBackend(fingerprints=fingerprints)
+
+    result = execute_verification(backend)
+
+    failed = [item for item in result.paths if not item.success]
+    assert [item.database_name for item in failed] == [mismatched_database]
+    assert failed[0].failed_step == expected_failed_step
+    assert not any(call[0] == "drop_database" for call in backend.calls)
+
+
 def test_cli_requires_admin_url_when_environment_is_missing(monkeypatch):
     from scripts.python.verify_postgres_migrations import main
 
@@ -645,3 +833,37 @@ def test_cli_uses_environment_and_writes_json_result(monkeypatch, tmp_path):
         "offline",
         "roundtrip",
     ]
+
+
+def test_cli_reports_exact_failed_step_without_leaking_password(
+    monkeypatch, tmp_path, capsys
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    password = "do-not-print-this-password"
+    backend = FakeMigrationBackend(
+        fail_at=(
+            "apply_offline_sql",
+            "ces_migration_offline",
+            "SELECT 1;",
+        )
+    )
+    monkeypatch.setenv(
+        "MIGRATION_ADMIN_URL",
+        f"postgresql://admin:{password}@localhost:5432/postgres",
+    )
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+    output = tmp_path / "migration-result.json"
+
+    exit_code = verifier.main(["--json-output", str(output)])
+
+    captured = capsys.readouterr()
+    payload_text = output.read_text(encoding="utf-8")
+    payload = json.loads(payload_text)
+    assert exit_code == 1
+    assert "offline.apply_offline_sql" in captured.err
+    assert payload["paths"][1]["failed_step"] == "offline.apply_offline_sql"
+    assert payload["paths"][2]["failed_step"] == "not_started"
+    assert password not in captured.out
+    assert password not in captured.err
+    assert password not in payload_text
