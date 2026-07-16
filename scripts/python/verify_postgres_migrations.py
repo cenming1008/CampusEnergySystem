@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Protocol
+from typing import ContextManager, Iterator, Protocol
 
 import psycopg2
 from psycopg2 import sql
@@ -35,6 +36,18 @@ else:  # Support direct execution from the repository root.
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+MIGRATION_ADVISORY_LOCK_ID = 0x4345534D494752
+MAX_ERROR_SUMMARY_LENGTH = 500
+
+_DATABASE_URL_PATTERN = re.compile(
+    r"postgres(?:ql)?(?:\+[a-zA-Z0-9_]+)?://[^\s;,]+",
+    re.IGNORECASE,
+)
+_CREDENTIAL_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(database_url|dsn|password|passwd|pwd|username|user)"
+    r"(?:\s*[:=]\s*|\s+)(?:\"[^\"]*\"|'[^']*'|[^\s;,]+)",
+    re.IGNORECASE,
+)
 
 
 class MigrationPath(str, Enum):
@@ -57,6 +70,7 @@ class PathResult:
     success: bool
     fingerprint: dict[str, object] | None
     failed_step: str | None = None
+    error_summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +83,8 @@ class VerificationResult:
 
 
 class MigrationBackend(Protocol):
+    def verification_lock(self) -> ContextManager[None]: ...
+
     def create_database(self, name: str) -> None: ...
 
     def drop_database(self, name: str) -> None: ...
@@ -116,6 +132,33 @@ class PostgresBackend:
 
     def _psycopg2_url(self, name: str | None = None) -> str:
         return build_psycopg2_url(self._admin_url, name)
+
+    @contextmanager
+    def verification_lock(self) -> Iterator[None]:
+        """Hold the process-wide migration verifier lock on an admin session."""
+        connection = psycopg2.connect(self._psycopg2_url())
+        connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        acquired = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_try_advisory_lock(%s)",
+                    (MIGRATION_ADVISORY_LOCK_ID,),
+                )
+                acquired = bool(cursor.fetchone()[0])
+                if not acquired:
+                    raise MigrationVerificationError(
+                        "migration verification is already running"
+                    )
+                try:
+                    yield
+                finally:
+                    cursor.execute(
+                        "SELECT pg_advisory_unlock(%s)",
+                        (MIGRATION_ADVISORY_LOCK_ID,),
+                    )
+        finally:
+            connection.close()
 
     def _run_alembic(self, name: str, arguments: list[str]) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
@@ -203,16 +246,37 @@ def _not_started(path: MigrationPath) -> PathResult:
         success=False,
         fingerprint=None,
         failed_step="not_started",
+        error_summary=None,
     )
 
 
-def _failed(path: MigrationPath, step: str) -> PathResult:
+def _sanitize_error_text(value: str) -> str:
+    sanitized = _DATABASE_URL_PATTERN.sub("[REDACTED_DATABASE_URL]", value)
+    sanitized = _CREDENTIAL_ASSIGNMENT_PATTERN.sub(
+        lambda match: f"{match.group(1)}=[REDACTED]", sanitized
+    )
+    sanitized = " ".join(sanitized.split())
+    if len(sanitized) > MAX_ERROR_SUMMARY_LENGTH:
+        sanitized = sanitized[: MAX_ERROR_SUMMARY_LENGTH - 3].rstrip() + "..."
+    return sanitized
+
+
+def _summarize_error(error: Exception) -> str:
+    if isinstance(error, subprocess.CalledProcessError):
+        detail = error.stderr or error.stdout or f"exit status {error.returncode}"
+    else:
+        detail = str(error) or "no error detail"
+    return _sanitize_error_text(f"{type(error).__name__}: {detail}")
+
+
+def _failed(path: MigrationPath, step: str, error: Exception) -> PathResult:
     return PathResult(
         path=path,
         database_name=PATH_DATABASES[path],
         success=False,
         fingerprint=None,
         failed_step=f"{path.value}.{step}",
+        error_summary=_summarize_error(error),
     )
 
 
@@ -221,16 +285,16 @@ def _run_fresh(backend: MigrationBackend) -> PathResult:
     name = PATH_DATABASES[path]
     try:
         backend.create_database(name)
-    except Exception:
-        return _failed(path, "create_database")
+    except Exception as error:
+        return _failed(path, "create_database", error)
     try:
         backend.upgrade(name)
-    except Exception:
-        return _failed(path, "upgrade")
+    except Exception as error:
+        return _failed(path, "upgrade", error)
     try:
         fingerprint = backend.fingerprint(name)
-    except Exception:
-        return _failed(path, "fingerprint")
+    except Exception as error:
+        return _failed(path, "fingerprint", error)
     return PathResult(path, name, True, fingerprint)
 
 
@@ -239,20 +303,20 @@ def _run_offline(backend: MigrationBackend) -> PathResult:
     name = PATH_DATABASES[path]
     try:
         backend.create_database(name)
-    except Exception:
-        return _failed(path, "create_database")
+    except Exception as error:
+        return _failed(path, "create_database", error)
     try:
         sql_text = backend.generate_offline_sql()
-    except Exception:
-        return _failed(path, "generate_offline_sql")
+    except Exception as error:
+        return _failed(path, "generate_offline_sql", error)
     try:
         backend.apply_offline_sql(name, sql_text)
-    except Exception:
-        return _failed(path, "apply_offline_sql")
+    except Exception as error:
+        return _failed(path, "apply_offline_sql", error)
     try:
         fingerprint = backend.fingerprint(name)
-    except Exception:
-        return _failed(path, "fingerprint")
+    except Exception as error:
+        return _failed(path, "fingerprint", error)
     return PathResult(path, name, True, fingerprint)
 
 
@@ -261,24 +325,24 @@ def _run_roundtrip(backend: MigrationBackend) -> PathResult:
     name = PATH_DATABASES[path]
     try:
         backend.create_database(name)
-    except Exception:
-        return _failed(path, "create_database")
+    except Exception as error:
+        return _failed(path, "create_database", error)
     try:
         backend.upgrade(name)
-    except Exception:
-        return _failed(path, "upgrade")
+    except Exception as error:
+        return _failed(path, "upgrade", error)
     try:
         backend.downgrade_to_base(name)
-    except Exception:
-        return _failed(path, "downgrade_to_base")
+    except Exception as error:
+        return _failed(path, "downgrade_to_base", error)
     try:
         backend.upgrade(name)
-    except Exception:
-        return _failed(path, "reupgrade")
+    except Exception as error:
+        return _failed(path, "reupgrade", error)
     try:
         fingerprint = backend.fingerprint(name)
-    except Exception:
-        return _failed(path, "fingerprint")
+    except Exception as error:
+        return _failed(path, "fingerprint", error)
     return PathResult(path, name, True, fingerprint)
 
 
@@ -289,16 +353,17 @@ def _cleanup_successful_result(
     for index, item in enumerate(paths):
         try:
             backend.drop_database(item.database_name)
-        except Exception:
+        except Exception as error:
             paths[index] = replace(
                 item,
                 success=False,
                 failed_step=f"{item.path.value}.drop_database",
+                error_summary=_summarize_error(error),
             )
     return VerificationResult(tuple(paths))
 
 
-def execute_verification(
+def _execute_verification_locked(
     backend: MigrationBackend, *, keep_success: bool = False
 ) -> VerificationResult:
     """Execute fixed migration paths and preserve all databases after any failure."""
@@ -325,11 +390,12 @@ def execute_verification(
     for index, candidate in ((1, offline), (2, roundtrip)):
         try:
             compare_fingerprints(fresh, candidate)
-        except MigrationVerificationError:
+        except MigrationVerificationError as error:
             failed = replace(
                 results[index],
                 success=False,
                 failed_step=f"{results[index].path.value}.compare_fingerprints",
+                error_summary=_summarize_error(error),
             )
             compared = [*results]
             compared[index] = failed
@@ -338,6 +404,14 @@ def execute_verification(
     if keep_success:
         return result
     return _cleanup_successful_result(backend, result)
+
+
+def execute_verification(
+    backend: MigrationBackend, *, keep_success: bool = False
+) -> VerificationResult:
+    """Serialize fixed migration paths and preserve databases after path failure."""
+    with backend.verification_lock():
+        return _execute_verification_locked(backend, keep_success=keep_success)
 
 
 def _result_payload(result: VerificationResult) -> dict[str, object]:
@@ -350,6 +424,7 @@ def _result_payload(result: VerificationResult) -> dict[str, object]:
                 "success": item.success,
                 "fingerprint": item.fingerprint,
                 "failed_step": item.failed_step,
+                "error_summary": item.error_summary,
             }
             for item in result.paths
         ],
@@ -402,14 +477,19 @@ def main(argv: list[str] | None = None) -> int:
     backend = PostgresBackend(admin_url)
     if arguments.cleanup:
         try:
-            cleanup_databases(backend)
-        except MigrationVerificationError as error:
-            print(f"cleanup failed: {error}", file=sys.stderr)
+            with backend.verification_lock():
+                cleanup_databases(backend)
+        except Exception as error:
+            print(f"cleanup failed: {_summarize_error(error)}", file=sys.stderr)
             return 1
         else:
             return 0
 
-    result = execute_verification(backend, keep_success=arguments.keep_success)
+    try:
+        result = execute_verification(backend, keep_success=arguments.keep_success)
+    except Exception as error:
+        print(f"verification failed: {_summarize_error(error)}", file=sys.stderr)
+        return 1
     payload = _result_payload(result)
     if arguments.json_output:
         arguments.json_output.write_text(
@@ -421,7 +501,8 @@ def main(argv: list[str] | None = None) -> int:
         for item in result.paths:
             if not item.success:
                 print(
-                    f"{item.database_name}: {item.failed_step}",
+                    f"{item.database_name}: {item.failed_step}: "
+                    f"{item.error_summary or 'no error detail'}",
                     file=sys.stderr,
                 )
         return 1

@@ -1,5 +1,6 @@
 import json
 import subprocess
+from contextlib import contextmanager
 
 import pytest
 
@@ -445,8 +446,9 @@ def test_constraints_query_uses_pg_constraint_oid_relationships():
 
 
 class FakeMigrationBackend:
-    def __init__(self, *, fail_at=None, fingerprints=None):
+    def __init__(self, *, fail_at=None, fail_error=None, fingerprints=None):
         self.fail_at = fail_at
+        self.fail_error = fail_error
         self.fingerprints = fingerprints or {
             "ces_migration_fresh": {"objects": {"table.device": {}}},
             "ces_migration_offline": {"objects": {"table.device": {}}},
@@ -457,7 +459,19 @@ class FakeMigrationBackend:
     def _record(self, method, *args):
         self.calls.append((method, *args))
         if self.fail_at == (method, *args):
-            raise RuntimeError(f"failed at {method}")
+            if method == "acquire_lock" and self.fail_error is None:
+                raise MigrationVerificationError(
+                    "migration verification is already running"
+                )
+            raise self.fail_error or RuntimeError(f"failed at {method}")
+
+    @contextmanager
+    def verification_lock(self):
+        self._record("acquire_lock")
+        try:
+            yield
+        finally:
+            self._record("release_lock")
 
     def create_database(self, name):
         self._record("create_database", name)
@@ -513,6 +527,7 @@ def test_execute_verification_uses_three_fixed_paths_and_cleans_successes():
     assert result.success
     assert all(item.success for item in result.paths)
     assert backend.calls == [
+        ("acquire_lock",),
         ("create_database", "ces_migration_fresh"),
         ("upgrade", "ces_migration_fresh"),
         ("fingerprint", "ces_migration_fresh"),
@@ -528,7 +543,19 @@ def test_execute_verification_uses_three_fixed_paths_and_cleans_successes():
         ("drop_database", "ces_migration_fresh"),
         ("drop_database", "ces_migration_offline"),
         ("drop_database", "ces_migration_roundtrip"),
+        ("release_lock",),
     ]
+
+
+def test_lock_refusal_happens_before_any_temporary_database_operation():
+    from scripts.python.verify_postgres_migrations import execute_verification
+
+    backend = FakeMigrationBackend(fail_at=("acquire_lock",))
+
+    with pytest.raises(MigrationVerificationError, match="already running"):
+        execute_verification(backend)
+
+    assert backend.calls == [("acquire_lock",)]
 
 
 def test_execute_verification_preserves_failed_and_unverified_databases():
@@ -995,6 +1022,110 @@ def test_cli_reports_exact_failed_step_without_leaking_password(
     assert password not in captured.out
     assert password not in captured.err
     assert password not in payload_text
+
+
+def test_failed_step_keeps_safe_actionable_error_summary(tmp_path, monkeypatch, capsys):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    username = "migration_operator"
+    password = "super-secret-value"
+    database_url = (
+        f"postgresql://{username}:{password}@localhost:5432/ces_migration_fresh"
+    )
+    failure = subprocess.CalledProcessError(
+        1,
+        ["alembic", "upgrade", "head"],
+        stderr=(
+            "ERROR: relation device is missing; "
+            f"DATABASE_URL={database_url}; password={password}; user={username}"
+        ),
+    )
+    backend = FakeMigrationBackend(
+        fail_at=("upgrade", "ces_migration_fresh"), fail_error=failure
+    )
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+    output = tmp_path / "migration-result.json"
+
+    exit_code = verifier.main(
+        ["--admin-url", database_url, "--json-output", str(output)]
+    )
+
+    captured = capsys.readouterr()
+    payload_text = output.read_text(encoding="utf-8")
+    payload = json.loads(payload_text)
+    summary = payload["paths"][0]["error_summary"]
+    assert exit_code == 1
+    assert payload["paths"][0]["failed_step"] == "fresh.upgrade"
+    assert "relation device is missing" in summary
+    assert "relation device is missing" in captured.err
+    assert "CalledProcessError" in summary
+    assert "Traceback" not in captured.err
+    for secret in (database_url, username, password):
+        assert secret not in summary
+        assert secret not in captured.err
+        assert secret not in payload_text
+
+
+def test_ordinary_error_summary_is_bounded_and_redacts_dsn_credentials():
+    from scripts.python.verify_postgres_migrations import execute_verification
+
+    username = "unsafe_user"
+    password = "unsafe_password"
+    message = (
+        f"DSN=postgresql://{username}:{password}@localhost/postgres "
+        f"password={password} user={username} "
+        + "diagnostic " * 100
+    )
+    backend = FakeMigrationBackend(
+        fail_at=("create_database", "ces_migration_fresh"),
+        fail_error=ValueError(message),
+    )
+
+    result = execute_verification(backend)
+
+    summary = result.paths[0].error_summary
+    assert summary is not None
+    assert summary.startswith("ValueError:")
+    assert len(summary) <= 500
+    assert username not in summary
+    assert password not in summary
+
+
+def test_cleanup_cli_acquires_lock_before_drop_and_releases_afterward(monkeypatch):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    backend = FakeMigrationBackend()
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+
+    exit_code = verifier.main(
+        ["--admin-url", "postgresql://admin:secret@localhost/postgres", "--cleanup"]
+    )
+
+    assert exit_code == 0
+    assert backend.calls[0] == ("acquire_lock",)
+    assert backend.calls[-1] == ("release_lock",)
+    assert [call[0] for call in backend.calls[1:-1]] == [
+        "drop_database",
+        "drop_database",
+        "drop_database",
+    ]
+
+
+def test_cleanup_lock_refusal_does_not_attempt_any_database_drop(monkeypatch, capsys):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    backend = FakeMigrationBackend(fail_at=("acquire_lock",))
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+
+    exit_code = verifier.main(
+        ["--admin-url", "postgresql://admin:secret@localhost/postgres", "--cleanup"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert backend.calls == [("acquire_lock",)]
+    assert "already running" in captured.err
+    assert "secret" not in captured.err
 
 
 def test_cleanup_cli_reports_failure_without_traceback_or_password(

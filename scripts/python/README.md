@@ -35,6 +35,8 @@
 - `ces_migration_offline`
 - `ces_migration_roundtrip`
 
+本地三路径证据当前已在 TimescaleDB `2.19.3`（PostgreSQL 14）通过；这说明静态基线与当前开发环境兼容，不替代正式版本门禁。Task 7 必须把 CI 服务固定为 `timescale/timescaledb:2.17.2-pg14`，并在该固定版本重新执行同一组三路径验收，作为正式兼容性证据。
+
 `campus_energy` 永远不是验证器目标；不要把它或其他业务库名称传给验证器。执行正式验收：
 
 ```bash
@@ -48,7 +50,7 @@ MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
   tests/test_postgres_migration_paths.py
 ```
 
-验证器依次执行 fresh online upgrade、offline SQL 生成并应用、upgrade-downgrade-upgrade，比较三份最终指纹。全部成功时会自动删除三个临时库；迁移、指纹或比较失败时不自动清理，以保留现场。使用 `--keep-success` 可在成功后也保留临时库。诊断完成后只用以下命令清理固定临时库：
+验证器先通过 PostgreSQL advisory lock 串行化整个生命周期，再依次执行 fresh online upgrade、offline SQL 生成并应用、upgrade-downgrade-upgrade，比较三份最终指纹。第二个并发运行会立即拒绝，不等待，也不会创建、删除或终止临时库连接。全部成功时会自动删除三个临时库；迁移、指纹或比较失败时不自动清理，以保留现场。使用 `--keep-success` 可在成功后也保留临时库。诊断完成后只用以下命令清理固定临时库：
 
 ```bash
 MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
@@ -56,7 +58,7 @@ MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
   scripts/python/verify_postgres_migrations.py --cleanup
 ```
 
-若清理步骤自身失败，可能只剩部分临时库；按错误中列出的固定库名处理后再次运行 `--cleanup`。不要用此工具重建 `campus_energy`。
+`--cleanup` 同样先获取这把锁；若另一轮验证正在运行，它会立即拒绝，不会执行部分清理。若已取得锁但某个清理步骤自身失败，工具仍会 best-effort 尝试另外两个固定库，因此可能只剩部分临时库；按错误中列出的固定库名处理后再次运行 `--cleanup`。不要用此工具重建 `campus_energy`。
 
 ### 压测
 
