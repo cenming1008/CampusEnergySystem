@@ -39,14 +39,24 @@ cd frontend && npm install
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-3. 启动后端
+3. 首次启动或 schema 升级
+
+确认环境配置保持 `DB_AUTO_CREATE_TABLES=False`、
+`DB_RUNTIME_SCHEMA_SYNC=False`，然后由 Alembic 从当前根
+`20260716_0001` 创建或升级 schema：
+
+```bash
+alembic upgrade head
+```
+
+4. 启动后端
 
 ```bash
 source venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8088
 ```
 
-4. 启动前端
+5. 启动前端
 
 ```bash
 cd frontend
@@ -178,18 +188,23 @@ cp env.prod.example .env.prod
 
 ### `migrations/`
 
-用于管理数据库正式迁移，而不是临时自动建表。
+数据库 schema 仅由 Alembic 管理，应用启动只做校验。两个兼容开关必须保持
+`DB_AUTO_CREATE_TABLES=False` 和 `DB_RUNTIME_SCHEMA_SYNC=False`；配置为 `True`
+会被启动检查拒绝。
 
-- `env.py`：迁移上下文，加载 `SQLModel.metadata`
-- `versions/`：具体迁移脚本
+- `env.py`：Alembic online / offline 迁移上下文
+- `versions/`：当前活跃迁移链，根 revision 为 `20260716_0001`
 - `script.py.mako`：Alembic 脚本模板
 
-常用命令：
+新库和正常升级统一执行：
 
 ```bash
-alembic stamp 20260325_0001
 alembic upgrade head
 ```
+
+禁止 stamp 旧 revision。旧迁移链只在
+`docs/archive/migrations/legacy-pre-20260716` 中用于追溯；完整边界与操作说明见
+[迁移说明](migrations/README.md)。
 
 ### 已移除：预测与模型训练
 

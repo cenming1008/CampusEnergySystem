@@ -131,6 +131,19 @@ class DatabaseCoreTest(unittest.TestCase):
         self.assertIn("Task 8", readme)
         self.assertNotRegex(readme, r"alembic\s+stamp\s+2026\d+")
 
+    def test_root_readme_points_to_current_alembic_only_migration_guidance(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("DB_AUTO_CREATE_TABLES=False", readme)
+        self.assertIn("DB_RUNTIME_SCHEMA_SYNC=False", readme)
+        self.assertNotIn("DB_AUTO_CREATE_TABLES=True", readme)
+        self.assertNotIn("DB_RUNTIME_SCHEMA_SYNC=True", readme)
+        self.assertIn("20260716_0001", readme)
+        self.assertIn("alembic upgrade head", readme)
+        self.assertIn("migrations/README.md", readme)
+        self.assertIn("docs/archive/migrations/legacy-pre-20260716", readme)
+        self.assertNotRegex(readme, r"alembic\s+stamp\s+2026\d+")
+
     def test_lifecycle_reports_database_schema_validation_not_initialization(self):
         lifecycle = (ROOT / "app" / "core" / "lifecycle.py").read_text(
             encoding="utf-8"
