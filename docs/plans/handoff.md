@@ -4,48 +4,35 @@
 
 - 当前主题：`后端可靠性阶段 2A：确定性迁移基线`。
 - 正式 PLAN：`docs/plans/PLAN-20260716-backend-reliability-phase2a.md`。
-- 当前目标：建立静态 `20260716_0001` 根基线、三条一致的迁移路径、启动只校验契约和阻断式 CI 门禁。
+- 验收记录：`docs/plans/backend-reliability-phase2a-acceptance.md`。
+- 当前目标：只执行 Task 9 的主题交还，不再扩张阶段 2A 实现范围。
 
-## 已知证据
+## 已完成证据
 
-- 旧根 migration 依赖 ORM metadata，无法保证同 revision 复现同 schema。
-- 旧链 offline SQL 在 `20260412_0003` 的在线结果读取处失败；开启 Docker 不会修复该链缺陷。
-- 当前 `campus_energy` 数据可丢弃；Task 8 重建它是临时验证工具之外的独立后置动作，只能在三条临时路径全部通过后执行。
-- 园区光储 Task 1、Task 2 已正式完成，相关提交保留至 `efbbe808`；Task 3 未开始。
+- pre-reset focused gate：`89 passed, 2 skipped, 3 warnings`。
+- fresh、offline、roundtrip 各成功生成 628 个对象，公共指纹 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`；三个临时库已清理。
+- `campus_energy` 仅在上述门禁通过后重建，当前 revision 为 `20260716_0001`，public 表 26 张，`energydata` 为 hypertable。
+- `DB_AUTO_CREATE_TABLES=False`、`DB_RUNTIME_SCHEMA_SYNC=False` 下执行 `init_db()` 成功，前后结构指纹不变。
+- 全量 `727 passed, 2 skipped, 5 warnings`，覆盖率 74%，Ruff 基线、compileall 和 diff 门禁通过。
+- Ruff 基线只删除 10 条已修复 finding：168 条降至 158 条；新增 0 条，剩余集合完全一致。
+- 阻断式 CI 已使用 TimescaleDB 和真实三路径 verifier，无 `continue-on-error`。
 
-## 固定契约
+## 下一棒：Task 9 规则/验收
 
-- 迁移临时验证工具和流程中的所有破坏性操作仅允许三个精确名称的临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`；验证工具必须拒绝其他任何数据库名称，并且不得操作 `campus_energy`。
-- 新根 revision 为 `20260716_0001`；储能 Task 3 后续使用 `20260716_0002`，其 down revision 为 `20260716_0001`。
-- online、offline、roundtrip 三条路径必须产生一致的规范化 schema 指纹。
-- 应用启动只校验 schema，不创建表、不补字段或索引、不执行 hypertable DDL。
-- CI migration 不得配置 `continue-on-error`。
+1. 将储能实施计划中的 revision 更新为 `20260716_0002`、down revision 更新为 `20260716_0001`。
+2. 明确根基线已拥有基础 `storage_telemetry`，储能 Task 3 只增加已批准的 profile、dispatch 和 telemetry 扩展。
+3. 向当天 daily 状态与交接文件追加阶段 2A 完成快照，不覆盖已有快照。
+4. 通过治理与迁移契约测试后，把主区唯一主题切回园区光储，并将 Task 3 标记为具备准入条件而非已完成。
 
-## 下一棒
+## 固定边界
 
-### 后端
-
-- 按实施计划 Task 2 先用 TDD 建立纯数据库名称安全和 schema 指纹核心。
-- 后续再编排三个固定临时库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。
-- 在 Tasks 1-7 全部通过前，不得重建 `campus_energy`。
-
-### 验收
-
-- 每个任务结束后核对文件边界、RED-GREEN 证据和相关回归。
-- 最终核对静态迁移契约、三指纹一致、开发库重建、启动无 mutation、CI 阻断五类证据。
-
-## 暂停依赖
-
-- 园区光储不是当前活跃主题。
-- 园区光储 Task 1、Task 2 保持已完成；Task 3 因阶段 2A 迁移门禁保持阻塞。
-- 只有阶段 2A 全部验收通过，且根基线完成三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁，才切回园区光储并把 Task 3 改为可开始；仅 `20260716_0001` revision 自身验收通过不满足恢复门禁。
-
-## 非目标
-
-- Redis、MQTT、readiness、rate limit、部署顺序和储能持久化均不在本阶段处理。
-- 不以 startup metadata 建表、直接 stamp 或人工补表掩盖 migration 缺口。
+- Task 9 完成前，阶段 2A 仍是唯一活跃主主题，园区光储 Task 3 继续暂停。
+- 只有阶段 2A 全部验收通过并完成 Task 9 治理交还，才能解除园区光储 Task 3 暂停状态。
+- Redis 与 MQTT 容器、数据和 volumes 未修改；MQTT health 仍为本阶段非目标。
+- 不在 Task 9 中实现储能 migration、持久化、API 或前端功能。
+- 不触碰主工作树的用户改动 `app/api/README.md`。
 
 ## 交接结论
 
-- 阶段 2A 已恢复为唯一主主题，当前处于治理切换后的实现起点。
-- 下一接手角色为后端；首个实现对象是 migration 验证工具的安全与指纹核心。
+- Task 8：通过。
+- 下一角色：规则/验收，按实施计划执行 Task 9 并完成主题收口。

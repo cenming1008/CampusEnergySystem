@@ -248,12 +248,6 @@
       "count": 1
     },
     {
-      "path": "app/core/lifecycle.py",
-      "code": "I001",
-      "message": "Import block is un-sorted or un-formatted",
-      "count": 1
-    },
-    {
       "path": "app/core/metrics.py",
       "code": "I001",
       "message": "Import block is un-sorted or un-formatted",
@@ -261,12 +255,6 @@
     },
     {
       "path": "app/core/response.py",
-      "code": "I001",
-      "message": "Import block is un-sorted or un-formatted",
-      "count": 1
-    },
-    {
-      "path": "app/core/settings.py",
       "code": "I001",
       "message": "Import block is un-sorted or un-formatted",
       "count": 1
@@ -381,48 +369,6 @@
     },
     {
       "path": "app/models/compensation.py",
-      "code": "I001",
-      "message": "Import block is un-sorted or un-formatted",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "E402",
-      "message": "Module level import not at top of file",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "F401",
-      "message": "`app.models.compensation.CapacitorBankControlProfile` imported but unused",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "F401",
-      "message": "`app.models.compensation.CapacitorBankTelemetry` imported but unused",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "F401",
-      "message": "`app.models.compensation.SVGAssetProfile` imported but unused",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "F401",
-      "message": "`app.models.compensation.SVGConfig` imported but unused",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
-      "code": "F401",
-      "message": "`app.models.compensation.SVGTelemetry` imported but unused",
-      "count": 1
-    },
-    {
-      "path": "app/models/tables.py",
       "code": "I001",
       "message": "Import block is un-sorted or un-formatted",
       "count": 1
@@ -813,12 +759,6 @@
     },
     {
       "path": "tests/test_backend_layer_boundaries.py",
-      "code": "I001",
-      "message": "Import block is un-sorted or un-formatted",
-      "count": 1
-    },
-    {
-      "path": "tests/test_backend_tooling_contracts.py",
       "code": "I001",
       "message": "Import block is un-sorted or un-formatted",
       "count": 1

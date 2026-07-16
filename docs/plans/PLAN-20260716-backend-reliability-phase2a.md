@@ -75,3 +75,15 @@
 
 - 只有全部验收项均有可重复证据，阶段 2A 才能标记完成。
 - 只有阶段 2A 全部验收通过，且根基线完成三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁后，主区才切回园区光储主题，并将 Task 3 从“阻塞”改为“可开始”；仅 `20260716_0001` revision 文件或静态契约通过不足以恢复 Task 3。
+
+## Task 8 验收状态
+
+- [x] 活跃链仅保留静态根基线 `20260716_0001`，旧迁移链已归档。
+- [x] fresh、offline、roundtrip 三条真实数据库路径均得到 628 个对象，规范化指纹共同 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
+- [x] 经用户批准可清除的 `campus_energy` 已在三路径门禁通过后重建，revision 为 `20260716_0001`，包含 26 张 public 表和 `energydata` hypertable。
+- [x] `init_db()` 在两个 schema mutation flags 均为 `False` 时前后指纹不变，启动仅校验。
+- [x] CI 使用 TimescaleDB 并以无 `continue-on-error` 的确定性迁移验证作为阻断门禁。
+- [x] 全量测试 `727 passed, 2 skipped, 5 warnings`；覆盖率 74%；Ruff 基线检查、compileall 与 diff 检查通过。
+- [x] Redis 与 MQTT volumes 未修改；MQTT health 不在本阶段范围内。
+- 验收证据：`docs/plans/backend-reliability-phase2a-acceptance.md`。
+- Task 8 通过，但当前唯一主主题继续保持阶段 2A，直至 Task 9 正式交还园区光储；Task 3 此前不得开始。
