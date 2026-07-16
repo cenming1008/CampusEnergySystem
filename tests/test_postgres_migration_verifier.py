@@ -1,0 +1,205 @@
+import pytest
+
+from scripts.python.migration_schema import (
+    CONSTRAINTS_SQL,
+    HYPERTABLE_SQL,
+    INDEXES_SQL,
+    PUBLIC_COLUMNS_SQL,
+    MigrationVerificationError,
+    collect_schema_fingerprint,
+    compare_fingerprints,
+    normalize_fingerprint,
+    validate_temporary_database_name,
+)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "ces_migration_fresh",
+        "ces_migration_offline",
+        "ces_migration_roundtrip",
+    ],
+)
+def test_accepts_only_fixed_temporary_database_names(name):
+    assert validate_temporary_database_name(name) == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["campus_energy", "postgres", "ces_migration_", "ces_migration_bad-name"],
+)
+def test_rejects_unsafe_database_names(name):
+    with pytest.raises(MigrationVerificationError):
+        validate_temporary_database_name(name)
+
+
+def test_fingerprint_normalization_is_order_independent():
+    left = {
+        "tables": [
+            {"name": "device", "columns": [{"name": "id", "type": "integer"}]}
+        ]
+    }
+    right = {
+        "tables": [
+            {"columns": [{"type": "INTEGER", "name": "id"}], "name": "device"}
+        ]
+    }
+
+    assert normalize_fingerprint(left) == normalize_fingerprint(right)
+
+
+def test_fingerprint_normalization_sorts_nested_lists_and_dictionary_keys():
+    fingerprint = {
+        "objects": {
+            "second": {"columns": ["z", "a"], "type": "CHARACTER VARYING"},
+            "first": {"enabled": True},
+        }
+    }
+
+    normalized = normalize_fingerprint(fingerprint)
+
+    assert list(normalized["objects"]) == ["first", "second"]
+    assert normalized["objects"]["second"] == {
+        "columns": ["a", "z"],
+        "type": "character varying",
+    }
+
+
+def test_fingerprint_normalization_excludes_only_migration_and_internal_objects():
+    fingerprint = {
+        "tables": [
+            {"schema": "public", "name": "alembic_version"},
+            {"schema": "_timescaledb_internal", "name": "_hyper_1_1_chunk"},
+            {"schema": "public", "name": "device"},
+            {"schema": "audit", "name": "event"},
+        ]
+    }
+
+    assert normalize_fingerprint(fingerprint) == {
+        "tables": [
+            {"name": "device", "schema": "public"},
+            {"name": "event", "schema": "audit"},
+        ]
+    }
+
+
+def test_comparison_reports_first_differing_object():
+    with pytest.raises(MigrationVerificationError, match="device.archive_status"):
+        compare_fingerprints(
+            {"objects": {"device.archive_status": {"type": "varchar"}}},
+            {"objects": {"device.archive_status": {"type": "text"}}},
+        )
+
+
+class FakeCursor:
+    def __init__(self, rows_by_query):
+        self.rows_by_query = rows_by_query
+        self.rows = []
+        self.executed = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def execute(self, query):
+        self.executed.append(query)
+        self.rows = self.rows_by_query[query]
+
+    def fetchall(self):
+        return self.rows
+
+
+class FakeConnection:
+    def __init__(self, rows_by_query):
+        self.fake_cursor = FakeCursor(rows_by_query)
+
+    def cursor(self):
+        return self.fake_cursor
+
+
+def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
+    connection = FakeConnection(
+        {
+            PUBLIC_COLUMNS_SQL: [
+                ("device", "archive_status", "character varying", "varchar", "NO", None),
+                ("alembic_version", "version_num", "character varying", "varchar", "NO", None),
+            ],
+            CONSTRAINTS_SQL: [
+                ("device", "device_pkey", "PRIMARY KEY", "id", None, None, None, None),
+                (
+                    "device",
+                    "device_location_id_fkey",
+                    "FOREIGN KEY",
+                    "location_id",
+                    "location",
+                    "id",
+                    "NO ACTION",
+                    "CASCADE",
+                ),
+            ],
+            INDEXES_SQL: [
+                (
+                    "device",
+                    "ix_device_archive_status",
+                    "CREATE INDEX ix_device_archive_status ON public.device USING btree (archive_status)",
+                )
+            ],
+            HYPERTABLE_SQL: [("energydata", 1)],
+        }
+    )
+
+    fingerprint = collect_schema_fingerprint(connection)
+
+    assert connection.fake_cursor.executed == [
+        PUBLIC_COLUMNS_SQL,
+        CONSTRAINTS_SQL,
+        INDEXES_SQL,
+        HYPERTABLE_SQL,
+    ]
+    assert set(fingerprint["objects"]) == {
+        "table.device.column.archive_status",
+        "table.device.constraint.device_location_id_fkey",
+        "table.device.constraint.device_pkey",
+        "table.device.index.ix_device_archive_status",
+        "hypertable.energydata",
+    }
+    assert fingerprint["objects"]["table.device.column.archive_status"] == {
+        "column_default": None,
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "kind": "column",
+        "table": "device",
+        "udt_name": "varchar",
+    }
+    assert fingerprint["objects"]["table.device.constraint.device_location_id_fkey"] == {
+        "columns": ["location_id"],
+        "constraint_type": "FOREIGN KEY",
+        "delete_rule": "CASCADE",
+        "foreign_columns": ["location.id"],
+        "kind": "constraint",
+        "table": "device",
+        "update_rule": "NO ACTION",
+    }
+    assert fingerprint["objects"]["hypertable.energydata"] == {
+        "kind": "hypertable",
+        "num_dimensions": 1,
+        "table": "energydata",
+    }
+
+
+def test_collect_schema_fingerprint_is_json_serializable():
+    connection = FakeConnection(
+        {
+            PUBLIC_COLUMNS_SQL: [],
+            CONSTRAINTS_SQL: [],
+            INDEXES_SQL: [],
+            HYPERTABLE_SQL: [],
+        }
+    )
+
+    import json
+
+    json.dumps(collect_schema_fingerprint(connection), sort_keys=True)
