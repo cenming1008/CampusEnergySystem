@@ -39,14 +39,17 @@ CONSTRAINTS_SQL = """
 SELECT tc.table_name, tc.constraint_name, tc.constraint_type,
        kcu.column_name, ccu.table_name AS foreign_table,
        ccu.column_name AS foreign_column,
-       rc.update_rule, rc.delete_rule
+       rc.update_rule, rc.delete_rule,
+       kcu.ordinal_position, kcu.position_in_unique_constraint
 FROM information_schema.table_constraints tc
 LEFT JOIN information_schema.key_column_usage kcu
   ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-LEFT JOIN information_schema.constraint_column_usage ccu
-  ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema
 LEFT JOIN information_schema.referential_constraints rc
   ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
+LEFT JOIN information_schema.key_column_usage ccu
+  ON ccu.constraint_schema = rc.unique_constraint_schema
+ AND ccu.constraint_name = rc.unique_constraint_name
+ AND ccu.ordinal_position = kcu.position_in_unique_constraint
 WHERE tc.table_schema = 'public'
 ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position
 """
@@ -66,21 +69,42 @@ ORDER BY hypertable_name
 """
 
 _POSTGRES_TYPE_KEYS = frozenset({"type", "data_type", "udt_name"})
+_TIMESCALE_INTERNAL_SCHEMAS = frozenset(
+    {
+        "_timescaledb_cache",
+        "_timescaledb_catalog",
+        "_timescaledb_config",
+        "_timescaledb_debug",
+        "_timescaledb_functions",
+        "_timescaledb_internal",
+    }
+)
 
 
 def _is_excluded_record(value: Mapping[str, Any]) -> bool:
-    schema = value.get("schema", value.get("table_schema", value.get("schema_name")))
-    if isinstance(schema, str) and schema.startswith("_timescaledb_"):
+    schema = value.get(
+        "schema",
+        value.get("table_schema", value.get("schema_name", value.get("schemaname"))),
+    )
+    if schema in _TIMESCALE_INTERNAL_SCHEMAS:
         return True
 
-    table = value.get("table", value.get("table_name", value.get("name")))
-    return table == "alembic_version"
+    table = value.get("table", value.get("table_name"))
+    if table == "alembic_version":
+        return True
+    return value.get("kind") == "table" and value.get("name") == "alembic_version"
 
 
 def _is_excluded_object_key(key: str) -> bool:
     segments = key.split(".")
-    return "alembic_version" in segments or any(
-        segment.startswith("_timescaledb_") for segment in segments
+    return (
+        len(segments) >= 2
+        and segments[0] == "table"
+        and segments[1] == "alembic_version"
+    ) or (
+        len(segments) >= 2
+        and segments[0] == "schema"
+        and segments[1] in _TIMESCALE_INTERNAL_SCHEMAS
     )
 
 
@@ -165,7 +189,7 @@ def compare_fingerprints(
     raise MigrationVerificationError(f"schema fingerprints differ at {difference}")
 
 
-def _add_unique(values: list[str], value: str | None) -> None:
+def _add_unique(values: list[Any], value: Any) -> None:
     if value is not None and value not in values:
         values.append(value)
 
@@ -199,6 +223,8 @@ def collect_schema_fingerprint(connection: Any) -> dict[str, Any]:
                 foreign_column,
                 update_rule,
                 delete_rule,
+                ordinal_position,
+                referenced_position,
             ) = row
             if table == "alembic_version":
                 continue
@@ -210,18 +236,28 @@ def collect_schema_fingerprint(connection: Any) -> dict[str, Any]:
                     "table": table,
                     "constraint_type": constraint_type,
                     "columns": [],
-                    "foreign_columns": [],
                     "update_rule": update_rule,
                     "delete_rule": delete_rule,
                 },
             )
-            _add_unique(constraint["columns"], column)
-            foreign_reference = (
-                f"{foreign_table}.{foreign_column}"
-                if foreign_table is not None and foreign_column is not None
-                else None
+            _add_unique(
+                constraint["columns"],
+                {"name": column, "position": ordinal_position}
+                if column is not None
+                else None,
             )
-            _add_unique(constraint["foreign_columns"], foreign_reference)
+            if constraint_type == "FOREIGN KEY" and column is not None:
+                mappings = constraint.setdefault("column_mappings", [])
+                _add_unique(
+                    mappings,
+                    {
+                        "column": column,
+                        "position": ordinal_position,
+                        "foreign_table": foreign_table,
+                        "foreign_column": foreign_column,
+                        "foreign_position": referenced_position,
+                    },
+                )
 
         cursor.execute(INDEXES_SQL)
         for table, index_name, index_definition in cursor.fetchall():

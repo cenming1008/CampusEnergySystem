@@ -69,17 +69,46 @@ def test_fingerprint_normalization_sorts_nested_lists_and_dictionary_keys():
 def test_fingerprint_normalization_excludes_only_migration_and_internal_objects():
     fingerprint = {
         "tables": [
-            {"schema": "public", "name": "alembic_version"},
-            {"schema": "_timescaledb_internal", "name": "_hyper_1_1_chunk"},
-            {"schema": "public", "name": "device"},
-            {"schema": "audit", "name": "event"},
-        ]
+            {"kind": "table", "schema": "public", "name": "alembic_version"},
+            {
+                "kind": "table",
+                "schema": "_timescaledb_internal",
+                "name": "_hyper_1_1_chunk",
+            },
+            {"kind": "table", "schema": "public", "name": "device"},
+            {"kind": "table", "schema": "audit", "name": "event"},
+        ],
+        "objects": {
+            "table.alembic_version.column.version_num": {"kind": "column"},
+            "table.device.column.alembic_version": {
+                "kind": "column",
+                "schema": "public",
+                "table": "device",
+            },
+            "table._timescaledb_customer.column.id": {
+                "kind": "column",
+                "schema": "public",
+                "table": "_timescaledb_customer",
+            },
+        },
     }
 
     assert normalize_fingerprint(fingerprint) == {
+        "objects": {
+            "table._timescaledb_customer.column.id": {
+                "kind": "column",
+                "schema": "public",
+                "table": "_timescaledb_customer",
+            },
+            "table.device.column.alembic_version": {
+                "kind": "column",
+                "schema": "public",
+                "table": "device",
+            },
+        },
         "tables": [
-            {"name": "device", "schema": "public"},
-            {"name": "event", "schema": "audit"},
+            {"kind": "table", "name": "device", "schema": "public"},
+            {"kind": "table", "name": "event", "schema": "audit"},
         ]
     }
 
@@ -128,7 +157,18 @@ def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
                 ("alembic_version", "version_num", "character varying", "varchar", "NO", None),
             ],
             CONSTRAINTS_SQL: [
-                ("device", "device_pkey", "PRIMARY KEY", "id", None, None, None, None),
+                (
+                    "device",
+                    "device_pkey",
+                    "PRIMARY KEY",
+                    "id",
+                    None,
+                    None,
+                    None,
+                    None,
+                    1,
+                    None,
+                ),
                 (
                     "device",
                     "device_location_id_fkey",
@@ -138,6 +178,8 @@ def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
                     "id",
                     "NO ACTION",
                     "CASCADE",
+                    1,
+                    1,
                 ),
             ],
             INDEXES_SQL: [
@@ -175,10 +217,18 @@ def test_collect_schema_fingerprint_maps_catalog_rows_to_stable_object_keys():
         "udt_name": "varchar",
     }
     assert fingerprint["objects"]["table.device.constraint.device_location_id_fkey"] == {
-        "columns": ["location_id"],
+        "column_mappings": [
+            {
+                "column": "location_id",
+                "foreign_column": "id",
+                "foreign_position": 1,
+                "foreign_table": "location",
+                "position": 1,
+            }
+        ],
+        "columns": [{"name": "location_id", "position": 1}],
         "constraint_type": "FOREIGN KEY",
         "delete_rule": "CASCADE",
-        "foreign_columns": ["location.id"],
         "kind": "constraint",
         "table": "device",
         "update_rule": "NO ACTION",
@@ -203,3 +253,123 @@ def test_collect_schema_fingerprint_is_json_serializable():
     import json
 
     json.dumps(collect_schema_fingerprint(connection), sort_keys=True)
+
+
+def test_collect_schema_fingerprint_preserves_composite_foreign_key_pairing():
+    def fingerprint_for(references):
+        rows = [
+            (
+                "child",
+                "child_parent_fkey",
+                "FOREIGN KEY",
+                local_column,
+                "parent",
+                foreign_column,
+                "NO ACTION",
+                "NO ACTION",
+                position,
+                foreign_position,
+            )
+            for position, (local_column, foreign_column, foreign_position) in enumerate(
+                references, start=1
+            )
+        ]
+        return collect_schema_fingerprint(
+            FakeConnection(
+                {
+                    PUBLIC_COLUMNS_SQL: [],
+                    CONSTRAINTS_SQL: rows,
+                    INDEXES_SQL: [],
+                    HYPERTABLE_SQL: [],
+                }
+            )
+        )
+
+    direct = fingerprint_for([("a", "x", 1), ("b", "y", 2)])
+    crossed = fingerprint_for([("a", "y", 2), ("b", "x", 1)])
+
+    assert direct != crossed
+    assert direct["objects"]["table.child.constraint.child_parent_fkey"][
+        "column_mappings"
+    ] == [
+        {
+            "column": "a",
+            "foreign_column": "x",
+            "foreign_position": 1,
+            "foreign_table": "parent",
+            "position": 1,
+        },
+        {
+            "column": "b",
+            "foreign_column": "y",
+            "foreign_position": 2,
+            "foreign_table": "parent",
+            "position": 2,
+        },
+    ]
+
+
+def test_collect_schema_fingerprint_deduplicates_constraint_catalog_rows():
+    duplicate_row = (
+        "child",
+        "child_parent_fkey",
+        "FOREIGN KEY",
+        "parent_id",
+        "parent",
+        "id",
+        "NO ACTION",
+        "CASCADE",
+        1,
+        1,
+    )
+    fingerprint = collect_schema_fingerprint(
+        FakeConnection(
+            {
+                PUBLIC_COLUMNS_SQL: [],
+                CONSTRAINTS_SQL: [duplicate_row, duplicate_row],
+                INDEXES_SQL: [],
+                HYPERTABLE_SQL: [],
+            }
+        )
+    )
+
+    constraint = fingerprint["objects"]["table.child.constraint.child_parent_fkey"]
+    assert len(constraint["columns"]) == 1
+    assert len(constraint["column_mappings"]) == 1
+
+
+@pytest.mark.parametrize("constraint_type", ["PRIMARY KEY", "UNIQUE"])
+def test_non_foreign_constraints_do_not_contain_foreign_columns(constraint_type):
+    fingerprint = collect_schema_fingerprint(
+        FakeConnection(
+            {
+                PUBLIC_COLUMNS_SQL: [],
+                CONSTRAINTS_SQL: [
+                    (
+                        "device",
+                        "device_identity_key",
+                        constraint_type,
+                        "id",
+                        None,
+                        None,
+                        None,
+                        None,
+                        1,
+                        None,
+                    )
+                ],
+                INDEXES_SQL: [],
+                HYPERTABLE_SQL: [],
+            }
+        )
+    )
+
+    constraint = fingerprint["objects"]["table.device.constraint.device_identity_key"]
+    assert constraint["columns"] == [{"name": "id", "position": 1}]
+    assert "foreign_columns" not in constraint
+    assert "column_mappings" not in constraint
+
+
+def test_constraints_query_pairs_referenced_columns_by_unique_position():
+    assert "kcu.position_in_unique_constraint" in CONSTRAINTS_SQL
+    assert "ccu.ordinal_position = kcu.position_in_unique_constraint" in CONSTRAINTS_SQL
