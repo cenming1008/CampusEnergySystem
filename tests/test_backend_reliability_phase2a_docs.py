@@ -1,5 +1,5 @@
+import re
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,7 +13,10 @@ def test_phase2a_is_the_only_active_main_topic():
     handoff = read("docs/plans/handoff.md")
     assert "当前主主题：`后端可靠性阶段 2A：确定性迁移基线`" in status
     assert "当前主题：`后端可靠性阶段 2A：确定性迁移基线`" in handoff
-    assert "园区光储协同仿真与 EMS 控制`。" not in status
+    assert "当前主主题：`园区光储协同仿真与 EMS 控制`" not in status
+    assert "当前主题：`园区光储协同仿真与 EMS 控制`" not in handoff
+    assert status.count("当前主主题：") == 1
+    assert handoff.count("当前主题：") == 1
 
 
 def test_storage_task2_completion_is_preserved_in_daily_snapshot():
@@ -22,3 +25,42 @@ def test_storage_task2_completion_is_preserved_in_daily_snapshot():
     assert "园区光储主题暂停快照" in status
     assert "Task 2" in status and "正式完成" in status
     assert "Task 3" in handoff and "阶段 2A" in handoff
+    assert "阶段 2A 全部验收通过" in status
+    assert "阶段 2A 全部验收通过" in handoff
+    assert "三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁" in status
+    assert "三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁" in handoff
+
+
+def test_phase2a_allows_only_three_exact_temporary_databases():
+    plan = read("docs/plans/PLAN-20260716-backend-reliability-phase2a.md")
+    status = read("docs/plans/current-status.md")
+    handoff = read("docs/plans/handoff.md")
+    governance = "\n".join((plan, status, handoff))
+
+    allowed_names = {
+        "ces_migration_fresh",
+        "ces_migration_offline",
+        "ces_migration_roundtrip",
+    }
+    assert (
+        "所有破坏性操作只允许针对以下三个临时数据库："
+        "`ces_migration_fresh`、`ces_migration_offline`、"
+        "`ces_migration_roundtrip`。"
+    ) in plan
+    assert set(re.findall(r"`(ces_migration_[a-z0-9_]+)`", governance)) == allowed_names
+    assert "任意 `ces_migration_` 前缀" not in governance
+    assert "只允许针对 `ces_migration_` 前缀" not in governance
+
+
+def test_storage_resumes_only_after_the_complete_phase2a_gate():
+    plan = read("docs/plans/PLAN-20260716-backend-reliability-phase2a.md")
+    status = read("docs/plans/current-status.md")
+    handoff = read("docs/plans/handoff.md")
+
+    assert "新根 revision：`20260716_0001`" in plan
+    assert "后续储能 revision：`20260716_0002`" in plan
+    assert "三条临时路径全部通过后才允许重建 `campus_energy`" in plan
+    assert "阶段 2A 全部验收通过" in plan
+    assert "三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁" in plan
+    assert "阶段 2A 全部验收通过" in status
+    assert "阶段 2A 全部验收通过" in handoff

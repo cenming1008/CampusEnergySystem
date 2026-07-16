@@ -18,9 +18,9 @@
 ## 数据边界
 
 - 当前 `campus_energy` 数据经用户确认可清除。
-- 破坏性实验只允许针对名称以 `ces_migration_` 开头的临时数据库。
-- 临时验证全部通过后才允许重建 `campus_energy`。
-- 临时验证工具不得创建、删除或修改其他名称的数据库。
+- 所有破坏性操作只允许针对以下三个临时数据库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。
+- 三条临时路径全部通过后才允许重建 `campus_energy`。
+- 临时验证工具必须按精确名称白名单校验，不得创建、删除或修改上述三个名称之外的数据库。
 - Redis 与 MQTT 的数据、容器和卷不在本阶段清理范围内。
 
 ## 非目标
@@ -46,7 +46,7 @@
 5. 将应用启动改为只校验 schema，禁止运行时 schema mutation。
 6. 恢复 TimescaleDB 支撑的阻断式 CI migration 门禁。
 7. 临时库验证全部通过后，重建可丢弃的 `campus_energy` 并记录证据。
-8. 验收通过后把唯一主主题交还园区光储，解除 Task 3 阻塞。
+8. 阶段 2A 全部验收通过后，把唯一主主题交还园区光储并解除 Task 3 阻塞。
 
 ## 角色与交接
 
@@ -67,11 +67,11 @@
 ## 风险与控制
 
 - 静态基线遗漏运行时对象：重建前以三路径指纹和启动必需对象清单双重核对。
-- 误删数据库：临时工具只接受 `ces_migration_` 前缀；`campus_energy` 重建作为独立、后置步骤。
+- 误删数据库：临时工具只接受 `ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip` 三个精确名称；`campus_energy` 重建作为独立、后置步骤。
 - 归档文件仍被 Alembic 加载：契约测试要求旧 revision 离开 `migrations/versions/`。
 - TimescaleDB 与普通 PostgreSQL 行为不同：本地和 CI 均使用 PostgreSQL 14 对应的 TimescaleDB 环境。
 
 ## 收口条件
 
 - 只有全部验收项均有可重复证据，阶段 2A 才能标记完成。
-- 阶段 2A 完成后，主区只切回园区光储主题，并将 Task 3 从“阻塞”改为“可开始”，不得提前标记完成。
+- 只有阶段 2A 全部验收通过，且根基线完成三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁后，主区才切回园区光储主题，并将 Task 3 从“阻塞”改为“可开始”；仅 `20260716_0001` revision 文件或静态契约通过不足以恢复 Task 3。

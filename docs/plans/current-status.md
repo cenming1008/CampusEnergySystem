@@ -22,14 +22,14 @@
 - offline SQL 在旧 revision `20260412_0003` 的 `result.fetchone()` 处稳定失败。
 - 旧根迁移使用动态 ORM metadata，应用启动仍可能执行 schema mutation，CI migration 仍允许失败。
 - PostgreSQL Docker 服务可用不是 offline SQL 失败的根因；迁移链本身不满足确定性与离线生成契约。
-- 破坏性实验只允许针对 `ces_migration_` 前缀临时库；`campus_energy` 只可在隔离验证全部通过后重建。
+- 所有破坏性操作只允许针对三个精确名称的临时库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`；`campus_energy` 只可在三条临时路径全部通过后重建。
 
 ## 固定边界
 
 - 新根 revision 固定为 `20260716_0001`，后续储能 revision 固定为 `20260716_0002`。
 - 本阶段不处理 Redis、MQTT、readiness、rate limit、部署顺序或储能持久化。
 - 园区光储 Task 1、Task 2 已正式完成；Task 3 作为暂停依赖保持阻塞，不是第二个活跃主主题。
-- 园区光储暂停状态已追加到 `docs/plans/daily/2026-07/`，恢复条件为 `20260716_0001` 完成验收。
+- 园区光储暂停状态已追加到 `docs/plans/daily/2026-07/`；恢复条件为阶段 2A 全部验收通过，即根基线完成三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁，不能只依据 `20260716_0001` revision 自身验收恢复。
 
 ## 当前待办
 
@@ -54,5 +54,5 @@
 ## 当前验收判断
 
 - 阶段 2A：已恢复为唯一主主题，尚未完成。
-- 园区光储 Task 3：继续阻塞，等待 `20260716_0001` 验收通过。
+- 园区光储 Task 3：继续阻塞，等待阶段 2A 全部验收通过；仅根 revision 或静态迁移契约通过不得解除阻塞。
 - 下一接手角色：后端，先实现 migration 验证工具的纯安全与指纹核心；完成后交验收。
