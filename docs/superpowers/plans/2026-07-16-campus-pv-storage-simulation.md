@@ -20,6 +20,16 @@
    - frontend: `355 passed, 4 failed` in existing `EnergyManagement.test.ts` and `DeviceTrendPanel.test.ts` cases. These four failures are recorded as pre-existing and are not success criteria for storage work; all new storage tests must pass, and no additional failures may be introduced.
 5. Every simulated payload must include `data_source=simulated`. Never present simulator output as real hardware telemetry.
 
+Use this reproducible shell environment for every Python and migration command in this plan:
+
+```bash
+export PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH
+export DATABASE_URL=postgresql://admin:password123@localhost:5432/campus_energy
+export MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres
+```
+
+After this preflight, invoke the shared virtual environment as `python`; do not assume that the isolated worktree contains its own `./venv` directory.
+
 ## Milestones
 
 - **Milestone A — Simulated telemetry:** Tasks 1-5 produce a storage simulator that publishes realistic telemetry into the existing monitor path.
@@ -123,7 +133,7 @@ Create the topic plan with these fixed sections and decisions:
 Run:
 
 ```bash
-./venv/bin/python -m pytest -q tests/test_backend_tooling_contracts.py
+python -m pytest -q tests/test_backend_tooling_contracts.py
 alembic upgrade head --sql
 ```
 
@@ -174,7 +184,7 @@ def test_discharge_stops_at_soc_floor():
 
 - [ ] **Step 2: Run tests and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulation_domain.py`
+Run: `python -m pytest -q tests/test_storage_simulation_domain.py`
 
 Expected: FAIL with `ModuleNotFoundError: app.domain.storage_simulation`.
 
@@ -226,7 +236,7 @@ Add tests for rated power clipping, ramping, direction change through zero, SOC 
 
 - [ ] **Step 5: Run focused tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulation_domain.py`
+Run: `python -m pytest -q tests/test_storage_simulation_domain.py`
 
 Expected: all storage simulation domain tests PASS.
 
@@ -245,7 +255,23 @@ git commit -m "feat: add storage battery simulation model"
 - Test: `tests/test_storage_model_contract.py`
 - Test: `tests/test_migration_storage_contract.py`
 
-- [ ] **Step 1: Write failing model contract tests**
+- [ ] **Step 1: Write failing migration contract tests**
+
+Create `tests/test_migration_storage_contract.py` before editing the model or migration. Lock all of these facts:
+
+- active migration filename is `20260716_0002_add_storage_simulation_contracts.py`;
+- `revision = "20260716_0002"` and `down_revision = "20260716_0001"`;
+- the accepted baseline owns the base `storage_telemetry` table, so Task 3 must not call `op.create_table("storage_telemetry", ...)`;
+- Task 3 may create only `storage_asset_profile` and `storage_dispatch_plan` and may add only these eight approved telemetry extensions: `target_active_power`, `available_charge_power`, `available_discharge_power`, `bms_status`, `pcs_status`, `grid_status`, `command_source`, and `data_source`;
+- downgrade removes exactly the Task 3 additions and does not drop the baseline-owned telemetry table.
+
+- [ ] **Step 2: Run migration contract tests and verify RED**
+
+Run: `python -m pytest -q tests/test_migration_storage_contract.py`
+
+Expected: FAIL because `20260716_0002` does not exist. This RED must be observed before modifying `app/models/storage.py` or creating the migration.
+
+- [ ] **Step 3: Write failing model contract tests**
 
 ```python
 from datetime import date, datetime
@@ -261,21 +287,21 @@ def test_storage_contract_models_keep_power_direction_and_source():
     assert plan.slot_index == 0
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [ ] **Step 4: Run model contract tests and verify RED**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_model_contract.py`
+Run: `python -m pytest -q tests/test_storage_model_contract.py`
 
 Expected: FAIL because the new models and fields do not exist.
 
-- [ ] **Step 3: Add focused SQLModel contracts**
+- [ ] **Step 5: Add focused SQLModel contracts**
 
-The accepted root baseline already owns the base `storage_telemetry` table. Task 3 must not recreate it. Add `StorageAssetProfile` with unique `device_id`, rated energy/power, efficiencies, hard/soft SOC bounds, voltage, battery type, BMS/PCS model, protocol version, location, commission date, and timestamps.
+The accepted root baseline already owns the 基础 `storage_telemetry` table. Task 3 must not recreate it（不得重建基础表）. Add `StorageAssetProfile` with unique `device_id`, rated energy/power, efficiencies, hard/soft SOC bounds, voltage, battery type, BMS/PCS model, protocol version, location, commission date, and timestamps.
 
 Extend `StorageTelemetry` with nullable `target_active_power`, available charge/discharge power, BMS/PCS/grid states, command source, and `data_source` defaulting to `telemetry`.
 
 Add `StorageDispatchPlan` with `(device_id, dispatch_date, slot_index)` uniqueness, 0-95 slot validation in service code, forecasts, tariff, target power, expected SOC, strategy/version, solver status, validity, failure reason, and generation timestamp.
 
-- [ ] **Step 4: Write the deterministic migration**
+- [ ] **Step 6: Write the deterministic migration**
 
 The migration must use only explicit Alembic operations. Set:
 
@@ -286,19 +312,80 @@ down_revision = "20260716_0001"
 
 Create `storage_asset_profile` and `storage_dispatch_plan`, add only the eight approved telemetry extensions to the baseline-owned `storage_telemetry`, create the unique dispatch-slot constraint, and implement a complete downgrade. Task 3 is limited to profile, dispatch, and those approved telemetry extensions; it must not recreate the base telemetry table. Do not import current SQLModel metadata or query application tables during migration.
 
-- [ ] **Step 5: Run migration tests**
+- [ ] **Step 7: Run focused tests and offline SQL**
 
 Run:
 
 ```bash
-./venv/bin/python -m pytest -q tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
+python -m pytest -q tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
 alembic upgrade head --sql > /tmp/storage-upgrade.sql
 rg "storage_asset_profile|storage_dispatch_plan|target_active_power" /tmp/storage-upgrade.sql
 ```
 
 Expected: tests PASS; offline SQL generation exits `0`; all three schema names are present.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Run real three-path verification and inspect the preserved fresh database**
+
+```bash
+python scripts/python/verify_postgres_migrations.py \
+  --keep-success \
+  --json-output /tmp/storage-task3-migrations.json
+python - <<'PY'
+import os
+
+import psycopg2
+from sqlalchemy.engine import make_url
+
+expected_tables = {"storage_asset_profile", "storage_dispatch_plan"}
+expected_columns = {
+    "target_active_power",
+    "available_charge_power",
+    "available_discharge_power",
+    "bms_status",
+    "pcs_status",
+    "grid_status",
+    "command_source",
+    "data_source",
+}
+admin_url = make_url(os.environ["MIGRATION_ADMIN_URL"])
+for database_name in (
+    "ces_migration_fresh",
+    "ces_migration_offline",
+    "ces_migration_roundtrip",
+):
+    url = admin_url.set(database=database_name, drivername="postgresql")
+    connection = psycopg2.connect(url.render_as_string(hide_password=False))
+    with connection, connection.cursor() as cursor:
+        cursor.execute("SELECT version_num FROM alembic_version")
+        assert cursor.fetchone()[0] == "20260716_0002"
+        cursor.execute(
+            "SELECT hypertable_name FROM timescaledb_information.hypertables "
+            "WHERE hypertable_schema='public' AND hypertable_name='energydata'"
+        )
+        assert cursor.fetchone()[0] == "energydata"
+        if database_name == "ces_migration_fresh":
+            cursor.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema='public' "
+                "AND table_name IN "
+                "('storage_asset_profile', 'storage_dispatch_plan')"
+            )
+            assert {row[0] for row in cursor.fetchall()} == expected_tables
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name='storage_telemetry'"
+            )
+            actual_columns = {row[0] for row in cursor.fetchall()}
+            assert expected_columns <= actual_columns
+    connection.close()
+print("three-path revision/hypertable and fresh storage contract: verified")
+PY
+python scripts/python/verify_postgres_migrations.py --cleanup
+```
+
+Expected: verifier exits `0`; fresh, offline, and roundtrip fingerprints are identical; every path is at revision `20260716_0002`; preserved fresh contains both new storage tables, exactly the eight approved `storage_telemetry` extensions, and `public.energydata` remains a hypertable. The final cleanup command must exit `0` and remove all three fixed temporary databases. If inspection fails, run cleanup before reporting the blocker.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add app/models/storage.py migrations/versions/20260716_0002_add_storage_simulation_contracts.py tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
@@ -335,7 +422,7 @@ Persist it through `persist_device_extensions` and assert every field is stored 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py`
+Run: `python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py`
 
 Expected: new field assertions FAIL.
 
@@ -354,7 +441,7 @@ Add numeric fields to `_STORAGE_NUMERIC_FIELDS`, state/source fields to `_STORAG
 
 - [ ] **Step 4: Run focused tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py tests/test_device_monitor_service.py`
+Run: `python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py tests/test_device_monitor_service.py`
 
 Expected: PASS with no new warnings.
 
@@ -393,7 +480,7 @@ def test_simulator_payload_is_explicitly_simulated():
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulator_cli.py`
+Run: `python -m pytest -q tests/test_storage_simulator_cli.py`
 
 Expected: FAIL because the simulator module does not exist.
 
@@ -418,8 +505,8 @@ Add typed settings for `storage_ems_enabled`, `storage_simulation_enabled`, `sto
 Run:
 
 ```bash
-./venv/bin/python scripts/python/storage_simulator.py --print-only --seed 20260716
-./venv/bin/python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_settings.py
+python scripts/python/storage_simulator.py --print-only --seed 20260716
+python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_settings.py
 ```
 
 Expected: JSON contains `data_source=simulated`; tests PASS; repeated runs with the same seed match after excluding the generated timestamp.
@@ -473,7 +560,7 @@ def test_storage_receipt_dispatches_by_device_category(session, storage_device, 
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py`
+Run: `python -m pytest -q tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py`
 
 Expected: FAIL because the storage command service and dispatcher do not exist.
 
@@ -517,7 +604,7 @@ Create `expire_storage_control_timeouts()` in `scheduler_jobs.py` and register i
 Run:
 
 ```bash
-./venv/bin/python -m pytest -q tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py tests/test_mqtt_processor.py tests/test_capacitor_bank_control_command_service_boundary.py
+python -m pytest -q tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py tests/test_mqtt_processor.py tests/test_capacitor_bank_control_command_service_boundary.py
 ```
 
 Expected: all PASS; compensation receipt tests remain green.
@@ -554,7 +641,7 @@ Assert viewers can read but cannot control; maintainer/operator/admin can contro
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_device_nested_api.py`
+Run: `python -m pytest -q tests/test_storage_device_nested_api.py`
 
 Expected: new endpoint tests FAIL with 404 or missing schema imports.
 
@@ -589,7 +676,7 @@ Endpoints perform dependency injection, permission checks, audit logging, servic
 
 - [ ] **Step 5: Run API tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_device_nested_api.py tests/test_access_control.py`
+Run: `python -m pytest -q tests/test_storage_device_nested_api.py tests/test_access_control.py`
 
 Expected: PASS.
 
@@ -632,7 +719,7 @@ def test_demand_limit_discharge_is_negative():
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_control_rules.py`
+Run: `python -m pytest -q tests/test_storage_control_rules.py`
 
 Expected: FAIL because the rule module does not exist.
 
@@ -657,7 +744,7 @@ Register the job only when `STORAGE_EMS_ENABLED=true`, using the default-off typ
 
 - [ ] **Step 6: Run focused tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_control_rules.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
+Run: `python -m pytest -q tests/test_storage_control_rules.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
 
 Expected: PASS.
 
@@ -688,7 +775,7 @@ and require it to hold for three consecutive simulator steps before `success`.
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulator_control.py`
+Run: `python -m pytest -q tests/test_storage_simulator_control.py`
 
 Expected: lifecycle assertions FAIL.
 
@@ -698,7 +785,7 @@ Use states `accepted`, `running`, and one terminal result. Cache terminal result
 
 - [ ] **Step 4: Run simulator control tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_simulator_control.py`
+Run: `python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_simulator_control.py`
 
 Expected: PASS.
 
@@ -807,7 +894,7 @@ Create a deterministic 96-slot sunny-day input and assert:
 
 - [ ] **Step 3: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_dispatch_optimizer.py`
+Run: `python -m pytest -q tests/test_storage_dispatch_optimizer.py`
 
 Expected: FAIL because the optimizer module does not exist.
 
@@ -835,7 +922,7 @@ Run:
 ```bash
 ./venv/bin/pip install --constraint constraints-ci.txt -r requirements.txt
 ./venv/bin/pip check
-./venv/bin/python -m pytest -q tests/test_storage_dispatch_optimizer.py
+python -m pytest -q tests/test_storage_dispatch_optimizer.py
 ```
 
 Expected: dependency check and tests PASS.
@@ -865,7 +952,7 @@ Test valid plan replacement in one transaction, retrieval of the current slot, p
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py`
+Run: `python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py`
 
 Expected: FAIL because dispatch service and routes do not exist.
 
@@ -883,7 +970,7 @@ Register one configurable daily generation time. Add GET current plan, POST gene
 
 - [ ] **Step 6: Run focused tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
+Run: `python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
 
 Expected: PASS.
 
@@ -922,7 +1009,7 @@ Use calculated expected values in the actual fixture; do not hardcode improvemen
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
+Run: `python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
 
 Expected: FAIL because service and routes do not exist.
 
@@ -936,7 +1023,7 @@ Add `/energy/storage/overview` and `/energy/storage/comparison`; filter devices 
 
 - [ ] **Step 5: Run focused tests**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
+Run: `python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
 
 Expected: PASS.
 
@@ -1033,7 +1120,7 @@ Run a compressed sunny workday through baseline, rules, and day-ahead strategies
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `./venv/bin/python -m pytest -q tests/test_storage_simulator_e2e.py`
+Run: `python -m pytest -q tests/test_storage_simulator_e2e.py`
 
 Expected: FAIL until the demo orchestrator exists.
 
@@ -1050,13 +1137,13 @@ Document exact startup commands, expected page, five scenarios, metric definitio
 Run:
 
 ```bash
-./venv/bin/python -m pytest -q
+python -m pytest -q
 bash ./scripts/shell/run_backend_coverage.sh
 cd frontend && npm run typecheck
 cd frontend && npm run build
 cd frontend && npm run test:unit -- src/features/storage-energy src/features/device-monitor/components/storage src/features/device-monitor/composables/__tests__/useStorageMonitor.test.ts
 docker compose -f docker-compose.prod.yml --env-file env.prod.example config
-./venv/bin/python scripts/python/run_storage_demo.py --scenario sunny_workday --seed 20260716 --output-dir artifacts/storage-demo
+python scripts/python/run_storage_demo.py --scenario sunny_workday --seed 20260716 --output-dir artifacts/storage-demo
 ```
 
 Expected:

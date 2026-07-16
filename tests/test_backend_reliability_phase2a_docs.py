@@ -80,3 +80,51 @@ def test_storage_resumes_only_after_phase2a_acceptance():
     assert "Task 3" in status and "具备准入条件" in status
     assert 'revision = "20260716_0002"' in storage_plan
     assert 'down_revision = "20260716_0001"' in storage_plan
+
+
+def test_storage_task3_handoff_is_ready_but_not_complete():
+    status = read("docs/plans/current-status.md")
+    handoff = read("docs/plans/handoff.md")
+    governance = "\n".join((status, handoff))
+
+    assert "Task 3" in status and "具备准入条件" in status
+    assert "Task 3" in handoff and "具备准入条件" in handoff
+    assert "尚未完成" in status
+    assert "尚未完成" in handoff
+    assert not re.search(r"(?m)^- \[x\] Task 3[:：]", governance)
+    assert not re.search(r"(?m)^- Task 3[:：]\s*(?:已)?完成[。；]?$", governance)
+
+
+def test_storage_plans_lock_the_accepted_migration_boundary():
+    formal = read("docs/plans/PLAN-20260716-campus-pv-storage-simulation.md")
+    detailed = read(
+        "docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md"
+    )
+    plans = "\n".join((formal, detailed))
+
+    assert "20260716_0012" not in plans
+    assert "20260515_0011" not in plans
+    for plan in (formal, detailed):
+        assert 'revision = "20260716_0002"' in plan
+        assert 'down_revision = "20260716_0001"' in plan
+        assert "基础 `storage_telemetry`" in plan
+        assert "不得重建" in plan
+
+
+def test_storage_task3_plan_requires_contract_red_before_implementation():
+    detailed = read(
+        "docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md"
+    )
+
+    contract_red = detailed.index("Write failing migration contract tests")
+    model_implementation = detailed.index("Add focused SQLModel contracts")
+    migration_implementation = detailed.index("Write the deterministic migration")
+    assert contract_red < model_implementation < migration_implementation
+    assert "eight approved telemetry extensions" in detailed
+    assert "export PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH" in detailed
+    assert "export DATABASE_URL=" in detailed
+    assert "export MIGRATION_ADMIN_URL=" in detailed
+    assert "python scripts/python/verify_postgres_migrations.py" in detailed
+    assert "--keep-success" in detailed
+    assert "--cleanup" in detailed
+    assert "public.energydata" in detailed
