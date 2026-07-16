@@ -2,67 +2,57 @@
 
 ## 当前总目标
 
-- 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：完成系统级储能仿真、MQTT 遥测、控制回执、规则 EMS、日前优化和收益对比。
-- 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
+- 当前主主题：`后端可靠性阶段 2A：确定性迁移基线`。
+- 当前总目标：以静态根迁移建立可复现 schema，使 online、offline、roundtrip 三条路径一致，并恢复启动只校验与 CI 阻断门禁。
+- 当前执行依据：`docs/plans/PLAN-20260716-backend-reliability-phase2a.md`。
 
 ## 当前阶段
 
-- [x] Task 1 规格审查与质量审查均通过，正式完成。
-- [x] Task 2 纯领域模型规格审查与质量审查均通过，正式完成。
-- [ ] Task 3 持久化模型与迁移；当前阻塞。
-- [ ] 阶段 A：仿真遥测。
-- [ ] 阶段 B：控制与规则闭环。
-- [ ] 阶段 C：日前优化与收益证据。
+- [x] 阶段 2A 设计经用户批准，实施计划已建立。
+- [ ] 治理切换与园区光储暂停快照验收。
+- [ ] 数据库安全与 schema 指纹核心。
+- [ ] 隔离 PostgreSQL migration 验证工具。
+- [ ] 旧链归档与静态根基线 `20260716_0001`。
+- [ ] online、offline、roundtrip 三路径验证。
+- [ ] 启动只校验、阻断式 CI、开发库后置重建与最终验收。
 
-## 当前阻塞
+## 当前事实
 
-- 主题切换门禁已满足：阶段 2A 经用户批准暂停，并已保存主题切换时的 status/handoff 快照。
-- 持久化准入门禁未满足：offline SQL 失败，fresh 和两类 existing database 路径缺少 fixture 与通过证据。
-- offline SQL 门禁失败：配置 PostgreSQL URL 后，`alembic upgrade head --sql` 在 revision `20260412_0003` 的 `result.fetchone()` 处报 `AttributeError: 'NoneType' object has no attribute 'fetchone'`。
-- fresh、migration-built existing、runtime-sync existing 三类 PostgreSQL fixture 缺失，三条升级路径没有通过证据。
-- Task 3 及所有依赖持久化的后续任务阻塞；不得修改数据库模型或 migration。
-- 前一主题“后端可靠性阶段 2A”已由用户批准暂停并归档，待恢复；并未完成或通过。
+- 当前 `campus_energy` 位于旧 revision `20260515_0011`，其数据经用户确认可丢弃。
+- offline SQL 在旧 revision `20260412_0003` 的 `result.fetchone()` 处稳定失败。
+- 旧根迁移使用动态 ORM metadata，应用启动仍可能执行 schema mutation，CI migration 仍允许失败。
+- PostgreSQL Docker 服务可用不是 offline SQL 失败的根因；迁移链本身不满足确定性与离线生成契约。
+- 破坏性实验只允许针对 `ces_migration_` 前缀临时库；`campus_energy` 只可在隔离验证全部通过后重建。
 
-## 当前验证结论
+## 固定边界
 
-- `tests/test_backend_tooling_contracts.py`：13 passed。
-- Task 2 实现：`app/domain/storage_simulation.py`；兼容性修复：`app/domain/__init__.py`；测试：`tests/test_storage_simulation_domain.py`。
-- Task 2 按 TDD 完成有效 RED-GREEN 循环；最终核心测试 `77 passed`，协调者相关回归复验 `136 passed`，三个变更文件 Ruff 检查通过。
-- 无 `DATABASE_URL` 的隔离子进程可成功导入 `StorageAssetConfig`，纯领域模型不再因包入口加载数据库设置。
-- Task 2 规格审查与质量审查均通过，正式完成；该结论不代表持久化准入门禁通过。
-- 主题切换门禁：通过。
-- 持久化准入门禁：失败。
-- offline SQL：失败，不通过。
-- fresh PostgreSQL：未验证，不通过门禁。
-- migration-built existing：未验证，不通过门禁。
-- runtime-sync existing：未验证，不通过门禁。
-- 主题切换治理：已建立正式 PLAN，并把前一主题 status/handoff 快照归档到 `docs/plans/daily/2026-07/`。
-
-## 固定契约
-
-- `device_category=storage`
-- `device_subtype=battery_energy_storage_system`
-- 正功率充电，负功率放电。
-- 仿真数据必须标记 `data_source=simulated`。
-- 容量、额定功率、SOC 上下限、充放电效率和爬坡率均由 `StorageAssetConfig` 显式配置；`500 kWh / 250 kW` 与 `10%-90%` 只是本阶段默认验收场景 / 基准配置，不是领域模型硬编码常量。
+- 新根 revision 固定为 `20260716_0001`，后续储能 revision 固定为 `20260716_0002`。
+- 本阶段不处理 Redis、MQTT、readiness、rate limit、部署顺序或储能持久化。
+- 园区光储 Task 1、Task 2 已正式完成；Task 3 作为暂停依赖保持阻塞，不是第二个活跃主主题。
+- 园区光储暂停状态已追加到 `docs/plans/daily/2026-07/`，恢复条件为 `20260716_0001` 完成验收。
 
 ## 当前待办
 
-1. 规则 / 后端可靠性阶段 2A 恢复当前迁移门禁治理，并取得 offline、fresh 和两类 existing database 的完整通过证据。
-2. 持久化准入门禁通过后再交后端执行 Task 3，并解除其下游持久化依赖阻塞。
-3. 每一验收阶段结束时核对固定契约、非目标和可重复证据。
+1. 完成并验收阶段 2A 治理切换。
+2. 交后端按 TDD 实现数据库名称安全、schema 指纹与三路径验证工具。
+3. 在临时数据库验证通过前，不归因于数据、不重建 `campus_energy`、不启动储能 Task 3。
+
+## 当前验收门禁
+
+- 静态迁移契约：未验证。
+- online、offline、roundtrip 指纹一致：未验证。
+- 启动无 schema mutation：未验证。
+- CI migration 无 `continue-on-error`：未验证。
+- 临时路径通过后的开发库重建：未执行。
 
 ## 当前剩余风险
 
-- 现有 Alembic 动态 baseline 与 runtime schema sync 使 schema 不可复现。
-- 现有 `storage_telemetry` 缺少正式 migration 承载，不能直接复用为已就绪的持久化能力。
-- 功率符号、SOC 时序和控制回执若跨层重复定义，可能产生契约漂移。
-- 收益结论对输入假设敏感，阶段 C 必须固定基准与成本口径。
+- 静态基线可能遗漏历史运行时补出的字段、索引或 TimescaleDB 对象。
+- 数据库清理若缺少名称安全检查，可能误触非目标数据库。
+- 在移除启动时修复前，migration 缺口仍可能被运行时行为掩盖。
 
 ## 当前验收判断
 
-- Task 1：规格审查与质量审查均通过，正式完成。
-- Task 2：规格审查与质量审查均通过，正式完成。
-- Task 3 及依赖持久化任务：打回门禁，保持阻塞。
-- 下一接手角色：规则 / 后端可靠性阶段 2A，恢复迁移门禁治理；门禁通过后才交后端执行 Task 3。
+- 阶段 2A：已恢复为唯一主主题，尚未完成。
+- 园区光储 Task 3：继续阻塞，等待 `20260716_0001` 验收通过。
+- 下一接手角色：后端，先实现 migration 验证工具的纯安全与指纹核心；完成后交验收。

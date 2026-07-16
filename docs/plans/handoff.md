@@ -2,58 +2,50 @@
 
 ## 当前主题
 
-- `园区光储协同仿真与 EMS 控制`
-- 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`
-- Task 1 规格审查与质量审查均通过，正式完成。
-- Task 2 规格审查与质量审查均通过，正式完成；Task 3 及持久化下游仍依赖当前未满足的持久化准入门禁。
+- 当前主题：`后端可靠性阶段 2A：确定性迁移基线`。
+- 正式 PLAN：`docs/plans/PLAN-20260716-backend-reliability-phase2a.md`。
+- 当前目标：建立静态 `20260716_0001` 根基线、三条一致的迁移路径、启动只校验契约和阻断式 CI 门禁。
 
-## 已知信息
+## 已知证据
 
-- 固定设备身份：`device_category=storage`、`device_subtype=battery_energy_storage_system`。
-- 固定功率符号：正功率充电，负功率放电。
-- 仿真数据固定标记：`data_source=simulated`。
-- Task 2 实现文件：`app/domain/storage_simulation.py`；兼容性修复：`app/domain/__init__.py`；测试：`tests/test_storage_simulation_domain.py`。
-- Task 2 按 TDD 完成有效 RED-GREEN 循环；最终核心测试 `77 passed`，协调者相关回归复验 `136 passed`，三个变更文件 Ruff 检查通过。
-- 无 `DATABASE_URL` 的隔离子进程导入 `StorageAssetConfig` 通过。
-- 工具契约测试 `tests/test_backend_tooling_contracts.py` 为 13 passed。
-- offline SQL 在 revision `20260412_0003` 的 `result.fetchone()` 处失败。
-- fresh、migration-built existing、runtime-sync existing 三类 PostgreSQL fixture 缺失，不能声称升级路径通过。
-- 前一主题后端可靠性阶段 2A 已由用户批准暂停并归档，待恢复；不是完成状态。
+- 旧根 migration 依赖 ORM metadata，无法保证同 revision 复现同 schema。
+- 旧链 offline SQL 在 `20260412_0003` 的在线结果读取处失败；开启 Docker 不会修复该链缺陷。
+- 当前 `campus_energy` 数据可丢弃，但只能在临时验证全部通过后执行一次后置重建。
+- 园区光储 Task 1、Task 2 已正式完成，相关提交保留至 `efbbe808`；Task 3 未开始。
 
-## 两类门禁
+## 固定契约
 
-- 主题切换门禁：已满足。阶段 2A 经用户批准暂停，主题切换时快照已归档。
-- 持久化准入门禁：未满足。offline SQL、fresh PostgreSQL、migration-built existing、runtime-sync existing 尚未全部通过。
-- 依赖关系：Task 2 已在主题切换门禁范围内完成；Task 3 及所有持久化下游仍同时依赖两类门禁，不得提前启动。
+- 临时数据库仅允许 `ces_migration_` 前缀，验证工具不得接触其他数据库。
+- 新根 revision 为 `20260716_0001`；储能 Task 3 后续使用 `20260716_0002`，其 down revision 为 `20260716_0001`。
+- online、offline、roundtrip 三条路径必须产生一致的规范化 schema 指纹。
+- 应用启动只校验 schema，不创建表、不补字段或索引、不执行 hypertable DDL。
+- CI migration 不得配置 `continue-on-error`。
 
 ## 下一棒
 
-### Task 2 已验收完成
+### 后端
 
-- 纯领域模型、兼容惰性导出和单元测试已完成，规格审查与质量审查均通过。
-- 验收证据为核心 `77 passed`、协调者相关复验 `136 passed`、Ruff 通过和无 `DATABASE_URL` 隔离导入通过。
-- 未新增或修改数据库模型，未创建 migration，未实现 Task 3。
+- 按实施计划 Task 2 先用 TDD 建立纯数据库名称安全和 schema 指纹核心。
+- 后续再编排三个固定临时库：`ces_migration_fresh`、`ces_migration_offline`、`ces_migration_roundtrip`。
+- 在 Tasks 1-7 全部通过前，不得重建 `campus_energy`。
 
-### 规则 / 后端可靠性阶段 2A：持久化前
+### 验收
 
-- 下一步恢复后端可靠性阶段 2A 为主主题或完成等价迁移门禁治理。
-- 只有取得 offline SQL、fresh PostgreSQL、migration-built existing 和 runtime-sync existing 全部通过证据后，才可解除持久化阻塞。
-- 门禁通过后才交后端执行 Task 3；当前不得交后端开始持久化实现。
+- 每个任务结束后核对文件边界、RED-GREEN 证据和相关回归。
+- 最终核对静态迁移契约、三指纹一致、开发库重建、启动无 mutation、CI 阻断五类证据。
 
-## 限制条件
+## 暂停依赖
 
-- 不实现电化学、PCS 底层控制、配电网潮流或真实厂商协议。
-- 不修改后端可靠性阶段 2A 的 models、migrations、部署或运行语义。
-- 不把命令入队视为执行成功；后续控制与回执必须分层。
-- 前后端并行前必须建立单一 topic、payload、API 和状态契约载体。
+- 园区光储不是当前活跃主题。
+- 园区光储 Task 1、Task 2 保持已完成；Task 3 因阶段 2A 迁移门禁保持阻塞。
+- 只有 `20260716_0001` 验收通过，才切回园区光储并把 Task 3 改为可开始。
 
-## 仍需确认的风险
+## 非目标
 
-- `storage_telemetry` 虽在现有 metadata 中出现，但没有正式 migration 承载，Task 3 不能直接假定表已存在。
-- 阶段 A 的 MQTT topic/payload、阶段 B 的回执状态集、阶段 C 的基准收益口径尚待后续任务固定。
+- Redis、MQTT、readiness、rate limit、部署顺序和储能持久化均不在本阶段处理。
+- 不以 startup metadata 建表、直接 stamp 或人工补表掩盖 migration 缺口。
 
 ## 交接结论
 
-- Task 2 已正式完成并收口。
-- 当前交规则 / 后端可靠性阶段 2A 恢复迁移门禁治理；只有门禁通过后才交后端执行 Task 3。
-- Task 3 及所有依赖持久化的任务保持阻塞，直到阶段 2A 门禁恢复并通过。
+- 阶段 2A 已恢复为唯一主主题，当前处于治理切换后的实现起点。
+- 下一接手角色为后端；首个实现对象是 migration 验证工具的安全与指纹核心。
