@@ -41,6 +41,7 @@
 - `device_subtype=battery_energy_storage_system`
 - 正功率充电，负功率放电。
 - 仿真数据必须标记 `data_source=simulated`。
+- 容量、额定功率、SOC 上下限、充放电效率和爬坡率均由 `StorageAssetConfig` 显式配置；`500 kWh / 250 kW` 与 `10%-90%` 只是本阶段默认验收场景 / 基准配置，不是领域模型硬编码常量。
 
 ## 当前待办
 
