@@ -882,10 +882,104 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_inspection_record_task_id"), "inspection_record", ["task_id"], unique=False
     )
+    op.create_index(
+        "idx_energydata_device_timestamp",
+        "energydata",
+        ["device_id", sa.text("timestamp DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_energydata_energy_type_timestamp",
+        "energydata",
+        ["energy_type", sa.text("timestamp DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_alarm_device_resolved_timestamp",
+        "alarm",
+        ["device_id", "is_resolved", sa.text("timestamp DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_alarm_instance_recovered_last_seen",
+        "alarm",
+        ["instance_key", "recovered_at", sa.text("last_seen_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_device_ingestion_health_last_success",
+        "device_ingestion_health",
+        [sa.text("last_success_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_device_ingestion_health_last_failure",
+        "device_ingestion_health",
+        [sa.text("last_failure_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_audit_event_action_created_at",
+        "audit_event",
+        ["action", sa.text("created_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_audit_event_actor_created_at",
+        "audit_event",
+        ["actor", sa.text("created_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_audit_event_outcome_created_at",
+        "audit_event",
+        ["outcome", sa.text("created_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_mqtt_ingestion_record_device_received",
+        "mqtt_ingestion_record",
+        ["device_id", sa.text("received_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_mqtt_ingestion_record_status_received",
+        "mqtt_ingestion_record",
+        ["status", sa.text("received_at DESC")],
+        unique=False,
+    )
+    op.create_index(
+        "idx_mqtt_ingestion_record_next_retry_at",
+        "mqtt_ingestion_record",
+        ["next_retry_at"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "idx_mqtt_ingestion_record_next_retry_at", table_name="mqtt_ingestion_record"
+    )
+    op.drop_index(
+        "idx_mqtt_ingestion_record_status_received", table_name="mqtt_ingestion_record"
+    )
+    op.drop_index(
+        "idx_mqtt_ingestion_record_device_received", table_name="mqtt_ingestion_record"
+    )
+    op.drop_index("idx_audit_event_outcome_created_at", table_name="audit_event")
+    op.drop_index("idx_audit_event_actor_created_at", table_name="audit_event")
+    op.drop_index("idx_audit_event_action_created_at", table_name="audit_event")
+    op.drop_index(
+        "idx_device_ingestion_health_last_failure", table_name="device_ingestion_health"
+    )
+    op.drop_index(
+        "idx_device_ingestion_health_last_success", table_name="device_ingestion_health"
+    )
+    op.drop_index("idx_alarm_instance_recovered_last_seen", table_name="alarm")
+    op.drop_index("idx_alarm_device_resolved_timestamp", table_name="alarm")
+    op.drop_index("idx_energydata_energy_type_timestamp", table_name="energydata")
+    op.drop_index("idx_energydata_device_timestamp", table_name="energydata")
     op.drop_index(op.f("ix_inspection_record_task_id"), table_name="inspection_record")
     op.drop_index(op.f("ix_inspection_record_point_id"), table_name="inspection_record")
     op.drop_table("inspection_record")

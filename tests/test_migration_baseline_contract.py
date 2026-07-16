@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,68 @@ LEGACY_REVISIONS = {
     "20260424_0009",
     "20260424_0010",
     "20260515_0011",
+}
+
+LEGACY_FILES = {
+    "20260325_0001_industrial_baseline.py",
+    "20260325_0002_mqtt_retry_dead_letter.py",
+    "20260412_0003_add_reactive_power.py",
+    "20260412_0004_add_svg_tables.py",
+    "20260412_0005_merge_svg_operations_profile.py",
+    "20260414_0006_unify_compensation_type_to_svg.py",
+    "20260414_0007_add_device_subtype.py",
+    "20260423_0008_drop_prediction.py",
+    "20260424_0009_add_capacitor_bank_monitor_fields.py",
+    "20260424_0010_add_device_archive_status.py",
+    "20260515_0011_add_capacitor_bank_harmonic_spectrum.py",
+}
+
+RUNTIME_INDEXES = {
+    "idx_energydata_device_timestamp": ("energydata", ("device_id", "timestamp DESC")),
+    "idx_energydata_energy_type_timestamp": (
+        "energydata",
+        ("energy_type", "timestamp DESC"),
+    ),
+    "idx_alarm_device_resolved_timestamp": (
+        "alarm",
+        ("device_id", "is_resolved", "timestamp DESC"),
+    ),
+    "idx_alarm_instance_recovered_last_seen": (
+        "alarm",
+        ("instance_key", "recovered_at", "last_seen_at DESC"),
+    ),
+    "idx_device_ingestion_health_last_success": (
+        "device_ingestion_health",
+        ("last_success_at DESC",),
+    ),
+    "idx_device_ingestion_health_last_failure": (
+        "device_ingestion_health",
+        ("last_failure_at DESC",),
+    ),
+    "idx_audit_event_action_created_at": (
+        "audit_event",
+        ("action", "created_at DESC"),
+    ),
+    "idx_audit_event_actor_created_at": (
+        "audit_event",
+        ("actor", "created_at DESC"),
+    ),
+    "idx_audit_event_outcome_created_at": (
+        "audit_event",
+        ("outcome", "created_at DESC"),
+    ),
+    "idx_mqtt_ingestion_record_device_received": (
+        "mqtt_ingestion_record",
+        ("device_id", "received_at DESC"),
+    ),
+    "idx_mqtt_ingestion_record_status_received": (
+        "mqtt_ingestion_record",
+        ("status", "received_at DESC"),
+    ),
+    "idx_mqtt_ingestion_record_next_retry_at": (
+        "mqtt_ingestion_record",
+        ("next_retry_at",),
+    ),
 }
 
 REQUIRED_TABLES = {
@@ -78,9 +141,47 @@ def test_baseline_is_offline_safe_and_static():
 
 
 def test_archive_contains_the_complete_superseded_chain():
-    files = sorted(path.name for path in ARCHIVE.glob("*.py"))
-    assert len(files) == 11
+    files = {path.name for path in ARCHIVE.glob("*.py")}
+    assert files == LEGACY_FILES
     readme = (ARCHIVE / "README.md").read_text(encoding="utf-8")
     for revision in LEGACY_REVISIONS:
         assert revision in readme
     assert readme.count("superseded by `20260716_0001`") == 11
+
+
+def _literal_string(node: ast.AST) -> str:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "sa"
+        and node.func.attr == "text"
+    ):
+        return ast.literal_eval(node.args[0])
+    raise AssertionError(f"expected a literal index column, got {ast.dump(node)}")
+
+
+def test_baseline_includes_all_runtime_query_indexes_with_exact_ordering():
+    baseline = ACTIVE / "20260716_0001_campus_baseline.py"
+    tree = ast.parse(baseline.read_text(encoding="utf-8"))
+    actual = {}
+    dropped = set()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if not isinstance(node.func.value, ast.Name) or node.func.value.id != "op":
+            continue
+        if node.func.attr == "create_index" and isinstance(node.args[0], ast.Constant):
+            name = ast.literal_eval(node.args[0])
+            if name in RUNTIME_INDEXES:
+                table = ast.literal_eval(node.args[1])
+                columns = tuple(_literal_string(column) for column in node.args[2].elts)
+                actual[name] = (table, columns)
+        if node.func.attr == "drop_index" and isinstance(node.args[0], ast.Constant):
+            dropped.add(ast.literal_eval(node.args[0]))
+
+    assert actual == RUNTIME_INDEXES
+    assert dropped >= RUNTIME_INDEXES.keys()
