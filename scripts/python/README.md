@@ -22,8 +22,41 @@
 - [generate_prod_secrets.py](/Users/todo/CampusEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
 - [send_test_alert.py](/Users/todo/CampusEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 - [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：生成或发送电容补偿控制器 2~31 次逐次谐波联调验收 payload
+- [migration_schema.py](/Users/todo/CampusEnergySystem/scripts/python/migration_schema.py)：提供迁移临时库白名单和规范化 schema 指纹核心，仅供迁移验证工具复用
+- [verify_postgres_migrations.py](/Users/todo/CampusEnergySystem/scripts/python/verify_postgres_migrations.py)：在三个固定临时库验证 Alembic online、offline 与 roundtrip 路径
 
 这些脚本优先视为正式入口。
+
+### PostgreSQL 迁移三路径验收
+
+该验收要求本机运行 PostgreSQL 14 对应的 TimescaleDB，并由管理员连接串显式授权。验证器只会创建或删除以下三个精确名称：
+
+- `ces_migration_fresh`
+- `ces_migration_offline`
+- `ces_migration_roundtrip`
+
+`campus_energy` 永远不是验证器目标；不要把它或其他业务库名称传给验证器。执行正式验收：
+
+```bash
+MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
+  /Users/todo/CampusEnergySystem/venv/bin/python \
+  scripts/python/verify_postgres_migrations.py \
+  --json-output /tmp/phase2a-migration-result.json
+
+MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
+  /Users/todo/CampusEnergySystem/venv/bin/python -m pytest -q \
+  tests/test_postgres_migration_paths.py
+```
+
+验证器依次执行 fresh online upgrade、offline SQL 生成并应用、upgrade-downgrade-upgrade，比较三份最终指纹。全部成功时会自动删除三个临时库；迁移、指纹或比较失败时不自动清理，以保留现场。使用 `--keep-success` 可在成功后也保留临时库。诊断完成后只用以下命令清理固定临时库：
+
+```bash
+MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
+  /Users/todo/CampusEnergySystem/venv/bin/python \
+  scripts/python/verify_postgres_migrations.py --cleanup
+```
+
+若清理步骤自身失败，可能只剩部分临时库；按错误中列出的固定库名处理后再次运行 `--cleanup`。不要用此工具重建 `campus_energy`。
 
 ### 压测
 

@@ -43,6 +43,8 @@
 | `run_mqtt_ingest_worker.py` | MQTT 入站采集 worker 入口。 |
 | `generate_prod_secrets.py` | 生成生产环境密钥片段。 |
 | `send_capacitor_bank_harmonic_uat_payloads.py` | 生成或发送电容补偿控制器逐次谐波联调验收 payload。 |
+| `migration_schema.py` | 提供固定迁移临时库白名单与规范化 schema 指纹核心。 |
+| `verify_postgres_migrations.py` | 在固定临时库验证 Alembic online、offline 与 roundtrip 路径。 |
 
 ### 压测
 
@@ -55,8 +57,8 @@
 | 类型 | 数量 |
 |------|------|
 | Shell | 11 |
-| Python | 13 |
-| 合计 | 24 |
+| Python | 15 |
+| 合计 | 26 |
 
 ## 与 bin 的关系
 

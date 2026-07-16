@@ -356,6 +356,16 @@ def _result_payload(result: VerificationResult) -> dict[str, object]:
     }
 
 
+def _print_success_summary(
+    result: VerificationResult, *, keep_success: bool
+) -> None:
+    for item in result.paths:
+        objects = item.fingerprint.get("objects", {}) if item.fingerprint else {}
+        print(f"{item.path.value}: success ({len(objects)} schema objects)")
+    lifecycle = "preserved (--keep-success)" if keep_success else "removed"
+    print(f"temporary databases: {lifecycle}")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Verify Alembic migrations in three fixed temporary databases."
@@ -415,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
         return 1
+    _print_success_summary(result, keep_success=arguments.keep_success)
     return 0
 
 
