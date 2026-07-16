@@ -2,60 +2,59 @@
 
 ## 当前总目标
 
-- 当前主主题：`后端可靠性基线与渐进式解耦治理`
-- 当前总目标：阶段 1 已正式收口；当前由规则 / 预判角色准备阶段 2A Alembic 链可信化设计与实施计划。
-- 当前执行依据：
-  - `docs/plans/PLAN-20260610-backend-reliability-progressive-decoupling.md`
-  - `docs/superpowers/specs/2026-06-10-backend-reliability-and-decoupling-design.md`
-  - `docs/superpowers/plans/2026-06-10-backend-reliability-phase1.md`
-  - `docs/plans/backend-reliability-phase2-inventory.md`
+- 当前主主题：`园区光储协同仿真与 EMS 控制`。
+- 当前总目标：完成系统级储能仿真、MQTT 遥测、控制回执、规则 EMS、日前优化和收益对比。
+- 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 
 ## 当前阶段
 
-- [x] 完成后端框架规范性、整齐度、可修改性和低耦合审查。
-- [x] 完成阶段 1 可信测试、依赖、CI 与静态质量门禁实现。
-- [x] 完成阶段 1 本地独立验收。
-- [x] 完成远端 GitHub CI、Docker、Compose、Trivy 和 coverage artifact 验收。
-- [x] 建立阶段 2 migration、部署和运行语义事实清单。
-- [ ] 由规则角色确认阶段 2 拆分为 2A Alembic 链可信化、2B 部署与运行语义。
-- [ ] 编写并批准阶段 2A 详细设计与实施计划。
+- [x] 完成 Task 1 主题治理、固定契约和迁移门禁实测。
+- [ ] 由后端角色实施 Task 2 纯领域模型，不触碰 ORM、数据库或 migration。
+- [ ] Task 3 持久化模型与迁移；当前阻塞。
+- [ ] 阶段 A：仿真遥测。
+- [ ] 阶段 B：控制与规则闭环。
+- [ ] 阶段 C：日前优化与收益证据。
 
 ## 当前阻塞
 
-- 无阶段 1 阻塞。
-- 阶段 2A 生产代码受设计门禁约束，尚未开始修改。
-- 当前 migration 链的 fresh、offline 和 representative existing database 路径均不可信。
+- offline SQL 门禁失败：配置 PostgreSQL URL 后，`alembic upgrade head --sql` 在 revision `20260412_0003` 的 `result.fetchone()` 处报 `AttributeError: 'NoneType' object has no attribute 'fetchone'`。
+- fresh、migration-built existing、runtime-sync existing 三类 PostgreSQL fixture 缺失，三条升级路径没有通过证据。
+- Task 3 及所有依赖持久化的后续任务阻塞；不得修改数据库模型或 migration。
+- 前一主题“后端可靠性阶段 2A”已由用户批准暂停并归档，待恢复；并未完成或通过。
 
 ## 当前验证结论
 
-- 阶段 1 最终提交：`1dfd2314`。
-- 远端 `backend-ci` run：`27456526020`，结论 success。
-- 远端全量 pytest：580 passed、1 warning。
-- coverage：73%，已上传 `backend-coverage-xml` artifact。
-- Ruff baseline：168 findings unchanged。
-- Mypy 配置范围：2 files success。
-- Docker image build 与 production Compose validation 通过。
-- Trivy 阻塞式 HIGH / CRITICAL 扫描通过，Debian 与 Python packages 均 0 findings。
-- 后端最低版本已统一为 Python 3.10+。
+- `tests/test_backend_tooling_contracts.py`：13 passed。
+- offline SQL：失败，不通过。
+- fresh PostgreSQL：未验证，不通过门禁。
+- migration-built existing：未验证，不通过门禁。
+- runtime-sync existing：未验证，不通过门禁。
+- 主题切换治理：已建立正式 PLAN，并把前一主题 status/handoff 快照归档到 `docs/plans/daily/2026-07/`。
+
+## 固定契约
+
+- `device_category=storage`
+- `device_subtype=battery_energy_storage_system`
+- 正功率充电，负功率放电。
+- 仿真数据必须标记 `data_source=simulated`。
 
 ## 当前待办
 
-1. 规则角色确认阶段 2A / 2B 拆分和契约边界。
-2. 先为阶段 2A 编写正式设计，覆盖确定性基线、offline SQL、三类数据库 fixture、schema reconciliation 和 CI 阻塞门禁。
-3. 设计获批后编写阶段 2A TDD 实施计划，并继续采用 Subagent-Driven 逐任务分派和逐项复核。
-4. 阶段 2A 验收通过后，再建立阶段 2B 的部署与 HTTP 运行语义实施计划。
+1. 后端角色按正式 PLAN 实施 Task 2 纯领域模型和单元测试。
+2. 在任何持久化实现前，恢复后端可靠性阶段 2A 并取得 offline、fresh 和两类 existing database 的完整通过证据。
+3. 门禁通过后再解除 Task 3 及其下游持久化依赖阻塞。
+4. 每一验收阶段结束时核对固定契约、非目标和可重复证据。
 
 ## 当前剩余风险
 
-- `20260325_0001` 仍依赖当前 ORM metadata 动态建表。
-- offline SQL 在 `20260412_0003` 稳定失败，后续多个 revision 仍有在线查询。
-- Alembic head 不能证明现有库 schema 完整。
-- 部署脚本未显式执行 migration，且使用 liveness 代替 readiness。
-- readiness 失败仍返回 HTTP 200；全局 rate limit 仍可能返回 HTTP 500。
-- GitHub Actions 提示 Node.js 20 action runtime 将被弃用，属于后续 CI 维护项，不阻塞阶段 1。
+- 现有 Alembic 动态 baseline 与 runtime schema sync 使 schema 不可复现。
+- 现有 `storage_telemetry` 缺少正式 migration 承载，不能直接复用为已就绪的持久化能力。
+- 功率符号、SOC 时序和控制回执若跨层重复定义，可能产生契约漂移。
+- 收益结论对输入假设敏感，阶段 C 必须固定基准与成本口径。
 
 ## 当前验收判断
 
-- 阶段 1：通过并正式收口。
-- 阶段 2 预判：完成。
-- 下一接手角色：规则；设计批准后交后端。
+- Task 1：治理内容已完成，待提交后复核。
+- Task 2：允许作为下一棒。
+- Task 3 及依赖持久化任务：打回门禁，保持阻塞。
+- 下一接手角色：后端；仅限 Task 2 纯领域模型。
