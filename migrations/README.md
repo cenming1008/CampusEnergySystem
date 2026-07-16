@@ -1,56 +1,57 @@
 # Database Migrations
 
-本目录用于管理园区综合能源管理系统的正式数据库迁移。
+本目录用于管理园区综合能源管理系统的正式数据库迁移。数据库 schema 仅由
+Alembic 管理；应用启动负责校验 migration 结果，不创建表、不补字段或索引，
+也不负责转换 TimescaleDB hypertable。
 
-`migrations/` 是 Alembic 迁移目录，用来维护数据库 schema 从旧版本升级到当前版本的路径。它不是运行产物目录，也不是可以按当前页面功能随意删除的历史文件区。
+## 当前迁移基线
 
-## 目录边界
+- 当前活跃根 revision：`20260716_0001`，`down_revision = None`。
+- `migrations/versions/` 只保留当前活跃迁移链。
+- 旧 revision `20260325_0001` 至 `20260515_0011` 已退出活跃链，只允许在
+  `docs/archive/migrations/legacy-pre-20260716` 中追溯，不得作为新库或现有库的
+  stamp 目标。
 
-| 路径 | 用途 |
-|------|------|
-| `env.py` | Alembic 运行入口，加载 `SQLModel.metadata` 和当前 `DATABASE_URL` |
-| `script.py.mako` | 新迁移文件模板 |
-| `versions/` | 按顺序保存正式迁移链 |
+## 启动配置契约
 
-## 整理原则
+所有环境都必须使用：
 
-- 不删除已经进入迁移链的 revision，即使它服务的是旧功能清理。
-- 不随意改 revision ID、`down_revision` 或迁移文件名。
-- 旧预测/forecast 相关迁移如果用于删除历史表，应保留为兼容旧库升级路径。
-- 本地系统文件、缓存和生成物不放入本目录。
-
-## 推荐流程
-
-1. 开发环境允许 `DB_AUTO_CREATE_TABLES=True` 和 `DB_RUNTIME_SCHEMA_SYNC=True` 快速迭代。
-2. 预发布/生产环境必须关闭这两个开关，并先执行 Alembic migration。
-3. 已有旧库接入 migration 时，可先执行：
-
-```bash
-alembic stamp 20260325_0001
+```text
+DB_AUTO_CREATE_TABLES=False
+DB_RUNTIME_SCHEMA_SYNC=False
 ```
 
-4. 新版本上线前执行：
+这两个字段只为兼容旧配置而保留。任一字段配置为 `True` 都会被严格启动检查
+和数据库启动校验拒绝；不要用运行时自动建表或补 schema 替代 migration。
+
+## 正常建库流程
+
+设置目标新库的 `DATABASE_URL` 后执行：
 
 ```bash
 alembic upgrade head
 ```
 
-## 当前基线
+命令应从空库应用静态根 `20260716_0001`，创建完整业务 schema、TimescaleDB
+扩展及 `energydata` hypertable。完成后应用启动只读取并校验结果。
 
-- `20260325_0001`：创建并补齐核心表、关键列和索引。
+不要用手工 stamp、应用 metadata 建表或人工补表绕过迁移。当前旧开发库的重建
+属于后端可靠性阶段 2A 正式计划的 Task 8，必须在三个隔离临时路径全部验证通过
+后按该计划执行；本文档不提供提前重建或手工 stamp 指南。
 
-## 当前迁移链
+## 目录边界
 
-| Revision | 作用 |
-|----------|------|
-| `20260325_0001` | 核心表与工业化基线保护 |
-| `20260325_0002` | MQTT 重试和死信调度字段 |
-| `20260412_0003` | 能源数据新增无功功率 |
-| `20260412_0004` | 新增 SVG 补偿设备专属表 |
-| `20260412_0005` | 合并 SVG 运维档案字段 |
-| `20260414_0006` | 补偿设备子型迁移占位 |
-| `20260414_0007` | 新增并回填 `device_subtype` |
-| `20260423_0008` | 删除旧预测表，服务 forecast/LSTM 清理后的旧库升级 |
-| `20260424_0009` | 新增电容补偿控制器监控字段 |
-| `20260424_0010` | 新增设备档案完整度状态 |
-| `20260515_0011` | 新增电容补偿控制器逐次谐波谱线字段 |
+| 路径 | 用途 |
+| --- | --- |
+| `env.py` | Alembic online / offline 运行入口 |
+| `script.py.mako` | 新迁移文件模板 |
+| `versions/` | 当前活跃迁移链；现阶段根为 `20260716_0001` |
+| `docs/archive/migrations/legacy-pre-20260716` | 旧链只读追溯材料，不参与 Alembic 加载 |
+
+## 维护原则
+
+- 新 schema 变化必须新增 Alembic revision，并正确连接当前 `head`。
+- 不随意改动已验收 revision 的 ID、`down_revision` 或迁移文件名。
+- migration 必须同时支持 online 执行与 offline SQL 生成。
+- 不把本地缓存、数据库运行目录或其他生成物放入本目录。
+- 不允许应用启动行为掩盖 migration 缺口。

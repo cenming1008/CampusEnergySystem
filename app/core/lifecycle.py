@@ -19,10 +19,9 @@ from app.core.runtime_state import runtime_state
 from app.core.settings import settings
 from app.core.socket_manager import manager
 from app.core.startup_checks import validate_runtime_configuration
-from app.services.mqtt_realtime_bridge import bridge_loop
 from app.services.mqtt_publisher import stop_publisher as stop_mqtt_publisher
+from app.services.mqtt_realtime_bridge import bridge_loop
 from app.services.scheduler_service import start_scheduler, stop_scheduler
-
 
 _event_loop: Optional[asyncio.AbstractEventLoop] = None
 _bridge_stop_event: Optional[asyncio.Event] = None
@@ -37,8 +36,8 @@ async def startup() -> None:
     logger.info("🚀 应用启动中...")
     validate_runtime_configuration(settings)
     init_db()
-    runtime_state.mark_service("database", "healthy", "initialized")
-    logger.info("✅ 数据库初始化完成")
+    runtime_state.mark_service("database", "healthy", "validated")
+    logger.info("✅ 数据库 schema 校验完成")
 
     try:
         redis = RedisClient.get_client()

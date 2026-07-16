@@ -117,6 +117,33 @@ class DatabaseCoreTest(unittest.TestCase):
                 self.assertNotIn("DB_AUTO_CREATE_TABLES=True", lines)
                 self.assertNotIn("DB_RUNTIME_SCHEMA_SYNC=True", lines)
 
+    def test_migration_readme_enforces_alembic_only_startup_guidance(self):
+        readme = (ROOT / "migrations" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("DB_AUTO_CREATE_TABLES=False", readme)
+        self.assertIn("DB_RUNTIME_SCHEMA_SYNC=False", readme)
+        self.assertNotIn("DB_AUTO_CREATE_TABLES=True", readme)
+        self.assertNotIn("DB_RUNTIME_SCHEMA_SYNC=True", readme)
+        self.assertIn("20260716_0001", readme)
+        self.assertIn("Alembic", readme)
+        self.assertIn("alembic upgrade head", readme)
+        self.assertIn("docs/archive/migrations/legacy-pre-20260716", readme)
+        self.assertIn("Task 8", readme)
+        self.assertNotRegex(readme, r"alembic\s+stamp\s+2026\d+")
+
+    def test_lifecycle_reports_database_schema_validation_not_initialization(self):
+        lifecycle = (ROOT / "app" / "core" / "lifecycle.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'runtime_state.mark_service("database", "healthy", "validated")',
+            lifecycle,
+        )
+        self.assertIn("数据库 schema 校验完成", lifecycle)
+        self.assertNotIn('"database", "healthy", "initialized"', lifecycle)
+        self.assertNotIn("数据库初始化完成", lifecycle)
+
     def test_capacitor_bank_models_and_baseline_include_required_runtime_columns(self):
         models = {
             "capacitor_bank_control_profile": CapacitorBankControlProfile,
