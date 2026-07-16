@@ -1,9 +1,7 @@
-"""
-数据库连接与初始化
+"""数据库连接与启动时 schema 校验。
 
-- 使用 SQLModel 管理 ORM
-- 开发环境可自动 create_all / 运行时补齐字段
-- 生产环境默认要求通过版本化 migration 管理表结构
+数据库结构只由 Alembic migration 管理。应用启动只读取并校验既有结构，
+不会创建表、补字段、补索引或转换 TimescaleDB hypertable。
 """
 
 from __future__ import annotations
@@ -11,9 +9,8 @@ from __future__ import annotations
 from collections.abc import Generator
 
 from sqlalchemy import inspect
-from sqlmodel import Session, SQLModel, create_engine, text
+from sqlmodel import Session, create_engine, text
 
-from app.core.logger import logger
 from app.core.settings import settings
 
 CAPACITOR_BANK_CONTROL_PROFILE_REQUIRED_COLUMNS = {
@@ -62,6 +59,34 @@ CAPACITOR_BANK_TELEMETRY_REQUIRED_COLUMNS = {
     "last_auto_action",
 }
 
+REQUIRED_TABLES = {
+    "alarm",
+    "audit_event",
+    "capacitor_bank_control_profile",
+    "capacitor_bank_telemetry",
+    "carbon_emission",
+    "device",
+    "device_control_log",
+    "device_group",
+    "device_group_membership",
+    "device_ingestion_health",
+    "device_maintenance",
+    "energy_statistics",
+    "energydata",
+    "inspection_plan",
+    "inspection_point",
+    "inspection_record",
+    "inspection_route",
+    "inspection_task",
+    "location",
+    "mqtt_ingestion_record",
+    "storage_telemetry",
+    "svg_asset_profile",
+    "svg_config",
+    "svg_telemetry",
+    "user",
+}
+
 REQUIRED_COLUMNS = {
     "energydata": {"reactive_power"},
     "device": {"device_subtype", "archive_status"},
@@ -89,7 +114,13 @@ REQUIRED_COLUMNS = {
         "resolved_by",
         "handling_note",
     },
-    "mqtt_ingestion_record": {"raw_payload", "retry_count", "next_retry_at", "replay_count", "last_replayed_at"},
+    "mqtt_ingestion_record": {
+        "raw_payload",
+        "retry_count",
+        "next_retry_at",
+        "replay_count",
+        "last_replayed_at",
+    },
     "user": {
         "role",
         "location_scope",
@@ -99,6 +130,23 @@ REQUIRED_COLUMNS = {
         "token_version",
         "last_login_at",
         "last_password_changed_at",
+    },
+}
+
+REQUIRED_INDEXES = {
+    "alarm": {"ix_alarm_device_id", "idx_alarm_device_resolved_timestamp"},
+    "device": {
+        "ix_device_sn",
+        "ix_device_device_category",
+        "ix_device_archive_status",
+    },
+    "energydata": {
+        "idx_energydata_device_timestamp",
+        "idx_energydata_energy_type_timestamp",
+    },
+    "mqtt_ingestion_record": {
+        "ix_mqtt_ingestion_record_fingerprint",
+        "idx_mqtt_ingestion_record_next_retry_at",
     },
 }
 
@@ -115,293 +163,79 @@ engine = create_engine(
 
 
 def init_db() -> None:
-    """初始化数据库表结构，并尝试开启 TimescaleDB hypertable 优化。"""
-    if settings.db_auto_create_tables:
-        SQLModel.metadata.create_all(engine)
-    else:
-        _assert_required_tables_exist()
+    """校验 migration 已完整建立应用启动所需的数据库结构。"""
+    if settings.db_auto_create_tables or settings.db_runtime_schema_sync:
+        raise RuntimeError(
+            "启动时 schema mutation 已禁用；请设置 "
+            "DB_AUTO_CREATE_TABLES=False、DB_RUNTIME_SCHEMA_SYNC=False，"
+            "然后执行 alembic upgrade head"
+        )
 
-    if settings.db_runtime_schema_sync:
-        _sync_runtime_schema()
-        _ensure_runtime_indexes()
-    else:
-        _assert_required_columns_present()
-
-    _try_enable_timescaledb_hypertable()
-
-
-def _sync_runtime_schema() -> None:
-    """为已有数据库补齐新增列，避免 create_all 不更新旧表结构。"""
-    inspector = inspect(engine)
-    table_names = set(inspector.get_table_names())
-
-    with Session(engine) as session:
-        if "alarm" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("alarm")}
-            alarm_column_sql = {
-                "severity": "ALTER TABLE alarm ADD COLUMN severity VARCHAR(32) DEFAULT 'warning'",
-                "category": "ALTER TABLE alarm ADD COLUMN category VARCHAR(64) DEFAULT 'threshold'",
-                "source": "ALTER TABLE alarm ADD COLUMN source VARCHAR(64) DEFAULT 'telemetry'",
-                "instance_key": "ALTER TABLE alarm ADD COLUMN instance_key VARCHAR(255) NULL",
-                "last_seen_at": "ALTER TABLE alarm ADD COLUMN last_seen_at TIMESTAMP NULL",
-                "recovered_at": "ALTER TABLE alarm ADD COLUMN recovered_at TIMESTAMP NULL",
-                "resolved_at": "ALTER TABLE alarm ADD COLUMN resolved_at TIMESTAMP NULL",
-                "resolved_by": "ALTER TABLE alarm ADD COLUMN resolved_by VARCHAR(255) NULL",
-                "handling_note": "ALTER TABLE alarm ADD COLUMN handling_note TEXT NULL",
-            }
-            for column_name, sql in alarm_column_sql.items():
-                if column_name not in existing_columns:
-                    logger.info(f"Schema sync: adding alarm.{column_name}")
-                    session.exec(text(sql))
-
-        if "device_control_log" not in table_names:
-            # 新表由 create_all 创建；这里不需要额外处理。
-            pass
-
-        if "mqtt_ingestion_record" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("mqtt_ingestion_record")}
-            if "raw_payload" not in existing_columns:
-                logger.info("Schema sync: adding mqtt_ingestion_record.raw_payload")
-                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN raw_payload TEXT NULL"))
-            if "retry_count" not in existing_columns:
-                logger.info("Schema sync: adding mqtt_ingestion_record.retry_count")
-                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN retry_count INTEGER DEFAULT 0"))
-            if "next_retry_at" not in existing_columns:
-                logger.info("Schema sync: adding mqtt_ingestion_record.next_retry_at")
-                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN next_retry_at TIMESTAMP NULL"))
-            if "replay_count" not in existing_columns:
-                logger.info("Schema sync: adding mqtt_ingestion_record.replay_count")
-                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN replay_count INTEGER DEFAULT 0"))
-            if "last_replayed_at" not in existing_columns:
-                logger.info("Schema sync: adding mqtt_ingestion_record.last_replayed_at")
-                session.exec(text("ALTER TABLE mqtt_ingestion_record ADD COLUMN last_replayed_at TIMESTAMP NULL"))
-
-        if "energydata" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("energydata")}
-            if "reactive_power" not in existing_columns:
-                logger.info("Schema sync: adding energydata.reactive_power")
-                session.exec(text("ALTER TABLE energydata ADD COLUMN reactive_power DOUBLE PRECISION NULL"))
-
-        if "device" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("device")}
-            if "device_subtype" not in existing_columns:
-                logger.info("Schema sync: adding device.device_subtype")
-                session.exec(text("ALTER TABLE device ADD COLUMN device_subtype VARCHAR(64) NULL"))
-                session.exec(
-                    text(
-                        """
-                        UPDATE device
-                        SET device_subtype = CASE
-                            WHEN device_type = 'reactive_power_compensator' THEN 'capacitor_bank_controller'
-                            WHEN device_type = 'compensation' THEN 'capacitor_bank_controller'
-                            WHEN device_type = 'capacitor_bank_controller' THEN 'capacitor_bank_controller'
-                            WHEN device_type = 'svg' THEN 'svg'
-                            ELSE NULL
-                        END
-                        WHERE device_subtype IS NULL
-                        """
-                    )
-                )
-            if "archive_status" not in existing_columns:
-                logger.info("Schema sync: adding device.archive_status")
-                session.exec(text("ALTER TABLE device ADD COLUMN archive_status VARCHAR(32) DEFAULT 'complete' NOT NULL"))
-
-        if "svg_asset_profile" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("svg_asset_profile")}
-            svg_profile_column_sql = {
-                "model_number": "ALTER TABLE svg_asset_profile ADD COLUMN model_number VARCHAR NULL",
-                "rated_voltage": "ALTER TABLE svg_asset_profile ADD COLUMN rated_voltage DOUBLE PRECISION NULL",
-                "rated_frequency": "ALTER TABLE svg_asset_profile ADD COLUMN rated_frequency DOUBLE PRECISION NULL",
-                "comm_address": "ALTER TABLE svg_asset_profile ADD COLUMN comm_address VARCHAR NULL",
-                "software_version": "ALTER TABLE svg_asset_profile ADD COLUMN software_version VARCHAR NULL",
-                "hardware_version": "ALTER TABLE svg_asset_profile ADD COLUMN hardware_version VARCHAR NULL",
-                "protocol_version": "ALTER TABLE svg_asset_profile ADD COLUMN protocol_version VARCHAR NULL",
-                "module_count": "ALTER TABLE svg_asset_profile ADD COLUMN module_count INTEGER NULL",
-                "single_module_capacity": "ALTER TABLE svg_asset_profile ADD COLUMN single_module_capacity DOUBLE PRECISION NULL",
-            }
-            for column_name, sql in svg_profile_column_sql.items():
-                if column_name not in existing_columns:
-                    logger.info(f"Schema sync: adding svg_asset_profile.{column_name}")
-                    session.exec(text(sql))
-
-        if "capacitor_bank_control_profile" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("capacitor_bank_control_profile")}
-            cap_profile_column_sql = {
-                "source": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN source VARCHAR NULL",
-                "snapshot_timestamp": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN snapshot_timestamp TIMESTAMP NULL",
-                "phase_a_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_a_circuit_total_count INTEGER NULL",
-                "phase_b_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_b_circuit_total_count INTEGER NULL",
-                "phase_c_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_c_circuit_total_count INTEGER NULL",
-                "common_1_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_1_circuit_total_count INTEGER NULL",
-                "common_2_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_2_circuit_total_count INTEGER NULL",
-                "common_3_circuit_total_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_3_circuit_total_count INTEGER NULL",
-                "phase_a_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_a_capacity_steps_kvar_json TEXT NULL",
-                "phase_b_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_b_capacity_steps_kvar_json TEXT NULL",
-                "phase_c_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_c_capacity_steps_kvar_json TEXT NULL",
-                "common_1_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_1_capacity_steps_kvar_json TEXT NULL",
-                "common_2_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_2_capacity_steps_kvar_json TEXT NULL",
-                "common_3_capacity_steps_kvar_json": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_3_capacity_steps_kvar_json TEXT NULL",
-                "phase_a_circuit_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_a_circuit_running_count INTEGER NULL",
-                "phase_b_circuit_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_b_circuit_running_count INTEGER NULL",
-                "phase_c_circuit_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN phase_c_circuit_running_count INTEGER NULL",
-                "common_group_1_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_group_1_running_count INTEGER NULL",
-                "common_group_2_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_group_2_running_count INTEGER NULL",
-                "common_group_3_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_group_3_running_count INTEGER NULL",
-                "split_circuit_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN split_circuit_running_count INTEGER NULL",
-                "common_circuit_running_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN common_circuit_running_count INTEGER NULL",
-                "running_circuit_count": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN running_circuit_count INTEGER NULL",
-                "control_mode": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN control_mode VARCHAR(32) NULL",
-                "auto_on_elapsed_seconds": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN auto_on_elapsed_seconds INTEGER NULL",
-                "auto_off_elapsed_seconds": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN auto_off_elapsed_seconds INTEGER NULL",
-                "last_auto_action": "ALTER TABLE capacitor_bank_control_profile ADD COLUMN last_auto_action VARCHAR(64) NULL",
-            }
-            for column_name, sql in cap_profile_column_sql.items():
-                if column_name not in existing_columns:
-                    logger.info(f"Schema sync: adding capacitor_bank_control_profile.{column_name}")
-                    session.exec(text(sql))
-
-        if "capacitor_bank_telemetry" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("capacitor_bank_telemetry")}
-            cap_telemetry_column_sql = {
-                "phase_a_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_a_circuit_running_count INTEGER NULL",
-                "phase_b_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_b_circuit_running_count INTEGER NULL",
-                "phase_c_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN phase_c_circuit_running_count INTEGER NULL",
-                "common_group_1_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_1_running_count INTEGER NULL",
-                "common_group_2_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_2_running_count INTEGER NULL",
-                "common_group_3_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_group_3_running_count INTEGER NULL",
-                "split_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN split_circuit_running_count INTEGER NULL",
-                "common_circuit_running_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN common_circuit_running_count INTEGER NULL",
-                "running_circuit_count": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN running_circuit_count INTEGER NULL",
-                "control_mode": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN control_mode VARCHAR(32) NULL",
-                "auto_on_elapsed_seconds": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN auto_on_elapsed_seconds INTEGER NULL",
-                "auto_off_elapsed_seconds": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN auto_off_elapsed_seconds INTEGER NULL",
-                "last_auto_action": "ALTER TABLE capacitor_bank_telemetry ADD COLUMN last_auto_action VARCHAR(64) NULL",
-            }
-            for column_name, sql in cap_telemetry_column_sql.items():
-                if column_name not in existing_columns:
-                    logger.info(f"Schema sync: adding capacitor_bank_telemetry.{column_name}")
-                    session.exec(text(sql))
-
-        if "user" in table_names:
-            existing_columns = {column["name"] for column in inspector.get_columns("user")}
-            if "role" not in existing_columns:
-                logger.info("Schema sync: adding user.role")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN role VARCHAR(32) DEFAULT 'admin'"))
-                session.exec(text("UPDATE \"user\" SET role = 'admin' WHERE role IS NULL"))
-                session.exec(text("CREATE INDEX IF NOT EXISTS idx_user_role ON \"user\" (role)"))
-            if "location_scope" not in existing_columns:
-                logger.info("Schema sync: adding user.location_scope")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN location_scope TEXT NULL"))
-            if "must_change_password" not in existing_columns:
-                logger.info("Schema sync: adding user.must_change_password")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
-            if "failed_login_attempts" not in existing_columns:
-                logger.info("Schema sync: adding user.failed_login_attempts")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN failed_login_attempts INTEGER DEFAULT 0"))
-            if "locked_until" not in existing_columns:
-                logger.info("Schema sync: adding user.locked_until")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN locked_until TIMESTAMP NULL"))
-                session.exec(text("CREATE INDEX IF NOT EXISTS idx_user_locked_until ON \"user\" (locked_until)"))
-            if "token_version" not in existing_columns:
-                logger.info("Schema sync: adding user.token_version")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN token_version INTEGER DEFAULT 0"))
-            if "last_login_at" not in existing_columns:
-                logger.info("Schema sync: adding user.last_login_at")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login_at TIMESTAMP NULL"))
-            if "last_password_changed_at" not in existing_columns:
-                logger.info("Schema sync: adding user.last_password_changed_at")
-                session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_password_changed_at TIMESTAMP NULL"))
-
-        session.commit()
-
-
-def _ensure_runtime_indexes() -> None:
-    """开发/兼容模式下补齐高频索引。"""
-    index_sql = (
-        "CREATE INDEX IF NOT EXISTS idx_energydata_device_timestamp "
-        "ON energydata (device_id, timestamp DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_energydata_energy_type_timestamp "
-        "ON energydata (energy_type, timestamp DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_alarm_device_resolved_timestamp "
-        "ON alarm (device_id, is_resolved, timestamp DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_alarm_instance_recovered_last_seen "
-        "ON alarm (instance_key, recovered_at, last_seen_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_success "
-        "ON device_ingestion_health (last_success_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_device_ingestion_health_last_failure "
-        "ON device_ingestion_health (last_failure_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_audit_event_action_created_at "
-        "ON audit_event (action, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_audit_event_actor_created_at "
-        "ON audit_event (actor, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_audit_event_outcome_created_at "
-        "ON audit_event (outcome, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_device_received "
-        "ON mqtt_ingestion_record (device_id, received_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_status_received "
-        "ON mqtt_ingestion_record (status, received_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_mqtt_ingestion_record_next_retry_at "
-        "ON mqtt_ingestion_record (next_retry_at)",
-    )
-    with Session(engine) as session:
-        for sql in index_sql:
-            session.exec(text(sql))
-        session.commit()
+    _assert_required_tables_exist()
+    _assert_required_columns_present()
+    _assert_required_indexes_present()
+    _assert_energydata_hypertable()
 
 
 def _assert_required_tables_exist() -> None:
-    """生产模式下，要求关键表已由 migration 正式创建。"""
+    """验证静态根 migration 定义的 25 张业务表全部存在。"""
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
-    required_tables = {
-        "alarm",
-        "audit_event",
-        "capacitor_bank_control_profile",
-        "device",
-        "device_control_log",
-        "device_ingestion_health",
-        "energydata",
-        "mqtt_ingestion_record",
-        "user",
-    }
-    missing_tables = sorted(required_tables - existing_tables)
+    missing_tables = sorted(REQUIRED_TABLES - existing_tables)
     if missing_tables:
         raise RuntimeError(
-            "数据库缺少关键表，请先执行 migration 后再启动应用: "
+            "数据库缺少关键表，请先执行 alembic upgrade head 后再启动应用: "
             + ", ".join(missing_tables)
         )
 
 
 def _assert_required_columns_present() -> None:
-    """生产模式下验证关键表字段已通过 migration 到位。"""
+    """验证应用依赖的关键字段已由 migration 创建。"""
     inspector = inspect(engine)
     missing_fields: list[str] = []
     for table_name, columns in REQUIRED_COLUMNS.items():
-        existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+        existing_columns = {
+            column["name"] for column in inspector.get_columns(table_name)
+        }
         missing = sorted(columns - existing_columns)
         missing_fields.extend(f"{table_name}.{column}" for column in missing)
     if missing_fields:
         raise RuntimeError(
-            "数据库 schema 与当前应用不兼容，请先执行 migration: "
+            "数据库 schema 与当前应用不兼容，请先执行 alembic upgrade head: "
             + ", ".join(missing_fields)
         )
 
 
-def _try_enable_timescaledb_hypertable() -> None:
-    """将 energydata 转为 TimescaleDB hypertable（如果不是 TimescaleDB 则忽略）。"""
-    logger.info("TimescaleDB hypertable: trying to enable for table energydata")
-    with Session(engine) as session:
-        try:
-            session.exec(
-                text(
-                    "SELECT create_hypertable('energydata', 'timestamp', "
-                    "if_not_exists => TRUE, migrate_data => TRUE);"
-                )
-            )
-            session.commit()
-            logger.info("TimescaleDB hypertable enabled for energydata")
-        except Exception as e:
-            logger.warning(f"TimescaleDB hypertable skipped: {e}")
+def _assert_required_indexes_present() -> None:
+    """验证关键查询索引已由 migration 创建。"""
+    inspector = inspect(engine)
+    missing_indexes: list[str] = []
+    for table_name, indexes in REQUIRED_INDEXES.items():
+        existing_indexes = {
+            index["name"] for index in inspector.get_indexes(table_name)
+        }
+        missing = sorted(indexes - existing_indexes)
+        missing_indexes.extend(f"{table_name}.{index}" for index in missing)
+    if missing_indexes:
+        raise RuntimeError(
+            "数据库缺少关键索引，请先执行 alembic upgrade head: "
+            + ", ".join(missing_indexes)
+        )
+
+
+def _assert_energydata_hypertable() -> None:
+    """只读验证 energydata 已由 migration 转换为 hypertable。"""
+    query = text(
+        "SELECT 1 FROM timescaledb_information.hypertables "
+        "WHERE hypertable_schema = 'public' "
+        "AND hypertable_name = 'energydata' LIMIT 1"
+    )
+    with engine.connect() as connection:
+        found = connection.execute(query).scalar_one_or_none()
+    if found is None:
+        raise RuntimeError(
+            "energydata 尚未通过 migration 转换为 TimescaleDB hypertable"
+        )
 
 
 def get_session() -> Generator[Session, None, None]:

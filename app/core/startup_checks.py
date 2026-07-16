@@ -73,6 +73,17 @@ def validate_runtime_configuration(settings: Settings) -> None:
     if not settings.strict_startup_checks:
         return
 
+    if getattr(settings, "db_auto_create_tables", False) or getattr(
+        settings,
+        "db_runtime_schema_sync",
+        False,
+    ):
+        raise RuntimeError(
+            "启动检查失败: 启动时 schema mutation 已禁用；请设置 "
+            "DB_AUTO_CREATE_TABLES=False、DB_RUNTIME_SCHEMA_SYNC=False，"
+            "然后执行 alembic upgrade head"
+        )
+
     if settings.is_production:
         problems: list[str] = []
 
@@ -84,10 +95,6 @@ def validate_runtime_configuration(settings: Settings) -> None:
             problems.append("生产环境禁止使用默认 SECRET_KEY")
         if _shannon_entropy(settings.secret_key) < 3.0:
             problems.append("SECRET_KEY 熵值过低，请使用 secrets.token_urlsafe(32) 生成随机密钥")
-        if settings.db_auto_create_tables:
-            problems.append("生产环境禁止 DB_AUTO_CREATE_TABLES=True")
-        if settings.db_runtime_schema_sync:
-            problems.append("生产环境禁止 DB_RUNTIME_SCHEMA_SYNC=True")
         if not settings.force_https:
             problems.append("生产环境必须启用 FORCE_HTTPS")
         if settings.websocket_auth_mode == "disabled":

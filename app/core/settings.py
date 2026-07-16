@@ -9,8 +9,8 @@ from typing import List, Optional
 
 # Pydantic v2 推荐：BaseSettings 在 pydantic-settings；如果环境未安装，则回退到 pydantic.v1
 try:
-    from pydantic_settings import BaseSettings  # type: ignore
     from pydantic import Field, validator  # type: ignore
+    from pydantic_settings import BaseSettings  # type: ignore
 except Exception:
     try:
         # Pydantic v2 兼容层（无需安装 pydantic-settings）
@@ -493,15 +493,15 @@ class Settings(BaseSettings):
     )
 
     db_auto_create_tables: bool = Field(
-        default=True,
+        default=False,
         env="DB_AUTO_CREATE_TABLES",
-        description="启动时是否自动创建缺失表，仅建议开发环境启用"
+        description="兼容配置；True 会被拒绝，数据库 schema 由 Alembic 管理"
     )
 
     db_runtime_schema_sync: bool = Field(
-        default=True,
+        default=False,
         env="DB_RUNTIME_SCHEMA_SYNC",
-        description="启动时是否自动补齐旧表字段，仅建议开发环境启用"
+        description="兼容配置；True 会被拒绝，数据库 schema 由 Alembic 管理"
     )
     
     @validator("cors_origins", pre=True)

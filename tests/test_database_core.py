@@ -18,7 +18,7 @@ BASELINE = (
 )
 
 
-def _baseline_table_columns(table_names):
+def _baseline_table_columns(table_names=None):
     tree = ast.parse(BASELINE.read_text(encoding="utf-8"))
     result = {}
     for node in ast.walk(tree):
@@ -31,7 +31,7 @@ def _baseline_table_columns(table_names):
         ):
             continue
         table_name = ast.literal_eval(node.args[0])
-        if table_name not in table_names:
+        if table_names is not None and table_name not in table_names:
             continue
         result[table_name] = {
             ast.literal_eval(argument.args[0])
@@ -44,15 +44,19 @@ def _baseline_table_columns(table_names):
 
 
 class _FakeInspector:
-    def __init__(self, tables=None, columns=None):
+    def __init__(self, tables=None, columns=None, indexes=None):
         self._tables = tables or []
         self._columns = columns or {}
+        self._indexes = indexes or {}
 
     def get_table_names(self):
         return list(self._tables)
 
     def get_columns(self, table_name):
         return [{"name": column} for column in self._columns.get(table_name, [])]
+
+    def get_indexes(self, table_name):
+        return [{"name": index} for index in self._indexes.get(table_name, [])]
 
 
 class DatabaseCoreTest(unittest.TestCase):
@@ -69,31 +73,57 @@ class DatabaseCoreTest(unittest.TestCase):
             self.assertLessEqual(required, set(model.__table__.columns.keys()))
             self.assertLessEqual(required, baseline_columns[table_name])
 
-    def test_init_db_runs_runtime_sync_when_enabled(self):
-        with patch.object(database.settings, "db_auto_create_tables", True):
-            with patch.object(database.settings, "db_runtime_schema_sync", True):
-                with patch.object(database.SQLModel.metadata, "create_all") as mock_create_all:
-                    with patch.object(database, "_sync_runtime_schema") as mock_sync:
-                        with patch.object(database, "_ensure_runtime_indexes") as mock_indexes:
-                            with patch.object(database, "_try_enable_timescaledb_hypertable") as mock_hypertable:
-                                database.init_db()
-
-        mock_create_all.assert_called_once_with(database.engine)
-        mock_sync.assert_called_once()
-        mock_indexes.assert_called_once()
-        mock_hypertable.assert_called_once()
-
-    def test_init_db_asserts_schema_when_runtime_sync_disabled(self):
-        with patch.object(database.settings, "db_auto_create_tables", False):
-            with patch.object(database.settings, "db_runtime_schema_sync", False):
-                with patch.object(database, "_assert_required_tables_exist") as mock_tables:
-                    with patch.object(database, "_assert_required_columns_present") as mock_columns:
-                        with patch.object(database, "_try_enable_timescaledb_hypertable") as mock_hypertable:
+    def test_init_db_rejects_legacy_schema_mutation_flags(self):
+        for auto_create, runtime_sync in ((True, False), (False, True), (True, True)):
+            with self.subTest(
+                db_auto_create_tables=auto_create,
+                db_runtime_schema_sync=runtime_sync,
+            ):
+                with patch.object(database.settings, "db_auto_create_tables", auto_create):
+                    with patch.object(database.settings, "db_runtime_schema_sync", runtime_sync):
+                        with self.assertRaisesRegex(RuntimeError, "alembic upgrade head"):
                             database.init_db()
 
-        mock_tables.assert_called_once()
-        mock_columns.assert_called_once()
-        mock_hypertable.assert_called_once()
+    def test_init_db_only_runs_schema_assertions_in_order(self):
+        calls = []
+
+        def record(name):
+            return lambda: calls.append(name)
+
+        with patch.object(database.settings, "db_auto_create_tables", False):
+            with patch.object(database.settings, "db_runtime_schema_sync", False):
+                with patch.object(
+                    database,
+                    "_assert_required_tables_exist",
+                    side_effect=record("tables"),
+                ) as mock_tables:
+                    with patch.object(
+                        database,
+                        "_assert_required_columns_present",
+                        side_effect=record("columns"),
+                    ) as mock_columns:
+                        with patch.object(
+                            database,
+                            "_assert_required_indexes_present",
+                            side_effect=record("indexes"),
+                        ) as mock_indexes:
+                            with patch.object(
+                                database,
+                                "_assert_energydata_hypertable",
+                                side_effect=record("hypertable"),
+                            ) as mock_hypertable:
+                                database.init_db()
+
+        mock_tables.assert_called_once_with()
+        mock_columns.assert_called_once_with()
+        mock_indexes.assert_called_once_with()
+        mock_hypertable.assert_called_once_with()
+        self.assertEqual(calls, ["tables", "columns", "indexes", "hypertable"])
+
+    def test_required_tables_match_static_baseline(self):
+        baseline_tables = set(_baseline_table_columns())
+
+        self.assertEqual(database.REQUIRED_TABLES, baseline_tables)
 
     def test_assert_required_tables_exist_raises_for_missing_table(self):
         inspector = _FakeInspector(tables=["alarm", "audit_event"])
@@ -134,6 +164,40 @@ class DatabaseCoreTest(unittest.TestCase):
         self.assertIn("capacitor_bank_telemetry.running_circuit_count", str(ctx.exception))
         self.assertIn("user.location_scope", str(ctx.exception))
 
+    def test_assert_required_indexes_present_raises_for_missing_indexes(self):
+        inspector = _FakeInspector(
+            indexes={
+                table_name: required_indexes
+                for table_name, required_indexes in database.REQUIRED_INDEXES.items()
+            }
+        )
+        inspector._indexes["energydata"] = {"idx_energydata_device_timestamp"}
+
+        with patch.object(database, "inspect", return_value=inspector):
+            with self.assertRaises(RuntimeError) as ctx:
+                database._assert_required_indexes_present()
+
+        self.assertIn("energydata.idx_energydata_energy_type_timestamp", str(ctx.exception))
+
+    def test_assert_energydata_hypertable_raises_when_missing(self):
+        connection = MagicMock()
+        connection.execute.return_value.scalar_one_or_none.return_value = None
+
+        @contextmanager
+        def fake_connection():
+            yield connection
+
+        with patch.object(database.engine, "connect", side_effect=fake_connection):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "energydata 尚未通过 migration 转换为 TimescaleDB hypertable",
+            ):
+                database._assert_energydata_hypertable()
+
+        sql = str(connection.execute.call_args.args[0])
+        self.assertIn("timescaledb_information.hypertables", sql)
+        self.assertNotRegex(sql.upper(), r"\b(CREATE|ALTER|DROP|UPDATE|INSERT|DELETE)\b")
+
     def test_get_session_yields_session_from_context_manager(self):
         fake_session = object()
 
@@ -146,20 +210,6 @@ class DatabaseCoreTest(unittest.TestCase):
             yielded = next(session_gen)
 
         self.assertIs(yielded, fake_session)
-
-    def test_try_enable_timescaledb_hypertable_swallows_errors(self):
-        fake_session = MagicMock()
-        fake_session.exec.side_effect = RuntimeError("timescaledb missing")
-
-        @contextmanager
-        def fake_session_factory(_engine):
-            yield fake_session
-
-        with patch.object(database, "Session", side_effect=fake_session_factory):
-            database._try_enable_timescaledb_hypertable()
-
-        fake_session.exec.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()
