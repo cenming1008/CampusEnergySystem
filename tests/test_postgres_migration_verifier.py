@@ -1,3 +1,6 @@
+import json
+import subprocess
+
 import pytest
 
 from scripts.python.migration_schema import (
@@ -439,3 +442,206 @@ def test_constraints_query_uses_pg_constraint_oid_relationships():
     assert "unnest(con.conkey) WITH ORDINALITY" in CONSTRAINTS_SQL
     assert "con.confkey[" in CONSTRAINTS_SQL
     assert "information_schema" not in CONSTRAINTS_SQL
+
+
+class FakeMigrationBackend:
+    def __init__(self, *, fail_at=None, fingerprints=None):
+        self.fail_at = fail_at
+        self.fingerprints = fingerprints or {
+            "ces_migration_fresh": {"objects": {"table.device": {}}},
+            "ces_migration_offline": {"objects": {"table.device": {}}},
+            "ces_migration_roundtrip": {"objects": {"table.device": {}}},
+        }
+        self.calls = []
+
+    def _record(self, method, *args):
+        self.calls.append((method, *args))
+        if self.fail_at == (method, *args):
+            raise RuntimeError(f"failed at {method}")
+
+    def create_database(self, name):
+        self._record("create_database", name)
+
+    def drop_database(self, name):
+        self._record("drop_database", name)
+
+    def upgrade(self, name):
+        self._record("upgrade", name)
+
+    def downgrade_to_base(self, name):
+        self._record("downgrade_to_base", name)
+
+    def generate_offline_sql(self):
+        self._record("generate_offline_sql")
+        return "SELECT 1;"
+
+    def apply_offline_sql(self, name, sql_text):
+        self._record("apply_offline_sql", name, sql_text)
+
+    def fingerprint(self, name):
+        self._record("fingerprint", name)
+        return self.fingerprints[name]
+
+
+def test_build_database_url_replaces_only_database_name():
+    from scripts.python.verify_postgres_migrations import build_database_url
+
+    url = build_database_url(
+        "postgresql://admin:secret@localhost:5432/postgres",
+        "ces_migration_fresh",
+    )
+
+    assert url.endswith("/ces_migration_fresh")
+    assert "admin:secret@localhost:5432" in url
+
+
+def test_execute_verification_uses_three_fixed_paths_and_cleans_successes():
+    from scripts.python.verify_postgres_migrations import (
+        MigrationPath,
+        execute_verification,
+    )
+
+    backend = FakeMigrationBackend()
+
+    result = execute_verification(backend)
+
+    assert [item.path for item in result.paths] == [
+        MigrationPath.FRESH,
+        MigrationPath.OFFLINE,
+        MigrationPath.ROUNDTRIP,
+    ]
+    assert result.success
+    assert all(item.success for item in result.paths)
+    assert backend.calls == [
+        ("create_database", "ces_migration_fresh"),
+        ("upgrade", "ces_migration_fresh"),
+        ("fingerprint", "ces_migration_fresh"),
+        ("create_database", "ces_migration_offline"),
+        ("generate_offline_sql",),
+        ("apply_offline_sql", "ces_migration_offline", "SELECT 1;"),
+        ("fingerprint", "ces_migration_offline"),
+        ("create_database", "ces_migration_roundtrip"),
+        ("upgrade", "ces_migration_roundtrip"),
+        ("downgrade_to_base", "ces_migration_roundtrip"),
+        ("upgrade", "ces_migration_roundtrip"),
+        ("fingerprint", "ces_migration_roundtrip"),
+        ("drop_database", "ces_migration_fresh"),
+        ("drop_database", "ces_migration_offline"),
+        ("drop_database", "ces_migration_roundtrip"),
+    ]
+
+
+def test_execute_verification_preserves_failed_and_unverified_databases():
+    from scripts.python.verify_postgres_migrations import execute_verification
+
+    backend = FakeMigrationBackend(
+        fail_at=(
+            "apply_offline_sql",
+            "ces_migration_offline",
+            "SELECT 1;",
+        )
+    )
+
+    result = execute_verification(backend)
+
+    assert not result.success
+    assert result.paths[0].success
+    assert result.paths[1].failed_step == "offline.apply_offline_sql"
+    assert result.paths[2].failed_step == "not_started"
+    assert not any(call[0] == "drop_database" for call in backend.calls)
+
+
+def test_execute_verification_keep_success_preserves_all_databases():
+    from scripts.python.verify_postgres_migrations import execute_verification
+
+    backend = FakeMigrationBackend()
+
+    result = execute_verification(backend, keep_success=True)
+
+    assert result.success
+    assert not any(call[0] == "drop_database" for call in backend.calls)
+
+
+def test_cleanup_calls_only_the_three_fixed_database_names():
+    from scripts.python.migration_schema import TEMP_DATABASE_NAMES
+    from scripts.python.verify_postgres_migrations import cleanup_databases
+
+    backend = FakeMigrationBackend()
+
+    cleanup_databases(backend)
+
+    dropped = [call[1] for call in backend.calls if call[0] == "drop_database"]
+    assert set(dropped) == TEMP_DATABASE_NAMES
+    assert len(dropped) == 3
+
+
+def test_postgres_backend_runs_alembic_with_safe_arguments_and_target_environment(
+    monkeypatch,
+):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    calls = []
+
+    def fake_run(arguments, **kwargs):
+        calls.append((arguments, kwargs))
+        return subprocess.CompletedProcess(arguments, 0, stdout="SELECT 1;", stderr="")
+
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+    backend = verifier.PostgresBackend(
+        "postgresql://admin:secret@localhost:5432/postgres"
+    )
+
+    backend.upgrade("ces_migration_fresh")
+    backend.downgrade_to_base("ces_migration_roundtrip")
+    sql_text = backend.generate_offline_sql()
+
+    assert sql_text == "SELECT 1;"
+    assert [call[0][-3:] for call in calls] == [
+        ["alembic", "upgrade", "head"],
+        ["alembic", "downgrade", "base"],
+        ["upgrade", "head", "--sql"],
+    ]
+    assert all(isinstance(call[0], list) for call in calls)
+    assert all(call[1]["check"] is True for call in calls)
+    assert all(call[1]["capture_output"] is True for call in calls)
+    assert all(call[1].get("shell", False) is False for call in calls)
+    assert calls[0][1]["env"]["DATABASE_URL"].endswith("/ces_migration_fresh")
+    assert "admin:secret@localhost:5432" in calls[0][1]["env"]["DATABASE_URL"]
+    assert calls[1][1]["env"]["DATABASE_URL"].endswith(
+        "/ces_migration_roundtrip"
+    )
+    assert calls[2][1]["env"]["DATABASE_URL"].endswith(
+        "/ces_migration_offline"
+    )
+
+
+def test_cli_requires_admin_url_when_environment_is_missing(monkeypatch):
+    from scripts.python.verify_postgres_migrations import main
+
+    monkeypatch.delenv("MIGRATION_ADMIN_URL", raising=False)
+
+    with pytest.raises(SystemExit, match="2"):
+        main([])
+
+
+def test_cli_uses_environment_and_writes_json_result(monkeypatch, tmp_path):
+    import scripts.python.verify_postgres_migrations as verifier
+
+    backend = FakeMigrationBackend()
+    monkeypatch.setenv(
+        "MIGRATION_ADMIN_URL",
+        "postgresql://admin:secret@localhost:5432/postgres",
+    )
+    monkeypatch.setattr(verifier, "PostgresBackend", lambda _url: backend)
+    output = tmp_path / "migration-result.json"
+
+    exit_code = verifier.main(["--keep-success", "--json-output", str(output)])
+
+    assert exit_code == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert [item["path"] for item in payload["paths"]] == [
+        "fresh",
+        "offline",
+        "roundtrip",
+    ]
