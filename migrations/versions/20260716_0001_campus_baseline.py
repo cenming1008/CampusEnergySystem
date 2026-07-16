@@ -668,12 +668,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_mqtt_ingestion_record_next_retry_at"),
-        "mqtt_ingestion_record",
-        ["next_retry_at"],
-        unique=False,
-    )
-    op.create_index(
         op.f("ix_mqtt_ingestion_record_payload_hash"),
         "mqtt_ingestion_record",
         ["payload_hash"],
@@ -996,9 +990,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_mqtt_ingestion_record_status"), table_name="mqtt_ingestion_record")
     op.drop_index(op.f("ix_mqtt_ingestion_record_received_at"), table_name="mqtt_ingestion_record")
     op.drop_index(op.f("ix_mqtt_ingestion_record_payload_hash"), table_name="mqtt_ingestion_record")
-    op.drop_index(
-        op.f("ix_mqtt_ingestion_record_next_retry_at"), table_name="mqtt_ingestion_record"
-    )
     op.drop_index(op.f("ix_mqtt_ingestion_record_last_seen_at"), table_name="mqtt_ingestion_record")
     op.drop_index(
         op.f("ix_mqtt_ingestion_record_last_replayed_at"), table_name="mqtt_ingestion_record"

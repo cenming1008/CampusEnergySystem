@@ -1,12 +1,46 @@
+import ast
 import os
 import unittest
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.core import database
 from app.models.compensation import CapacitorBankControlProfile, CapacitorBankTelemetry
+
+BASELINE = (
+    Path(__file__).resolve().parents[1]
+    / "migrations"
+    / "versions"
+    / "20260716_0001_campus_baseline.py"
+)
+
+
+def _baseline_table_columns(table_names):
+    tree = ast.parse(BASELINE.read_text(encoding="utf-8"))
+    result = {}
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "op"
+            and node.func.attr == "create_table"
+        ):
+            continue
+        table_name = ast.literal_eval(node.args[0])
+        if table_name not in table_names:
+            continue
+        result[table_name] = {
+            ast.literal_eval(argument.args[0])
+            for argument in node.args[1:]
+            if isinstance(argument, ast.Call)
+            and isinstance(argument.func, ast.Attribute)
+            and argument.func.attr == "Column"
+        }
+    return result
 
 
 class _FakeInspector:
@@ -22,15 +56,18 @@ class _FakeInspector:
 
 
 class DatabaseCoreTest(unittest.TestCase):
-    def test_capacitor_bank_models_include_required_runtime_columns(self):
-        self.assertLessEqual(
-            database.REQUIRED_COLUMNS["capacitor_bank_control_profile"],
-            set(CapacitorBankControlProfile.__table__.columns.keys()),
-        )
-        self.assertLessEqual(
-            database.REQUIRED_COLUMNS["capacitor_bank_telemetry"],
-            set(CapacitorBankTelemetry.__table__.columns.keys()),
-        )
+    def test_capacitor_bank_models_and_baseline_include_required_runtime_columns(self):
+        models = {
+            "capacitor_bank_control_profile": CapacitorBankControlProfile,
+            "capacitor_bank_telemetry": CapacitorBankTelemetry,
+        }
+        baseline_columns = _baseline_table_columns(models)
+
+        self.assertEqual(set(baseline_columns), set(models))
+        for table_name, model in models.items():
+            required = database.REQUIRED_COLUMNS[table_name]
+            self.assertLessEqual(required, set(model.__table__.columns.keys()))
+            self.assertLessEqual(required, baseline_columns[table_name])
 
     def test_init_db_runs_runtime_sync_when_enabled(self):
         with patch.object(database.settings, "db_auto_create_tables", True):

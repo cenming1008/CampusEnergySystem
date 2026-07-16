@@ -272,7 +272,7 @@ class MqttIngestionRecord(SQLModel, table=True):
     error_reason: Optional[str] = Field(default=None, description="失败原因")
     duplicate_count: int = Field(default=0, description="重复收到次数")
     retry_count: int = Field(default=0, description="自动/人工累计重试次数")
-    next_retry_at: Optional[datetime] = Field(default=None, index=True, description="下一次允许重试时间")
+    next_retry_at: Optional[datetime] = Field(default=None, description="下一次允许重试时间")
     replay_count: int = Field(default=0, description="人工重放次数")
     last_replayed_at: Optional[datetime] = Field(default=None, index=True, description="最近一次重放时间")
 
