@@ -2,47 +2,41 @@
 
 ## 当前总目标
 
-- 当前主主题：`后端可靠性阶段 2A：确定性迁移基线`。
-- 当前总目标：完成 Task 9 的主题交还与储能迁移契约更新，在此之前保持阶段 2A 为唯一活跃主题。
-- 当前执行依据：`docs/plans/PLAN-20260716-backend-reliability-phase2a.md`。
-- 验收证据：`docs/plans/backend-reliability-phase2a-acceptance.md`。
+- 当前主主题：`园区光储协同仿真与 EMS 控制`。
+- 当前总目标：从 Task 3 开始建立储能持久化契约，再按依赖推进仿真遥测、闭环控制、日前优化与收益证据。
+- 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 
 ## 当前阶段
 
-- [x] 数据库名称安全、schema 指纹与隔离迁移验证工具。
-- [x] 静态根基线 `20260716_0001` 与旧链归档。
-- [x] online、offline、roundtrip 三路径一致性。
-- [x] 启动只校验；CI workflow 阻断配置已通过本地契约及 YAML/Compose 解析。独立固定 TimescaleDB `2.17.2-pg14` 临时容器已真实完成三路径验证（各 628 个对象、指纹一致、revision `20260716_0001`、`public.energydata` hypertable）并完成数据库与容器清理；现有 `latest-pg14` 也在 Task 5/8 通过但不替代固定版本证据。远端 GitHub Actions 本轮未实际运行。
-- [x] Task 8：重建经批准可清除的 `campus_energy` 并完成本地验收。
-- [ ] Task 9：交还园区光储主主题，更新储能 revision 契约与 daily 完成快照。
+- [x] Task 1：主题治理、固定契约与迁移门禁记录正式完成。
+- [x] Task 2：纯电池领域模型、兼容惰性导出及测试正式完成。
+- [ ] Task 3：持久化模型与 migration，具备准入条件，尚未开始、尚未完成。
+- [ ] Task 4 及后续：按 Task 3 依赖顺序等待。
 
-## 当前验收事实
+## Task 3 准入证据
 
-- focused pre-reset gate：`89 passed, 2 skipped, 3 warnings`。
-- 三条路径各为 628 个 schema objects，共同 SHA-256：`9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
-- `campus_energy` 已重建到 `20260716_0001`；public 表 26 张（含 `alembic_version`）；`energydata` 为 TimescaleDB hypertable。
-- `init_db()` 执行前后对象数和指纹完全不变，启动无 schema mutation。
-- 全量测试：`727 passed, 2 skipped, 5 warnings`；覆盖率 74%；Ruff、compileall、diff 门禁通过。
-- Ruff 基线只删除 10 条前序已修复记录，无新增 finding，其余内容不变。
-- 提交 `2c738e61` 同时更新了 Ruff 质量 baseline；后续提交只补可复现验收证据，不改写该历史提交。
-- Redis 与 MQTT volumes 未修改；MQTT health 属于非目标。
+- 后端可靠性阶段 2A 全部验收通过并完成治理交还；它现在是已完成依赖和历史证据，不是第二个活跃主主题。
+- 静态根 revision 为 `20260716_0001`；fresh、offline、roundtrip 各 628 个对象且共同 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
+- `campus_energy` 已重建到 `20260716_0001`，包含 26 张 public 表，`public.energydata` 为 hypertable；启动校验前后结构指纹不变。
+- CI workflow 阻断配置、本地固定 TimescaleDB 2.17.2 真实三路径和现有开发容器验收均已有证据；远端 GitHub Actions 本轮未实际运行。
 
-## 固定边界
+## 固定契约
 
-- 当前唯一主主题仍为阶段 2A；Task 9 完成前不得启动园区光储 Task 3。
-- 只有阶段 2A 全部验收通过并完成 Task 9 治理交还，才能解除园区光储 Task 3 暂停状态。
-- 新根 revision 为 `20260716_0001`；Task 9 将储能 revision 更新为 `20260716_0002`，其 down revision 为 `20260716_0001`。
-- 本阶段不处理 Redis、MQTT、readiness、rate limit、部署顺序或储能持久化。
+- 储能 migration：`revision = "20260716_0002"`，`down_revision = "20260716_0001"`。
+- 根基线已经拥有基础 `storage_telemetry`；Task 3 只新增 profile、dispatch 和批准的 telemetry 扩展，不得重建基础表。
+- `device_category=storage`，`device_subtype=battery_energy_storage_system`。
+- 正功率充电、负功率放电；所有模拟遥测必须标记 `data_source=simulated`。
+- Task 3 必须按 TDD 实施；“具备准入条件”不等于完成。
 
 ## 当前待办
 
-1. 执行 Task 9：更新储能两份计划中的 revision 契约。
-2. 追加阶段 2A 完成 daily 快照。
-3. 通过治理与迁移契约测试后，将唯一主主题切回园区光储并把 Task 3 标记为具备准入条件。
+1. 后端储能角色先写 Task 3 model 与 migration 合同测试并观察 RED。
+2. 以静态、offline-safe 的 `20260716_0002` migration 增加 profile、dispatch 和批准的 telemetry 扩展。
+3. 完成 focused tests、offline SQL 和真实 PostgreSQL migration 验收后，再判断 Task 3 是否通过。
 
 ## 当前验收判断
 
-- Task 8：通过。
-- 阶段 2A：技术与本地验收门禁已通过，等待 Task 9 治理交还后收口。
-- 园区光储 Task 3：继续暂停，不能提前开始。
-- 下一接手角色：规则/验收，执行 Task 9。
+- 阶段 2A：完成并归入历史依赖。
+- 园区光储：唯一活跃主主题。
+- Task 3：具备准入条件，尚未开始、尚未完成。
+- 下一接手角色：后端储能角色。

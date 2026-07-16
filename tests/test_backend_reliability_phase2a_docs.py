@@ -8,13 +8,13 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_phase2a_is_the_only_active_main_topic():
+def test_storage_is_the_only_active_main_topic_after_phase2a_acceptance():
     status = read("docs/plans/current-status.md")
     handoff = read("docs/plans/handoff.md")
-    assert "当前主主题：`后端可靠性阶段 2A：确定性迁移基线`" in status
-    assert "当前主题：`后端可靠性阶段 2A：确定性迁移基线`" in handoff
-    assert "当前主主题：`园区光储协同仿真与 EMS 控制`" not in status
-    assert "当前主题：`园区光储协同仿真与 EMS 控制`" not in handoff
+    assert "当前主主题：`园区光储协同仿真与 EMS 控制`" in status
+    assert "当前主题：`园区光储协同仿真与 EMS 控制`" in handoff
+    assert "当前主主题：`后端可靠性阶段 2A：确定性迁移基线`" not in status
+    assert "当前主题：`后端可靠性阶段 2A：确定性迁移基线`" not in handoff
     assert status.count("当前主主题：") == 1
     assert handoff.count("当前主题：") == 1
 
@@ -69,3 +69,14 @@ def test_storage_resumes_only_after_the_complete_phase2a_gate():
     assert "三路径验证、开发库重建、启动仅校验和阻断式 CI 门禁" in plan
     assert "阶段 2A 全部验收通过" in status
     assert "阶段 2A 全部验收通过" in handoff
+
+
+def test_storage_resumes_only_after_phase2a_acceptance():
+    status = read("docs/plans/current-status.md")
+    storage_plan = read(
+        "docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md"
+    )
+    assert "当前主主题：`园区光储协同仿真与 EMS 控制`" in status
+    assert "Task 3" in status and "具备准入条件" in status
+    assert 'revision = "20260716_0002"' in storage_plan
+    assert 'down_revision = "20260716_0001"' in storage_plan

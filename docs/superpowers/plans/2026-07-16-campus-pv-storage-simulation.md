@@ -13,7 +13,7 @@
 ## Execution prerequisites
 
 1. Do not start production-code tasks while `docs/plans/current-status.md` still names backend reliability phase 2A as the active main theme unless the rules role explicitly pauses or closes it.
-2. Before Task 3, the phase 2A migration gate must prove that fresh PostgreSQL, offline SQL, migration-built existing DB, and runtime-sync existing DB paths are trusted. Do not add `20260716_0012` to the current untrusted chain.
+2. Phase 2A is accepted and Task 3 has persistence admission. Its migration revision is `20260716_0002` with `down_revision = "20260716_0001"`; do not attach storage persistence to the archived legacy chain.
 3. Preserve the existing user-owned `app/api/README.md` modification in the original `main` worktree.
 4. Baseline evidence in the isolated worktree:
    - backend: `580 passed, 3 warnings`;
@@ -34,7 +34,7 @@
 - Create `app/domain/storage_control_rules.py`: pure safety and real-time rule decision logic.
 - Create `app/domain/storage_dispatch_optimizer.py`: pure 96-slot MILP formulation and result conversion.
 - Modify `app/models/storage.py`: storage asset profile, telemetry extensions, dispatch plan records.
-- Create `migrations/versions/20260716_0012_add_storage_simulation_contracts.py`: deterministic schema changes after the migration prerequisite passes.
+- Create `migrations/versions/20260716_0002_add_storage_simulation_contracts.py`: deterministic schema changes after the accepted `20260716_0001` root baseline.
 
 ### Backend orchestration
 
@@ -127,7 +127,7 @@ Run:
 alembic upgrade head --sql
 ```
 
-Expected before feature implementation: both commands exit `0`; offline SQL contains every revision through `20260515_0011` and does not perform online database reads. Also run the fresh PostgreSQL, migration-built existing database, and runtime-sync existing database acceptance commands established by the approved phase 2A plan; all three must pass with schema comparison enabled. The current repository is known not to satisfy this gate, so this task is intentionally blocked until phase 2A supplies and passes those fixtures.
+Expected before feature implementation: both commands exit `0`; offline SQL contains the accepted root revision `20260716_0001` and does not perform online database reads. Also run the fresh PostgreSQL, offline, and roundtrip acceptance commands established by the approved phase 2A plan; all three must pass with schema comparison enabled. Phase 2A has now supplied and passed those fixtures, so Task 3 has persistence admission.
 
 - [ ] **Step 3: Stop if the gate is not green**
 
@@ -241,7 +241,7 @@ git commit -m "feat: add storage battery simulation model"
 
 **Files:**
 - Modify: `app/models/storage.py`
-- Create: `migrations/versions/20260716_0012_add_storage_simulation_contracts.py`
+- Create: `migrations/versions/20260716_0002_add_storage_simulation_contracts.py`
 - Test: `tests/test_storage_model_contract.py`
 - Test: `tests/test_migration_storage_contract.py`
 
@@ -269,7 +269,7 @@ Expected: FAIL because the new models and fields do not exist.
 
 - [ ] **Step 3: Add focused SQLModel contracts**
 
-Add `StorageAssetProfile` with unique `device_id`, rated energy/power, efficiencies, hard/soft SOC bounds, voltage, battery type, BMS/PCS model, protocol version, location, commission date, and timestamps.
+The accepted root baseline already owns the base `storage_telemetry` table. Task 3 must not recreate it. Add `StorageAssetProfile` with unique `device_id`, rated energy/power, efficiencies, hard/soft SOC bounds, voltage, battery type, BMS/PCS model, protocol version, location, commission date, and timestamps.
 
 Extend `StorageTelemetry` with nullable `target_active_power`, available charge/discharge power, BMS/PCS/grid states, command source, and `data_source` defaulting to `telemetry`.
 
@@ -280,11 +280,11 @@ Add `StorageDispatchPlan` with `(device_id, dispatch_date, slot_index)` uniquene
 The migration must use only explicit Alembic operations. Set:
 
 ```python
-revision = "20260716_0012"
-down_revision = "20260515_0011"
+revision = "20260716_0002"
+down_revision = "20260716_0001"
 ```
 
-Create `storage_asset_profile` and `storage_dispatch_plan`, add the eight telemetry columns, create the unique dispatch-slot constraint, and implement a complete downgrade. Do not import current SQLModel metadata or query application tables during migration.
+Create `storage_asset_profile` and `storage_dispatch_plan`, add only the eight approved telemetry extensions to the baseline-owned `storage_telemetry`, create the unique dispatch-slot constraint, and implement a complete downgrade. Task 3 is limited to profile, dispatch, and those approved telemetry extensions; it must not recreate the base telemetry table. Do not import current SQLModel metadata or query application tables during migration.
 
 - [ ] **Step 5: Run migration tests**
 
@@ -301,7 +301,7 @@ Expected: tests PASS; offline SQL generation exits `0`; all three schema names a
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/models/storage.py migrations/versions/20260716_0012_add_storage_simulation_contracts.py tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
+git add app/models/storage.py migrations/versions/20260716_0002_add_storage_simulation_contracts.py tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
 git commit -m "feat: add storage simulation persistence contracts"
 ```
 

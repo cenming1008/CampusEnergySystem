@@ -8,28 +8,22 @@
 
 ### 主题切换门禁
 
-- 条件：后端可靠性阶段 2A 已通过，或已由规则角色明确暂停并归档。
-- 当前判定：**已满足**。用户已批准暂停阶段 2A，规则角色已在 `docs/plans/daily/2026-07/` 保存主题切换时的待恢复快照。
-- 作用范围：Task 2 纯领域模型只依赖本门禁，不依赖持久化准入门禁。
+- 条件：后端可靠性阶段 2A 全部验收通过并完成治理交还。
+- 当前判定：**已满足**。阶段 2A 已完成静态根基线、三路径一致性、开发库重建、启动只校验和阻断式 CI workflow 配置验收；Task 9 已将园区光储恢复为唯一主主题。
+- 历史与验收证据保存在 `docs/plans/daily/2026-07/` 和 `docs/plans/backend-reliability-phase2a-acceptance.md`。
 
 ### 持久化准入门禁
 
-- 条件：offline SQL、fresh PostgreSQL、migration-built existing 和 runtime-sync existing 四条 migration 路径均通过。
-- 当前判定：**未满足**。offline SQL 实测失败，fresh 和两类 existing database 路径缺少 fixture 与通过证据。
-- 作用范围：Task 3 以及所有依赖数据库模型、migration、fixture 或持久化路径的下游任务同时依赖主题切换门禁和本门禁。
-
-2026-07-16 实测证据（从仓库根目录运行，先激活项目虚拟环境）：
-
-- `python -m pytest tests/test_backend_tooling_contracts.py`：`13 passed`。
-- 未设置 `DATABASE_URL` 时，`python -m alembic upgrade head --sql` 在加载 `Settings` 时失败，错误为 `database_url field required`。
-- 使用脱敏示例 `DATABASE_URL='postgresql+psycopg2://USER:PASSWORD@HOST:5432/DB_NAME' python -m alembic upgrade head --sql` 后，执行到 revision `20260412_0003` 的 `_has_column()`，在 `result.fetchone()` 处失败：`AttributeError: 'NoneType' object has no attribute 'fetchone'`。该 URL 仅表达命令格式，不是可用凭据。
-- 仓库现状未提供 fresh、migration-built existing、runtime-sync existing 三类 PostgreSQL migration fixture，无法给出三条路径的通过证据。
+- 条件：静态根 migration、fresh、offline、roundtrip、启动只校验、开发库重建和 CI workflow 阻断配置均有验收证据。
+- 当前判定：**已满足**。三条路径各得到 628 个 schema objects，规范化指纹共同 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`；`campus_energy` 已重建到 `20260716_0001`。
+- 储能 migration 固定使用 `revision = "20260716_0002"`、`down_revision = "20260716_0001"`。
+- 根基线已经拥有基础 `storage_telemetry` 表；Task 3 仅新增 storage profile、dispatch 和已批准的 telemetry 扩展，不得重建基础表。
 
 门禁裁决：
 
 - Task 2 的纯领域模型已在主题切换门禁范围内完成并通过规格与质量审查，未触碰数据库模型、migration 或持久化实现。
-- Task 3 及所有依赖数据库模型、migration、fixture 或持久化路径的后续任务因持久化准入门禁未满足而保持阻塞。
-- 解除阻塞前必须恢复后端可靠性阶段 2A，取得 offline SQL、fresh PostgreSQL、migration-built existing 和 runtime-sync existing 四条路径的完整通过证据。
+- Task 3 当前具备准入条件，但尚未开始、尚未完成；下一角色为后端储能角色。
+- Task 3 完成前，所有依赖其持久化契约的后续任务继续按依赖关系等待。
 
 ## 非目标
 
@@ -102,8 +96,8 @@
 
 1. Task 1，规则角色：完成主题迁移、固定契约和持久化门禁记录；规格审查与质量审查均通过，正式完成。
 2. Task 2，后端角色：纯领域模型、兼容惰性导出及其测试已完成，规格审查与质量审查均通过。
-3. Task 3，后端角色：持久化模型与迁移；当前阻塞，必须等待阶段 2A 门禁恢复并通过。
-4. 后续遥测、控制闭环、规则 EMS、日前优化与收益对比任务按依赖顺序实施；凡依赖持久化者均继承 Task 3 阻塞。
+3. Task 3，后端储能角色：持久化模型与 migration，当前具备准入条件，尚未开始。
+4. 后续遥测、控制闭环、规则 EMS、日前优化与收益对比任务按依赖顺序实施；凡依赖持久化者均等待 Task 3 完成。
 5. 每个阶段结束后由验收角色核对固定契约、测试证据、非目标和剩余风险。
 
 ## 验收阶段
@@ -117,7 +111,7 @@
 - 系统级仿真在确定输入下可重复运行，功率与 SOC 状态演化满足固定符号约定和边界约束。
 - MQTT 遥测能够被既有接入链消费，且每条仿真数据均带有 `data_source=simulated`。
 - 储能设备身份严格使用固定 `device_category` 和 `device_subtype`。
-- 若涉及持久化，必须先补齐并通过全部迁移门禁证据。
+- 若涉及持久化，必须继续保持 migration contract、offline SQL 和 PostgreSQL 路径验证为绿色。
 
 ### 阶段 B 验收
 
@@ -133,8 +127,8 @@
 
 ## 风险
 
-- 当前 Alembic 链 offline SQL 失败，且三类 PostgreSQL fixture 缺失；任何提前落库都可能扩大不可复现 schema。
-- 仓库已有 `storage_telemetry` 运行时 metadata 痕迹，但盘点确认其没有正式 migration 承载，不能据此声明持久化已就绪。
+- Task 3 若重复创建基线已有的 `storage_telemetry`，会造成 migration 冲突；实现必须只添加 profile、dispatch 和批准的 telemetry 扩展。
+- 新 migration 必须固定接在 `20260716_0001` 后，并继续保持 offline-safe，不能重新引入动态 metadata 或在线检查。
 - 功率符号、SOC 时序边界或控制回执状态若在不同层重复定义，可能造成仿真、接口与展示语义漂移。
 - 收益结果对电价、效率、容量、退化成本和基准策略敏感，必须保留完整假设，避免只展示有利结果。
 
@@ -142,6 +136,7 @@
 
 - Task 1：规格审查与质量审查均通过，正式完成。
 - Task 2：规格审查与质量审查均通过，正式完成。
-- Task 3 及依赖持久化任务：阻塞。
+- Task 3：具备准入条件，尚未开始、尚未完成。
+- 依赖 Task 3 的持久化任务：等待 Task 3 完成。
 - 验收阶段 A、B、C：尚未开始。
-- 下一角色：规则 / 后端可靠性阶段 2A，恢复并完成迁移门禁治理；只有持久化准入门禁通过后才交后端执行 Task 3。
+- 下一角色：后端储能角色，按 TDD 执行 Task 3；不得把“具备准入条件”误写为已完成。
