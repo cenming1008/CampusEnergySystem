@@ -8,10 +8,12 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.core import database
+from app.core.settings import Settings
 from app.models.compensation import CapacitorBankControlProfile, CapacitorBankTelemetry
 
+ROOT = Path(__file__).resolve().parents[1]
 BASELINE = (
-    Path(__file__).resolve().parents[1]
+    ROOT
     / "migrations"
     / "versions"
     / "20260716_0001_campus_baseline.py"
@@ -60,6 +62,61 @@ class _FakeInspector:
 
 
 class DatabaseCoreTest(unittest.TestCase):
+    def test_schema_mutation_settings_default_false_without_host_environment(self):
+        with patch.dict(
+            os.environ,
+            {"DATABASE_URL": "postgresql://tester:secret@localhost/test_db"},
+            clear=True,
+        ):
+            runtime_settings = Settings(_env_file=None)
+
+        self.assertFalse(runtime_settings.db_auto_create_tables)
+        self.assertFalse(runtime_settings.db_runtime_schema_sync)
+
+    def test_schema_mutation_settings_parse_boolean_environment_case_insensitively(self):
+        for raw_value, expected in (
+            ("True", True),
+            ("true", True),
+            ("FALSE", False),
+            ("False", False),
+        ):
+            with self.subTest(raw_value=raw_value):
+                with patch.dict(
+                    os.environ,
+                    {
+                        "DATABASE_URL": "postgresql://tester:secret@localhost/test_db",
+                        "DB_AUTO_CREATE_TABLES": raw_value,
+                        "DB_RUNTIME_SCHEMA_SYNC": raw_value,
+                    },
+                    clear=True,
+                ):
+                    runtime_settings = Settings(_env_file=None)
+
+                self.assertIs(runtime_settings.db_auto_create_tables, expected)
+                self.assertIs(runtime_settings.db_runtime_schema_sync, expected)
+
+    def test_schema_mutation_setting_descriptions_assign_schema_to_alembic(self):
+        for field_name in ("db_auto_create_tables", "db_runtime_schema_sync"):
+            description = Settings.__fields__[field_name].field_info.description or ""
+            normalized = description.lower()
+
+            with self.subTest(field_name=field_name):
+                self.assertIn("true", normalized)
+                self.assertIn("拒绝", description)
+                self.assertIn("alembic", normalized)
+                self.assertIn("schema", normalized)
+                self.assertIn("管理", description)
+
+    def test_environment_examples_disable_schema_mutation_flags(self):
+        for filename in ("env.example", "env.local.example", "env.prod.example"):
+            lines = (ROOT / filename).read_text(encoding="utf-8").splitlines()
+
+            with self.subTest(filename=filename):
+                self.assertIn("DB_AUTO_CREATE_TABLES=False", lines)
+                self.assertIn("DB_RUNTIME_SCHEMA_SYNC=False", lines)
+                self.assertNotIn("DB_AUTO_CREATE_TABLES=True", lines)
+                self.assertNotIn("DB_RUNTIME_SCHEMA_SYNC=True", lines)
+
     def test_capacitor_bank_models_and_baseline_include_required_runtime_columns(self):
         models = {
             "capacitor_bank_control_profile": CapacitorBankControlProfile,
