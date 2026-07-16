@@ -12,7 +12,7 @@
 - [x] 数据库名称安全、schema 指纹与隔离迁移验证工具。
 - [x] 静态根基线 `20260716_0001` 与旧链归档。
 - [x] online、offline、roundtrip 三路径一致性。
-- [x] 启动只校验与阻断式 TimescaleDB CI 门禁。
+- [x] 启动只校验；CI workflow 阻断配置已通过本地契约及 YAML/Compose 解析，契约确认固定 TimescaleDB 2.17.2 service image；本地真实三路径使用现有 `latest-pg14` 开发容器，远端 GitHub Actions 本轮未实际运行。
 - [x] Task 8：重建经批准可清除的 `campus_energy` 并完成本地验收。
 - [ ] Task 9：交还园区光储主主题，更新储能 revision 契约与 daily 完成快照。
 
@@ -24,6 +24,7 @@
 - `init_db()` 执行前后对象数和指纹完全不变，启动无 schema mutation。
 - 全量测试：`727 passed, 2 skipped, 5 warnings`；覆盖率 74%；Ruff、compileall、diff 门禁通过。
 - Ruff 基线只删除 10 条前序已修复记录，无新增 finding，其余内容不变。
+- 提交 `2c738e61` 同时更新了 Ruff 质量 baseline；后续提交只补可复现验收证据，不改写该历史提交。
 - Redis 与 MQTT volumes 未修改；MQTT health 属于非目标。
 
 ## 固定边界

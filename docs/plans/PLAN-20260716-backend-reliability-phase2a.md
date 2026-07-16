@@ -82,8 +82,9 @@
 - [x] fresh、offline、roundtrip 三条真实数据库路径均得到 628 个对象，规范化指纹共同 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
 - [x] 经用户批准可清除的 `campus_energy` 已在三路径门禁通过后重建，revision 为 `20260716_0001`，包含 26 张 public 表和 `energydata` hypertable。
 - [x] `init_db()` 在两个 schema mutation flags 均为 `False` 时前后指纹不变，启动仅校验。
-- [x] CI 使用 TimescaleDB 并以无 `continue-on-error` 的确定性迁移验证作为阻断门禁。
+- [x] CI workflow 配置已通过本地契约测试及 YAML/Compose 解析；契约确认固定 `timescale/timescaledb:2.17.2-pg14` service image 且迁移步骤无 `continue-on-error`。本地真实三路径使用现有 `latest-pg14` 开发容器；远端 GitHub Actions 本轮未实际运行。
 - [x] 全量测试 `727 passed, 2 skipped, 5 warnings`；覆盖率 74%；Ruff 基线检查、compileall 与 diff 检查通过。
 - [x] Redis 与 MQTT volumes 未修改；MQTT health 不在本阶段范围内。
 - 验收证据：`docs/plans/backend-reliability-phase2a-acceptance.md`。
+- 提交 `2c738e61` 同时同步了 Ruff 质量 baseline；后续证据补充不改写该历史提交。
 - Task 8 通过，但当前唯一主主题继续保持阶段 2A，直至 Task 9 正式交还园区光储；Task 3 此前不得开始。

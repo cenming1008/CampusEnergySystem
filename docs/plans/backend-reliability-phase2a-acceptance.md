@@ -12,6 +12,19 @@
 - Python：`/Users/todo/CampusEnergySystem/venv/bin/python`。当前工作树没有独立 `venv`，因此命令通过共享项目虚拟环境执行；质量脚本通过将该虚拟环境置于 `PATH` 首位执行。
 - 开发数据库：`campus_energy`；其数据已由用户明确确认可丢弃。
 
+在仓库工作树根目录执行验收前，统一设置以下可复制环境：
+
+```bash
+export PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH
+export DATABASE_URL=postgresql://admin:password123@localhost:5432/campus_energy
+export MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres
+export DB_AUTO_CREATE_TABLES=False
+export DB_RUNTIME_SCHEMA_SYNC=False
+export PYTHONPYCACHEPREFIX=/tmp/phase2a-pycache
+```
+
+其中 `MIGRATION_ADMIN_URL` 只供三个固定临时数据库的三路径验证使用；`DATABASE_URL` 指向已获用户批准可重建的开发数据库。上述凭据为本地 Docker 开发环境固定值，不适用于生产环境。
+
 ## 破坏性操作门禁
 
 重建前先执行：
@@ -31,9 +44,7 @@
 随后执行：
 
 ```bash
-MIGRATION_ADMIN_URL=postgresql://admin:***@localhost:5432/postgres \
-  /Users/todo/CampusEnergySystem/venv/bin/python \
-  scripts/python/verify_postgres_migrations.py \
+python scripts/python/verify_postgres_migrations.py \
   --json-output /tmp/phase2a-final.json
 ```
 
@@ -59,8 +70,7 @@ docker exec campusenergysystem-db-1 createdb -U admin campus_energy
 执行：
 
 ```bash
-DATABASE_URL=postgresql://admin:***@localhost:5432/campus_energy \
-  /Users/todo/CampusEnergySystem/venv/bin/python -m alembic upgrade head
+python -m alembic upgrade head
 ```
 
 结果：退出 `0`，应用静态根迁移 `20260716_0001`。
@@ -81,18 +91,14 @@ DATABASE_URL=postgresql://admin:***@localhost:5432/campus_energy \
 执行：
 
 ```bash
-DATABASE_URL=postgresql://admin:***@localhost:5432/campus_energy \
-DB_AUTO_CREATE_TABLES=False \
-DB_RUNTIME_SCHEMA_SYNC=False \
-  /Users/todo/CampusEnergySystem/venv/bin/python \
-  -c "from app.core.database import init_db; init_db()"
+python -c "from app.core.database import init_db; init_db()"
 ```
 
 结果：退出 `0`。执行后仍为 628 个对象，SHA-256 不变，证明 `init_db()` 未创建表、补字段、补索引或执行 hypertable DDL。
 
 ## 完整回归与质量门禁
 
-所有命令均设置 `DATABASE_URL` 指向重建后的 `campus_energy`，并设置 `DB_AUTO_CREATE_TABLES=False`、`DB_RUNTIME_SCHEMA_SYNC=False`。
+以下命令均在“运行环境”代码块的 `export` 前置条件下执行：
 
 | 门禁 | 结果 |
 | --- | --- |
@@ -103,6 +109,26 @@ DB_RUNTIME_SCHEMA_SYNC=False \
 | `git diff --check` | 通过 |
 
 Ruff 基线由 168 条缩减为 158 条。严格集合比较结果为：新增 0 条、删除 10 条、其余 158 条内容和计数完全不变；本次没有扩大忽略范围或引入新债务。
+
+## 首次环境失败与纠正
+
+这些失败均发生在运行环境解析或缓存写入层，不是代码、测试断言或迁移执行失败：
+
+| 首次现象 | 原因 | 纠正动作 | 最终结果 |
+| --- | --- | --- | --- |
+| 裸 `python -m pytest ...` 退出 `127` | 当前 shell 没有 `python` 命令 | 将 `/Users/todo/CampusEnergySystem/venv/bin` 放到 `PATH` 首位 | focused gate 最终 `89 passed, 2 skipped, 3 warnings` |
+| coverage 首次解析到系统 Python，缺少 `coverage` | 工作树没有本地 `venv`，脚本回退到 PATH 中的 `python3` | 使用上述 `export PATH=...`，使脚本的 `python3` 解析到共享项目虚拟环境 | coverage 测试 `727 passed, 2 skipped, 5 warnings`，覆盖率 74% |
+| `compileall` 首次因默认 macOS cache 目录无写权限失败 | 字节码默认写入工作树外的 `~/Library/Caches/com.apple.python/...` | 设置 `PYTHONPYCACHEPREFIX=/tmp/phase2a-pycache` | `compileall` 退出 `0` |
+
+纠正后所有必需门禁均已重跑并通过；没有为解决这些环境问题修改生产代码或迁移文件。
+
+## CI 配置验证边界
+
+- CI workflow 配置已通过本地契约测试及 YAML/Compose 配置解析；契约确认 workflow 的 service image 固定为 `timescale/timescaledb:2.17.2-pg14`。
+- 本地真实三路径运行在现有 `timescale/timescaledb:latest-pg14` 开发容器上并通过；这不能替代固定 2.17.2 镜像在远端 workflow 中的实际运行证据。
+- workflow 中的迁移步骤无 `continue-on-error`，配置语义为失败即阻断。
+- 远端 GitHub Actions 本轮未实际运行，因此本记录不声称远端 CI 已绿；后续推送后仍需以远端运行结果作为仓库托管环境证据。
+- 提交 `2c738e61` 在写入 Task 8 验收文档的同时同步更新了 Ruff 质量 baseline（纯删除 10 条已修复 finding）；本次后续提交只补充可复现证据与边界表述，不改写该历史提交。
 
 ## 警告与范围说明
 

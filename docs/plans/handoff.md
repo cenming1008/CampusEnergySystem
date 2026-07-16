@@ -15,7 +15,8 @@
 - `DB_AUTO_CREATE_TABLES=False`、`DB_RUNTIME_SCHEMA_SYNC=False` 下执行 `init_db()` 成功，前后结构指纹不变。
 - 全量 `727 passed, 2 skipped, 5 warnings`，覆盖率 74%，Ruff 基线、compileall 和 diff 门禁通过。
 - Ruff 基线只删除 10 条已修复 finding：168 条降至 158 条；新增 0 条，剩余集合完全一致。
-- 阻断式 CI 已使用 TimescaleDB 和真实三路径 verifier，无 `continue-on-error`。
+- CI workflow 配置已通过本地契约及 YAML/Compose 解析；契约确认固定 `timescale/timescaledb:2.17.2-pg14` service image 且无 `continue-on-error`。真实三路径 verifier 已在现有 `latest-pg14` 开发容器通过；远端 GitHub Actions 本轮未实际运行。
+- 提交 `2c738e61` 同时同步了 Ruff 质量 baseline（纯删除 10 条已修复 finding）；后续证据提交不改写该历史提交。
 
 ## 下一棒：Task 9 规则/验收
 
