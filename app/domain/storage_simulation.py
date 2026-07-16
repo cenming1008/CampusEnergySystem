@@ -134,13 +134,13 @@ def step_storage(
         raise ValueError("state SOC must be within configured hard limits")
 
     dt_h = seconds / 3600.0
-    target_power_kw = max(-config.power_kw, min(config.power_kw, requested_power_kw))
     actual_power_kw = _apply_ramp_limit(
         state.actual_power_kw,
-        target_power_kw,
+        requested_power_kw,
         config.ramp_kw_per_second,
         seconds,
     )
+    actual_power_kw = max(-config.power_kw, min(config.power_kw, actual_power_kw))
 
     saturated_soc = None
     if state.soc >= config.soc_max and actual_power_kw > 0:

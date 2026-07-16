@@ -1,5 +1,7 @@
 import math
 import os
+import subprocess
+import sys
 from dataclasses import FrozenInstanceError
 
 import pytest
@@ -28,6 +30,31 @@ def test_charge_updates_power_soc_throughput_and_run_state():
     assert result.soc == pytest.approx(54.75)
     assert result.throughput_kwh == pytest.approx(25.0)
     assert result.run_state == "charging"
+
+
+def test_one_hour_charge_matches_formal_acceptance_example():
+    result = step_storage(
+        config(charge_efficiency=0.95),
+        StorageState(soc=50.0),
+        requested_power_kw=100.0,
+        seconds=3600.0,
+    )
+
+    assert result.actual_power_kw == pytest.approx(100.0)
+    assert result.soc == pytest.approx(69.0)
+
+
+def test_ordinary_discharge_applies_discharge_efficiency():
+    result = step_storage(
+        config(discharge_efficiency=0.8),
+        StorageState(soc=50.0),
+        requested_power_kw=-100.0,
+        seconds=900.0,
+    )
+
+    assert result.actual_power_kw == pytest.approx(-100.0)
+    assert result.soc == pytest.approx(43.75)
+    assert result.throughput_kwh == pytest.approx(25.0)
 
 
 def test_discharge_at_lower_soc_limit_stays_on_standby():
@@ -81,6 +108,22 @@ def test_power_change_is_limited_by_ramp_rate():
     )
 
     assert result.actual_power_kw == 70.0
+
+
+@pytest.mark.parametrize(
+    ("current_power_kw", "expected_power_kw"),
+    [(400.0, 250.0), (-400.0, -250.0)],
+)
+def test_ramped_power_is_clipped_to_hard_rated_limit(current_power_kw, expected_power_kw):
+    result = step_storage(
+        config(energy_kwh=10_000.0, ramp_kw_per_second=1.0),
+        StorageState(soc=50.0, actual_power_kw=current_power_kw),
+        requested_power_kw=0.0,
+        seconds=1.0,
+    )
+
+    assert result.actual_power_kw == expected_power_kw
+    assert abs(result.actual_power_kw) <= 250.0
 
 
 def test_direction_change_obeys_ramp_before_crossing_zero():
@@ -271,3 +314,23 @@ def test_non_finite_state_is_rejected(field, invalid):
 def test_state_soc_outside_asset_hard_limits_is_rejected(soc):
     with pytest.raises(ValueError):
         step_storage(config(), StorageState(soc=soc), 0.0, 60.0)
+
+
+def test_storage_domain_import_does_not_require_database_settings():
+    child_env = os.environ.copy()
+    child_env.pop("DATABASE_URL", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.domain.storage_simulation import StorageAssetConfig",
+        ],
+        cwd=os.getcwd(),
+        env=child_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
