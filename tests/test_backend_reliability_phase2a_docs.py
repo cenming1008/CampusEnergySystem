@@ -102,6 +102,7 @@ def test_storage_plans_lock_the_accepted_migration_boundary():
     )
     plans = "\n".join((formal, detailed))
 
+    assert "./venv/bin/" not in plans
     assert "20260716_0012" not in plans
     assert "20260515_0011" not in plans
     for plan in (formal, detailed):

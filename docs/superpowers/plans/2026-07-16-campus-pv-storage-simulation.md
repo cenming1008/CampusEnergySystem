@@ -920,8 +920,8 @@ Reject non-96-length inputs, non-finite values, invalid efficiency, and impossib
 Run:
 
 ```bash
-./venv/bin/pip install --constraint constraints-ci.txt -r requirements.txt
-./venv/bin/pip check
+python -m pip install --constraint constraints-ci.txt -r requirements.txt
+python -m pip check
 python -m pytest -q tests/test_storage_dispatch_optimizer.py
 ```
 
