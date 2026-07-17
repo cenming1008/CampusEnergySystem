@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交前端角色执行 Task 10，只增强原有储能设备工作台，不提前展开 Task 11 或后续任务。
+- 当前目标：交后端储能角色执行 Task 11 日前 MILP 优化器，不提前展开 Task 12 或后续任务。
 
 ## 已完成与准入
 
@@ -29,14 +29,15 @@
 - Task 7 三条 PostgreSQL migration 路径均为 688 个对象；完整后端 `783 passed, 2 skipped, 7 warnings`。
 - Task 8 已完成安全优先纯规则、双门禁 EMS 编排和默认关闭的 60 秒任务；完整后端 `801 passed, 2 skipped, 7 warnings`。
 - Task 9 已完成模拟器命令执行、稳定运行标识、终态幂等和独立故障注入；聚焦 `19 passed`，完整后端 `811 passed, 2 skipped, 7 warnings`。
+- Task 10 已完成原有储能设备工作台增强，提交为 `a83cbc49`；相关回归 `27 passed`，typecheck、build 与变更文件 ESLint 通过。
 
-## 下一棒：前端 Task 10
+## 下一棒：后端储能 Task 11
 
-1. 先写设备工作台 RED，覆盖模拟/真实来源标识、正充负放、viewer 禁用、pending 禁用冲突操作及 rejected/timeout 原因。
-2. 请求继续收口在 `useStorageMonitor`；展示组件只接收 props 并发出动作，不直接散落 API 请求。
-3. 只复用 `/devices/{id}/storage/*` 现有接口和原有 `StorageMonitorView`，不得新增模拟版页面或 `/storage-energy` 路由。
-4. accepted 只展示为已接收；必须等待后端控制日志事件或刷新结果进入 running/terminal，不得前端伪造成功。
-5. 本轮不提前进入 Task 11；真实联调前仍需升级开发库到 `20260717_0003`。
+1. 在 `requirements.txt` 与 `constraints-ci.txt` 固定同一兼容 PuLP 版本，不引入商业求解器。
+2. 先写确定性 96 时段 RED，覆盖结果长度、SOC/功率/效率约束、正充负放符号与可复现性。
+3. 优化器保持纯领域边界；Task 11 不写调度计划表，也不下发控制命令。
+4. 完成聚焦测试、依赖检查、全量后端回归和 Ruff 后再交 Task 12。
+5. 真实联调前仍需显式升级开发库到 `20260717_0003`，但 Task 11 纯优化实现本身不要求改动数据库。
 
 ## 固定业务契约
 
@@ -51,8 +52,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 9，不开始 Task 10 前端代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 10 范围内。
+- 本轮只完成 Task 10，不开始 Task 11 后端代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 11 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -65,4 +66,5 @@
 - Task 7：通过并正式完成。
 - Task 8：通过并正式完成。
 - Task 9：通过并正式完成。
-- Task 10：已解除依赖，交前端角色执行。
+- Task 10：通过并正式完成。
+- Task 11：已解除依赖，交后端储能角色执行。

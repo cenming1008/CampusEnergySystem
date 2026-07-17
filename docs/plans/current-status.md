@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 9 模拟器命令执行与故障注入闭环已通过验收；当前进入 Task 10 原有储能设备工作台增强。
+- 当前总目标：Task 10 原有储能设备工作台增强已通过验收；当前进入 Task 11 日前 MILP 优化器。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -18,7 +18,8 @@
 - [x] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API 完成。
 - [x] Task 8：安全优先实时规则与 EMS 编排完成。
 - [x] Task 9：模拟器命令执行、回执状态机与故障注入完成。
-- [ ] Task 10 及后续：按实施计划依赖顺序等待。
+- [x] Task 10：原有储能设备工作台、权限门禁、命令时间线与功率趋势完成。
+- [ ] Task 11 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -96,11 +97,19 @@
 - 场景、速度和固定故障集合只接受 simulation topic；仿真门禁默认关闭，真实控制 topic 明确拒绝 simulator-only 动作。
 - 聚焦测试 `19 passed`；完整后端 `811 passed, 2 skipped, 7 warnings`；Task 9 变更文件 Ruff 与差异检查通过。
 
+## Task 10 完成证据
+
+- 实现提交：`a83cbc49`。
+- 原有 `StorageMonitorView` 内完成数据来源、目标/实际/可用功率、BMS/PCS/并网状态、人工控制、管理员自动授权和命令时间线；未新增页面或路由。
+- viewer 与 pending 状态均禁止冲突控制；`accepted` 只表示已接收，后续状态来自控制日志刷新或 WebSocket 事件。
+- 储能工作台及页面相关回归 `27 passed`；typecheck、build 和变更文件 ESLint 通过。
+- 前端全量 `365 passed, 4 failed`；四项均为本任务未修改的既有基线失败（`EnergyManagement` 三项、`DeviceTrendPanel` 一项）。
+
 ## 当前待办
 
-1. 前端角色按 TDD 执行 Task 10，只增强原有 `StorageMonitorView`，不得建立模拟版储能页面或新路由。
-2. 页面消费现有 profile、control、simulation 和 telemetry 接口，展示来源、目标/实际功率、安全状态及命令时间线，不得伪造成功回执。
-3. viewer 控制保持禁用；设备级自动授权默认关闭且仅管理员可改，人工接管优先。
+1. 后端储能角色按 TDD 执行 Task 11，固定 PuLP 版本并实现确定性的 96 时段日前 MILP 优化器。
+2. 优化器必须保持正充负放、SOC/功率/效率边界及输入可复现；不得依赖商业求解器。
+3. Task 11 只产出纯优化领域结果，不提前实现 Task 12 的计划持久化与执行。
 4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -114,5 +123,6 @@
 - Task 7：通过并正式完成。
 - Task 8：通过并正式完成。
 - Task 9：通过并正式完成。
-- Task 10：已解除依赖，尚未开始。
-- 下一接手角色：前端角色。
+- Task 10：通过并正式完成。
+- Task 11：已解除依赖，尚未开始。
+- 下一接手角色：后端储能角色。

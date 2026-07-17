@@ -864,7 +864,7 @@ Task 9 实现提交为 `6254dd8a`。RED 由缺失仿真门禁、运行标识和�
 - Test: `frontend/src/features/device-monitor/components/storage/__tests__/StorageControlPanel.test.ts`
 - Test: `frontend/src/features/device-monitor/components/storage/__tests__/StorageCommandTimeline.test.ts`
 
-- [ ] **Step 1: Write failing frontend tests**
+- [x] **Step 1: Write failing frontend tests**
 
 Assert:
 
@@ -877,7 +877,7 @@ Assert:
 - rejected/timeout receipts show the backend reason.
 - the administrator-only automatic-control authorization stays off by default and cannot be enabled from a viewer session.
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 Run:
 
@@ -888,7 +888,7 @@ npm run test:unit -- src/features/device-monitor/composables/__tests__/useStorag
 
 Expected: FAIL because components and APIs do not exist.
 
-- [ ] **Step 3: Extend frontend contracts**
+- [x] **Step 3: Extend frontend contracts**
 
 Add the eight telemetry fields, profile/capability types, simulator scenario types, and:
 
@@ -898,15 +898,15 @@ export function sendStorageControl(deviceId: number, body: StorageControlRequest
 }
 ```
 
-- [ ] **Step 4: Add composable state and actions**
+- [x] **Step 4: Add composable state and actions**
 
 Keep requests in `useStorageMonitor`; components receive props and emit actions. On accepted commands, show accepted state and refresh overview/control logs. WebSocket control-log events update the timeline without fabricating success.
 
-- [ ] **Step 5: Compose the workbench**
+- [x] **Step 5: Compose the workbench**
 
 Add target/actual power, deviation, available power, BMS/PCS/grid state, data source, manual/auto controls, per-device automatic-control authorization, stop, current plan slot, and command timeline. Extend the existing trend area with target-versus-actual and available-power series. Keep existing SOC/trends/status panels, route, archive, permissions, and refresh flow; do not create a simulated-device page or rewrite unrelated monitor components.
 
-- [ ] **Step 6: Run focused tests, typecheck, and build**
+- [x] **Step 6: Run focused tests, typecheck, and build**
 
 Run:
 
@@ -919,12 +919,14 @@ npm run build
 
 Expected: all storage/device-monitor tests PASS; typecheck and build exit `0`. Record the four unrelated baseline unit failures separately if a full unit run is repeated.
 
-- [ ] **Step 7: Commit Milestone B**
+- [x] **Step 7: Commit Milestone B**
 
 ```bash
 git add frontend/src/api/storage.ts frontend/src/features/device-monitor/composables/useStorageMonitor.ts frontend/src/features/device-monitor/components/storage frontend/src/features/device-monitor/views/StorageMonitorView.vue
 git commit -m "feat: add storage control workbench"
 ```
+
+Task 10 实现提交为 `a83cbc49`。RED 阶段为 `4 failed, 2 passed`；GREEN 后储能工作台及页面相关回归为 `27 passed`，设备监控目录为 `206 passed, 1 failed`，其中唯一失败是既有 `DeviceTrendPanel` 的 `el-segmented` 基线问题。前端全量为 `365 passed, 4 failed`，四项失败均为既有基线（`EnergyManagement` 三项、`DeviceTrendPanel` 一项）；typecheck、build 和 Task 10 变更文件 ESLint 均通过。
 
 ## Task 11: Implement the day-ahead MILP optimizer
 
