@@ -82,8 +82,8 @@ function mountView() {
       stubs: {
         'el-alert': true,
         'el-button': true,
-        'el-collapse': true,
-        'el-collapse-item': true,
+        'el-collapse': { template: '<div><slot /></div>' },
+        'el-collapse-item': { template: '<section><slot /></section>' },
         'el-date-picker': true,
         'el-dialog': true,
         'el-empty': true,
@@ -98,12 +98,19 @@ function mountView() {
         'el-table-column': true,
         'el-tabs': { template: '<div><slot /></div>' },
         'el-tag': true,
-        EnergyOverviewTab: true,
+        EnergyOverviewTab: {
+          name: 'EnergyOverviewTab',
+          template: '<section><slot /><slot name="center" /></section>',
+        },
         EnergyTrendComparisonTab: true,
         EnergyRankingAnomalyTab: true,
         EnergyDataEntryTab: true,
         EnergyEntryDialog: true,
         EnergyHeaderControls: true,
+        StorageEmsWorkspace: {
+          name: 'StorageEmsWorkspace',
+          template: '<section data-testid="storage-ems-workspace" />',
+        },
       },
       directives: {
         loading: () => undefined,
@@ -187,7 +194,8 @@ describe('EnergyManagement view', () => {
         include_analysis: true,
         top_n: 5,
         granularity: 'day',
-      })
+      }),
+      { silent: true },
     )
   })
 
@@ -208,8 +216,21 @@ describe('EnergyManagement view', () => {
     expect(getEnergyOverviewMock).toHaveBeenCalledWith(
       expect.objectContaining({
         top_n: 10,
-      })
+      }),
+      { silent: true },
     )
+  })
+
+  it('opens 光储 EMS inside the existing energy management page', async () => {
+    const wrapper = mountView()
+    await vi.runAllTimersAsync()
+    await flushAsync()
+
+    expect(wrapper.find('[data-testid="energy-overview-workspace"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="workspace-storage-ems"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'StorageEmsWorkspace' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="energy-overview-workspace"]').exists()).toBe(false)
   })
 
   it('saves manual entry and refreshes overview', async () => {
