@@ -89,12 +89,12 @@ def test_storage_resumes_only_after_phase2a_acceptance():
     assert re.search(r"(?m)^- \[x\] Task 12[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 13[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 14[:：].*完成", status)
-    assert re.search(r"(?m)^- \[ \] Task 15.*现场验收待执行", status)
+    assert re.search(r"(?m)^- \[x\] Task 15.*验收完成", status)
     assert 'revision = "20260716_0002"' in storage_plan
     assert 'down_revision = "20260716_0001"' in storage_plan
 
 
-def test_storage_task15_offline_acceptance_is_complete_and_field_handoff_is_ready():
+def test_storage_task15_field_acceptance_is_complete_and_vendor_handoff_is_ready():
     status = read("docs/plans/current-status.md")
     handoff = read("docs/plans/handoff.md")
     governance = "\n".join((status, handoff))
@@ -123,9 +123,9 @@ def test_storage_task15_offline_acceptance_is_complete_and_field_handoff_is_read
     assert re.search(r"(?m)^- Task 13[:：]通过并正式完成", governance)
     assert re.search(r"(?m)^- \[x\] Task 14[:：].*完成", status)
     assert re.search(r"(?m)^- Task 14[:：]通过并正式完成", governance)
-    assert "下一棒：现场验收 Task 15" in handoff
-    assert "Task 15：代码与离线验收通过，现场验收待执行" in handoff
-    assert not re.search(r"(?m)^- \[x\] Task 15[:：]", governance)
+    assert "下一棒：真实厂商网关接入" in handoff
+    assert "Task 15：代码、现场验收与主题收口通过" in handoff
+    assert re.search(r"(?m)^- \[x\] Task 15[:：]", governance)
 
 
 def test_storage_plans_lock_the_accepted_migration_boundary():
