@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 11 日前 MILP 优化器已通过验收；当前进入 Task 12 调度计划持久化与安全回退执行。
+- 当前总目标：Task 12 调度计划持久化与安全回退已通过验收；当前进入 Task 13 园区级光储总览与策略对比 API。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -20,7 +20,8 @@
 - [x] Task 9：模拟器命令执行、回执状态机与故障注入完成。
 - [x] Task 10：原有储能设备工作台、权限门禁、命令时间线与功率趋势完成。
 - [x] Task 11：确定性 96 时段日前 MILP 优化器与开源 CBC 依赖完成。
-- [ ] Task 12 及后续：按实施计划依赖顺序等待。
+- [x] Task 12：调度计划原子替换、EMS 安全执行、失败回退、每日任务与嵌套 API 完成。
+- [ ] Task 13 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -114,11 +115,20 @@
 - 非 96 时段、非有限值、无效效率和初始 SOC 直接拒绝；不可行模型转换为带 solver status 的领域异常。
 - 聚焦测试 `6 passed`；完整后端 `817 passed, 2 skipped, 7 warnings`；Ruff 与干净 Python 3.12 依赖检查通过。
 
+## Task 12 完成证据
+
+- 实现提交：`b10991d5`。
+- 优化成功后才在单事务中原子替换同一设备日期的完整 96 行；优化失败完全保留上一有效计划。
+- 实时 EMS 优先读取当前计划槽位，再应用 SOC、温度、设备状态、通信与人工接管安全边界；无有效计划回退 Task 8 规则。
+- 新增 current、generate、status 三条原储能嵌套 API；viewer 可读，maintainer/operator/admin 可生成。
+- 每日计划任务复用既有 `STORAGE_DAILY_DISPATCH_TIME`，且只随全局储能 EMS 门禁注册。
+- 聚焦 `29 passed`，储能回归 `57 passed`，完整后端 `829 passed, 2 skipped, 7 warnings`；Ruff 与 OpenAPI 生成通过。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 执行 Task 12：事务生成并替换 96 条调度计划，优化失败时保留上一有效计划。
-2. 实时 EMS 优先读取有效日前计划，再应用安全边界与稳定偏差原因；不得绕过 Task 8 安全规则。
-3. 增加当前计划、生成计划和求解状态 API，并按 viewer 只读、operator 生成的既有权限口径验收。
+1. 后端储能角色按 TDD 执行 Task 13，提供 `/energy/storage/overview` 与 `/energy/storage/comparison`。
+2. 基线、规则、日前三策略必须复用同一不可变 96 时段输入，返回场景参数与输入校验和，不拼接不同运行数据。
+3. 成本、峰值、自用率、弃光、吞吐、等效循环、终端 SOC 和计划执行率必须由原始序列计算，禁止硬编码改善比例。
 4. 正常 MQTT 与依赖计划表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -134,5 +144,6 @@
 - Task 9：通过并正式完成。
 - Task 10：通过并正式完成。
 - Task 11：通过并正式完成。
-- Task 12：已解除依赖，尚未开始。
+- Task 12：通过并正式完成。
+- Task 13：已解除依赖，尚未开始。
 - 下一接手角色：后端储能角色。

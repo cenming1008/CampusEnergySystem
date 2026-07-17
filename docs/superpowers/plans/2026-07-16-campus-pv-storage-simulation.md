@@ -1008,40 +1008,42 @@ Task 11 实现提交为 `48b91c90`。RED 因优化器模块不存在而按预期
 - Test: `tests/test_storage_dispatch_service.py`
 - Test: `tests/test_storage_dispatch_api.py`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Test valid plan replacement in one transaction, retrieval of the current slot, plan/actual deviation reason, optimizer failure preserving the latest valid plan, expired-plan fallback to rules, and viewer read/operator generate permissions.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py`
 
 Expected: FAIL because dispatch service and routes do not exist.
 
-- [ ] **Step 3: Implement transactional plan generation**
+- [x] **Step 3: Implement transactional plan generation**
 
 Persist all 96 rows only after an optimal result exists. Mark the prior plan invalid in the same transaction. Use strategy `day_ahead`, a semantic version string, and a generated-at timestamp. Set `data_source=simulated` plus the current `simulation_run_id` for synthetic scenario plans, and `data_source=calculated` with no run id for ordinary forecast plans; never infer plan source from strategy name.
 
-- [ ] **Step 4: Integrate plan tracking into real-time EMS**
+- [x] **Step 4: Integrate plan tracking into real-time EMS**
 
 When auto mode is active and a valid plan exists, use the current plan target before applying live safety bounds. Record stable deviation codes such as `soc_protection`, `temperature_derate`, `forecast_deviation`, `device_fault`, `manual_takeover`, and `communication_loss`.
 
-- [ ] **Step 5: Add daily generation job and APIs**
+- [x] **Step 5: Add daily generation job and APIs**
 
 Register one configurable daily generation time. Add GET current plan, POST generate, and GET solver status endpoints. If generation fails, return the failure status without deleting the prior valid plan.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `python -m pytest -q tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/services/devices/storage/dispatch_service.py app/services/devices/storage/ems_service.py app/services/scheduler_jobs.py app/services/scheduler_registry.py app/api/endpoints/devices/storage.py app/api/endpoints/devices/storage_schemas.py tests/test_storage_dispatch_service.py tests/test_storage_dispatch_api.py
 git commit -m "feat: execute storage day ahead plans"
 ```
+
+Task 12 实现提交为 `b10991d5`。RED 由缺失 dispatch service、schema 和路由触发；GREEN 后 Task 12 聚焦测试 `29 passed, 2 warnings`，储能相关回归 `57 passed, 2 warnings`，完整后端 `829 passed, 2 skipped, 7 warnings`，变更文件 Ruff 与三条储能 dispatch OpenAPI 路径生成通过。既有唯一键 `(device_id, dispatch_date, slot_index)` 不允许同日同槽位保留多版本行，因此实现采用单事务删除该设备日期旧行并写入完整 96 行；只有优化成功后才开始替换，优化失败保留上一有效计划。未新增 migration。
 
 ## Task 13: Add system-level PV-storage overview and comparison APIs
 
