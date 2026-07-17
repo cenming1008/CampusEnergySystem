@@ -748,8 +748,9 @@ git commit -m "feat: expose storage profile and control api"
 - Modify: `app/services/scheduler_registry.py`
 - Test: `tests/test_storage_control_rules.py`
 - Test: `tests/test_storage_ems_service.py`
+- Test: `tests/test_scheduler_jobs.py`
 
-- [ ] **Step 1: Write failing rule-priority tests**
+- [x] **Step 1: Write failing rule-priority tests**
 
 ```python
 def test_fault_overrides_pv_surplus_and_peak_shaving():
@@ -769,17 +770,17 @@ def test_demand_limit_discharge_is_negative():
     assert decision.target_power_kw == -100
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_control_rules.py`
 
 Expected: FAIL because the rule module does not exist.
 
-- [ ] **Step 3: Implement pure rules**
+- [x] **Step 3: Implement pure rules**
 
 Use immutable input/decision dataclasses. Fixed priority is safety, PV surplus, demand limit, tariff, idle. Add 5 kW deadband, SOC/temperature hysteresis, minimum run/stop durations, and direction-change standby. Return both target power and a stable reason code.
 
-- [ ] **Step 4: Implement EMS orchestration**
+- [x] **Step 4: Implement EMS orchestration**
 
 `StorageEmsService.evaluate_device` loads latest telemetry/profile and current campus load/PV/tariff inputs, invokes the pure rule, and queues a command only when:
 
@@ -791,20 +792,20 @@ Use immutable input/decision dataclasses. Fixed priority is safety, PV surplus, 
 
 The service does not publish directly if the rule returns a safety stop already represented by a pending stop command.
 
-- [ ] **Step 5: Register the 60-second rule job**
+- [x] **Step 5: Register the 60-second rule job**
 
 Register the job only when `STORAGE_EMS_ENABLED=true`, using the default-off typed setting introduced with the simulator. Each execution must independently skip profiles whose `ems_auto_enabled` remains false. Adding the rule service must not change the default runtime behavior.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `python -m pytest -q tests/test_storage_control_rules.py tests/test_storage_ems_service.py tests/test_scheduler_registry.py`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
-git add app/domain/storage_control_rules.py app/services/devices/storage/ems_service.py app/services/scheduler_jobs.py app/services/scheduler_registry.py tests/test_storage_control_rules.py tests/test_storage_ems_service.py
+git add app/domain/storage_control_rules.py app/services/devices/storage/ems_service.py app/services/scheduler_jobs.py app/services/scheduler_registry.py tests/test_storage_control_rules.py tests/test_storage_ems_service.py tests/test_scheduler_jobs.py
 git commit -m "feat: add storage safety and realtime ems rules"
 ```
 

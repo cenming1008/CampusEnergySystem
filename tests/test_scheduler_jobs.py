@@ -70,6 +70,23 @@ class TestSchedulerJobs(unittest.TestCase):
         )
         mock_logger.info.assert_any_call("✅ 储能控制超时收口完成：共更新 1 条控制日志")
 
+    @patch("app.services.scheduler_jobs.StorageEmsService.evaluate_all")
+    @patch("app.services.scheduler_jobs.Session")
+    @patch("app.services.scheduler_jobs.logger")
+    def test_evaluate_storage_ems_rules_logs_evaluated_and_queued_counts(
+        self,
+        mock_logger,
+        mock_session_cls,
+        mock_evaluate_all,
+    ):
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+        mock_evaluate_all.return_value = [{"status": "queued"}, {"status": "skipped"}]
+
+        scheduler_jobs.evaluate_storage_ems_rules()
+
+        mock_evaluate_all.assert_called_once_with(mock_session)
+        mock_logger.info.assert_any_call("✅ 储能实时 EMS 完成：评估 2 台设备，下发 1 条命令")
+
     @patch("app.services.scheduler_jobs.IngestionHealthService.sync_platform_comm_alarms")
     @patch("app.services.scheduler_jobs.Session")
     @patch("app.services.scheduler_jobs.logger")
@@ -90,7 +107,8 @@ class TestSchedulerJobs(unittest.TestCase):
 
     def test_scheduler_registry_only_registers_cleanup_job(self):
         with patch.object(scheduler_registry.settings, "enable_auto_cleanup", True):
-            jobs = list(scheduler_registry.get_enabled_job_definitions())
+            with patch.object(scheduler_registry.settings, "storage_ems_enabled", False):
+                jobs = list(scheduler_registry.get_enabled_job_definitions())
 
         self.assertEqual(
             [job.id for job in jobs],
@@ -101,6 +119,17 @@ class TestSchedulerJobs(unittest.TestCase):
                 "sync_platform_comm_alarms",
             ],
         )
+
+    def test_scheduler_registry_registers_storage_ems_only_when_enabled(self):
+        with patch.object(scheduler_registry.settings, "enable_auto_cleanup", False), patch.object(
+            scheduler_registry.settings,
+            "storage_ems_enabled",
+            True,
+        ):
+            jobs = list(scheduler_registry.get_enabled_job_definitions())
+
+        storage_job = next(job for job in jobs if job.id == "evaluate_storage_ems_rules")
+        self.assertEqual(str(storage_job.trigger), "cron[minute='*']")
 
 if __name__ == "__main__":
     unittest.main()

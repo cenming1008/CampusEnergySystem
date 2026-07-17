@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 7 单一储能系统持久化来源、设备级自动门禁及原有嵌套 API 已通过验收；当前进入 Task 8 安全优先实时规则。
+- 当前总目标：Task 8 安全优先实时规则与双门禁 EMS 编排已通过验收；当前进入 Task 9 模拟器命令执行与故障注入闭环。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -16,8 +16,9 @@
 - [x] Task 5：可复用 MQTT 储能仿真器、确定性场景与默认关闭门禁完成。
 - [x] Task 6：储能控制命令生命周期、分类回执分发与超时收敛完成。
 - [x] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API 完成。
-- [ ] Task 8：安全优先实时规则与 EMS 编排，已解除依赖。
-- [ ] Task 9 及后续：按实施计划依赖顺序等待。
+- [x] Task 8：安全优先实时规则与 EMS 编排完成。
+- [ ] Task 9：模拟器命令执行、回执状态机与故障注入，已解除依赖。
+- [ ] Task 10 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -75,11 +76,21 @@
 - 模拟接口默认 404，启用后只发布到独立 simulation topic；配置与生产控制 topic 重叠时返回 503。
 - 完整后端：`783 passed, 2 skipped, 7 warnings`；OpenAPI 储能路径生成、Ruff 与差异检查通过。
 
+## Task 8 完成证据
+
+- 新增不可变 `StorageRuleInput` / `StorageRuleDecision` 纯规则，固定优先级为 safety、PV surplus、demand limit、tariff、idle。
+- 规则覆盖 5 kW 死区、SOC/温度滞回、最小运行/停止时长和换向待机；正充负放符号保持不变。
+- BMS/PCS/并网故障及非有限输入立即返回安全零功率；缺失或超过 5 分钟的关键遥测由 EMS 层拒绝自动计算。
+- EMS 同时检查全局 `STORAGE_EMS_ENABLED`、设备级 `ems_auto_enabled`、auto 模式、pending 与目标差值，只复用 Task 6 控制服务下发。
+- 园区负荷/光伏继续读取公共 `EnergyData`；峰平谷时段复用现有项目配置，没有新增第二套电价时间表。
+- 60 秒任务只在全局开关开启时注册；每轮只选择设备级已授权档案，单设备异常独立回滚，不中断其他设备。
+- 聚焦测试 `24 passed, 2 warnings`；完整后端 `801 passed, 2 skipped, 7 warnings`，Ruff 与差异检查通过。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 执行 Task 8，先固定 safety、光伏消纳、需量、电价、idle 的规则优先级。
-2. EMS 编排必须同时检查全局 `STORAGE_EMS_ENABLED` 与设备级 `ems_auto_enabled`，两者继续默认关闭。
-3. 规则只生成决策，命令仍复用 Task 6 控制服务；不得绕过 pending、功率边界和回执状态机。
+1. 后端储能角色按 TDD 执行 Task 9，固定 accepted -> running -> terminal 的模拟器命令状态机。
+2. 同一进程生成并复用稳定 `simulation_run_id`；所有模拟遥测和回执继续标记 `data_source=simulated`。
+3. 重复 `command_id` 必须复发相同终态回执且不得重复执行；场景/速度/故障动作只接受 simulation topic。
 4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -91,5 +102,6 @@
 - Task 5：通过并正式完成。
 - Task 6：通过并正式完成。
 - Task 7：通过并正式完成。
-- Task 8：已解除依赖，尚未开始。
+- Task 8：通过并正式完成。
+- Task 9：已解除依赖，尚未开始。
 - 下一接手角色：后端储能角色。

@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 8，不提前展开 Task 9 或后续任务。
+- 当前目标：交后端储能角色执行 Task 9，不提前展开 Task 10 或后续任务。
 
 ## 已完成与准入
 
@@ -27,14 +27,15 @@
 - Task 6 聚焦与兼容回归 `40 passed, 2 warnings`；完整后端 `767 passed, 2 skipped, 7 warnings`。
 - Task 7 已完成 `20260717_0003` 四列/两索引增量、资产档案服务、双层自动门禁和原有储能嵌套 API 扩展。
 - Task 7 三条 PostgreSQL migration 路径均为 688 个对象；完整后端 `783 passed, 2 skipped, 7 warnings`。
+- Task 8 已完成安全优先纯规则、双门禁 EMS 编排和默认关闭的 60 秒任务；完整后端 `801 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 8
+## 下一棒：后端储能 Task 9
 
-1. 先写纯规则 RED，锁定 safety > PV surplus > demand limit > tariff > idle 的固定优先级。
-2. 增加 5 kW deadband、SOC/温度滞回、最小启停时间和换向待机，不把这些规则塞进 endpoint。
-3. EMS 编排只有在全局与设备级门禁都开启、auto 模式、无 pending 且目标差值越过 deadband 时才调用 Task 6 服务。
-4. 本轮不提前扩展模拟器回执执行逻辑或日前优化。
-5. 运行级联调前显式升级并复核开发库到 `20260717_0003`；不得依赖启动时隐式补表。
+1. 先写模拟命令生命周期 RED，覆盖 accepted/running/success、拒绝、超时、重复 command_id 与功率容差。
+2. 每个模拟器进程只生成一个 `simulation_run_id`，所有遥测和回执统一携带。
+3. 场景切换、速度和故障注入只接受 simulation topic；真实控制 topic 只接受设备控制命令。
+4. 终态回执按 command_id 缓存，重复投递只复发、不重复执行动作。
+5. 本轮不提前进入前端 Task 10；真实联调前仍需升级开发库到 `20260717_0003`。
 
 ## 固定业务契约
 
@@ -49,8 +50,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 7，不开始 Task 8 生产代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 8 范围内。
+- 本轮只完成 Task 8，不开始 Task 9 生产代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 9 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -61,4 +62,5 @@
 - Task 5：通过并正式完成。
 - Task 6：通过并正式完成。
 - Task 7：通过并正式完成。
-- Task 8：已解除依赖，交后端储能角色执行。
+- Task 8：通过并正式完成。
+- Task 9：已解除依赖，交后端储能角色执行。

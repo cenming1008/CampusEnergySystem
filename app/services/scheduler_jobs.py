@@ -11,6 +11,7 @@ from app.core.logger import logger
 from app.services.data_cleanup_service import cleanup_old_data
 from app.services.devices.compensation.capacitor_bank.service import CapacitorBankService
 from app.services.devices.storage.control_command_service import StorageControlCommandService
+from app.services.devices.storage.ems_service import StorageEmsService
 from app.services.ingestion_health_service import IngestionHealthService
 
 
@@ -71,6 +72,19 @@ def expire_storage_control_timeouts() -> None:
             logger.debug("储能控制超时收口完成：没有需要更新的待定日志")
     except Exception as exc:
         logger.error(f"储能控制超时收口执行失败: {exc}")
+
+
+def evaluate_storage_ems_rules() -> None:
+    """按设备级授权执行储能实时 EMS 规则。"""
+    logger.info("开始执行储能实时 EMS 规则...")
+
+    try:
+        with Session(engine) as session:
+            results = StorageEmsService.evaluate_all(session)
+        queued = sum(1 for item in results if item.get("status") == "queued")
+        logger.info(f"✅ 储能实时 EMS 完成：评估 {len(results)} 台设备，下发 {queued} 条命令")
+    except Exception as exc:
+        logger.error(f"储能实时 EMS 执行失败: {exc}")
 
 
 def sync_platform_comm_alarms() -> None:
