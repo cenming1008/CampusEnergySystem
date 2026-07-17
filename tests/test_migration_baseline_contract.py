@@ -36,6 +36,22 @@ LEGACY_FILES = {
     "20260515_0011_add_capacitor_bank_harmonic_spectrum.py",
 }
 
+ACTIVE_REVISIONS = {
+    "20260716_0001_campus_baseline.py",
+    "20260716_0002_add_storage_simulation_contracts.py",
+}
+
+STORAGE_TELEMETRY_ADDITIONS = {
+    "target_active_power",
+    "available_charge_power",
+    "available_discharge_power",
+    "bms_status",
+    "pcs_status",
+    "grid_status",
+    "command_source",
+    "data_source",
+}
+
 RUNTIME_INDEXES = {
     "idx_energydata_device_timestamp": ("energydata", ("device_id", "timestamp DESC")),
     "idx_energydata_energy_type_timestamp": (
@@ -113,9 +129,9 @@ REQUIRED_TABLES = {
 }
 
 
-def test_only_static_root_is_active():
+def test_active_chain_has_static_root_and_approved_additive_revision():
     files = sorted(path.name for path in ACTIVE.glob("*.py") if path.name != "__init__.py")
-    assert files == ["20260716_0001_campus_baseline.py"]
+    assert set(files) == ACTIVE_REVISIONS
 
 
 def test_baseline_is_offline_safe_and_static():
@@ -177,7 +193,10 @@ def test_baseline_is_offline_safe_and_static():
 
     assert set(baseline_columns) == REQUIRED_TABLES
     for table_name, columns in baseline_columns.items():
-        assert columns == set(SQLModel.metadata.tables[table_name].columns.keys())
+        model_columns = set(SQLModel.metadata.tables[table_name].columns.keys())
+        if table_name == "storage_telemetry":
+            model_columns -= STORAGE_TELEMETRY_ADDITIONS
+        assert columns == model_columns
 
 
 def test_archive_contains_the_complete_superseded_chain():
