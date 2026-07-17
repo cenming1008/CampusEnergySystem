@@ -400,7 +400,7 @@ git commit -m "feat: add storage simulation persistence contracts"
 - Test: `tests/test_storage_ingestion.py`
 - Test: `tests/test_storage_monitor_service.py`
 
-- [ ] **Step 1: Add a failing simulator-payload test**
+- [x] **Step 1: Add a failing simulator-payload test**
 
 ```python
 payload = {
@@ -422,13 +422,13 @@ Persist it through `persist_device_extensions` and assert every field is stored 
 
 The MQTT payload keeps the device-facing design keys `bms_state`, `pcs_state`, and `grid_connection_state`. The ingestion adapter must map them to the persistence columns `bms_status`, `pcs_status`, and `grid_status`; do not attempt to write state-named columns that are not part of `StorageTelemetry`.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py`
 
 Expected: new field assertions FAIL.
 
-- [ ] **Step 3: Extend extraction and monitoring**
+- [x] **Step 3: Extend extraction and monitoring**
 
 Add numeric fields to `_STORAGE_NUMERIC_FIELDS`, explicitly map the three device-facing state keys to their status columns, add command/source fields to the text extraction, and expose semantic metrics in `build_storage_monitor`:
 
@@ -441,13 +441,13 @@ Add numeric fields to `_STORAGE_NUMERIC_FIELDS`, explicitly map the three device
 "data_source": m(data_source, source="telemetry", state="simulated" if data_source == "simulated" else "live"),
 ```
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py tests/test_device_monitor_service.py`
 
 Expected: PASS with no new warnings.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/integrations/mqtt/device_extensions.py app/services/devices/storage/monitor_service.py tests/test_storage_ingestion.py tests/test_storage_monitor_service.py
