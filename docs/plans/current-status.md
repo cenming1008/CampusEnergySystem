@@ -5,6 +5,7 @@
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
 - 当前总目标：Task 5 可复用 MQTT 储能仿真器已通过验收；当前从 Task 6 开始构建储能控制命令生命周期与分类回执分发。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
+- 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
 ## 当前阶段
 
@@ -33,6 +34,8 @@
 - `device_category=storage`，`device_subtype=battery_energy_storage_system`。
 - 正功率充电、负功率放电；所有模拟遥测必须标记 `data_source=simulated`。
 - MQTT 设备侧状态键继续使用 `bms_state`、`pcs_state`、`grid_connection_state`；Task 4 入库时分别映射到 `bms_status`、`pcs_status`、`grid_status`。
+- 原有 `StorageMonitorView` 是唯一设备级储能页面；园区级能力进入现有 `EnergyManagement` 的“光储 EMS”工作区，不新增独立储能页面或路由。
+- 自动控制全局和单设备均默认关闭；真实接入只替换设备侧适配器，不修改储能业务 API 与页面。
 
 ## Task 4 完成证据
 
@@ -57,6 +60,7 @@
 2. 固定储能命令、回执状态、功率/来源/模式校验以及每设备单个 pending 命令约束。
 3. 复用 `DeviceControlLog` 和现有 MQTT publisher，保留电容补偿回执兼容路径，并增加储能超时收敛任务。
 4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260716_0002`。
+5. Task 6 的结构化控制记录必须保留 `data_source` 和可选 `simulation_run_id`，为最终按设备安全清理提供依据。
 
 ## 当前验收判断
 

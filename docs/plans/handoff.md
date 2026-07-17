@@ -5,6 +5,7 @@
 - 当前主题：`园区光储协同仿真与 EMS 控制`。
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
+- 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
 - 当前目标：交后端储能角色执行 Task 6，不提前展开 Task 7 或后续任务。
 
 ## 已完成与准入
@@ -30,6 +31,7 @@
 3. 校验有限功率、资产额定功率边界、manual/rule/day_ahead 来源、auto/manual 模式及每设备单个 pending 命令。
 4. 复用 `DeviceControlLog`、现有 MQTT publisher、行锁和实时事件；分类 dispatcher 必须保留电容补偿旧行为。
 5. 增加只处理 `storage-control-api` pending 日志的超时任务；真实运行联调前仍需升级开发库到 `20260716_0002`。
+6. 结构化 `reason` 必须记录最新遥测 `data_source` 和可选 `simulation_run_id`；不能以设备编号推断模拟来源。
 
 ## 固定业务契约
 
@@ -37,6 +39,9 @@
 - `device_subtype=battery_energy_storage_system`。
 - 正功率充电、负功率放电。
 - 模拟数据必须带 `data_source=simulated`。
+- 真实厂商网关未来使用同一契约并标记 `data_source=real`；平台只替换适配器。
+- 只保留原有 `StorageMonitorView` 和现有 `EnergyManagement` 路由，后续不得创建模拟版页面或 `/storage-energy` 路由。
+- 自动控制全局和单设备均默认关闭，人工接管优先。
 - 控制回执必须区分已接收、执行中、成功和失败，不能用入队替代设备执行成功。
 
 ## 本轮边界

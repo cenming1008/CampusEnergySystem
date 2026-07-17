@@ -148,7 +148,7 @@ campus/control/{device_code}
 1. 关闭该设备 EMS 自动控制；
 2. 停止模拟器并确认不再上报；
 3. 记录切换操作人、设备、时间和清理范围；
-4. 只删除该设备的全部模拟业务数据：以 `StorageTelemetry.data_source=simulated` 识别遥测；后续为 `StorageDispatchPlan` 增加同名来源字段；储能控制日志在结构化 `reason` 中固定记录 `data_source` 和 `simulation_run_id`，并同时限定 `command_source=storage-control-api`；
+4. 只删除该设备的全部模拟业务数据：以 `StorageTelemetry.data_source=simulated` 识别遥测，并为遥测保留可选 `simulation_run_id`；后续为 `StorageDispatchPlan` 增加同名来源与运行标识字段；储能控制日志在结构化 `reason` 中固定记录 `data_source` 和 `simulation_run_id`，并同时限定 `command_source=storage-control-api`；
 5. 保留设备档案、权限、页面配置、标准接口和安全设置；
 6. 接入厂商网关并验证 `data_source=real` 遥测；
 7. 验证状态、控制、回执、超时和急停边界；

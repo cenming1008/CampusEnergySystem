@@ -2,13 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a repeatable 500 kWh/250 kW campus PV-storage simulation with MQTT telemetry, storage command receipts, safety-first rule control, 96-slot day-ahead dispatch, and measurable baseline comparisons.
+**Goal:** Extend the existing storage device path into one replaceable-source EMS: the simulator drives the original storage APIs and pages now, and a future vendor gateway replaces only the adapter.
 
-**Architecture:** Extend the existing `storage` device path instead of creating a parallel platform. Pure battery, rule, and dispatch mathematics live in focused domain modules; services orchestrate persistence, MQTT, scheduling, and permissions; the simulator remains a reusable `scripts/python/` tool; Vue pages consume stable device and energy-domain APIs. Delivery proceeds as three vertical milestones: simulated telemetry, closed-loop control, then optimization and benefit analysis.
+**Architecture:** Maintain one storage device model, persistence path, service layer, API family, and original `StorageMonitorView`. Both the simulator and a future vendor gateway implement the same canonical MQTT contract; system-level PV-storage analytics are added as a `光储 EMS` workspace inside the existing `EnergyManagement` page, not as a parallel route. Pure battery, rule, and dispatch mathematics remain focused domain modules while services orchestrate persistence, control, scheduling, permissions, and safe simulated-to-real cutover.
 
 **Tech Stack:** Python 3.10+, FastAPI, SQLModel, Alembic, APScheduler, paho-mqtt, PuLP/CBC, PostgreSQL/TimescaleDB, Redis, Vue 3, TypeScript, Pinia, Element Plus, ECharts, pytest, Vitest.
 
 ---
+
+## Convergence source of truth
+
+This plan implements `docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`. It supersedes earlier plan wording that implied a separate simulated storage business system, a simulated-device page, or a standalone `/storage-energy` route. Tasks 1-5 remain completed and are not reimplemented; Tasks 6-15 extend the existing storage system only. 园区级光储分析统一放入现有“能耗分析”页面，设备级能力统一保留在原储能设备页面。
 
 ## Execution prerequisites
 
@@ -45,6 +49,7 @@ After this preflight, invoke the shared virtual environment as `python`; do not 
 - Create `app/domain/storage_dispatch_optimizer.py`: pure 96-slot MILP formulation and result conversion.
 - Modify `app/models/storage.py`: storage asset profile, telemetry extensions, dispatch plan records.
 - Create `migrations/versions/20260716_0002_add_storage_simulation_contracts.py`: deterministic schema changes after the accepted `20260716_0001` root baseline.
+- Create `migrations/versions/20260717_0003_add_storage_source_and_control_gates.py`: additive per-device automatic-control gate and dispatch source markers after `20260716_0002`.
 
 ### Backend orchestration
 
@@ -53,6 +58,7 @@ After this preflight, invoke the shared virtual environment as `python`; do not 
 - Create `app/services/devices/storage/control_command_service.py`: storage command lifecycle.
 - Create `app/services/devices/storage/ems_service.py`: safety-first rule execution and plan tracking.
 - Create `app/services/devices/storage/dispatch_service.py`: optimizer invocation and plan persistence.
+- Create `app/services/devices/storage/simulation_cutover_service.py`: preview and delete one device's simulated business data without touching its archive or real data.
 - Modify `app/services/devices/storage/monitor_service.py`: expose plan, command, component, and source metrics.
 - Create `app/integrations/mqtt/control_receipts.py`: category-aware receipt dispatch.
 - Modify `app/integrations/mqtt/processor.py`: route control receipts through the category-aware dispatcher.
@@ -77,16 +83,18 @@ After this preflight, invoke the shared virtual environment as `python`; do not 
 - Create `frontend/src/features/device-monitor/components/storage/StorageControlPanel.vue`: manual/auto controls and receipt state.
 - Create `frontend/src/features/device-monitor/components/storage/StorageCommandTimeline.vue`: command lifecycle.
 - Modify `frontend/src/features/device-monitor/views/StorageMonitorView.vue`: compose new storage panels.
-- Create `frontend/src/api/storageEnergy.ts`: system-level overview APIs.
-- Create `frontend/src/features/storage-energy/`: energy-flow, trends, dispatch, scenario, and comparison components.
-- Create `frontend/src/views/StorageEnergy.vue`: PV-storage page container.
-- Modify `frontend/src/router/index.ts` and `frontend/src/layout/Layout.vue`: route and navigation.
+- Create `frontend/src/api/storageEnergy.ts`: system-level overview APIs consumed by the existing energy page.
+- Create `frontend/src/features/energy-management/storage-ems/StorageEmsWorkspace.vue`: energy-flow, trends, dispatch, scenario, and comparison workspace.
+- Create focused components and `useStorageEms.ts` under `frontend/src/features/energy-management/storage-ems/`.
+- Modify `frontend/src/views/EnergyManagement.vue`: add the `光储 EMS` workspace switch without a new route or menu entry.
 
 ### Tests and documentation
 
 - Create focused backend tests named in each task.
 - Create focused frontend tests beside each new component/composable.
 - Create `tests/test_storage_simulator_e2e.py`: deterministic end-to-end simulation acceptance.
+- Create `tests/test_storage_simulation_cutover.py`: exact-device preview and deletion acceptance.
+- Create `scripts/python/storage_cutover.py`: explicit preview/execute simulated-data cutover entrypoint.
 - Create `docs/guides/storage-simulation-demo.md`: five-minute demo and result interpretation.
 - Update `README.md` only after the demo entrypoint is stable.
 
@@ -99,7 +107,7 @@ After this preflight, invoke the shared virtual environment as `python`; do not 
 - Read/Test: `docs/plans/backend-reliability-phase2-inventory.md`
 - Test: `tests/test_backend_tooling_contracts.py`
 
-- [ ] **Step 1: Write the formal topic plan**
+- [x] **Step 1: Write the formal topic plan**
 
 Create the topic plan with these fixed sections and decisions:
 
@@ -128,7 +136,7 @@ Create the topic plan with these fixed sections and decisions:
 - C：日前优化与收益证据
 ```
 
-- [ ] **Step 2: Verify the migration prerequisite**
+- [x] **Step 2: Verify the migration prerequisite**
 
 Run:
 
@@ -139,15 +147,15 @@ alembic upgrade head --sql
 
 Expected before feature implementation: both commands exit `0`; offline SQL contains the accepted root revision `20260716_0001` and does not perform online database reads. Also run the fresh PostgreSQL, offline, and roundtrip acceptance commands established by the approved phase 2A plan; all three must pass with schema comparison enabled. Phase 2A has now supplied and passed those fixtures, so Task 3 has persistence admission.
 
-- [ ] **Step 3: Stop if the gate is not green**
+- [x] **Step 3: Stop if the gate is not green**
 
 If either command fails, do not edit models or migrations. Record the exact failing revision in the active backend reliability plan and return ownership to the rules/backend reliability role.
 
-- [ ] **Step 4: Switch the active topic only after approval**
+- [x] **Step 4: Switch the active topic only after approval**
 
 Archive the previous status/handoff snapshot under `docs/plans/daily/2026-07/`, then replace the main sections with the storage topic. Do not append a second topic to the existing main-area files.
 
-- [ ] **Step 5: Commit governance changes**
+- [x] **Step 5: Commit governance changes**
 
 ```bash
 git add docs/plans/PLAN-20260716-campus-pv-storage-simulation.md docs/plans/current-status.md docs/plans/handoff.md docs/plans/daily/2026-07
@@ -160,7 +168,7 @@ git commit -m "docs: start campus pv storage simulation"
 - Create: `app/domain/storage_simulation.py`
 - Test: `tests/test_storage_simulation_domain.py`
 
-- [ ] **Step 1: Write failing energy-balance tests**
+- [x] **Step 1: Write failing energy-balance tests**
 
 ```python
 from app.domain.storage_simulation import StorageAssetConfig, StorageState, step_storage
@@ -182,13 +190,13 @@ def test_discharge_stops_at_soc_floor():
     assert result.run_state == "standby"
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulation_domain.py`
 
 Expected: FAIL with `ModuleNotFoundError: app.domain.storage_simulation`.
 
-- [ ] **Step 3: Implement the minimal pure model**
+- [x] **Step 3: Implement the minimal pure model**
 
 ```python
 from dataclasses import dataclass, replace
@@ -230,17 +238,17 @@ def step_storage(config, state, *, target_power_kw, seconds, ambient_temperature
     return replace(state, soc=round(soc, 6), actual_power_kw=actual, temperature_c=temperature, throughput_kwh=throughput, run_state=run_state)
 ```
 
-- [ ] **Step 4: Add boundary tests**
+- [x] **Step 4: Add boundary tests**
 
 Add tests for rated power clipping, ramping, direction change through zero, SOC ceiling, finite inputs, and `seconds > 0`. Reject invalid configuration with `ValueError` rather than returning NaN.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `python -m pytest -q tests/test_storage_simulation_domain.py`
 
 Expected: all storage simulation domain tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/domain/storage_simulation.py tests/test_storage_simulation_domain.py
@@ -538,6 +546,9 @@ git commit -m "feat: add campus storage mqtt simulator"
 - [ ] **Step 1: Write failing command lifecycle tests**
 
 ```python
+import json
+
+
 def test_storage_power_command_uses_existing_sign_convention(session, storage_device):
     result = StorageControlCommandService.queue_command(
         session,
@@ -549,6 +560,7 @@ def test_storage_power_command_uses_existing_sign_convention(session, storage_de
     )
     assert result["status"] == "accepted"
     assert result["payload"]["target_active_power"] == -125.0
+    assert json.loads(result["log"].reason)["data_source"] == "simulated"
 
 
 def test_storage_receipt_dispatches_by_device_category(session, storage_device, pending_storage_log):
@@ -581,7 +593,7 @@ Validate finite power, rated-power bounds from `StorageAssetProfile`, source in 
 
 - [ ] **Step 4: Implement storage control service**
 
-Reuse `DeviceControlLog`, `publish_control_payload_async`, row locking, pending-command timeout, idempotent terminal receipts, and realtime control-log events. Use `command_source="storage-control-api"`; encode target power and source into a structured JSON reason until a future generic control-detail table is separately approved.
+Reuse `DeviceControlLog`, `publish_control_payload_async`, row locking, pending-command timeout, idempotent terminal receipts, and realtime control-log events. Use `command_source="storage-control-api"`; encode target power, manual/rule/day-ahead source, latest telemetry `data_source`, and optional `simulation_run_id` into structured JSON `reason`. These exact markers are required by Task 15 cutover preview; never infer simulated records from the device code.
 
 - [ ] **Step 5: Add category-aware receipt dispatch**
 
@@ -621,10 +633,16 @@ git commit -m "feat: add storage control receipt lifecycle"
 ## Task 7: Expose storage asset and control APIs
 
 **Files:**
+- Modify: `app/models/storage.py`
+- Modify: `app/integrations/mqtt/device_extensions.py`
+- Modify: `app/services/devices/storage/control_command_service.py`
+- Create: `migrations/versions/20260717_0003_add_storage_source_and_control_gates.py`
 - Create: `app/api/endpoints/devices/storage_schemas.py`
 - Create: `app/services/devices/storage/asset_profile_service.py`
 - Modify: `app/api/endpoints/devices/storage.py`
 - Test: `tests/test_storage_device_nested_api.py`
+- Test: `tests/test_storage_single_system_migration.py`
+- Test: `tests/test_storage_ingestion.py`
 
 - [ ] **Step 1: Write failing API boundary tests**
 
@@ -639,13 +657,13 @@ GET  /devices/{id}/storage/simulation/capabilities
 POST /devices/{id}/storage/simulation/control
 ```
 
-Assert viewers can read but cannot control; maintainer/operator/admin can control within location scope; invalid power returns 400; unknown device returns the existing access-control response; simulator endpoints return 404 while `STORAGE_SIMULATION_ENABLED=false`.
+Assert viewers can read but cannot control; maintainer/operator/admin can control within location scope; invalid power returns 400; unknown device returns the existing access-control response; simulator endpoints return 404 while `STORAGE_SIMULATION_ENABLED=false`. Also assert `StorageAssetProfile.ems_auto_enabled` defaults to false, `StorageTelemetry.simulation_run_id` is nullable and populated from simulated MQTT payloads, `StorageDispatchPlan.data_source` defaults to `calculated`, and its `simulation_run_id` is nullable.
 
 - [ ] **Step 2: Run and verify failure**
 
-Run: `python -m pytest -q tests/test_storage_device_nested_api.py`
+Run: `python -m pytest -q tests/test_storage_single_system_migration.py tests/test_storage_device_nested_api.py`
 
-Expected: new endpoint tests FAIL with 404 or missing schema imports.
+Expected: endpoint tests FAIL with 404 or missing schema imports; model tests FAIL because the source/control-gate fields and `20260717_0003` migration do not exist.
 
 - [ ] **Step 3: Add explicit Pydantic/SQLModel schemas**
 
@@ -672,20 +690,49 @@ class StorageSimulationControlRequest(SQLModel):
     fault: Optional[Literal["low_soc", "overtemperature", "pcs_fault", "communication_loss", "pv_drop"]] = None
 ```
 
-- [ ] **Step 4: Implement thin endpoints**
+Add these single-system persistence fields:
 
-Endpoints perform dependency injection, permission checks, audit logging, service calls, and response conversion only. Keep validation and command lifecycle in services. Simulator endpoints publish only to `campus/simulation/{device_code}/control`, require the explicit simulation flag, and never share the production device-control topic.
+```python
+class StorageAssetProfile(SQLModel, table=True):
+    ems_auto_enabled: bool = Field(default=False, description="设备级 EMS 自动控制授权")
 
-- [ ] **Step 5: Run API tests**
+class StorageTelemetry(SQLModel, table=True):
+    simulation_run_id: Optional[str] = Field(default=None, index=True, description="模拟运行标识")
 
-Run: `python -m pytest -q tests/test_storage_device_nested_api.py tests/test_access_control.py`
+class StorageDispatchPlan(SQLModel, table=True):
+    data_source: str = Field(default="calculated", description="计划来源：calculated/simulated/real")
+    simulation_run_id: Optional[str] = Field(default=None, index=True, description="模拟运行标识")
+```
+
+Create static, offline-safe revision `20260717_0003` with `down_revision = "20260716_0002"`. It may add only these four columns and their approved source/run indexes. Extend `persist_device_extensions` to persist the optional run id, then let the control service copy it from latest telemetry into structured `reason`.
+
+- [ ] **Step 4: Verify the additive migration paths**
+
+Run:
+
+```bash
+alembic upgrade head --sql
+python scripts/python/verify_postgres_migrations.py --keep-success
+python -m pytest -q tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py
+python scripts/python/verify_postgres_migrations.py --cleanup
+```
+
+Expected: offline SQL performs no online reads; fresh/offline/roundtrip fingerprints match at `20260717_0003`; the exact four columns and approved indexes exist; `energydata` remains a hypertable; focused tests PASS; cleanup removes only the three fixed temporary databases.
+
+- [ ] **Step 5: Implement thin endpoints**
+
+Endpoints perform dependency injection, permission checks, audit logging, service calls, and response conversion only. Keep validation and command lifecycle in services. Simulator endpoints publish only to `campus/simulation/{device_code}/control`, require the explicit simulation flag, and never share the production device-control topic. Add an administrator-only update for `ems_auto_enabled`; enabling it must fail unless a current asset profile exists and the latest telemetry proves BMS normal, PCS available, grid connected, and non-stale data.
+
+- [ ] **Step 6: Run API tests**
+
+Run: `python -m pytest -q tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py tests/test_storage_device_nested_api.py tests/test_access_control.py`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/api/endpoints/devices/storage_schemas.py app/services/devices/storage/asset_profile_service.py app/api/endpoints/devices/storage.py tests/test_storage_device_nested_api.py
+git add app/models/storage.py app/integrations/mqtt/device_extensions.py app/services/devices/storage/control_command_service.py migrations/versions/20260717_0003_add_storage_source_and_control_gates.py app/api/endpoints/devices/storage_schemas.py app/services/devices/storage/asset_profile_service.py app/api/endpoints/devices/storage.py tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py tests/test_storage_device_nested_api.py
 git commit -m "feat: expose storage profile and control api"
 ```
 
@@ -733,6 +780,7 @@ Use immutable input/decision dataclasses. Fixed priority is safety, PV surplus, 
 
 `StorageEmsService.evaluate_device` loads latest telemetry/profile and current campus load/PV/tariff inputs, invokes the pure rule, and queues a command only when:
 
+- both the global `STORAGE_EMS_ENABLED` gate and `StorageAssetProfile.ems_auto_enabled` are true;
 - device is auto mode;
 - no pending command exists;
 - target differs from current target outside deadband;
@@ -742,7 +790,7 @@ The service does not publish directly if the rule returns a safety stop already 
 
 - [ ] **Step 5: Register the 60-second rule job**
 
-Register the job only when `STORAGE_EMS_ENABLED=true`, using the default-off typed setting introduced with the simulator. Adding the rule service must not change the default runtime behavior.
+Register the job only when `STORAGE_EMS_ENABLED=true`, using the default-off typed setting introduced with the simulator. Each execution must independently skip profiles whose `ems_auto_enabled` remains false. Adding the rule service must not change the default runtime behavior.
 
 - [ ] **Step 6: Run focused tests**
 
@@ -765,7 +813,7 @@ git commit -m "feat: add storage safety and realtime ems rules"
 
 - [ ] **Step 1: Write failing command execution tests**
 
-Cover `accepted -> running -> success`, SOC rejection, overtemperature rejection, timeout injection, duplicate `command_id`, manual/auto mode, stop, actual-power tolerance, scenario switching, speed changes, and fault injection over the separate simulator-only topic.
+Cover `accepted -> running -> success`, SOC rejection, overtemperature rejection, timeout injection, duplicate `command_id`, manual/auto mode, stop, actual-power tolerance, scenario switching, speed changes, and fault injection over the separate simulator-only topic. Every telemetry and receipt message must carry `data_source=simulated` and the stable CLI-generated `simulation_run_id` for that process.
 
 Use this success criterion:
 
@@ -783,7 +831,7 @@ Expected: lifecycle assertions FAIL.
 
 - [ ] **Step 3: Implement command state machine**
 
-Use states `accepted`, `running`, and one terminal result. Cache terminal results by `command_id` so duplicate delivery republishes the same receipt without applying the action twice. Fault injection accepts only the fixed scenario keys from the design rather than arbitrary code execution. Reject simulator-only messages unless `STORAGE_SIMULATION_ENABLED=true`; never accept `set_scenario`, `set_speed`, or `inject_fault` on the real-device control topic.
+Use states `accepted`, `running`, and one terminal result. Cache terminal results by `command_id` so duplicate delivery republishes the same receipt without applying the action twice. Generate one UUID `simulation_run_id` when the simulator starts and reuse it in all messages for that run. Fault injection accepts only the fixed scenario keys from the design rather than arbitrary code execution. Reject simulator-only messages unless `STORAGE_SIMULATION_ENABLED=true`; never accept `set_scenario`, `set_speed`, or `inject_fault` on the real-device control topic.
 
 - [ ] **Step 4: Run simulator control tests**
 
@@ -815,11 +863,13 @@ git commit -m "feat: simulate storage command execution"
 Assert:
 
 - simulated telemetry shows a visible `仿真数据` badge;
+- `data_source=real` shows `真实设备` without changing the route or component tree;
 - positive target power is labeled charging and negative target power discharging;
 - viewer controls are disabled;
 - manual setpoint emits `set_active_power` with the unchanged sign;
 - a pending command disables conflicting controls;
 - rejected/timeout receipts show the backend reason.
+- the administrator-only automatic-control authorization stays off by default and cannot be enabled from a viewer session.
 
 - [ ] **Step 2: Run focused tests and verify failure**
 
@@ -848,7 +898,7 @@ Keep requests in `useStorageMonitor`; components receive props and emit actions.
 
 - [ ] **Step 5: Compose the workbench**
 
-Add target/actual power, available power, BMS/PCS/grid state, data source, manual/auto controls, stop, and command timeline. Keep existing SOC/trends/status panels; do not rewrite unrelated monitor components.
+Add target/actual power, deviation, available power, BMS/PCS/grid state, data source, manual/auto controls, per-device automatic-control authorization, stop, current plan slot, and command timeline. Extend the existing trend area with target-versus-actual and available-power series. Keep existing SOC/trends/status panels, route, archive, permissions, and refresh flow; do not create a simulated-device page or rewrite unrelated monitor components.
 
 - [ ] **Step 6: Run focused tests, typecheck, and build**
 
@@ -960,7 +1010,7 @@ Expected: FAIL because dispatch service and routes do not exist.
 
 - [ ] **Step 3: Implement transactional plan generation**
 
-Persist all 96 rows only after an optimal result exists. Mark the prior plan invalid in the same transaction. Use strategy `day_ahead`, a semantic version string, and a generated-at timestamp.
+Persist all 96 rows only after an optimal result exists. Mark the prior plan invalid in the same transaction. Use strategy `day_ahead`, a semantic version string, and a generated-at timestamp. Set `data_source=simulated` plus the current `simulation_run_id` for synthetic scenario plans, and `data_source=calculated` with no run id for ordinary forecast plans; never infer plan source from strategy name.
 
 - [ ] **Step 4: Integrate plan tracking into real-time EMS**
 
@@ -1036,25 +1086,35 @@ git add app/services/storage_energy_service.py app/api/endpoints/energy/storage.
 git commit -m "feat: add pv storage overview analytics"
 ```
 
-## Task 14: Build the PV-storage overview and dispatch UI
+## Task 14: Add the PV-storage EMS workspace to existing energy management
 
 **Files:**
 - Create: `frontend/src/api/storageEnergy.ts`
-- Create: `frontend/src/views/StorageEnergy.vue`
-- Create: `frontend/src/features/storage-energy/components/StorageEnergyFlow.vue`
-- Create: `frontend/src/features/storage-energy/components/StoragePowerTrend.vue`
-- Create: `frontend/src/features/storage-energy/components/StorageDispatchPanel.vue`
-- Create: `frontend/src/features/storage-energy/components/StorageScenarioPanel.vue`
-- Create: `frontend/src/features/storage-energy/components/StorageStrategyComparison.vue`
-- Create: `frontend/src/features/storage-energy/composables/useStorageEnergy.ts`
-- Modify: `frontend/src/router/index.ts`
-- Modify: `frontend/src/layout/Layout.vue`
-- Test: `frontend/src/features/storage-energy/__tests__/StorageEnergy.test.ts`
-- Test: `frontend/src/router/__tests__/storageEnergyRoute.test.ts`
+- Create: `frontend/src/features/energy-management/storage-ems/StorageEmsWorkspace.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/components/StorageEnergyFlow.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/components/StoragePowerTrend.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/components/StorageDispatchPanel.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/components/StorageScenarioPanel.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/components/StorageStrategyComparison.vue`
+- Create: `frontend/src/features/energy-management/storage-ems/composables/useStorageEms.ts`
+- Modify: `frontend/src/views/EnergyManagement.vue`
+- Test: `frontend/src/features/energy-management/storage-ems/__tests__/StorageEmsWorkspace.test.ts`
+- Test: `frontend/src/views/__tests__/EnergyManagement.test.ts`
 
-- [ ] **Step 1: Write failing page tests**
+- [ ] **Step 1: Write failing workspace and reuse tests**
 
-Assert the page renders one dominant energy-flow/trend workspace, not a grid of equal-weight cards; displays load/PV/grid/storage values; distinguishes plan and actual power; labels simulated data; shows optimizer fallback; switches fixed scenarios; and compares baseline/rule/day-ahead results.
+Add a focused component test that mounts `StorageEmsWorkspace` with calculated API fixtures and asserts load/PV/grid/storage flow values, target-versus-actual power, `仿真数据`, fallback reason, and baseline/rule/day-ahead comparison rows. Extend `EnergyManagement.test.ts` with this route-reuse assertion:
+
+```typescript
+it('opens 光储 EMS inside the existing energy management page', async () => {
+  const wrapper = mountEnergyManagement()
+  await wrapper.get('[data-testid="workspace-storage-ems"]').trigger('click')
+  expect(wrapper.findComponent({ name: 'StorageEmsWorkspace' }).exists()).toBe(true)
+  expect(wrapper.find('[data-testid="energy-overview-workspace"]').exists()).toBe(false)
+})
+```
+
+Do not add or modify a router test: `/energy` remains the only route for this workspace.
 
 - [ ] **Step 2: Run and verify failure**
 
@@ -1062,43 +1122,93 @@ Run:
 
 ```bash
 cd frontend
-npm run test:unit -- src/features/storage-energy src/router/__tests__/storageEnergyRoute.test.ts
+npm run test:unit -- src/features/energy-management/storage-ems src/views/__tests__/EnergyManagement.test.ts
 ```
 
-Expected: FAIL because route and components do not exist.
+Expected: FAIL because `StorageEmsWorkspace`, the workspace selector, and the typed API do not exist.
 
 - [ ] **Step 3: Add typed API and composable**
 
-The composable owns loading, error, scenario, refresh, generate-plan, and comparison state. Components remain presentational and emit actions.
+Define exact overview/comparison/request types in `storageEnergy.ts`. Implement `useStorageEms` as the only owner of loading, error, scenario, seed, initial SOC, refresh, plan generation, and comparison state:
 
-- [ ] **Step 4: Compose the page and route**
+```typescript
+function toErrorMessage(reason: unknown): string {
+  return reason instanceof Error && reason.message ? reason.message : '光储 EMS 数据加载失败'
+}
 
-Add `/storage-energy` with title `光储协同`; add one menu entry under the energy mainline. Use the main trend as the visual anchor, an energy-flow strip above, and dispatch/comparison/scenario sections below. Missing values render `--`; simulated values show a persistent badge.
+export function useStorageEms() {
+  const scenario = ref<StorageScenarioKey>('sunny_workday')
+  const seed = ref(20260716)
+  const initialSoc = ref(50)
+  const overview = ref<StorageEnergyOverview | null>(null)
+  const comparison = ref<StorageStrategyComparisonResult | null>(null)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-- [ ] **Step 5: Run focused tests, typecheck, and build**
+  async function refresh() {
+    loading.value = true
+    error.value = null
+    try {
+      overview.value = await getStorageEnergyOverview()
+    } catch (reason) {
+      error.value = toErrorMessage(reason)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function generatePlan(deviceId: number) {
+    await generateStorageDispatchPlan(deviceId, { scenario_key: scenario.value, seed: seed.value, initial_soc: initialSoc.value })
+    await refresh()
+  }
+
+  async function compareStrategies() {
+    comparison.value = await getStorageStrategyComparison({ scenario_key: scenario.value, seed: seed.value, initial_soc: initialSoc.value })
+  }
+
+  return { scenario, seed, initialSoc, overview, comparison, loading, error, refresh, generatePlan, compareStrategies }
+}
+```
+
+Define `getStorageEnergyOverview`, `generateStorageDispatchPlan`, and `getStorageStrategyComparison` in `storageEnergy.ts`; import those three API functions explicitly in the composable and keep `toErrorMessage` local to that focused file.
+
+Components stay presentational and emit scenario, refresh, and generate actions. They must not call APIs directly.
+
+- [ ] **Step 4: Add the existing-page workspace selector**
+
+In `EnergyManagement.vue`, add `activeWorkspace = ref<'overview' | 'storage_ems'>('overview')` and two accessible selector buttons with `data-testid="workspace-overview"` and `data-testid="workspace-storage-ems"`. Keep the existing energy overview subtree unchanged under `v-if="activeWorkspace === 'overview'"`; mount `StorageEmsWorkspace` under the alternative branch. Do not modify `frontend/src/router/index.ts` or `frontend/src/layout/Layout.vue`.
+
+- [ ] **Step 5: Compose the storage EMS workspace**
+
+Use the energy-flow strip above one dominant power/SOC trend. Place dispatch, scenario, and strategy comparison below it. Render missing values as `--`; render `data_source=simulated` as a persistent `仿真数据` badge and `data_source=real` as `真实设备`. Display optimizer status and fallback reason without fabricating plan success.
+
+- [ ] **Step 6: Run focused tests, typecheck, and build**
 
 Run:
 
 ```bash
 cd frontend
-npm run test:unit -- src/features/storage-energy src/features/device-monitor/components/storage src/features/device-monitor/composables/__tests__/useStorageMonitor.test.ts
+npm run test:unit -- src/features/energy-management/storage-ems src/views/__tests__/EnergyManagement.test.ts src/features/device-monitor/components/storage src/features/device-monitor/composables/__tests__/useStorageMonitor.test.ts
 npm run typecheck
 npm run build
 ```
 
-Expected: focused tests, typecheck, and build PASS.
+Expected: focused tests, typecheck, and build PASS; no new route or menu item exists.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/src/api/storageEnergy.ts frontend/src/views/StorageEnergy.vue frontend/src/features/storage-energy frontend/src/router/index.ts frontend/src/layout/Layout.vue
-git commit -m "feat: add campus pv storage workspace"
+git add frontend/src/api/storageEnergy.ts frontend/src/features/energy-management/storage-ems frontend/src/views/EnergyManagement.vue frontend/src/views/__tests__/EnergyManagement.test.ts
+git commit -m "feat: add storage ems energy workspace"
 ```
 
-## Task 15: Add deterministic end-to-end demo and final verification
+## Task 15: Prove adapter replacement, safe cutover, and deterministic end-to-end behavior
 
 **Files:**
+- Create: `app/services/devices/storage/simulation_cutover_service.py`
+- Create: `tests/test_storage_simulation_cutover.py`
 - Create: `tests/test_storage_simulator_e2e.py`
+- Create: `scripts/python/storage_cutover.py`
 - Create: `scripts/python/run_storage_demo.py`
 - Create: `docs/guides/storage-simulation-demo.md`
 - Modify: `scripts/python/README.md`
@@ -1107,34 +1217,74 @@ git commit -m "feat: add campus pv storage workspace"
 - Modify: `docs/plans/current-status.md`
 - Modify: `docs/plans/handoff.md`
 
-- [ ] **Step 1: Write failing deterministic acceptance test**
+- [ ] **Step 1: Write failing exact-device cutover tests**
 
-Run a compressed sunny workday through baseline, rules, and day-ahead strategies. Assert:
+Create two storage devices with mixed `simulated` and `real` telemetry, plans, and control logs. Lock preview and execution behavior:
 
-- midday surplus produces positive storage power;
-- evening demand-limit event produces negative storage power;
-- SOC remains inside hard bounds;
-- low-SOC command returns `rejected`;
-- overtemperature transitions from derating to stop;
-- every command reaches one terminal state;
-- day-ahead peak grid power is no worse than baseline;
-- all reported improvements are calculated from raw series.
+```python
+preview = StorageSimulationCutoverService.preview(session, device_id=simulated_device.id)
+assert preview.telemetry_count == 12
+assert preview.plan_count == 96
+assert preview.control_log_count == 3
 
-- [ ] **Step 2: Run and verify failure**
+result = StorageSimulationCutoverService.execute(
+    session,
+    device_id=simulated_device.id,
+    expected=preview,
+    operator="admin",
+)
+assert result.deleted == preview
+assert remaining_real_rows(session, simulated_device.id) == original_real_rows
+assert rows_for_device(session, other_device.id) == original_other_rows
+```
+
+Also assert execution is rejected when `ems_auto_enabled=true`, recent simulated telemetry indicates the simulator is still active, expected counts differ from current counts, the device category is not `storage`, or no explicit operator is supplied.
+
+- [ ] **Step 2: Run cutover tests and verify failure**
+
+Run: `python -m pytest -q tests/test_storage_simulation_cutover.py`
+
+Expected: FAIL because the cutover service and script do not exist.
+
+- [ ] **Step 3: Implement preview-first transactional cutover**
+
+`StorageSimulationCutoverService.preview` must count only the exact device's `StorageTelemetry.data_source=simulated`, `StorageDispatchPlan.data_source=simulated`, and `DeviceControlLog` rows whose `command_source=storage-control-api` and structured reason contains `data_source=simulated`. `execute` must acquire device-scoped row locks, re-check all blockers and expected counts, delete the three allowlisted record groups in one transaction, and write one audit event containing device, operator, counts, and timestamp. It must never delete the device archive, asset profile, permissions, real telemetry, or another device's rows.
+
+- [ ] **Step 4: Add an explicit CLI with no implicit deletion**
+
+`storage_cutover.py` must require `--device-code` and exactly one mode. Preview is read-only:
+
+```bash
+python scripts/python/storage_cutover.py --device-code STO-001 --preview
+```
+
+Execution requires the operator and all three preview counts; count drift aborts without deletion:
+
+```bash
+python scripts/python/storage_cutover.py --device-code STO-001 --execute --operator admin --expected-telemetry 12 --expected-plans 96 --expected-control-logs 3
+```
+
+Do not add this low-frequency tool to `bin/` and do not invoke `--execute` in automated demo or release verification.
+
+- [ ] **Step 5: Write failing deterministic adapter-replacement acceptance test**
+
+Run a compressed sunny workday through baseline, rules, and day-ahead strategies. Assert midday charging, evening discharging, hard SOC bounds, safety rejection, terminal receipts, calculated comparisons, and persistent simulated labels. Then stop the simulator adapter, feed one contract-valid `data_source=real` payload through the same ingestion entry, and assert the same storage service/API response changes source without changing device id, route, or response shape.
+
+- [ ] **Step 6: Run the end-to-end test and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulator_e2e.py`
 
-Expected: FAIL until the demo orchestrator exists.
+Expected: FAIL until the demo orchestrator and adapter-replacement fixture exist.
 
-- [ ] **Step 3: Implement one stable demo entrypoint**
+- [ ] **Step 7: Implement one stable demo entrypoint**
 
-`run_storage_demo.py` must accept scenario, speed, seed, and output directory; start or connect to the simulator; run the selected day; write raw JSON/CSV and a summary JSON; exit nonzero when acceptance invariants fail. It must not be added to `bin/`.
+`run_storage_demo.py` must accept scenario, speed, seed, and output directory; start or connect to the simulator; run the selected day; write raw JSON/CSV and summary JSON; exit nonzero when acceptance invariants fail. It must never perform simulated-data deletion and must not be added to `bin/`.
 
-- [ ] **Step 4: Document the five-minute demo**
+- [ ] **Step 8: Document demo and real-device handoff**
 
-Document exact startup commands, expected page, five scenarios, metric definitions, sign convention, simulator label, troubleshooting, and the boundary between simulated BMS/PCS and future real hardware.
+Document exact startup commands, the original storage device page, the existing energy-management `光储 EMS` workspace, five scenarios, metric definitions, sign convention, persistent source labels, cutover preview, troubleshooting, canonical MQTT fields, and the boundary between simulated BMS/PCS and the future vendor gateway. State that real automatic control remains disabled until field acceptance is complete.
 
-- [ ] **Step 5: Run complete verification**
+- [ ] **Step 9: Run complete verification**
 
 Run:
 
@@ -1143,48 +1293,36 @@ python -m pytest -q
 bash ./scripts/shell/run_backend_coverage.sh
 cd frontend && npm run typecheck
 cd frontend && npm run build
-cd frontend && npm run test:unit -- src/features/storage-energy src/features/device-monitor/components/storage src/features/device-monitor/composables/__tests__/useStorageMonitor.test.ts
+cd frontend && npm run test:unit -- src/features/energy-management/storage-ems src/views/__tests__/EnergyManagement.test.ts src/features/device-monitor/components/storage src/features/device-monitor/composables/__tests__/useStorageMonitor.test.ts
 docker compose -f docker-compose.prod.yml --env-file env.prod.example config
 python scripts/python/run_storage_demo.py --scenario sunny_workday --seed 20260716 --output-dir artifacts/storage-demo
+python scripts/python/storage_cutover.py --device-code STO-001 --preview
 ```
 
-Expected:
+Expected: backend and frontend focused tests PASS; coverage remains at or above the accepted 73% gate; typecheck, build, Compose validation, demo, and read-only cutover preview exit `0`; no new frontend failures exist.
 
-- backend tests PASS with no regression from the accepted baseline;
-- coverage does not drop below the current 73% gate;
-- frontend storage-focused tests, typecheck, and build PASS;
-- Compose validation exits `0`;
-- demo exits `0` and writes raw series plus calculated summary;
-- the four pre-existing unrelated frontend unit failures are either unchanged or separately resolved; no new failures exist.
+- [ ] **Step 10: Perform manual visual and interaction QA**
 
-- [ ] **Step 6: Perform manual visual and interaction QA**
+Verify the original storage device route shows source, component state, control lifecycle, and target/actual trends; the existing energy-management route switches to `光储 EMS` without navigation; energy-flow directions match the sign convention; simulated and real fixtures are labeled correctly; control states never claim early success; empty/error states show no fabricated values; laptop layout remains usable.
 
-Verify in the browser:
+- [ ] **Step 11: Close the topic documents**
 
-- energy-flow directions match the sign convention;
-- plan and actual power are visually distinct;
-- simulated badge is always visible;
-- control states transition without claiming early success;
-- error and empty states do not show fabricated values;
-- responsive layout remains usable at laptop width.
+Record actual test counts, calculated scenario results, unresolved risks, cutover preview evidence, and future vendor-gateway handoff. Archive daily status/handoff snapshots and leave the main area serving only the next active topic.
 
-- [ ] **Step 7: Close the topic documents**
-
-Record actual test counts, calculated scenario results, unresolved risks, and future BMS/PCS handoff. Archive daily status/handoff snapshots and leave the main area serving only the next active topic.
-
-- [ ] **Step 8: Commit Milestone C and closure**
+- [ ] **Step 12: Commit Milestone C and closure**
 
 ```bash
-git add tests/test_storage_simulator_e2e.py scripts/python/run_storage_demo.py docs/guides/storage-simulation-demo.md scripts/python/README.md README.md docs/plans/PLAN-20260716-campus-pv-storage-simulation.md docs/plans/current-status.md docs/plans/handoff.md docs/plans/daily/2026-07
-git commit -m "feat: complete campus pv storage simulation"
+git add app/services/devices/storage/simulation_cutover_service.py tests/test_storage_simulation_cutover.py tests/test_storage_simulator_e2e.py scripts/python/storage_cutover.py scripts/python/run_storage_demo.py docs/guides/storage-simulation-demo.md scripts/python/README.md README.md docs/plans/PLAN-20260716-campus-pv-storage-simulation.md docs/plans/current-status.md docs/plans/handoff.md docs/plans/daily/2026-07
+git commit -m "feat: complete single storage ems simulation"
 ```
 
 ## Final acceptance boundary
 
 The feature is complete only when all three milestones are independently demonstrated:
 
-1. Simulator telemetry reaches MQTT, persistence, API, WebSocket, and the storage page with `data_source=simulated`.
+1. Simulator telemetry reaches MQTT, persistence, API, WebSocket, and the original storage device page with `data_source=simulated`; a contract-valid real fixture can replace the adapter without changing device identity, route, or response shape.
 2. Manual and automatic commands have auditable `accepted/running/terminal` receipts, and safety conditions override economic goals.
-3. The same deterministic scenario produces baseline, rule, and day-ahead comparisons from raw data, with no hard-coded improvement claims.
+3. The same deterministic scenario produces baseline, rule, and day-ahead comparisons from raw data inside the existing energy-management `光储 EMS` workspace, with no hard-coded improvement claims.
+4. Cutover preview and transaction tests prove that only one exact device's simulated business rows are removable while real rows, other devices, the archive, and the asset profile remain intact.
 
-Future real hardware work is a separate plan. It must replace the simulator adapter, confirm vendor-specific sign/scale/protection semantics, add operational approval boundaries, and validate commands against the actual BMS/PCS before any real-device claim is made.
+Future real hardware work replaces only the simulator adapter with a vendor gateway implementing the same MQTT contract. It must confirm vendor-specific sign, scale, alarm, and protection semantics and validate commands against the actual BMS/PCS before `ems_auto_enabled` can be enabled.
