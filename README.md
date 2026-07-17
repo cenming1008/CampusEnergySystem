@@ -103,6 +103,8 @@ cp env.prod.example .env.prod
 ./venv/bin/python scripts/python/create_admin.py
 ```
 
+园区光储演示复用原储能设备页和现有 `/energy`“光储 EMS”工作区。安全的确定性演示、五场景、指标、MQTT 字段、持久来源标签和真实适配器 cutover preview 见 [储能仿真演示与真实适配器交接](docs/guides/storage-simulation-demo.md)。真实设备完成现场验收前，自动控制保持关闭。
+
 ---
 
 ## 项目职责总览

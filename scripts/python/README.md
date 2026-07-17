@@ -20,6 +20,8 @@
 - [replay_mqtt_failures.py](/Users/todo/CampusEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
 - [run_mqtt_ingest_worker.py](/Users/todo/CampusEnergySystem/scripts/python/run_mqtt_ingest_worker.py)：MQTT 入站采集 worker 入口
 - [storage_simulator.py](/Users/todo/CampusEnergySystem/scripts/python/storage_simulator.py)：园区 500 kWh/250 kW 储能 MQTT 系统级仿真器
+- [run_storage_demo.py](/Users/todo/CampusEnergySystem/scripts/python/run_storage_demo.py)：运行确定性压缩日并输出原始 JSON/CSV 与计算型摘要
+- [storage_cutover.py](/Users/todo/CampusEnergySystem/scripts/python/storage_cutover.py)：按精确设备预览或显式执行 simulated 业务数据切换
 - [generate_prod_secrets.py](/Users/todo/CampusEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
 - [send_test_alert.py](/Users/todo/CampusEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 - [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：生成或发送电容补偿控制器 2~31 次逐次谐波联调验收 payload
@@ -87,6 +89,23 @@ python scripts/python/storage_simulator.py \
 功率符号统一为：正功率充电，负功率放电。所有 payload 强制携带 `data_source=simulated`。
 
 > 警告：该工具是园区 EMS 的系统级仿真器，只模拟平台所需的储能状态与控制交互，不是真实 BMS/PCS 固件，也不能替代厂商协议、安全保护或现场联调。
+
+确定性压缩日演示不会连接真实数据库、不会删除 simulated 数据：
+
+```bash
+PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python scripts/python/run_storage_demo.py \
+  --scenario sunny_workday --speed 5760 --seed 20260716 \
+  --output-dir artifacts/storage-demo
+```
+
+真实适配器切换前只读预览：
+
+```bash
+PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python scripts/python/storage_cutover.py \
+  --device-code STO-001 --preview
+```
+
+执行切换必须人工提供操作人和 preview 的三个精确计数；任何自动演示、测试或发布验证都不得调用 `--execute`。完整边界、指标和 MQTT 字段见 [储能仿真演示与真实适配器交接](/Users/todo/CampusEnergySystem/docs/guides/storage-simulation-demo.md)。
 
 本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台 MQTT 接入记录为准。
 
