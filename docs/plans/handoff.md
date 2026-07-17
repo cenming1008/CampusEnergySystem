@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 11 日前 MILP 优化器，不提前展开 Task 12 或后续任务。
+- 当前目标：交后端储能角色执行 Task 12 调度计划持久化与安全回退，不提前展开 Task 13 或后续任务。
 
 ## 已完成与准入
 
@@ -30,14 +30,15 @@
 - Task 8 已完成安全优先纯规则、双门禁 EMS 编排和默认关闭的 60 秒任务；完整后端 `801 passed, 2 skipped, 7 warnings`。
 - Task 9 已完成模拟器命令执行、稳定运行标识、终态幂等和独立故障注入；聚焦 `19 passed`，完整后端 `811 passed, 2 skipped, 7 warnings`。
 - Task 10 已完成原有储能设备工作台增强，提交为 `a83cbc49`；相关回归 `27 passed`，typecheck、build 与变更文件 ESLint 通过。
+- Task 11 已完成确定性 96 时段日前 MILP 优化器，提交为 `48b91c90`；聚焦 `6 passed`，完整后端 `817 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 11
+## 下一棒：后端储能 Task 12
 
-1. 在 `requirements.txt` 与 `constraints-ci.txt` 固定同一兼容 PuLP 版本，不引入商业求解器。
-2. 先写确定性 96 时段 RED，覆盖结果长度、SOC/功率/效率约束、正充负放符号与可复现性。
-3. 优化器保持纯领域边界；Task 11 不写调度计划表，也不下发控制命令。
-4. 完成聚焦测试、依赖检查、全量后端回归和 Ruff 后再交 Task 12。
-5. 真实联调前仍需显式升级开发库到 `20260717_0003`，但 Task 11 纯优化实现本身不要求改动数据库。
+1. 先写 service/API RED，覆盖事务替换、当前时段、偏差原因、失败保留旧计划、过期回退和 viewer/operator 权限。
+2. 仅在最优结果完整存在后一次写入 96 行，并在同一事务失效旧计划；模拟方案显式保留来源和 `simulation_run_id`。
+3. 实时 EMS 先取有效计划，再应用安全边界；使用固定偏差码，不得跳过故障、温度、SOC、通信或人工接管保护。
+4. 增加当前计划、生成计划、求解状态接口和每日生成任务；生成失败不得删除上一有效计划。
+5. Task 12 运行联调依赖既有 `storage_dispatch_plan` 表，因此联调前必须将开发库显式升级到 `20260717_0003`，但不新建 migration。
 
 ## 固定业务契约
 
@@ -52,8 +53,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 10，不开始 Task 11 后端代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 11 范围内。
+- 本轮只完成 Task 11，不开始 Task 12 服务和 API 代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 12 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -67,4 +68,5 @@
 - Task 8：通过并正式完成。
 - Task 9：通过并正式完成。
 - Task 10：通过并正式完成。
-- Task 11：已解除依赖，交后端储能角色执行。
+- Task 11：通过并正式完成。
+- Task 12：已解除依赖，交后端储能角色执行。

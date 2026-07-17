@@ -49,6 +49,8 @@ def test_detailed_plan_preserves_completed_work_and_adds_cutover_acceptance():
     assert "- [ ]" not in plan[task9_start:task10_start]
     task11_start = plan.index("## Task 11:")
     assert "- [ ]" not in plan[task10_start:task11_start]
+    task12_start = plan.index("## Task 12:")
+    assert "- [ ]" not in plan[task11_start:task12_start]
     assert "simulation_cutover_service.py" in plan
     assert "storage_cutover.py" in plan
     assert "tests/test_storage_simulation_cutover.py" in plan
@@ -56,7 +58,7 @@ def test_detailed_plan_preserves_completed_work_and_adds_cutover_acceptance():
     assert "simulation_run_id" in plan
 
 
-def test_status_and_handoff_keep_task11_as_the_only_next_storage_task():
+def test_status_and_handoff_keep_task12_as_the_only_next_storage_task():
     status = read(STATUS)
     handoff = read(HANDOFF)
 
@@ -66,7 +68,9 @@ def test_status_and_handoff_keep_task11_as_the_only_next_storage_task():
     assert "Task 8：通过并正式完成" in status
     assert "Task 9：通过并正式完成" in status
     assert "Task 10：通过并正式完成" in status
-    assert "Task 11：已解除依赖，尚未开始" in status
-    assert "下一棒：后端储能 Task 11" in handoff
+    assert "Task 11：通过并正式完成" in status
+    assert "Task 12：已解除依赖，尚未开始" in status
+    assert "下一棒：后端储能 Task 12" in handoff
+    assert "下一棒：后端储能 Task 11" not in handoff
     assert "下一棒：前端 Task 10" not in handoff
     assert "下一棒：后端储能 Task 9" not in handoff

@@ -936,11 +936,11 @@ Task 10 实现提交为 `a83cbc49`。RED 阶段为 `4 failed, 2 passed`；GREEN 
 - Create: `app/domain/storage_dispatch_optimizer.py`
 - Test: `tests/test_storage_dispatch_optimizer.py`
 
-- [ ] **Step 1: Pin PuLP**
+- [x] **Step 1: Pin PuLP**
 
 Add one compatible pinned PuLP version to both dependency files and verify `pip check`. Do not add Gurobi or another commercial runtime.
 
-- [ ] **Step 2: Write failing optimizer tests**
+- [x] **Step 2: Write failing optimizer tests**
 
 Create a deterministic 96-slot sunny-day input and assert:
 
@@ -952,13 +952,13 @@ Create a deterministic 96-slot sunny-day input and assert:
 - maximum grid import is lower than the no-storage baseline;
 - repeated solve returns identical rounded results.
 
-- [ ] **Step 3: Run and verify failure**
+- [x] **Step 3: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_dispatch_optimizer.py`
 
 Expected: FAIL because the optimizer module does not exist.
 
-- [ ] **Step 4: Implement the MILP**
+- [x] **Step 4: Implement the MILP**
 
 Use PuLP variables `charge_kw[t]`, `discharge_kw[t]`, `grid_kw[t]`, `soc[t]`, binary `is_charging[t]`, `is_discharging[t]`, `curtail_kw[t]`, and `peak_grid_kw`. Objective terms are energy cost, demand charge, throughput degradation, and curtailment penalty. Return a frozen result object containing solver status, slot results, total cost, peak demand, curtailment, and terminal SOC.
 
@@ -971,11 +971,11 @@ grid_kw[t] = load_kw[t] - pv_kw[t] + curtail_kw[t] + charge_kw[t] - discharge_kw
 
 Update SOC with charge/discharge efficiency at 0.25 h per slot, enforce the 15%-85% soft operating range, enforce mutually exclusive charge/discharge binaries, and require the configured terminal SOC target. Baseline comparison uses zero storage power against the same load/PV/tariff series.
 
-- [ ] **Step 5: Add infeasibility and validation tests**
+- [x] **Step 5: Add infeasibility and validation tests**
 
 Reject non-96-length inputs, non-finite values, invalid efficiency, and impossible initial SOC with `ValueError`. Convert non-optimal solver outcomes to `DispatchOptimizationError` with the solver status.
 
-- [ ] **Step 6: Run optimizer tests and dependency check**
+- [x] **Step 6: Run optimizer tests and dependency check**
 
 Run:
 
@@ -987,12 +987,14 @@ python -m pytest -q tests/test_storage_dispatch_optimizer.py
 
 Expected: dependency check and tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add requirements.txt constraints-ci.txt app/domain/storage_dispatch_optimizer.py tests/test_storage_dispatch_optimizer.py
 git commit -m "feat: add storage day ahead optimizer"
 ```
+
+Task 11 实现提交为 `48b91c90`。RED 因优化器模块不存在而按预期失败；GREEN 后聚焦测试 `6 passed`，完整后端 `817 passed, 2 skipped, 7 warnings`，变更文件 Ruff 通过。`PuLP 3.3.0` 同时固定在 requirements 与 CI constraints；干净 Python 3.12 环境完成全量依赖安装并通过 `pip check`。本机历史共享 venv 仍为非正式的 Python 3.9，无法重装既有 `python-multipart==0.0.32`，不作为 Python 3.10+ 正式基线验收结果。
 
 ## Task 12: Persist and execute dispatch plans with safe fallback
 
