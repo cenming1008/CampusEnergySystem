@@ -117,7 +117,7 @@ class StorageEnergyOverviewResponse(BaseModel):
     storage_device_ids: list[int]
     data_source: str
     simulation_run_id: Optional[str] = None
-    plan_execution_rate: float
+    plan_execution_rate: Optional[float] = None
     dispatch: StorageDispatchOverviewResponse
     provenance: StorageProvenanceResponse
     timestamp: datetime

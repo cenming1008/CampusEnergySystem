@@ -267,8 +267,8 @@ class StorageControlCommandService:
             raise ValueError(f"控制回执找不到匹配的储能控制日志：device_id={device_id}, command_id={command_id}")
 
         normalized = StorageControlCommandService.normalize_control_result(result)
-        if normalized not in SUPPORTED_RESULTS - {"accepted"}:
-            raise ValueError("控制回执 result 仅支持 running/success/failed/timeout/rejected。")
+        if normalized not in SUPPORTED_RESULTS:
+            raise ValueError("控制回执 result 仅支持 accepted/running/success/failed/timeout/rejected。")
 
         current = StorageControlCommandService.normalize_control_result(control_log.result)
         if current in TERMINAL_RESULTS:

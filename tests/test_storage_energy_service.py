@@ -211,6 +211,7 @@ def test_overview_does_not_claim_rule_fallback_without_execution_evidence(
     assert result["dispatch"]["strategy"] is None
     assert result["dispatch"]["solver_status"] is None
     assert result["dispatch"]["fallback_reason"] is None
+    assert result["plan_execution_rate"] is None
 
 
 def test_metric_calculation_reports_soc_clipping_as_replay_feasibility():

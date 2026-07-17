@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 15 代码与离线验收已完成；当前等待开发库升级授权与 MQTT 健康恢复，再执行只读 cutover preview、真实 MQTT 和人工页面现场验收。
+- 当前总目标：园区光储 Task 1-15 已全部完成并收口；等待未来真实厂商网关现场接入，不启动第二套储能系统。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -23,7 +23,7 @@
 - [x] Task 12：调度计划原子替换、EMS 安全执行、失败回退、每日任务与嵌套 API 完成。
 - [x] Task 13：园区级光储总览、三策略同输入重放、权限与显式响应契约完成。
 - [x] Task 14：原页面光储 EMS 工作区、权限门禁、异步状态保护与展示契约完成。
-- [ ] Task 15：代码与离线验收完成；现场验收待执行。
+- [x] Task 15：开发库升级、MQTT 实链、控制回执、只读 preview 与原页面人工验收完成。
 
 ## Task 3 完成证据
 
@@ -33,7 +33,7 @@
 - fresh、offline、roundtrip 各 682 个对象，共同 SHA-256 为 `b81c0db6aaef07fad85a7b617b005e99e1aaafee382e06da6f378eea6d4cbaec`。
 - 三条路径均位于 `20260716_0002`，均保留 `public.energydata` hypertable，并已核对两张新增表和八个扩展列。
 - 全量后端：`740 passed, 5 warnings`；Task 3 变更文件 Ruff 检查通过。
-- 实际开发库 `campus_energy` 仍在 `20260716_0001`，尚未应用两张 Task 3 表；临时三路径验收通过不等于开发库已经升级。
+- 实际开发库 `campus_energy` 已在 Task 15 现场验收中显式升级到 `20260717_0003`；临时三路径与实际开发库证据仍保持区分。
 
 ## 固定契约
 
@@ -154,14 +154,23 @@
 - 计算结果：baseline/day-ahead 成本分别为 `8503.286203/7006.628849`，峰值为 `451.864497/349.368124 kW`，光伏自用率为 `79.170644%/96.619544%`；这些数值来自原始序列计算，不作为硬编码收益承诺。
 - 新增聚焦 `6 passed`，储能回归 `190 passed`，完整后端 `848 passed, 2 skipped, 7 warnings`；覆盖率 `76%`，Ruff 与差异检查通过。
 - 前端聚焦 `31 passed`，typecheck、build 与生产 Compose 配置通过；全量仍为既有 `382 passed, 1 failed`。
-- 开发库只读核对仍为 `20260716_0001`、public 26 表，`storage_asset_profile`/`storage_dispatch_plan` 缺失；MQTT 容器 unhealthy。真实库 preview、真实 MQTT 和人工页面验收未执行。
+- 开发库已由 `20260716_0001` 显式升级至 `20260717_0003`，public 28 表；`storage_asset_profile`、`storage_dispatch_plan`、批准扩展列和两个运行标识索引存在，`public.energydata` 仍为 hypertable。
+
+## Task 15 现场验收与修复证据
+
+- 升级前备份 `/tmp/campus_energy_pre_storage_20260717.dump` 为 112K，SHA-256 `cebca856205dc9b1f5d506de1476d6cd926103b4dd88240f15a77db3ce3da74b`，`pg_restore -l` 成功读取 299 个 TOC 条目。
+- MQTT broker 恢复 healthy；healthcheck 改为验证 CONNACK，不再订阅 ACL 禁止的 `$SYS/#`，现场确认无遗留 `mosquitto_sub` 进程。
+- 新增 `sto-001` 最小权限设备账号，模拟器优先读取独立储能凭据；真实 MQTT 共形成 259 条 simulated telemetry，控制命令 `75 kW` 与停止命令均收到终态 success 回执。
+- 修复 `accepted` 合法回执被拒、无计划执行率显示 `0.0%`、储能 380V 被通用 220V 规则误报三个现场问题；历史电压与通讯告警均由新遥测自动恢复。
+- 只读 cutover preview：`telemetry=259, plans=0, control_logs=2`；未调用 `--execute`。
+- 浏览器人工验收：原设备页显示仿真来源、BMS/PCS/并网、目标/实际功率和两条成功控制生命周期；原 `/energy` 路由内切换光储 EMS，缺失执行率显示 `--`，无横向溢出，控制台错误为空。
+- 最终回归：聚焦后端 `72 passed`；全量后端 `853 passed, 2 skipped, 6 warnings`；覆盖率 `76%`；前端聚焦 `31 passed`，typecheck、build、生产 Compose 配置与 Ruff 均通过。
 
 ## 当前待办
 
-1. 获得明确授权后，将开发库从 `20260716_0001` 升级到既有 head `20260717_0003`，复核新增表、列与 `energydata` hypertable；不得由演示脚本隐式升级。
-2. 先恢复 MQTT 容器健康，再执行真实 MQTT 遥测/回执联调和原设备页、`/energy` 光储 EMS 工作区人工验收。
-3. 对真实 `STO-001` 只运行 cutover `--preview` 并留存计数证据；禁止自动或未经再次确认执行 `--execute`。
-4. 完成详细计划 Step 9-12 后再正式收口主题；当前不得把离线验收等同于真实设备现场通过。
+1. 当前无储能实现待办；保持 `STORAGE_EMS_ENABLED=False` 与设备级 `ems_auto_enabled=false`。
+2. 未来真实设备到场后，厂商网关按 canonical MQTT 契约发布 `data_source=real`，先完成符号、倍率、保护与回执验收。
+3. simulated 数据切换仍必须重新运行精确设备 preview 并另行取得 `--execute` 授权；当前 preview 不构成未来删除授权。
 
 ## 当前验收判断
 
@@ -179,5 +188,5 @@
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
 - Task 14：通过并正式完成。
-- Task 15：代码与离线验收完成；现场验收待执行。
-- 下一接手角色：现场验收角色，需先取得开发库升级授权并恢复 MQTT 健康。
+- Task 15：代码、现场验收与主题收口全部通过。
+- 下一接手角色：未来真实厂商网关接入角色；当前无需前端或数据库再建一套储能能力。

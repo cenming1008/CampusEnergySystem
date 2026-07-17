@@ -190,6 +190,44 @@ class TestAlarmService(unittest.TestCase):
             self.assertEqual(created, [])
             self.assertEqual(session.exec(select(Alarm)).all(), [])
 
+    def test_storage_category_recovers_legacy_generic_voltage_alarm(self):
+        with Session(self.engine) as session:
+            device = self._create_device(session, "ALARM-STORAGE-001")
+            thresholds = {
+                "default": {
+                    "current_max": 45.0,
+                    "voltage_max": 250.0,
+                    "voltage_min": 190.0,
+                }
+            }
+            triggered_at = datetime(2026, 7, 17, 17, 0, 0)
+            recovered_at = triggered_at + timedelta(minutes=1)
+            with unittest.mock.patch.object(
+                AlarmService,
+                "load_thresholds",
+                return_value=thresholds,
+            ):
+                created = AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"voltage": 380.0},
+                    triggered_at,
+                )
+                self.assertEqual(len(created), 1)
+
+                device.device_category = "storage"
+                session.add(device)
+                session.commit()
+                AlarmService.check_and_create_alarm(
+                    session,
+                    device.id,
+                    {"voltage": 380.0},
+                    recovered_at,
+                )
+
+            session.refresh(created[0])
+            self.assertEqual(created[0].recovered_at, recovered_at)
+
     def test_media_threshold_rule_creates_and_recovers_pressure_alarm_for_water_meter(self):
         with Session(self.engine) as session:
             device = Device(
@@ -382,7 +420,7 @@ class TestAlarmService(unittest.TestCase):
     def test_get_alarm_count_supports_device_and_resolved_filters(self):
         with Session(self.engine) as session:
             device = self._create_device(session, "ALARM-007")
-            alarm_a = AlarmService.create_alarm(session, device.id, "A-告警", category="threshold", auto_commit=False)
+            AlarmService.create_alarm(session, device.id, "A-告警", category="threshold", auto_commit=False)
             alarm_b = AlarmService.create_alarm(session, device.id, "B-告警", category="threshold", auto_commit=False)
             alarm_b.is_resolved = True
             session.add(alarm_b)

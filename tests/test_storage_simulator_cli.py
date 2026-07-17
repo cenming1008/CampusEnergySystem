@@ -12,6 +12,7 @@ from scripts.python.storage_simulator import (
     StorageSimulator,
     build_telemetry_payload,
     main,
+    parse_args,
     scenario_target_power_kw,
 )
 
@@ -107,6 +108,18 @@ def test_documented_direct_script_entrypoint_runs_from_project_root():
 
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout)["data_source"] == "simulated"
+
+
+def test_simulator_prefers_storage_device_credentials(monkeypatch):
+    monkeypatch.setenv("MQTT_STORAGE_USERNAME", "sto-001")
+    monkeypatch.setenv("MQTT_STORAGE_PASSWORD", "storage-secret")
+    monkeypatch.setenv("MQTT_USERNAME", "ingest-worker")
+    monkeypatch.setenv("MQTT_PASSWORD", "ingest-secret")
+
+    args = parse_args(["--print-only"])
+
+    assert args.username == "sto-001"
+    assert args.password == "storage-secret"
 
 
 def test_mqtt_topics_separate_real_control_from_simulation_control():

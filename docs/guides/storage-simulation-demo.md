@@ -8,12 +8,13 @@
 
 ## 2. 精确启动命令
 
-先启动开发基础设施与后端：
+先启动开发基础设施、后端和独立 MQTT 入站 worker：
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python -m alembic upgrade head
 PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8088
+PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python scripts/python/run_mqtt_ingest_worker.py
 ```
 
 开发库必须由操作者明确升级；演示和自动验收脚本不会替你升级、重建或清理真实开发库。
@@ -25,7 +26,9 @@ PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python scripts/python/storage
   --device-code STO-001 --scenario sunny_workday --speed 60 --seed 20260716 --print-only
 ```
 
-启用 `STORAGE_SIMULATION_ENABLED=True` 后，去掉 `--print-only` 可连接配置中的 MQTT broker。系统遥测 topic 为 `campus/device/STO-001/telemetry`，设备控制 topic 为 `campus/control/STO-001`，仅模拟器使用的场景控制 topic 为 `campus/simulation/STO-001/control`。
+先执行 `bash scripts/shell/gen_dev_mqtt_certs.sh --force-passwd`，将生成的 `.env.local.mqtt` 合并到本地 `.env`。其中 `MQTT_STORAGE_USERNAME=sto-001` 与 `MQTT_STORAGE_PASSWORD` 是模拟器专用设备凭据；`ingest-worker` 是只读采集账号，不能用于发布设备遥测。
+
+启用 `STORAGE_SIMULATION_ENABLED=True` 后，去掉 `--print-only` 可连接配置中的 MQTT broker。系统遥测 topic 为 `campus/device/STO-001/telemetry`，设备控制 topic 为 `campus/control/STO-001`，仅模拟器使用的场景控制 topic 为 `campus/simulation/STO-001/control`。后端 Web 进程不会替代独立入站 worker，真实 MQTT 验收必须同时运行该 worker。
 
 运行不连接 MQTT、不会删除数据的压缩日演示：
 
@@ -90,6 +93,7 @@ PATH=/Users/todo/CampusEnergySystem/venv/bin:$PATH python scripts/python/storage
 ## 7. 故障排查
 
 - 没有遥测：检查仿真门禁、broker/TLS/账号和三个 topic 是否混用，再查看 MQTT 接入记录。
+- 发布被拒绝：确认模拟器使用 `MQTT_STORAGE_USERNAME=sto-001`，不要复用只读 `ingest-worker`。
 - 来源显示错误：检查 payload 的 `data_source`；真实网关不得沿用 `simulated` 或 `simulation_run_id`。
 - 功率方向相反：停止控制，先在厂商网关确认符号和倍率；平台固定正充负放。
 - 命令一直 pending：检查设备回执是否带同一 `command_id`，并区分 accepted、running 和终态。

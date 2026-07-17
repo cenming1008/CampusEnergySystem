@@ -144,6 +144,7 @@ gen_passwd_and_acl() {
     INGEST_PWD=$(random_secret)
     CONTROL_PWD=$(random_secret)
     CAP001_PWD=$(random_secret)
+    STO001_PWD=$(random_secret)
 
     rm -f "$PASSWD_FILE"
 
@@ -158,6 +159,9 @@ gen_passwd_and_acl() {
     docker run --rm -v "$PROJECT_DIR/mosquitto/config:/mosquitto/config" \
         eclipse-mosquitto:2.0 \
         mosquitto_passwd -b /mosquitto/config/passwd cap-001 "$CAP001_PWD"
+    docker run --rm -v "$PROJECT_DIR/mosquitto/config:/mosquitto/config" \
+        eclipse-mosquitto:2.0 \
+        mosquitto_passwd -b /mosquitto/config/passwd sto-001 "$STO001_PWD"
     chmod 600 "$PASSWD_FILE"
 
     cat > "$ACL_FILE" <<'ACL'
@@ -170,12 +174,20 @@ topic read campus/device/+/telemetry
 user control-publisher
 topic write campus/control/+
 topic write campus/control/+/+
+topic write campus/simulation/+/control
 
 # 设备 CAP-001：只能发自己 SN 的 telemetry；只能订阅自己的控制
 user cap-001
 topic write campus/device/CAP-001/telemetry
 topic read  campus/control/CAP-001
 topic read  campus/control/CAP-001/+
+
+# 设备 STO-001：储能模拟器与未来同编号网关共用设备边界
+user sto-001
+topic write campus/device/STO-001/telemetry
+topic read  campus/control/STO-001
+topic read  campus/control/STO-001/+
+topic read  campus/simulation/STO-001/control
 ACL
     chmod 644 "$ACL_FILE"
 
@@ -198,6 +210,9 @@ MQTT_CONTROL_PASSWORD=$CONTROL_PWD
 # 设备模拟器 (dev_simulate_cap001.py 使用)
 MQTT_DEVICE_CAP001_USERNAME=cap-001
 MQTT_DEVICE_CAP001_PASSWORD=$CAP001_PWD
+# 储能模拟器 / STO-001 设备侧凭据
+MQTT_STORAGE_USERNAME=sto-001
+MQTT_STORAGE_PASSWORD=$STO001_PWD
 EOF
     chmod 600 "$ENV_LOCAL"
     echo "✅ passwd/acl/凭据已生成"

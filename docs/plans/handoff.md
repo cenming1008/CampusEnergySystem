@@ -6,18 +6,18 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：Task 15 代码与离线验收已经完成；交现场验收角色取得开发库升级授权、恢复 MQTT 健康并完成只读 preview、真实 MQTT 与人工页面验收。
+- 当前目标：Task 15 现场验收与主题收口已完成；等待未来真实厂商网关接入，继续复用唯一储能业务系统。
 
 ## 已完成与准入
 
 - Task 1、Task 2 已正式完成；Task 2 纯领域实现提交保留至 `efbbe808`。
 - 后端可靠性阶段 2A 全部验收通过并完成治理交还，现作为已完成依赖和历史证据保留，不是第二个活跃主主题。
 - 阶段 2A 验收提交为 `2c738e61`，补证据提交为 `735ea5c0` 与 `0f22eb60`；共同结构指纹 SHA-256 为 `9f52eafa4140a7328074fa3c6fa4414fe3107a5fa49cbca23a34de60b5acf42c`。
-- `campus_energy` 位于 `20260716_0001`，public 表 26 张，`public.energydata` 为 hypertable，启动仅校验。
+- `campus_energy` 已显式升级至 `20260717_0003`，public 表 28 张，`public.energydata` 仍为 hypertable，启动仅校验。
 - Task 3 已完成，提交为 `aa97e3ad`；三条 migration 路径各 682 个对象且共同指纹为 `b81c0db6aaef07fad85a7b617b005e99e1aaafee382e06da6f378eea6d4cbaec`。
 - 三条路径均到 `20260716_0002`，均保留 `energydata` hypertable；两张新增表和八个扩展列已核对。
 - 全量后端 `740 passed, 5 warnings`，Task 3 Ruff 通过。
-- 实际开发库 `campus_energy` 仍在 `20260716_0001`，`storage_asset_profile` 与 `storage_dispatch_plan` 尚未应用。
+- 实际开发库已应用 `storage_asset_profile`、`storage_dispatch_plan`、批准扩展列与运行标识索引。
 - Task 4 已完成，提交为 `0e1fd1bc`；完整环境全量后端 `742 passed, 5 warnings`，Task 4 Ruff 通过。
 - 仿真扩展 payload 已保持负功率放电符号，并完成三个设备 state 键到持久化 status 列的显式映射。
 - Task 5 已完成：五个确定性场景、固定 seed、加速时钟、双控制主题、模拟回执、优雅停止与 `--print-only` 均已落地。
@@ -37,13 +37,12 @@
 - Task 15 代码与离线验收提交为 `4290f7e3`；精确设备 cutover、确定性演示、适配器替换测试和真实设备交接文档已落地。
 - 新增聚焦 `6 passed`、储能回归 `190 passed`、完整后端 `848 passed, 2 skipped, 7 warnings`，覆盖率 `76%`；前端聚焦 `31 passed`，typecheck、build 与 Compose 配置通过。
 
-## 下一棒：现场验收 Task 15
+## 下一棒：真实厂商网关接入
 
-1. 开发库当前仍为 `20260716_0001`，public 26 表且缺少 `storage_asset_profile`/`storage_dispatch_plan`；必须先取得明确授权，再按 Alembic 升级到 `20260717_0003` 并复核。
-2. MQTT 容器当前 unhealthy；先恢复 broker 健康，再做真实遥测、控制回执和来源切换联调。
-3. 对目标设备只执行 `storage_cutover.py --preview` 并保存三个计数；本交接不授权 `--execute`。
-4. 人工检查原 `StorageMonitorView` 和现有 `/energy` 光储 EMS 工作区的来源、功率方向、回执生命周期、空值/错误态和笔记本布局。
-5. 全部现场证据通过后完成详细计划 Step 9-12、daily 快照与主题正式收口。
+1. 不新增储能页面、API 或数据库模型；厂商网关实现现有 canonical MQTT 契约并标记 `data_source=real`。
+2. 现场先验证充放电符号、倍率、SOC/温度边界、保护逻辑和完整回执生命周期，自动控制继续默认关闭。
+3. simulated 数据切换前重新运行 `storage_cutover.py --preview`；本交接不授权未来的 `--execute`。
+4. 设备账号按一设备一密钥发放，平台入站 worker 保持只读，控制发布账号保持独立。
 
 ## 固定业务契约
 
@@ -58,8 +57,8 @@
 
 ## 本轮边界
 
-- 本轮完成 Task 15 代码与离线验收，但不擅自升级开发库、不修复 MQTT 容器、不执行 cutover `--execute`，也不伪造人工页面验收。
-- Redis、readiness、rate limit 和部署顺序仍不在当前 Task 15 范围内；MQTT health 仅作为现场验收前置 blocker 记录。
+- 本轮已按授权升级开发库、修复 MQTT health、完成真实 MQTT 与人工页面验收；未执行 cutover `--execute`。
+- Redis、readiness、rate limit 和部署顺序仍不在 Task 15 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -77,4 +76,4 @@
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
 - Task 14：通过并正式完成。
-- Task 15：代码与离线验收通过，现场验收待执行。
+- Task 15：代码、现场验收与主题收口通过。

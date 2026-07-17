@@ -146,7 +146,7 @@ class StorageEnergyService:
         simulation_run_id = next(iter(run_ids)) if len(run_ids) == 1 else None
         soc = round(weighted_soc / soc_weight, 6) if soc_weight else None
         plan_execution_rate = (
-            round(execution_matched / execution_total * 100.0, 6) if execution_total else 0.0
+            round(execution_matched / execution_total * 100.0, 6) if execution_total else None
         )
         load_timestamps = [row.timestamp for row in load_rows if row is not None]
         pv_timestamps = [row.timestamp for row in pv_rows if row is not None]

@@ -16,17 +16,16 @@ from sqlmodel import Session
 
 from app.core.logger import logger
 from app.domain import alarm_rules
-from app.domain.alarm_rules import (
-    ActiveAlarmState,
-    AlarmCreateFields,
-    FaultDetection,
-)
 from app.domain.alarm_rule_profiles import (
     DeviceRuleIdentity,
     resolve_capacitor_bank_profile,
     resolve_generic_threshold_profile,
     resolve_media_threshold_profile,
     resolve_storage_threshold_profile,
+)
+from app.domain.alarm_rules import (
+    AlarmCreateFields,
+    FaultDetection,
 )
 from app.models.tables import Alarm
 from app.repositories.alarm_repository import AlarmRepository
@@ -278,7 +277,15 @@ class AlarmService:
         """检查通用阈值数据（电压/电流）并创建/恢复告警。"""
         device_category, device_subtype = AlarmRepository.get_device_rule_identity(session, device_id)
         if alarm_rules.should_skip_generic_threshold_detection(device_category):
-            return []
+            return AlarmService._apply_fault_detection(
+                session=session,
+                device_id=device_id,
+                faults=[],
+                timestamp=timestamp,
+                managed_categories=alarm_rules.get_threshold_managed_categories(data),
+                sources={alarm_rules.SOURCE_PLATFORM_RULE},
+                log_prefix=f"设备 {device_id}",
+            )
 
         raw_rules = AlarmService.load_thresholds()
         identity = DeviceRuleIdentity(

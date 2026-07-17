@@ -481,8 +481,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--print-only", action="store_true")
     parser.add_argument("--broker", default=os.getenv("MQTT_BROKER", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.getenv("MQTT_PORT", "8883")))
-    parser.add_argument("--username", default=os.getenv("MQTT_USERNAME"))
-    parser.add_argument("--password", default=os.getenv("MQTT_PASSWORD"))
+    parser.add_argument(
+        "--username",
+        default=os.getenv("MQTT_STORAGE_USERNAME", os.getenv("MQTT_USERNAME")),
+    )
+    parser.add_argument(
+        "--password",
+        default=os.getenv("MQTT_STORAGE_PASSWORD", os.getenv("MQTT_PASSWORD")),
+    )
     parser.add_argument(
         "--tls-enabled",
         action=argparse.BooleanOptionalAction,

@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-
 # ==================== 数据结构 ====================
 
 
@@ -178,7 +177,7 @@ def build_platform_comm_offline_message(last_success_at: Optional[datetime]) -> 
 
 def should_skip_generic_threshold_detection(device_category: Optional[str]) -> bool:
     """Return whether generic threshold detection is delegated to a specialized family."""
-    return device_category == "compensation"
+    return device_category in {"compensation", "storage"}
 
 
 # ==================== 故障检测纯函数 ====================

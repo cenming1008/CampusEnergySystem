@@ -1300,9 +1300,9 @@ Expected: FAIL until the demo orchestrator and adapter-replacement fixture exist
 
 Document exact startup commands, the original storage device page, the existing energy-management `光储 EMS` workspace, five scenarios, metric definitions, sign convention, persistent source labels, cutover preview, troubleshooting, canonical MQTT fields, and the boundary between simulated BMS/PCS and the future vendor gateway. State that real automatic control remains disabled until field acceptance is complete.
 
-Task 15 代码与离线验收提交为 `4290f7e3`。精确设备 cutover 服务、显式 preview/execute CLI、确定性压缩日演示、适配器替换验收和交接文档均已落地；新增测试 `6 passed`，储能回归 `190 passed`，完整后端 `848 passed, 2 skipped, 7 warnings`，覆盖率 `76%`。前端聚焦 `31 passed`，typecheck、build 与生产 Compose 配置通过；前端全量仍为既有 `382 passed, 1 failed`。同一 sunny_workday/seed 生成逐字一致的 JSON/CSV/summary，输入校验和为 `98d080308ad2f06999cfabc846179ee1b1f7ad146c98aad273b3a8d954ed5d42`。开发库仍在 `20260716_0001` 且缺少两张储能表，MQTT 容器 unhealthy，因此未执行真实库 cutover preview、真实 MQTT 联调或人工页面验收；Step 9-12 保持未完成，不将离线证据冒充现场通过。
+Task 15 代码与离线验收提交为 `4290f7e3`。现场验收随后完成开发库 `20260717_0003` 升级、MQTT healthy、STO-001 真实遥测和两条终态成功控制回执；只读 preview 为 `259/0/2`，未执行 `--execute`。现场修复 accepted 回执、无计划执行率空值、储能 380V 通用阈值误报与 MQTT healthcheck/设备凭据问题。最终后端 `853 passed, 2 skipped, 6 warnings`、覆盖率 `76%`；前端聚焦 `31 passed`、typecheck、build、生产 Compose 配置与人工页面验收通过。
 
-- [ ] **Step 9: Run complete verification**
+- [x] **Step 9: Run complete verification**
 
 Run:
 
@@ -1319,15 +1319,15 @@ python scripts/python/storage_cutover.py --device-code STO-001 --preview
 
 Expected: backend and frontend focused tests PASS; coverage remains at or above the accepted 73% gate; typecheck, build, Compose validation, demo, and read-only cutover preview exit `0`; no new frontend failures exist.
 
-- [ ] **Step 10: Perform manual visual and interaction QA**
+- [x] **Step 10: Perform manual visual and interaction QA**
 
 Verify the original storage device route shows source, component state, control lifecycle, and target/actual trends; the existing energy-management route switches to `光储 EMS` without navigation; energy-flow directions match the sign convention; simulated and real fixtures are labeled correctly; control states never claim early success; empty/error states show no fabricated values; laptop layout remains usable.
 
-- [ ] **Step 11: Close the topic documents**
+- [x] **Step 11: Close the topic documents**
 
 Record actual test counts, calculated scenario results, unresolved risks, cutover preview evidence, and future vendor-gateway handoff. Archive daily status/handoff snapshots and leave the main area serving only the next active topic.
 
-- [ ] **Step 12: Commit Milestone C and closure**
+- [x] **Step 12: Commit Milestone C and closure**
 
 ```bash
 git add app/services/devices/storage/simulation_cutover_service.py tests/test_storage_simulation_cutover.py tests/test_storage_simulator_e2e.py scripts/python/storage_cutover.py scripts/python/run_storage_demo.py docs/guides/storage-simulation-demo.md scripts/python/README.md README.md docs/plans/PLAN-20260716-campus-pv-storage-simulation.md docs/plans/current-status.md docs/plans/handoff.md docs/plans/daily/2026-07

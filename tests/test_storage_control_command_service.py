@@ -206,6 +206,30 @@ def test_receipt_terminal_state_is_idempotent_and_reason_stays_json(storage_sess
     assert len(notifier_events) == 1
 
 
+def test_device_accepted_receipt_is_valid_and_keeps_command_pending(storage_session):
+    session, device = storage_session
+    queued = StorageControlCommandService.queue_command(
+        session,
+        device,
+        command="stop",
+        operator="admin",
+        source="manual",
+        publish_control_payload=lambda *args, **kwargs: None,
+    )
+
+    log = StorageControlCommandService.apply_control_receipt(
+        session,
+        device_id=device.id,
+        command_id=queued["command_id"],
+        result="accepted",
+        detail="device accepted command",
+    )
+
+    assert log.result == "accepted"
+    assert json.loads(log.reason)["receipt_detail"] == "device accepted command"
+    assert StorageControlCommandService._get_pending_control_log(session, device.id) is log
+
+
 def test_timeout_only_updates_storage_control_api_pending_logs(storage_session):
     session, device = storage_session
     old = datetime.now() - CONTROL_RECEIPT_TIMEOUT - timedelta(seconds=1)

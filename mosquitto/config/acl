@@ -7,9 +7,17 @@ topic read campus/device/+/telemetry
 user control-publisher
 topic write campus/control/+
 topic write campus/control/+/+
+topic write campus/simulation/+/control
 
 # 设备 CAP-001：只能发自己 SN 的 telemetry；只能订阅自己的控制
 user cap-001
 topic write campus/device/CAP-001/telemetry
 topic read  campus/control/CAP-001
 topic read  campus/control/CAP-001/+
+
+# 设备 STO-001：储能模拟器与未来同编号网关共用设备边界
+user sto-001
+topic write campus/device/STO-001/telemetry
+topic read  campus/control/STO-001
+topic read  campus/control/STO-001/+
+topic read  campus/simulation/STO-001/control

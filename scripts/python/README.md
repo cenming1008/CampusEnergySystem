@@ -86,6 +86,8 @@ python scripts/python/storage_simulator.py \
 
 去掉 `--print-only` 后，工具向 `campus/device/STO-001/telemetry` 发布遥测，监听真实设备控制主题 `campus/control/STO-001`，并单独监听仿真场景控制主题 `campus/simulation/STO-001/control`。支持的固定场景为 `sunny_workday`、`cloudy_workday`、`weekend_low_load`、`pv_surplus`、`evening_peak`。`--speed 60` 表示仿真时钟以 60 倍速推进；相同场景与种子可复现除实时时间戳外的输出。
 
+真实 MQTT 模式优先使用 `MQTT_STORAGE_USERNAME` / `MQTT_STORAGE_PASSWORD`（默认设备账号为 `sto-001`），不要使用只读的 `ingest-worker` 发布。账号由 `bash scripts/shell/gen_dev_mqtt_certs.sh --force-passwd` 生成；平台入站链还需单独运行 `python scripts/python/run_mqtt_ingest_worker.py`。
+
 功率符号统一为：正功率充电，负功率放电。所有 payload 强制携带 `data_source=simulated`。
 
 > 警告：该工具是园区 EMS 的系统级仿真器，只模拟平台所需的储能状态与控制交互，不是真实 BMS/PCS 固件，也不能替代厂商协议、安全保护或现场联调。
