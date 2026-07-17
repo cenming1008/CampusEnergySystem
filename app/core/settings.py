@@ -240,6 +240,30 @@ class Settings(BaseSettings):
         description="MQTT控制指令主题前缀"
     )
 
+    storage_ems_enabled: bool = Field(
+        default=False,
+        env="STORAGE_EMS_ENABLED",
+        description="是否启用储能 EMS 自动控制能力"
+    )
+
+    storage_simulation_enabled: bool = Field(
+        default=False,
+        env="STORAGE_SIMULATION_ENABLED",
+        description="是否启用应用内储能仿真接口与任务"
+    )
+
+    storage_simulation_topic_prefix: str = Field(
+        default="campus/simulation/",
+        env="STORAGE_SIMULATION_TOPIC_PREFIX",
+        description="储能模拟器专属控制主题前缀"
+    )
+
+    storage_daily_dispatch_time: str = Field(
+        default="00:05",
+        env="STORAGE_DAILY_DISPATCH_TIME",
+        description="储能日前计划每日生成时间（HH:MM）"
+    )
+
     compensation_control_receipt_timeout_seconds: int = Field(
         default=120,
         env="COMPENSATION_CONTROL_RECEIPT_TIMEOUT_SECONDS",

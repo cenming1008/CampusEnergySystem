@@ -19,6 +19,7 @@
 - [evaluate_capacity_baseline.py](/Users/todo/CampusEnergySystem/scripts/python/evaluate_capacity_baseline.py)：校验压测结果是否满足试点阈值
 - [replay_mqtt_failures.py](/Users/todo/CampusEnergySystem/scripts/python/replay_mqtt_failures.py)：重放 MQTT 失败/死信记录
 - [run_mqtt_ingest_worker.py](/Users/todo/CampusEnergySystem/scripts/python/run_mqtt_ingest_worker.py)：MQTT 入站采集 worker 入口
+- [storage_simulator.py](/Users/todo/CampusEnergySystem/scripts/python/storage_simulator.py)：园区 500 kWh/250 kW 储能 MQTT 系统级仿真器
 - [generate_prod_secrets.py](/Users/todo/CampusEnergySystem/scripts/python/generate_prod_secrets.py)：生成生产环境密钥片段
 - [send_test_alert.py](/Users/todo/CampusEnergySystem/scripts/python/send_test_alert.py)：验证告警通知通道
 - [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：生成或发送电容补偿控制器 2~31 次逐次谐波联调验收 payload
@@ -67,6 +68,25 @@ MIGRATION_ADMIN_URL=postgresql://admin:password123@localhost:5432/postgres \
 ### MQTT/协议调试
 
 - [send_capacitor_bank_harmonic_uat_payloads.py](/Users/todo/CampusEnergySystem/scripts/python/send_capacitor_bank_harmonic_uat_payloads.py)：逐次谐波准真实 payload 验收，可用 `--print-only` 先打印 topic 与 JSON
+
+#### 储能 MQTT 仿真器
+
+先用固定种子打印一条 payload，不连接网络：
+
+```bash
+python scripts/python/storage_simulator.py \
+  --device-code STO-001 \
+  --scenario sunny_workday \
+  --speed 60 \
+  --seed 20260716 \
+  --print-only
+```
+
+去掉 `--print-only` 后，工具向 `campus/device/STO-001/telemetry` 发布遥测，监听真实设备控制主题 `campus/control/STO-001`，并单独监听仿真场景控制主题 `campus/simulation/STO-001/control`。支持的固定场景为 `sunny_workday`、`cloudy_workday`、`weekend_low_load`、`pv_surplus`、`evening_peak`。`--speed 60` 表示仿真时钟以 60 倍速推进；相同场景与种子可复现除实时时间戳外的输出。
+
+功率符号统一为：正功率充电，负功率放电。所有 payload 强制携带 `data_source=simulated`。
+
+> 警告：该工具是园区 EMS 的系统级仿真器，只模拟平台所需的储能状态与控制交互，不是真实 BMS/PCS 固件，也不能替代厂商协议、安全保护或现场联调。
 
 本地设备采集/网关脚本已移除，真实联调以 Windows 工控机运行脚本和平台 MQTT 接入记录为准。
 
