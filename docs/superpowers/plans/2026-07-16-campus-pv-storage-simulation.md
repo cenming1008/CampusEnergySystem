@@ -1054,7 +1054,7 @@ Task 12 实现提交为 `b10991d5`。RED 由缺失 dispatch service、schema 和
 - Test: `tests/test_storage_energy_service.py`
 - Test: `tests/test_storage_energy_api.py`
 
-- [ ] **Step 1: Write failing aggregation tests**
+- [x] **Step 1: Write failing aggregation tests**
 
 Given the same 96-slot scenario, assert the service returns:
 
@@ -1071,32 +1071,34 @@ Given the same 96-slot scenario, assert the service returns:
 
 Use calculated expected values in the actual fixture; do not hardcode improvement percentages in production.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
 
 Expected: FAIL because service and routes do not exist.
 
-- [ ] **Step 3: Implement comparison calculations**
+- [x] **Step 3: Implement comparison calculations**
 
 Compute grid import, cost, peak, self-use, curtailment, throughput, equivalent cycles, terminal SOC, and plan execution rate. The comparison endpoint accepts a fixed `scenario_key`, `seed`, and `initial_soc`; the service builds one immutable 96-slot input series and deterministically replays baseline, rule, and day-ahead strategies against that exact series. Current-state and plan-execution metrics may read persisted telemetry/plan rows, but cross-strategy comparisons must not splice together observations from different runs. Return the replay parameters and input-series checksum so results are reproducible without adding a simulation-run table in this milestone.
 
-- [ ] **Step 4: Add scoped read APIs**
+- [x] **Step 4: Add scoped read APIs**
 
 Add `/energy/storage/overview` and `/energy/storage/comparison`; filter devices through existing access-control helpers. Return explicit `data_source`, `scenario_key`, `seed`, `initial_soc`, and input-series checksum metadata.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `python -m pytest -q tests/test_storage_energy_service.py tests/test_storage_energy_api.py`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/services/storage_energy_service.py app/api/endpoints/energy/storage.py app/api/endpoints/energy/__init__.py tests/test_storage_energy_service.py tests/test_storage_energy_api.py
 git commit -m "feat: add pv storage overview analytics"
 ```
+
+Task 13 实现提交为 `e0508eed`。RED 由缺失 service、路由与响应契约触发；最终聚焦测试 `15 passed, 2 warnings`，完整后端 `842 passed, 2 skipped, 7 warnings`。两条 `/energy/storage/*` OpenAPI 路径均绑定显式响应模型，变更文件 Ruff 与差异检查通过。总览返回目标/实际功率、计划状态、求解状态、来源和时效证据；缺失计划时不伪造规则回退。三策略复用同一不可变 96 时段输入，返回场景参数与 SHA-256 校验和；跨策略 `plan_execution_rate` 在没有真实执行证据时为 `null`，另以 `feasible_slot_rate` 表示重放可执行率。未新增 migration。
 
 ## Task 14: Add the PV-storage EMS workspace to existing energy management
 

@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 13 园区级光储总览与策略对比 API，不提前展开 Task 14 或后续任务。
+- 当前目标：交前端角色执行 Task 14，在原有能耗分析页增加“光储 EMS”工作区，不新增独立路由或第二套储能页面。
 
 ## 已完成与准入
 
@@ -32,14 +32,15 @@
 - Task 10 已完成原有储能设备工作台增强，提交为 `a83cbc49`；相关回归 `27 passed`，typecheck、build 与变更文件 ESLint 通过。
 - Task 11 已完成确定性 96 时段日前 MILP 优化器，提交为 `48b91c90`；聚焦 `6 passed`，完整后端 `817 passed, 2 skipped, 7 warnings`。
 - Task 12 已完成计划原子替换、EMS 安全执行、每日任务与三条嵌套 API，提交为 `b10991d5`；完整后端 `829 passed, 2 skipped, 7 warnings`。
+- Task 13 已完成园区级光储总览、同输入三策略重放、权限过滤、来源/时效/计划状态与显式响应模型，提交为 `e0508eed`；完整后端 `842 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 13
+## 下一棒：前端 Task 14
 
-1. 先写聚合 service/API RED，固定 current、baseline、rule、day_ahead 返回结构和位置范围权限。
-2. 三策略必须基于同一 `scenario_key`、seed、initial SOC 和不可变 96 时段输入重放，返回输入校验和。
-3. 所有指标由输入和策略功率计算；不得在生产代码硬编码收益、削峰或自用率改善。
-4. 当前状态可读真实遥测与计划，但跨策略对比不得混用不同 `simulation_run_id` 或不同时段观测。
-5. Task 13 只提供后端聚合和只读 API，不提前修改 Task 14 前端工作区。
+1. 先写组件与原页面复用 RED，在 `EnergyManagement` 内增加 overview / storage_ems 工作区选择，不改 router。
+2. 新增精确 TypeScript 类型和单一 `useStorageEms` 状态所有者，消费 `/energy/storage/overview`、`/energy/storage/comparison` 与既有调度生成接口。
+3. 展示能流、目标/实际、来源、输入时效、计划/求解/回退状态和基线/规则/日前指标；缺失值必须显示 `--`。
+4. `plan_execution_rate=null` 表示没有真实执行证据，不能显示为成功；`feasible_slot_rate` 只表示策略重放可执行率。
+5. 继续复用原有 `/energy` 路由和统一储能设备页面，不建立模拟版页面。
 
 ## 固定业务契约
 
@@ -54,7 +55,7 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 12，不开始 Task 13 聚合 API 代码。
+- 本轮只完成 Task 13 后端聚合，不开始 Task 14 前端代码。
 - Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 13 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
@@ -71,4 +72,5 @@
 - Task 10：通过并正式完成。
 - Task 11：通过并正式完成。
 - Task 12：通过并正式完成。
-- Task 13：已解除依赖，交后端储能角色执行。
+- Task 13：通过并正式完成。
+- Task 14：已解除依赖，交前端角色执行。

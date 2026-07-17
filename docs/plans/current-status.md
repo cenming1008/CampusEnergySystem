@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 12 调度计划持久化与安全回退已通过验收；当前进入 Task 13 园区级光储总览与策略对比 API。
+- 当前总目标：Task 13 园区级光储总览与策略对比 API 已通过验收；当前进入 Task 14 原有能耗分析页“光储 EMS”工作区。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -21,7 +21,8 @@
 - [x] Task 10：原有储能设备工作台、权限门禁、命令时间线与功率趋势完成。
 - [x] Task 11：确定性 96 时段日前 MILP 优化器与开源 CBC 依赖完成。
 - [x] Task 12：调度计划原子替换、EMS 安全执行、失败回退、每日任务与嵌套 API 完成。
-- [ ] Task 13 及后续：按实施计划依赖顺序等待。
+- [x] Task 13：园区级光储总览、三策略同输入重放、权限与显式响应契约完成。
+- [ ] Task 14 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -124,11 +125,20 @@
 - 每日计划任务复用既有 `STORAGE_DAILY_DISPATCH_TIME`，且只随全局储能 EMS 门禁注册。
 - 聚焦 `29 passed`，储能回归 `57 passed`，完整后端 `829 passed, 2 skipped, 7 warnings`；Ruff 与 OpenAPI 生成通过。
 
+## Task 13 完成证据
+
+- 实现提交：`e0508eed`。
+- 新增 `/energy/storage/overview` 与 `/energy/storage/comparison`；显式设备先走既有访问校验，系统聚合按位置范围设备集合过滤。
+- 总览聚合负荷、光伏、电网、储能和容量加权 SOC，并返回目标/实际偏差、当前计划状态、求解状态、来源、运行标识与输入时效；缺失计划时不伪造规则回退。
+- 基线、规则、日前三策略只重放同一个不可变 96 时段输入；返回 `scenario_key`、seed、initial SOC 和输入 SHA-256，成本构成、峰值、自用率、弃光、外送、吞吐、等效循环和终端 SOC 均由原序列计算。
+- 没有真实执行证据的跨策略 `plan_execution_rate` 显式为 `null`，重放物理可执行率单列为 `feasible_slot_rate`。
+- 聚焦 `15 passed, 2 warnings`，完整后端 `842 passed, 2 skipped, 7 warnings`；Ruff、两条 OpenAPI 响应模型与差异检查通过。未新增 migration，未修改前端。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 执行 Task 13，提供 `/energy/storage/overview` 与 `/energy/storage/comparison`。
-2. 基线、规则、日前三策略必须复用同一不可变 96 时段输入，返回场景参数与输入校验和，不拼接不同运行数据。
-3. 成本、峰值、自用率、弃光、吞吐、等效循环、终端 SOC 和计划执行率必须由原始序列计算，禁止硬编码改善比例。
+1. 前端角色按 TDD 执行 Task 14，只在现有 `EnergyManagement` 页面增加“光储 EMS”工作区，不新增路由或第二套储能页面。
+2. 前端通过 Task 13 两条只读聚合 API 和既有设备调度生成 API 展示能流、目标/实际、来源、计划状态与三策略指标；不得伪造优化成功或回退状态。
+3. 保持 `data_source=simulated/real` 持续可见，缺失值显示 `--`，跨策略 `plan_execution_rate=null` 不得展示为 100% 执行成功。
 4. 正常 MQTT 与依赖计划表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -145,5 +155,6 @@
 - Task 10：通过并正式完成。
 - Task 11：通过并正式完成。
 - Task 12：通过并正式完成。
-- Task 13：已解除依赖，尚未开始。
-- 下一接手角色：后端储能角色。
+- Task 13：通过并正式完成。
+- Task 14：已解除依赖，尚未开始。
+- 下一接手角色：前端角色。
