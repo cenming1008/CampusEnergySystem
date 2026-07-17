@@ -255,7 +255,7 @@ git commit -m "feat: add storage battery simulation model"
 - Test: `tests/test_storage_model_contract.py`
 - Test: `tests/test_migration_storage_contract.py`
 
-- [ ] **Step 1: Write failing migration contract tests**
+- [x] **Step 1: Write failing migration contract tests**
 
 Create `tests/test_migration_storage_contract.py` before editing the model or migration. Lock all of these facts:
 
@@ -265,13 +265,13 @@ Create `tests/test_migration_storage_contract.py` before editing the model or mi
 - Task 3 may create only `storage_asset_profile` and `storage_dispatch_plan` and may add only these eight approved telemetry extensions: `target_active_power`, `available_charge_power`, `available_discharge_power`, `bms_status`, `pcs_status`, `grid_status`, `command_source`, and `data_source`;
 - downgrade removes exactly the Task 3 additions and does not drop the baseline-owned telemetry table.
 
-- [ ] **Step 2: Run migration contract tests and verify RED**
+- [x] **Step 2: Run migration contract tests and verify RED**
 
 Run: `python -m pytest -q tests/test_migration_storage_contract.py`
 
 Expected: FAIL because `20260716_0002` does not exist. This RED must be observed before modifying `app/models/storage.py` or creating the migration.
 
-- [ ] **Step 3: Write failing model contract tests**
+- [x] **Step 3: Write failing model contract tests**
 
 ```python
 from datetime import date, datetime
@@ -287,13 +287,13 @@ def test_storage_contract_models_keep_power_direction_and_source():
     assert plan.slot_index == 0
 ```
 
-- [ ] **Step 4: Run model contract tests and verify RED**
+- [x] **Step 4: Run model contract tests and verify RED**
 
 Run: `python -m pytest -q tests/test_storage_model_contract.py`
 
 Expected: FAIL because the new models and fields do not exist.
 
-- [ ] **Step 5: Add focused SQLModel contracts**
+- [x] **Step 5: Add focused SQLModel contracts**
 
 The accepted root baseline already owns the 基础 `storage_telemetry` table. Task 3 must not recreate it（不得重建基础表）. Add `StorageAssetProfile` with unique `device_id`, rated energy/power, efficiencies, hard/soft SOC bounds, voltage, battery type, BMS/PCS model, protocol version, location, commission date, and timestamps.
 
@@ -301,7 +301,7 @@ Extend `StorageTelemetry` with nullable `target_active_power`, available charge/
 
 Add `StorageDispatchPlan` with `(device_id, dispatch_date, slot_index)` uniqueness, 0-95 slot validation in service code, forecasts, tariff, target power, expected SOC, strategy/version, solver status, validity, failure reason, and generation timestamp.
 
-- [ ] **Step 6: Write the deterministic migration**
+- [x] **Step 6: Write the deterministic migration**
 
 The migration must use only explicit Alembic operations. Set:
 
@@ -312,7 +312,7 @@ down_revision = "20260716_0001"
 
 Create `storage_asset_profile` and `storage_dispatch_plan`, add only the eight approved telemetry extensions to the baseline-owned `storage_telemetry`, create the unique dispatch-slot constraint, and implement a complete downgrade. Task 3 is limited to profile, dispatch, and those approved telemetry extensions; it must not recreate the base telemetry table. Do not import current SQLModel metadata or query application tables during migration.
 
-- [ ] **Step 7: Run focused tests and offline SQL**
+- [x] **Step 7: Run focused tests and offline SQL**
 
 Run:
 
@@ -324,7 +324,7 @@ rg "storage_asset_profile|storage_dispatch_plan|target_active_power" /tmp/storag
 
 Expected: tests PASS; offline SQL generation exits `0`; all three schema names are present.
 
-- [ ] **Step 8: Run real three-path verification and inspect the preserved fresh database**
+- [x] **Step 8: Run real three-path verification and inspect the preserved fresh database**
 
 ```bash
 python scripts/python/verify_postgres_migrations.py \
@@ -385,7 +385,7 @@ python scripts/python/verify_postgres_migrations.py --cleanup
 
 Expected: verifier exits `0`; fresh, offline, and roundtrip fingerprints are identical; every path is at revision `20260716_0002`; preserved fresh contains both new storage tables, exactly the eight approved `storage_telemetry` extensions, and `public.energydata` remains a hypertable. The final cleanup command must exit `0` and remove all three fixed temporary databases. If inspection fails, run cleanup before reporting the blocker.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add app/models/storage.py migrations/versions/20260716_0002_add_storage_simulation_contracts.py tests/test_storage_model_contract.py tests/test_migration_storage_contract.py
@@ -420,6 +420,8 @@ payload = {
 
 Persist it through `persist_device_extensions` and assert every field is stored without converting the negative discharge sign.
 
+The MQTT payload keeps the device-facing design keys `bms_state`, `pcs_state`, and `grid_connection_state`. The ingestion adapter must map them to the persistence columns `bms_status`, `pcs_status`, and `grid_status`; do not attempt to write state-named columns that are not part of `StorageTelemetry`.
+
 - [ ] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_ingestion.py tests/test_storage_monitor_service.py`
@@ -428,7 +430,7 @@ Expected: new field assertions FAIL.
 
 - [ ] **Step 3: Extend extraction and monitoring**
 
-Add numeric fields to `_STORAGE_NUMERIC_FIELDS`, state/source fields to `_STORAGE_TEXT_FIELDS`, and expose semantic metrics in `build_storage_monitor`:
+Add numeric fields to `_STORAGE_NUMERIC_FIELDS`, explicitly map the three device-facing state keys to their status columns, add command/source fields to the text extraction, and expose semantic metrics in `build_storage_monitor`:
 
 ```python
 "target_active_power": m(target_power, **tm(target_power)),
