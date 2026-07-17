@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 9，不提前展开 Task 10 或后续任务。
+- 当前目标：交前端角色执行 Task 10，只增强原有储能设备工作台，不提前展开 Task 11 或后续任务。
 
 ## 已完成与准入
 
@@ -28,14 +28,15 @@
 - Task 7 已完成 `20260717_0003` 四列/两索引增量、资产档案服务、双层自动门禁和原有储能嵌套 API 扩展。
 - Task 7 三条 PostgreSQL migration 路径均为 688 个对象；完整后端 `783 passed, 2 skipped, 7 warnings`。
 - Task 8 已完成安全优先纯规则、双门禁 EMS 编排和默认关闭的 60 秒任务；完整后端 `801 passed, 2 skipped, 7 warnings`。
+- Task 9 已完成模拟器命令执行、稳定运行标识、终态幂等和独立故障注入；聚焦 `19 passed`，完整后端 `811 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 9
+## 下一棒：前端 Task 10
 
-1. 先写模拟命令生命周期 RED，覆盖 accepted/running/success、拒绝、超时、重复 command_id 与功率容差。
-2. 每个模拟器进程只生成一个 `simulation_run_id`，所有遥测和回执统一携带。
-3. 场景切换、速度和故障注入只接受 simulation topic；真实控制 topic 只接受设备控制命令。
-4. 终态回执按 command_id 缓存，重复投递只复发、不重复执行动作。
-5. 本轮不提前进入前端 Task 10；真实联调前仍需升级开发库到 `20260717_0003`。
+1. 先写设备工作台 RED，覆盖模拟/真实来源标识、正充负放、viewer 禁用、pending 禁用冲突操作及 rejected/timeout 原因。
+2. 请求继续收口在 `useStorageMonitor`；展示组件只接收 props 并发出动作，不直接散落 API 请求。
+3. 只复用 `/devices/{id}/storage/*` 现有接口和原有 `StorageMonitorView`，不得新增模拟版页面或 `/storage-energy` 路由。
+4. accepted 只展示为已接收；必须等待后端控制日志事件或刷新结果进入 running/terminal，不得前端伪造成功。
+5. 本轮不提前进入 Task 11；真实联调前仍需升级开发库到 `20260717_0003`。
 
 ## 固定业务契约
 
@@ -50,8 +51,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 8，不开始 Task 9 生产代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 9 范围内。
+- 本轮只完成 Task 9，不开始 Task 10 前端代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 10 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -63,4 +64,5 @@
 - Task 6：通过并正式完成。
 - Task 7：通过并正式完成。
 - Task 8：通过并正式完成。
-- Task 9：已解除依赖，交后端储能角色执行。
+- Task 9：通过并正式完成。
+- Task 10：已解除依赖，交前端角色执行。

@@ -815,7 +815,7 @@ git commit -m "feat: add storage safety and realtime ems rules"
 - Modify: `scripts/python/storage_simulator.py`
 - Test: `tests/test_storage_simulator_control.py`
 
-- [ ] **Step 1: Write failing command execution tests**
+- [x] **Step 1: Write failing command execution tests**
 
 Cover `accepted -> running -> success`, SOC rejection, overtemperature rejection, timeout injection, duplicate `command_id`, manual/auto mode, stop, actual-power tolerance, scenario switching, speed changes, and fault injection over the separate simulator-only topic. Every telemetry and receipt message must carry `data_source=simulated` and the stable CLI-generated `simulation_run_id` for that process.
 
@@ -827,28 +827,30 @@ assert abs(actual_power_kw - target_power_kw) <= max(2.5, abs(target_power_kw) *
 
 and require it to hold for three consecutive simulator steps before `success`.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulator_control.py`
 
 Expected: lifecycle assertions FAIL.
 
-- [ ] **Step 3: Implement command state machine**
+- [x] **Step 3: Implement command state machine**
 
 Use states `accepted`, `running`, and one terminal result. Cache terminal results by `command_id` so duplicate delivery republishes the same receipt without applying the action twice. Generate one UUID `simulation_run_id` when the simulator starts and reuse it in all messages for that run. Fault injection accepts only the fixed scenario keys from the design rather than arbitrary code execution. Reject simulator-only messages unless `STORAGE_SIMULATION_ENABLED=true`; never accept `set_scenario`, `set_speed`, or `inject_fault` on the real-device control topic.
 
-- [ ] **Step 4: Run simulator control tests**
+- [x] **Step 4: Run simulator control tests**
 
 Run: `python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_simulator_control.py`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/python/storage_simulator.py tests/test_storage_simulator_control.py
 git commit -m "feat: simulate storage command execution"
 ```
+
+Task 9 实现提交为 `6254dd8a`。RED 由缺失仿真门禁、运行标识和命令状态机，以及真实控制主题错误接受 simulator-only 动作触发；GREEN 后聚焦测试为 `19 passed`，完整后端为 `811 passed, 2 skipped, 7 warnings`，Task 9 变更文件 Ruff 与差异检查通过。
 
 ## Task 10: Enhance the storage device workbench
 

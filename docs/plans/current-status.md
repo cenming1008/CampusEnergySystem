@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 8 安全优先实时规则与双门禁 EMS 编排已通过验收；当前进入 Task 9 模拟器命令执行与故障注入闭环。
+- 当前总目标：Task 9 模拟器命令执行与故障注入闭环已通过验收；当前进入 Task 10 原有储能设备工作台增强。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -17,7 +17,7 @@
 - [x] Task 6：储能控制命令生命周期、分类回执分发与超时收敛完成。
 - [x] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API 完成。
 - [x] Task 8：安全优先实时规则与 EMS 编排完成。
-- [ ] Task 9：模拟器命令执行、回执状态机与故障注入，已解除依赖。
+- [x] Task 9：模拟器命令执行、回执状态机与故障注入完成。
 - [ ] Task 10 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
@@ -86,11 +86,21 @@
 - 60 秒任务只在全局开关开启时注册；每轮只选择设备级已授权档案，单设备异常独立回滚，不中断其他设备。
 - 聚焦测试 `24 passed, 2 warnings`；完整后端 `801 passed, 2 skipped, 7 warnings`，Ruff 与差异检查通过。
 
+## Task 9 完成证据
+
+- 实现提交：`6254dd8a`。
+- 模拟器按 `accepted -> running -> success` 执行储能功率命令，实际功率连续三个步长满足 `max(2.5 kW, 目标功率 2%)` 容差后才进入成功终态。
+- SOC 上下限、过温和 PCS 故障具有明确拒绝或归零语义；`communication_loss` 丢弃遥测与回执，使平台现有超时任务按标准契约收敛。
+- `set_active_power`、`set_control_mode` 和 `stop` 共用同一在途命令状态；终态按 `command_id` 缓存，重复投递只复发完全相同的终态回执。
+- 每个模拟器实例生成一个 UUID `simulation_run_id`，其遥测与回执均携带该标识和 `data_source=simulated`。
+- 场景、速度和固定故障集合只接受 simulation topic；仿真门禁默认关闭，真实控制 topic 明确拒绝 simulator-only 动作。
+- 聚焦测试 `19 passed`；完整后端 `811 passed, 2 skipped, 7 warnings`；Task 9 变更文件 Ruff 与差异检查通过。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 执行 Task 9，固定 accepted -> running -> terminal 的模拟器命令状态机。
-2. 同一进程生成并复用稳定 `simulation_run_id`；所有模拟遥测和回执继续标记 `data_source=simulated`。
-3. 重复 `command_id` 必须复发相同终态回执且不得重复执行；场景/速度/故障动作只接受 simulation topic。
+1. 前端角色按 TDD 执行 Task 10，只增强原有 `StorageMonitorView`，不得建立模拟版储能页面或新路由。
+2. 页面消费现有 profile、control、simulation 和 telemetry 接口，展示来源、目标/实际功率、安全状态及命令时间线，不得伪造成功回执。
+3. viewer 控制保持禁用；设备级自动授权默认关闭且仅管理员可改，人工接管优先。
 4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -103,5 +113,6 @@
 - Task 6：通过并正式完成。
 - Task 7：通过并正式完成。
 - Task 8：通过并正式完成。
-- Task 9：已解除依赖，尚未开始。
-- 下一接手角色：后端储能角色。
+- Task 9：通过并正式完成。
+- Task 10：已解除依赖，尚未开始。
+- 下一接手角色：前端角色。
