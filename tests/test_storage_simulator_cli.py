@@ -130,7 +130,7 @@ def test_mqtt_topics_separate_real_control_from_simulation_control():
     ]
 
 
-def test_real_control_publishes_simulated_receipt_and_does_not_switch_scenario():
+def test_real_control_rejects_simulator_only_action_and_does_not_switch_scenario():
     simulator = StorageSimulator(SimulatorConfig(device_code="STO-CONTROL-001"))
 
     class FakeClient:
@@ -159,11 +159,12 @@ def test_real_control_publishes_simulated_receipt_and_does_not_switch_scenario()
     )
 
     assert simulator.scenario == "sunny_workday"
-    assert simulator.manual_target_power_kw == -250.0
+    assert simulator.manual_target_power_kw is None
     topic, receipt, qos = client.messages[0]
     assert topic == simulator.config.telemetry_topic
     assert receipt["command_id"] == "cmd-1"
-    assert receipt["status"] == "accepted"
+    assert receipt["status"] == "rejected"
+    assert receipt["result"] == "rejected"
     assert receipt["data_source"] == "simulated"
     assert qos == 1
 

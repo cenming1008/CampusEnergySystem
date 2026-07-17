@@ -11,7 +11,8 @@ import random
 import signal
 import sys
 import threading
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -35,6 +36,16 @@ SCENARIO_NAMES = (
     "pv_surplus",
     "evening_peak",
 )
+FAULT_NAMES = (
+    "low_soc",
+    "overtemperature",
+    "pcs_fault",
+    "communication_loss",
+    "pv_drop",
+)
+SIMULATION_ACTIONS = {"set_scenario", "set_speed", "inject_fault", "clear_fault"}
+TERMINAL_RESULTS = {"success", "failed", "timeout", "rejected"}
+MAX_SAFE_TEMPERATURE_C = 55.0
 
 
 @dataclass(frozen=True)
@@ -52,6 +63,7 @@ class SimulatorConfig:
     tls_insecure: bool = False
     telemetry_interval_seconds: float = 60.0
     simulation_topic_prefix: str = "campus/simulation/"
+    simulation_enabled: bool = False
 
     def __post_init__(self) -> None:
         if not self.device_code.strip():
@@ -108,6 +120,9 @@ def build_telemetry_payload(
     minute_of_day: int | None = None,
     state: StorageState | None = None,
     target_power_kw: float | None = None,
+    simulation_run_id: str | None = None,
+    control_mode: str = "auto",
+    active_faults: set[str] | None = None,
 ) -> dict[str, object]:
     """Build one deterministic storage payload suitable for the ingestion topic."""
     current_state = state or StorageState(soc=50.0)
@@ -122,8 +137,11 @@ def build_telemetry_payload(
     available_charge, available_discharge = _available_power(asset, current_state)
     jitter = random.Random(f"{config.seed}:{config.scenario}:{minute}")
     temperature = current_state.temperature_c + jitter.uniform(-0.15, 0.15)
+    faults = active_faults or set()
+    fault_codes = {name: index for index, name in enumerate(FAULT_NAMES, start=1)}
+    active_fault_code = next((fault_codes[name] for name in FAULT_NAMES if name in faults), 0)
 
-    return {
+    payload: dict[str, object] = {
         "device_code": config.device_code,
         "timestamp": timestamp or now.isoformat(),
         "device_category": "storage",
@@ -141,14 +159,23 @@ def build_telemetry_payload(
         "cell_temp_min": round(temperature - 0.8, 3),
         "cell_temp_avg": round(temperature, 3),
         "run_state": current_state.run_state,
-        "control_mode": "auto",
-        "bms_state": "normal",
-        "pcs_state": "running" if current_state.actual_power_kw else "standby",
+        "control_mode": control_mode,
+        "bms_state": "fault" if faults & {"low_soc", "overtemperature"} else "normal",
+        "pcs_state": (
+            "fault"
+            if "pcs_fault" in faults
+            else "running"
+            if current_state.actual_power_kw
+            else "standby"
+        ),
         "grid_connection_state": "connected",
         "command_source": "scenario",
-        "fault_code": 0,
-        "alarm_code": 0,
+        "fault_code": active_fault_code,
+        "alarm_code": active_fault_code,
     }
+    if simulation_run_id is not None:
+        payload["simulation_run_id"] = simulation_run_id
+    return payload
 
 
 class StorageSimulator:
@@ -160,10 +187,16 @@ class StorageSimulator:
         self.state = StorageState(soc=50.0)
         self.scenario = config.scenario
         self.speed = config.speed
+        self.control_mode = "auto"
         self.manual_target_power_kw: float | None = None
         self.virtual_minute = 0.0
         self.stop_event = threading.Event()
         self.client: mqtt.Client | None = None
+        self.simulation_run_id = str(uuid.uuid4())
+        self.active_faults: set[str] = set()
+        self.pending_command: dict[str, Any] | None = None
+        self.terminal_receipts: dict[str, dict[str, object]] = {}
+        self._state_lock = threading.RLock()
 
     def _receipt(self, command: dict[str, Any], *, status: str, detail: str) -> dict[str, object]:
         return {
@@ -171,37 +204,123 @@ class StorageSimulator:
             "device_code": self.config.device_code,
             "command_id": command.get("command_id"),
             "status": status,
+            "result": status,
             "detail": detail,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data_source": "simulated",
+            "simulation_run_id": self.simulation_run_id,
         }
 
-    def _publish_receipt(self, command: dict[str, Any], *, status: str, detail: str) -> None:
+    def _publish_payload(self, payload: dict[str, object], *, force: bool = False) -> None:
         if self.client is None:
+            return
+        if "communication_loss" in self.active_faults and not force:
             return
         self.client.publish(
             self.config.telemetry_topic,
-            json.dumps(self._receipt(command, status=status, detail=detail), ensure_ascii=False),
+            json.dumps(payload, ensure_ascii=False),
             qos=1,
         )
 
+    def _publish_receipt(
+        self,
+        command: dict[str, Any],
+        *,
+        status: str,
+        detail: str,
+        force: bool = False,
+    ) -> dict[str, object]:
+        payload = self._receipt(command, status=status, detail=detail)
+        command_id = str(command.get("command_id") or "").strip()
+        if status in TERMINAL_RESULTS and command_id:
+            self.terminal_receipts[command_id] = payload
+        self._publish_payload(payload, force=force)
+        return payload
+
+    def _republish_terminal(self, command_id: str) -> bool:
+        cached = self.terminal_receipts.get(command_id)
+        if cached is None:
+            return False
+        self._publish_payload(cached)
+        return True
+
+    def _reject(self, command: dict[str, Any], detail: str, *, force: bool = False) -> None:
+        self._publish_receipt(command, status="rejected", detail=detail, force=force)
+
     def _handle_real_control(self, command: dict[str, Any]) -> None:
-        try:
-            target = float(command["target_active_power"])
-        except (KeyError, TypeError, ValueError):
-            self._publish_receipt(
-                command, status="rejected", detail="target_active_power is required"
-            )
+        command_id = str(command.get("command_id") or "").strip()
+        if command_id and self._republish_terminal(command_id):
             return
-        self.manual_target_power_kw = max(-self.asset.power_kw, min(self.asset.power_kw, target))
-        self._publish_receipt(command, status="accepted", detail="target power accepted")
+        if command.get("action") in SIMULATION_ACTIONS or command.get("command") in SIMULATION_ACTIONS:
+            self._reject(command, "simulator-only action is not allowed on the real control topic")
+            return
+        if not command_id:
+            self._reject(command, "command_id is required")
+            return
+        if self.pending_command is not None:
+            if self.pending_command["command_id"] == command_id:
+                return
+            self._reject(command, "another command is already running")
+            return
+
+        action = command.get("command")
+        pending: dict[str, Any] = {
+            "command_id": command_id,
+            "command": action,
+            "running_emitted": False,
+            "tolerance_hits": 0,
+        }
+        if action == "set_active_power":
+            try:
+                target = float(command["target_active_power"])
+            except (KeyError, TypeError, ValueError):
+                self._reject(command, "target_active_power is required")
+                return
+            if not math.isfinite(target) or abs(target) > self.asset.power_kw:
+                self._reject(command, "target_active_power exceeds simulator capability")
+                return
+            if target > 0 and self.state.soc >= self.asset.soc_max:
+                self._reject(command, "charging is blocked at the SOC upper limit")
+                return
+            if target < 0 and self.state.soc <= self.asset.soc_min:
+                self._reject(command, "discharging is blocked at the SOC lower limit")
+                return
+            if target != 0 and self.state.temperature_c >= MAX_SAFE_TEMPERATURE_C:
+                self._reject(command, "active power is blocked by overtemperature")
+                return
+            if target != 0 and "pcs_fault" in self.active_faults:
+                self._reject(command, "active power is blocked by PCS fault")
+                return
+            pending["target_active_power"] = target
+            self.manual_target_power_kw = target
+        elif action == "set_control_mode":
+            mode = str(command.get("control_mode") or "").strip().lower()
+            if mode not in {"auto", "manual"}:
+                self._reject(command, "control_mode must be auto or manual")
+                return
+            pending["control_mode"] = mode
+        elif action == "stop":
+            pending["target_active_power"] = 0.0
+            self.manual_target_power_kw = 0.0
+        else:
+            self._reject(command, "unsupported storage command")
+            return
+
+        self.pending_command = pending
+        self._publish_receipt(command, status="accepted", detail="command accepted")
 
     def _handle_simulation_control(self, command: dict[str, Any]) -> None:
+        command_id = str(command.get("command_id") or "").strip()
+        if command_id and self._republish_terminal(command_id):
+            return
+        if not self.config.simulation_enabled:
+            self._reject(command, "storage simulation control is disabled", force=True)
+            return
         action = command.get("action")
         if action == "set_scenario" and command.get("scenario") in SCENARIO_NAMES:
             self.scenario = str(command["scenario"])
             self.manual_target_power_kw = None
-            self._publish_receipt(command, status="accepted", detail="scenario updated")
+            self._publish_receipt(command, status="success", detail="scenario updated", force=True)
             return
         if action == "set_speed":
             try:
@@ -210,9 +329,29 @@ class StorageSimulator:
                 speed = 0.0
             if math.isfinite(speed) and speed > 0:
                 self.speed = speed
-                self._publish_receipt(command, status="accepted", detail="speed updated")
+                self._publish_receipt(command, status="success", detail="speed updated", force=True)
                 return
-        self._publish_receipt(command, status="rejected", detail="invalid simulation command")
+        if action == "inject_fault" and command.get("fault") in FAULT_NAMES:
+            fault = str(command["fault"])
+            if fault == "low_soc":
+                self.state = replace(self.state, soc=self.asset.soc_min, actual_power_kw=0.0)
+            elif fault == "overtemperature":
+                self.state = replace(self.state, temperature_c=60.0, actual_power_kw=0.0)
+            self._publish_receipt(command, status="success", detail=f"fault injected: {fault}", force=True)
+            self.active_faults.add(fault)
+            return
+        if action == "clear_fault":
+            fault_value = command.get("fault")
+            if fault_value is not None and fault_value not in FAULT_NAMES:
+                self._reject(command, "invalid simulation fault", force=True)
+                return
+            faults_to_clear = {str(fault_value)} if fault_value else set(self.active_faults)
+            self.active_faults.difference_update(faults_to_clear)
+            if "overtemperature" in faults_to_clear:
+                self.state = replace(self.state, temperature_c=25.0)
+            self._publish_receipt(command, status="success", detail="fault cleared", force=True)
+            return
+        self._reject(command, "invalid simulation command", force=True)
 
     def _on_connect(self, client: mqtt.Client, _userdata: Any, _flags: Any, rc: int) -> None:
         if rc != 0:
@@ -228,9 +367,11 @@ class StorageSimulator:
         if not isinstance(command, dict):
             return
         if message.topic == self.config.control_topic:
-            self._handle_real_control(command)
+            with self._state_lock:
+                self._handle_real_control(command)
         elif message.topic == self.config.simulation_control_topic:
-            self._handle_simulation_control(command)
+            with self._state_lock:
+                self._handle_simulation_control(command)
 
     def _build_client(self) -> mqtt.Client:
         client = mqtt.Client(client_id=f"storage-simulator-{self.config.device_code}")
@@ -246,37 +387,78 @@ class StorageSimulator:
     def stop(self, *_args: object) -> None:
         self.stop_event.set()
 
+    def _current_target_power(self, minute: int) -> float:
+        if self.manual_target_power_kw is not None:
+            return self.manual_target_power_kw
+        if self.control_mode == "manual":
+            return 0.0
+        target = scenario_target_power_kw(self.scenario, minute_of_day=minute)
+        if "pv_drop" in self.active_faults and target > 0:
+            return 0.0
+        return target
+
+    def _advance_pending_lifecycle(self) -> None:
+        pending = self.pending_command
+        if pending is None:
+            return
+        if not pending["running_emitted"]:
+            self._publish_receipt(pending, status="running", detail="command is running")
+            pending["running_emitted"] = True
+        if pending["command"] == "set_control_mode":
+            self.control_mode = pending["control_mode"]
+            self._publish_receipt(pending, status="success", detail="control mode updated")
+            self.pending_command = None
+
+    def _complete_power_command_if_stable(self) -> None:
+        pending = self.pending_command
+        if pending is None or pending["command"] not in {"set_active_power", "stop"}:
+            return
+        target = float(pending["target_active_power"])
+        tolerance = max(2.5, abs(target) * 0.02)
+        if abs(self.state.actual_power_kw - target) <= tolerance:
+            pending["tolerance_hits"] += 1
+        else:
+            pending["tolerance_hits"] = 0
+        if pending["tolerance_hits"] >= 3:
+            self._publish_receipt(pending, status="success", detail="target power reached")
+            self.pending_command = None
+
+    def advance_one_step(self) -> dict[str, object]:
+        """Advance one deterministic step and return the generated telemetry payload."""
+        with self._state_lock:
+            minute = int(self.virtual_minute) % 1440
+            self._advance_pending_lifecycle()
+            target = self._current_target_power(minute)
+            if self.active_faults & {"low_soc", "overtemperature", "pcs_fault"}:
+                target = 0.0
+            self.state = step_storage(
+                self.asset,
+                self.state,
+                target,
+                self.config.telemetry_interval_seconds,
+            )
+            payload_config = replace(self.config, scenario=self.scenario, speed=self.speed)
+            payload = build_telemetry_payload(
+                payload_config,
+                minute_of_day=minute,
+                state=self.state,
+                target_power_kw=target,
+                simulation_run_id=self.simulation_run_id,
+                control_mode=self.control_mode,
+                active_faults=self.active_faults,
+            )
+            self._publish_payload(payload)
+            self._complete_power_command_if_stable()
+            self.virtual_minute += self.config.telemetry_interval_seconds / 60.0
+            return payload
+
     def run(self) -> None:
         self.client = self._build_client()
         self.client.connect(self.config.broker, self.config.port, keepalive=60)
         self.client.loop_start()
         try:
             while not self.stop_event.is_set():
-                minute = int(self.virtual_minute) % 1440
-                target = self.manual_target_power_kw
-                if target is None:
-                    target = scenario_target_power_kw(self.scenario, minute_of_day=minute)
-                self.state = step_storage(
-                    self.asset,
-                    self.state,
-                    target,
-                    self.config.telemetry_interval_seconds,
-                )
-                payload_config = SimulatorConfig(
-                    **{**self.config.__dict__, "scenario": self.scenario, "speed": self.speed}
-                )
-                payload = build_telemetry_payload(
-                    payload_config,
-                    minute_of_day=minute,
-                    state=self.state,
-                    target_power_kw=target,
-                )
-                self.client.publish(
-                    self.config.telemetry_topic,
-                    json.dumps(payload, ensure_ascii=False),
-                    qos=1,
-                )
-                self.virtual_minute += self.config.telemetry_interval_seconds / 60.0
+                self.advance_one_step()
                 self.stop_event.wait(self.config.telemetry_interval_seconds / self.speed)
         finally:
             self.client.loop_stop()
@@ -329,9 +511,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         tls_enabled=args.tls_enabled,
         tls_ca_path=args.tls_ca_path,
         tls_insecure=args.tls_insecure,
+        simulation_enabled=_boolean_env("STORAGE_SIMULATION_ENABLED", False),
     )
     if args.print_only:
-        print(json.dumps(build_telemetry_payload(config), ensure_ascii=False, sort_keys=True))
+        print(
+            json.dumps(
+                build_telemetry_payload(config, simulation_run_id=str(uuid.uuid4())),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
         return 0
 
     simulator = StorageSimulator(config)
