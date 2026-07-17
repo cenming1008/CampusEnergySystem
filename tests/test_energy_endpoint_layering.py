@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -12,6 +11,7 @@ def test_energy_endpoint_modules_do_not_import_shared_catch_all():
     for relative_path in [
         "app/api/endpoints/energy/data.py",
         "app/api/endpoints/energy/carbon.py",
+        "app/api/endpoints/energy/storage.py",
     ]:
         source = read_source(relative_path)
         assert "from .shared import" not in source

@@ -82,3 +82,77 @@ class EnergyOverviewResponse(BaseModel):
     ranking: Optional[dict] = None
     anomaly: Optional[dict] = None
     insights: Optional[list] = None
+
+
+class StorageCurrentResponse(BaseModel):
+    load_kw: float
+    pv_kw: float
+    grid_kw: float
+    storage_kw: float
+    soc: Optional[float] = None
+
+
+class StorageDispatchOverviewResponse(BaseModel):
+    actual_power_kw: float
+    target_power_kw: float
+    deviation_kw: float
+    strategy: Optional[str] = None
+    plan_status: str
+    solver_status: Optional[str] = None
+    fallback_reason: Optional[str] = None
+    slot_index: Optional[int] = None
+    plan_generated_at: Optional[datetime] = None
+
+
+class StorageProvenanceResponse(BaseModel):
+    load_timestamp: Optional[datetime] = None
+    pv_timestamp: Optional[datetime] = None
+    storage_timestamp: Optional[datetime] = None
+    time_skew_seconds: Optional[float] = None
+    is_stale: bool
+
+
+class StorageEnergyOverviewResponse(BaseModel):
+    current: StorageCurrentResponse
+    storage_device_ids: list[int]
+    data_source: str
+    simulation_run_id: Optional[str] = None
+    plan_execution_rate: float
+    dispatch: StorageDispatchOverviewResponse
+    provenance: StorageProvenanceResponse
+    timestamp: datetime
+
+
+class StorageStrategyMetricsResponse(BaseModel):
+    grid_import_kwh: float
+    grid_export_kwh: float
+    energy_cost: float
+    demand_cost: float
+    degradation_cost: float
+    curtailment_cost: float
+    cost: float
+    peak_grid_kw: float
+    pv_self_use_rate: float
+    curtailment_kwh: float
+    throughput_kwh: float
+    equivalent_cycles: float
+    terminal_soc: float
+    plan_execution_rate: Optional[float] = None
+    feasible_slot_rate: float
+
+
+class StorageStrategiesResponse(BaseModel):
+    baseline: StorageStrategyMetricsResponse
+    rule: StorageStrategyMetricsResponse
+    day_ahead: StorageStrategyMetricsResponse
+
+
+class StorageStrategyComparisonResponse(BaseModel):
+    device_id: int
+    data_source: str
+    scenario_key: str
+    seed: int
+    initial_soc: float
+    input_series_checksum: str
+    solver_status: str
+    strategies: StorageStrategiesResponse
