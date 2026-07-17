@@ -466,7 +466,7 @@ git commit -m "feat: ingest storage simulator telemetry"
 - Test: `tests/test_storage_simulator_cli.py`
 - Test: `tests/test_storage_settings.py`
 
-- [ ] **Step 1: Write failing CLI and payload tests**
+- [x] **Step 1: Write failing CLI and payload tests**
 
 ```python
 from scripts.python.storage_simulator import SimulatorConfig, build_telemetry_payload
@@ -480,13 +480,13 @@ def test_simulator_payload_is_explicitly_simulated():
     assert payload["active_power"] == 0.0
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulator_cli.py`
 
 Expected: FAIL because the simulator module does not exist.
 
-- [ ] **Step 3: Implement the simulator CLI**
+- [x] **Step 3: Implement the simulator CLI**
 
 Implement `SimulatorConfig`, five deterministic scenario curves, `build_telemetry_payload`, command subscription, receipt publication, acceleration factor, seeded randomness, and graceful shutdown. CLI arguments must include:
 
@@ -502,7 +502,7 @@ Implement `SimulatorConfig`, five deterministic scenario curves, `build_telemetr
 
 Add typed settings for `storage_ems_enabled`, `storage_simulation_enabled`, `storage_simulation_topic_prefix`, and daily dispatch time. Default both enable flags to false in Python settings and all environment examples. Starting the standalone simulator still requires an explicit CLI invocation; application APIs and scheduled automatic control remain unavailable while their flags are false.
 
-- [ ] **Step 4: Verify deterministic output**
+- [x] **Step 4: Verify deterministic output**
 
 Run:
 
@@ -513,11 +513,11 @@ python -m pytest -q tests/test_storage_simulator_cli.py tests/test_storage_setti
 
 Expected: JSON contains `data_source=simulated`; tests PASS; repeated runs with the same seed match after excluding the generated timestamp.
 
-- [ ] **Step 5: Document the entrypoint**
+- [x] **Step 5: Document the entrypoint**
 
 Add the exact command, MQTT topics, sign convention, supported scenarios, and a warning that the tool is a system-level simulator rather than real BMS/PCS firmware.
 
-- [ ] **Step 6: Commit Milestone A**
+- [x] **Step 6: Commit Milestone A**
 
 ```bash
 git add scripts/python/storage_simulator.py scripts/python/README.md app/core/settings.py env.example env.local.example env.prod.example tests/test_storage_simulator_cli.py tests/test_storage_settings.py

@@ -5,7 +5,7 @@
 - 当前主题：`园区光储协同仿真与 EMS 控制`。
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
-- 当前目标：交后端储能角色执行 Task 5，不提前展开 Task 6 或后续任务。
+- 当前目标：交后端储能角色执行 Task 6，不提前展开 Task 7 或后续任务。
 
 ## 已完成与准入
 
@@ -19,14 +19,17 @@
 - 实际开发库 `campus_energy` 仍在 `20260716_0001`，`storage_asset_profile` 与 `storage_dispatch_plan` 尚未应用。
 - Task 4 已完成，提交为 `0e1fd1bc`；完整环境全量后端 `742 passed, 5 warnings`，Task 4 Ruff 通过。
 - 仿真扩展 payload 已保持负功率放电符号，并完成三个设备 state 键到持久化 status 列的显式映射。
+- Task 5 已完成：五个确定性场景、固定 seed、加速时钟、双控制主题、模拟回执、优雅停止与 `--print-only` 均已落地。
+- Task 5 聚焦测试 `12 passed`，完整环境全量后端 `754 passed, 7 warnings`；变更文件 Ruff 与差异检查通过。
+- Python 设置与三份环境模板中的储能 EMS/仿真开关均默认关闭；模拟 payload 强制标记 `data_source=simulated`。
 
-## 下一棒：后端储能 Task 5
+## 下一棒：后端储能 Task 6
 
-1. 先添加 CLI、确定性 payload 和设置门禁测试，确认缺失模块/设置形成有效 RED。
-2. `--print-only` 必须在不建立网络连接的情况下输出一条合法 JSON，且包含固定设备分类、子型、功率符号和 `data_source=simulated`。
-3. 正常模式使用既有遥测与控制主题，场景控制使用 simulator-only topic；默认 EMS 与 simulation 开关均为 false。
-4. 固定 seed 的输出除时间戳外必须可重复；文档必须明确这是系统级仿真，不是真实 BMS/PCS 固件。
-5. 正常 MQTT 联调前显式升级开发库到 `20260716_0002`；纯 CLI `--print-only` 测试不操作开发库。
+1. 先添加储能命令生命周期与分类回执测试，确认缺失 service/dispatcher 形成有效 RED。
+2. 只支持 `set_active_power`、`set_control_mode`、`stop`，并固定 accepted/running/terminal 状态集合。
+3. 校验有限功率、资产额定功率边界、manual/rule/day_ahead 来源、auto/manual 模式及每设备单个 pending 命令。
+4. 复用 `DeviceControlLog`、现有 MQTT publisher、行锁和实时事件；分类 dispatcher 必须保留电容补偿旧行为。
+5. 增加只处理 `storage-control-api` pending 日志的超时任务；真实运行联调前仍需升级开发库到 `20260716_0002`。
 
 ## 固定业务契约
 
@@ -38,8 +41,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 4，不开始 Task 5 生产代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 5 范围内。
+- 本轮只完成 Task 5，不开始 Task 6 生产代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 6 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -47,4 +50,5 @@
 - 园区光储是唯一活跃主主题。
 - Task 3：通过并正式完成。
 - Task 4：通过并正式完成。
-- Task 5：已解除依赖，交后端储能角色执行。
+- Task 5：通过并正式完成。
+- Task 6：已解除依赖，交后端储能角色执行。
