@@ -9,22 +9,34 @@ import { useStorageEms } from './composables/useStorageEms'
 
 defineOptions({ name: 'StorageEmsWorkspace' })
 
+withDefaults(defineProps<{
+  canGeneratePlan?: boolean
+}>(), {
+  canGeneratePlan: false,
+})
+
 const {
   scenario,
   seed,
   initialSoc,
   overview,
   comparison,
-  loading,
+  generationResult,
   error,
+  overviewLoading,
+  comparisonLoading,
+  generationLoading,
+  generationError,
   refresh,
   generatePlan,
   compareStrategies,
 } = useStorageEms()
 
 onMounted(async () => {
-  await refresh()
-  await compareStrategies()
+  const refreshed = await refresh()
+  if (refreshed && overview.value?.storage_device_ids.length) {
+    await compareStrategies()
+  }
 })
 
 function sourceLabel(source?: string | null): string {
@@ -70,7 +82,11 @@ function sourceLabel(source?: string | null): string {
     <div class="storage-ems__controls">
       <StorageDispatchPanel
         :overview="overview"
-        :loading="loading"
+        :refreshing="overviewLoading"
+        :generating="generationLoading"
+        :generation-result="generationResult"
+        :generation-error="generationError"
+        :can-generate-plan="canGeneratePlan"
         @refresh="refresh"
         @generate="generatePlan"
       />
@@ -78,7 +94,7 @@ function sourceLabel(source?: string | null): string {
         v-model:scenario="scenario"
         v-model:seed="seed"
         v-model:initial-soc="initialSoc"
-        :loading="loading"
+        :loading="comparisonLoading"
         @compare="compareStrategies"
       />
     </div>

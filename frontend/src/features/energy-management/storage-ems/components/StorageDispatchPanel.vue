@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import type { StorageEnergyOverview } from '@/api/storageEnergy'
+import type {
+  StorageDispatchGenerationResult,
+  StorageEnergyOverview,
+} from '@/api/storageEnergy'
 
 defineProps<{
   overview: StorageEnergyOverview | null
-  loading: boolean
+  refreshing: boolean
+  generating: boolean
+  generationResult: StorageDispatchGenerationResult | null
+  generationError: string | null
+  canGeneratePlan: boolean
 }>()
 
 defineEmits<{
@@ -36,7 +43,7 @@ function percentage(input: number | null | undefined): string {
       </div>
       <button
         type="button"
-        :disabled="loading"
+        :disabled="refreshing"
         @click="$emit('refresh')"
       >
         刷新
@@ -62,10 +69,31 @@ function percentage(input: number | null | undefined): string {
     >
       输入数据已过期，不应视为实时控制依据。
     </p>
+    <div
+      v-if="generationResult"
+      class="storage-panel__generation-result"
+    >
+      <span>生成返回状态：{{ value(generationResult.status) }}</span>
+      <span>求解器：{{ value(generationResult.solver_status) }}</span>
+    </div>
+    <p
+      v-if="generationError"
+      class="storage-panel__warning"
+      role="alert"
+    >
+      计划生成失败：{{ generationError }}
+    </p>
+    <p
+      v-if="!canGeneratePlan"
+      class="storage-panel__readonly"
+    >
+      当前账号仅可查看，不能生成调度计划。
+    </p>
     <button
       class="storage-panel__primary"
+      data-testid="generate-storage-plan"
       type="button"
-      :disabled="loading || !overview?.storage_device_ids.length"
+      :disabled="generating || !canGeneratePlan || !overview?.storage_device_ids.length"
       @click="overview?.storage_device_ids[0] != null && $emit('generate', overview.storage_device_ids[0])"
     >
       生成今日计划
@@ -86,5 +114,7 @@ dt { color: var(--em-subtle); font-size: 11px; }
 dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--em-text); font-size: 13px; }
 .storage-panel__fallback, .storage-panel__warning { margin: 0 0 12px; padding: 9px 10px; border-left: 2px solid var(--em-amber); background: rgba(248,196,113,.07); color: var(--em-amber); font-size: 12px; line-height: 1.5; }
 .storage-panel__warning { border-color: var(--em-coral); color: var(--em-coral); }
+.storage-panel__generation-result { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 12px; color: var(--em-muted); font-size: 12px; }
+.storage-panel__readonly { margin: 0 0 12px; color: var(--em-subtle); font-size: 12px; }
 .storage-panel__primary { width: 100%; border-color: rgba(94,234,212,.28); color: var(--em-cyan); }
 </style>

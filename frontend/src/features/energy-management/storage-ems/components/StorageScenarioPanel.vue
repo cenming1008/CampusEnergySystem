@@ -45,6 +45,7 @@ function numberValue(event: Event): number {
       <span>场景</span>
       <select
         :value="scenario"
+        :disabled="loading"
         @change="emit('update:scenario', ($event.target as HTMLSelectElement).value as StorageScenarioKey)"
       >
         <option
@@ -60,6 +61,7 @@ function numberValue(event: Event): number {
         <input
           type="number"
           :value="seed"
+          :disabled="loading"
           @input="emit('update:seed', numberValue($event))"
         >
       </label>
@@ -70,6 +72,7 @@ function numberValue(event: Event): number {
           min="0"
           max="100"
           :value="initialSoc"
+          :disabled="loading"
           @input="emit('update:initialSoc', numberValue($event))"
         >
       </label>

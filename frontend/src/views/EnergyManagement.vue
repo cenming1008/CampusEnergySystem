@@ -82,6 +82,9 @@ const carbonDetails = ref<CarbonEmission[]>([])
 const entryDialogVisible = ref(false)
 const authStore = useAuthStore()
 const { hasScopedAccess } = usePermissions()
+const canGenerateStoragePlan = computed(() => (
+  ['admin', 'maintainer', 'operator'].includes((authStore.role || 'viewer').toLowerCase().trim())
+))
 
 interface CarbonCalculationResult {
   energy_type: string
@@ -744,7 +747,10 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
       @submit="handleSaveEntry"
     />
 
-    <StorageEmsWorkspace v-if="activeWorkspace === 'storage_ems'" />
+    <StorageEmsWorkspace
+      v-if="activeWorkspace === 'storage_ems'"
+      :can-generate-plan="canGenerateStoragePlan"
+    />
   </div>
 </template>
 

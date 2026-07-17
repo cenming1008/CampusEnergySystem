@@ -108,6 +108,9 @@ describe('StorageEmsWorkspace', () => {
     expect(wrapper.text()).toContain('基线策略')
     expect(wrapper.text()).toContain('规则策略')
     expect(wrapper.text()).toContain('日前策略')
+    expect(wrapper.text()).toContain('sunny_workday')
+    expect(wrapper.text()).toContain('20260716')
+    expect(wrapper.text()).toContain('50.0%')
     expect(wrapper.text()).not.toContain('执行率 100%')
   })
 
@@ -122,5 +125,59 @@ describe('StorageEmsWorkspace', () => {
     await flushPromises()
 
     expect(wrapper.get('.storage-ems__source').text()).toBe('--')
+  })
+
+  it('does not compare when the overview request fails', async () => {
+    getStorageEnergyOverviewMock.mockRejectedValueOnce(new Error('总览不可用'))
+
+    const wrapper = mount(StorageEmsWorkspace)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('总览不可用')
+    expect(getStorageStrategyComparisonMock).not.toHaveBeenCalled()
+  })
+
+  it('disables all scenario controls while comparison is in flight', async () => {
+    getStorageStrategyComparisonMock.mockReturnValueOnce(new Promise(() => undefined))
+
+    const wrapper = mount(StorageEmsWorkspace)
+    await flushPromises()
+
+    const controls = wrapper.findAll('select, input, button').filter((item) => (
+      item.element.closest('[aria-labelledby="scenario-title"]')
+    ))
+    expect(controls.length).toBeGreaterThan(0)
+    expect(controls.every((item) => item.attributes('disabled') !== undefined)).toBe(true)
+  })
+
+  it('gates plan generation for viewer and authorized roles', async () => {
+    const viewer = mount(StorageEmsWorkspace, { props: { canGeneratePlan: false } })
+    await flushPromises()
+    expect(viewer.get('[data-testid="generate-storage-plan"]').attributes('disabled')).toBeDefined()
+    expect(viewer.text()).toContain('当前账号仅可查看')
+
+    const authorized = mount(StorageEmsWorkspace, { props: { canGeneratePlan: true } })
+    await flushPromises()
+    expect(authorized.get('[data-testid="generate-storage-plan"]').attributes('disabled')).toBeUndefined()
+    expect(authorized.text()).not.toContain('当前账号仅可查看')
+  })
+
+  it('renders an HTTP 200 optimizer failure without refreshing the old plan', async () => {
+    generateStorageDispatchPlanMock.mockResolvedValueOnce({
+      status: 'failed',
+      solver_status: 'Infeasible',
+      dispatch_date: '2026-07-17',
+      plans: [],
+      failure_reason: 'SOC 约束不可行',
+    })
+    const wrapper = mount(StorageEmsWorkspace, { props: { canGeneratePlan: true } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="generate-storage-plan"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Infeasible')
+    expect(wrapper.text()).toContain('SOC 约束不可行')
+    expect(getStorageEnergyOverviewMock).toHaveBeenCalledTimes(1)
   })
 })

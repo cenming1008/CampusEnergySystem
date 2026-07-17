@@ -40,7 +40,12 @@ function rate(value: number | null | undefined): string {
       </div>
       <p>
         求解状态 {{ comparison?.solver_status || '--' }}
-        <span v-if="comparison"> · 校验 {{ comparison.input_series_checksum.slice(0, 8) }}</span>
+        <span v-if="comparison">
+          · 场景 {{ comparison.scenario_key }}
+          · seed {{ comparison.seed }}
+          · 初始 SOC {{ comparison.initial_soc.toFixed(1) }}%
+          · 校验 {{ comparison.input_series_checksum.slice(0, 8) }}
+        </span>
       </p>
     </div>
     <div class="strategy-comparison__scroll">

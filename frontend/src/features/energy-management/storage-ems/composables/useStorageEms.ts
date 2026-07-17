@@ -1,9 +1,10 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   generateStorageDispatchPlan,
   getStorageEnergyOverview,
   getStorageStrategyComparison,
   type StorageEnergyOverview,
+  type StorageDispatchGenerationResult,
   type StorageScenarioKey,
   type StorageStrategyComparisonResult,
 } from '@/api/storageEnergy'
@@ -28,52 +29,86 @@ export function useStorageEms() {
   const initialSoc = ref(50)
   const overview = ref<StorageEnergyOverview | null>(null)
   const comparison = ref<StorageStrategyComparisonResult | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const generationResult = ref<StorageDispatchGenerationResult | null>(null)
+  const overviewLoading = ref(false)
+  const comparisonLoading = ref(false)
+  const generationLoading = ref(false)
+  const overviewError = ref<string | null>(null)
+  const comparisonError = ref<string | null>(null)
+  const generationError = ref<string | null>(null)
+  const loading = computed(() => (
+    overviewLoading.value || comparisonLoading.value || generationLoading.value
+  ))
+  const error = computed(() => (
+    generationError.value || overviewError.value || comparisonError.value
+  ))
+  let comparisonRequestToken = 0
 
   async function refresh() {
-    loading.value = true
-    error.value = null
+    overviewLoading.value = true
+    overviewError.value = null
     try {
       overview.value = await getStorageEnergyOverview()
+      return true
     } catch (reason) {
-      error.value = toErrorMessage(reason)
+      overviewError.value = toErrorMessage(reason)
+      return false
     } finally {
-      loading.value = false
+      overviewLoading.value = false
     }
   }
 
   async function generatePlan(deviceId: number) {
-    loading.value = true
-    error.value = null
+    generationLoading.value = true
+    generationError.value = null
+    generationResult.value = null
     try {
-      await generateStorageDispatchPlan(deviceId, {
+      const result = await generateStorageDispatchPlan(deviceId, {
         dispatch_date: localDate(),
         scenario_key: scenario.value,
         seed: seed.value,
         initial_soc: initialSoc.value,
       })
-      await refresh()
+      generationResult.value = result
+      const successfulStatus = ['success', 'optimal'].includes(result.status.toLowerCase())
+      if (!successfulStatus || result.failure_reason != null) {
+        generationError.value = result.failure_reason
+          || `调度计划生成失败（${result.status || 'unknown'}）`
+        return false
+      }
+      return await refresh()
     } catch (reason) {
-      error.value = toErrorMessage(reason)
-      loading.value = false
+      generationError.value = toErrorMessage(reason)
+      return false
+    } finally {
+      generationLoading.value = false
     }
   }
 
   async function compareStrategies() {
-    loading.value = true
-    error.value = null
+    const requestToken = ++comparisonRequestToken
+    const params = {
+      scenario_key: scenario.value,
+      seed: seed.value,
+      initial_soc: initialSoc.value,
+      device_id: overview.value?.storage_device_ids[0],
+    }
+    comparisonLoading.value = true
+    comparisonError.value = null
+    comparison.value = null
     try {
-      comparison.value = await getStorageStrategyComparison({
-        scenario_key: scenario.value,
-        seed: seed.value,
-        initial_soc: initialSoc.value,
-        device_id: overview.value?.storage_device_ids[0],
-      })
+      const result = await getStorageStrategyComparison(params)
+      if (requestToken !== comparisonRequestToken) return false
+      comparison.value = result
+      return true
     } catch (reason) {
-      error.value = toErrorMessage(reason)
+      if (requestToken !== comparisonRequestToken) return false
+      comparisonError.value = toErrorMessage(reason)
+      return false
     } finally {
-      loading.value = false
+      if (requestToken === comparisonRequestToken) {
+        comparisonLoading.value = false
+      }
     }
   }
 
@@ -83,8 +118,15 @@ export function useStorageEms() {
     initialSoc,
     overview,
     comparison,
+    generationResult,
     loading,
     error,
+    overviewLoading,
+    comparisonLoading,
+    generationLoading,
+    overviewError,
+    comparisonError,
+    generationError,
     refresh,
     generatePlan,
     compareStrategies,

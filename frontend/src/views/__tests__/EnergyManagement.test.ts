@@ -13,6 +13,7 @@ const {
   saveEnergyDataMock,
   errorMock,
   successMock,
+  authStoreState,
 } = vi.hoisted(() => ({
   getEnergyTypesMock: vi.fn(),
   getEnergyOverviewMock: vi.fn(),
@@ -23,6 +24,7 @@ const {
   saveEnergyDataMock: vi.fn(),
   errorMock: vi.fn(),
   successMock: vi.fn(),
+  authStoreState: { role: 'viewer', locationScope: null as string | null },
 }))
 
 vi.mock('@/shared/lib/echarts', () => ({
@@ -53,9 +55,7 @@ vi.mock('@/api/device', () => ({
 }))
 
 vi.mock('@/stores/useAuthStore', () => ({
-  useAuthStore: () => ({
-    locationScope: null,
-  }),
+  useAuthStore: () => authStoreState,
 }))
 
 vi.mock('@/shared/composables/usePermissions', () => ({
@@ -109,6 +109,7 @@ function mountView() {
         EnergyHeaderControls: true,
         StorageEmsWorkspace: {
           name: 'StorageEmsWorkspace',
+          props: ['canGeneratePlan'],
           template: '<section data-testid="storage-ems-workspace" />',
         },
       },
@@ -161,6 +162,8 @@ describe('EnergyManagement view', () => {
     saveEnergyDataMock.mockReset()
     errorMock.mockReset()
     successMock.mockReset()
+    authStoreState.role = 'viewer'
+    authStoreState.locationScope = null
 
     getEnergyTypesMock.mockResolvedValue({
       energy_types: [
@@ -231,6 +234,21 @@ describe('EnergyManagement view', () => {
 
     expect(wrapper.findComponent({ name: 'StorageEmsWorkspace' }).exists()).toBe(true)
     expect(wrapper.find('[data-testid="energy-overview-workspace"]').exists()).toBe(false)
+  })
+
+  it('passes storage plan generation permission for supported roles only', async () => {
+    const viewer = mountView()
+    await vi.runAllTimersAsync()
+    await flushAsync()
+    await viewer.get('[data-testid="workspace-storage-ems"]').trigger('click')
+    expect(viewer.findComponent({ name: 'StorageEmsWorkspace' }).props('canGeneratePlan')).toBe(false)
+
+    authStoreState.role = 'operator'
+    const operator = mountView()
+    await vi.runAllTimersAsync()
+    await flushAsync()
+    await operator.get('[data-testid="workspace-storage-ems"]').trigger('click')
+    expect(operator.findComponent({ name: 'StorageEmsWorkspace' }).props('canGeneratePlan')).toBe(true)
   })
 
   it('saves manual entry and refreshes overview', async () => {
