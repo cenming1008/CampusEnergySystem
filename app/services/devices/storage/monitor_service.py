@@ -9,7 +9,6 @@ from sqlmodel import Session, select
 
 from app.models.storage import StorageTelemetry
 
-
 _RUN_STATE_LABELS: dict[str, str] = {
     "idle": "空闲",
     "charging": "充电中",
@@ -87,6 +86,14 @@ class StorageMonitorService:
         soc = getattr(telemetry, "soc", None)
         soh = getattr(telemetry, "soh", None)
         active_power = getattr(telemetry, "active_power", None)
+        target_active_power = getattr(telemetry, "target_active_power", None)
+        available_charge_power = getattr(telemetry, "available_charge_power", None)
+        available_discharge_power = getattr(telemetry, "available_discharge_power", None)
+        bms_status = getattr(telemetry, "bms_status", None)
+        pcs_status = getattr(telemetry, "pcs_status", None)
+        grid_status = getattr(telemetry, "grid_status", None)
+        command_source = getattr(telemetry, "command_source", None)
+        data_source = getattr(telemetry, "data_source", None)
         cell_temp_max = getattr(telemetry, "cell_temp_max", None)
         cell_temp_min = getattr(telemetry, "cell_temp_min", None)
         cell_temp_avg = getattr(telemetry, "cell_temp_avg", None)
@@ -110,6 +117,46 @@ class StorageMonitorService:
                 "soc": m(soc, **tm(soc)),
                 "soh": m(soh, **tm(soh)),
                 "active_power": m(active_power, **tm(active_power)),
+                "target_active_power": m(target_active_power, **tm(target_active_power)),
+                "available_charge_power": m(
+                    available_charge_power,
+                    **tm(available_charge_power),
+                ),
+                "available_discharge_power": m(
+                    available_discharge_power,
+                    **tm(available_discharge_power),
+                ),
+                "bms_state": m(
+                    bms_status,
+                    source="telemetry" if bms_status else "missing",
+                    state="live" if bms_status else "missing",
+                ),
+                "pcs_state": m(
+                    pcs_status,
+                    source="telemetry" if pcs_status else "missing",
+                    state="live" if pcs_status else "missing",
+                ),
+                "grid_connection_state": m(
+                    grid_status,
+                    source="telemetry" if grid_status else "missing",
+                    state="live" if grid_status else "missing",
+                ),
+                "command_source": m(
+                    command_source,
+                    source="telemetry" if command_source else "missing",
+                    state="live" if command_source else "missing",
+                ),
+                "data_source": m(
+                    data_source,
+                    source="telemetry" if data_source else "missing",
+                    state=(
+                        "simulated"
+                        if data_source == "simulated"
+                        else "live"
+                        if data_source
+                        else "missing"
+                    ),
+                ),
                 "cell_temp_max": m(cell_temp_max, **tm(cell_temp_max)),
                 "cell_temp_min": m(cell_temp_min, **tm(cell_temp_min)),
                 "cell_temp_avg": m(cell_temp_avg, **tm(cell_temp_avg)),

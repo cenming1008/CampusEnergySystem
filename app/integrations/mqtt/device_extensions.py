@@ -22,7 +22,6 @@ from app.integrations.mqtt.compensation import (
 from app.models.storage import StorageTelemetry
 from app.models.tables import CapacitorBankTelemetry, Device, SVGTelemetry
 
-
 _STORAGE_NUMERIC_FIELDS = (
     "soc",
     "soh",
@@ -44,8 +43,16 @@ _STORAGE_NUMERIC_FIELDS = (
     "discharge_energy_today",
     "charge_energy_total",
     "discharge_energy_total",
+    "target_active_power",
+    "available_charge_power",
+    "available_discharge_power",
 )
-_STORAGE_TEXT_FIELDS = ("run_state", "control_mode")
+_STORAGE_TEXT_FIELDS = ("run_state", "control_mode", "command_source", "data_source")
+_STORAGE_STATE_FIELD_MAP = {
+    "bms_state": "bms_status",
+    "pcs_state": "pcs_status",
+    "grid_connection_state": "grid_status",
+}
 _STORAGE_INT_FIELDS = ("fault_code", "alarm_code", "cycle_count")
 
 
@@ -95,6 +102,10 @@ def _extract_storage_telemetry(raw_data: dict[str, Any]) -> dict[str, Any]:
         value = raw_data.get(field)
         if value is not None:
             fields[field] = str(value)
+    for payload_field, storage_field in _STORAGE_STATE_FIELD_MAP.items():
+        value = raw_data.get(payload_field)
+        if value is not None:
+            fields[storage_field] = str(value)
     for field in _STORAGE_INT_FIELDS:
         parsed = _to_int(raw_data.get(field))
         if parsed is not None:

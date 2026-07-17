@@ -77,22 +77,23 @@ def test_storage_resumes_only_after_phase2a_acceptance():
         "docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md"
     )
     assert "当前主主题：`园区光储协同仿真与 EMS 控制`" in status
-    assert "Task 3" in status and "具备准入条件" in status
+    assert re.search(r"(?m)^- \[x\] Task 3[:：].*完成", status)
+    assert re.search(r"(?m)^- \[ \] Task 4[:：].*尚未开始", status)
     assert 'revision = "20260716_0002"' in storage_plan
     assert 'down_revision = "20260716_0001"' in storage_plan
 
 
-def test_storage_task3_handoff_is_ready_but_not_complete():
+def test_storage_task3_is_complete_and_task4_handoff_is_ready():
     status = read("docs/plans/current-status.md")
     handoff = read("docs/plans/handoff.md")
     governance = "\n".join((status, handoff))
 
-    assert "Task 3" in status and "具备准入条件" in status
-    assert "Task 3" in handoff and "具备准入条件" in handoff
-    assert "尚未完成" in status
-    assert "尚未完成" in handoff
-    assert not re.search(r"(?m)^- \[x\] Task 3[:：]", governance)
-    assert not re.search(r"(?m)^- Task 3[:：]\s*(?:已)?完成[。；]?$", governance)
+    assert re.search(r"(?m)^- \[x\] Task 3[:：].*完成", status)
+    assert re.search(r"(?m)^- Task 3[:：]通过并正式完成", governance)
+    assert re.search(r"(?m)^- \[ \] Task 4[:：].*尚未开始", status)
+    assert "下一棒：后端储能 Task 4" in handoff
+    assert "Task 4：已解除依赖，交后端储能角色执行" in handoff
+    assert not re.search(r"(?m)^- \[x\] Task 4[:：]", governance)
 
 
 def test_storage_plans_lock_the_accepted_migration_boundary():
