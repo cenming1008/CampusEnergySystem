@@ -16,6 +16,7 @@
 - Task 3 已完成，提交为 `aa97e3ad`；三条 migration 路径各 682 个对象且共同指纹为 `b81c0db6aaef07fad85a7b617b005e99e1aaafee382e06da6f378eea6d4cbaec`。
 - 三条路径均到 `20260716_0002`，均保留 `energydata` hypertable；两张新增表和八个扩展列已核对。
 - 全量后端 `740 passed, 5 warnings`，Task 3 Ruff 通过。
+- 实际开发库 `campus_energy` 仍在 `20260716_0001`，`storage_asset_profile` 与 `storage_dispatch_plan` 尚未应用。
 
 ## 下一棒：后端储能 Task 4
 
@@ -24,6 +25,7 @@
 3. `target_active_power`、可充放电功率、命令来源和数据来源按批准列直接落库。
 4. 保持负功率表示放电，不得转换符号；模拟数据必须保留 `data_source=simulated`。
 5. focused tests 和相关设备监控回归通过后，交验收判断 Task 4。
+6. 若进入依赖新结构的真实运行联调，先显式升级 `campus_energy` 到 `20260716_0002` 并核对两张表、八个列和 `energydata` hypertable；纯单元/合同测试阶段不应借 runtime metadata 隐式补表。
 
 ## 固定业务契约
 

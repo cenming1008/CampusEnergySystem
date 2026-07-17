@@ -22,6 +22,7 @@
 - fresh、offline、roundtrip 各 682 个对象，共同 SHA-256 为 `b81c0db6aaef07fad85a7b617b005e99e1aaafee382e06da6f378eea6d4cbaec`。
 - 三条路径均位于 `20260716_0002`，均保留 `public.energydata` hypertable，并已核对两张新增表和八个扩展列。
 - 全量后端：`740 passed, 5 warnings`；Task 3 变更文件 Ruff 检查通过。
+- 实际开发库 `campus_energy` 仍在 `20260716_0001`，尚未应用两张 Task 3 表；临时三路径验收通过不等于开发库已经升级。
 
 ## 固定契约
 
@@ -36,6 +37,7 @@
 1. 后端储能角色按 TDD 添加 Task 4 仿真 payload 入库与监控聚合测试并观察 RED。
 2. 扩展 MQTT 数值字段，并把设备侧三个 state 键显式映射到持久化 status 列。
 3. 验证负功率放电符号和 `data_source=simulated` 不被改写，再运行储能接入与监控相关回归。
+4. 在启动依赖 Task 3 新结构的真实运行链路前，显式升级并复核 `campus_energy` 到 `20260716_0002`；不得隐式依赖 runtime metadata 建表。
 
 ## 当前验收判断
 
