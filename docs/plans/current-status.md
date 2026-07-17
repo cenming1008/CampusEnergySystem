@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 13 园区级光储总览与策略对比 API 已通过验收；当前进入 Task 14 原有能耗分析页“光储 EMS”工作区。
+- 当前总目标：Task 14 原有能耗分析页“光储 EMS”工作区已通过验收；当前进入 Task 15 适配器替换、安全切换和确定性端到端验收。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -22,7 +22,8 @@
 - [x] Task 11：确定性 96 时段日前 MILP 优化器与开源 CBC 依赖完成。
 - [x] Task 12：调度计划原子替换、EMS 安全执行、失败回退、每日任务与嵌套 API 完成。
 - [x] Task 13：园区级光储总览、三策略同输入重放、权限与显式响应契约完成。
-- [ ] Task 14 及后续：按实施计划依赖顺序等待。
+- [x] Task 14：原页面光储 EMS 工作区、权限门禁、异步状态保护与展示契约完成。
+- [ ] Task 15：适配器替换、安全切换和确定性端到端验收等待执行。
 
 ## Task 3 完成证据
 
@@ -134,11 +135,21 @@
 - 没有真实执行证据的跨策略 `plan_execution_rate` 显式为 `null`，重放物理可执行率单列为 `feasible_slot_rate`。
 - 聚焦 `15 passed, 2 warnings`，完整后端 `842 passed, 2 skipped, 7 warnings`；Ruff、两条 OpenAPI 响应模型与差异检查通过。未新增 migration，未修改前端。
 
+## Task 14 完成证据
+
+- 实现提交：`cdd0bbda`；审查修复提交：`be8ae66b`、`bd645552`、`2f681a8d`。
+- 在原有 `EnergyManagement` 内增加 overview / storage_ems 工作区选择，继续复用 `/energy` 路由；未新增菜单、第二套储能页面、后端接口或 migration。
+- 单一 `useStorageEms` 管理总览、策略比较与计划生成；异步请求使用序列令牌，旧响应不会覆盖新状态。
+- 持续显示仿真/真实来源、输入时效、计划/求解/回退状态；缺失值为 `--`，`plan_execution_rate=null` 不会伪装为执行成功。
+- viewer 只读，maintainer/operator/admin 可生成计划；HTTP 200 中的优化失败按失败展示并保留后端原因。
+- 聚焦回归 `31 passed`，typecheck 与 build 通过；变更文件 ESLint `0 errors, 13 warnings`，warning 位于原页面历史展示区域。
+- 前端全量 `382 passed, 1 failed`；唯一失败为本任务未修改的既有 `DeviceTrendPanel` 测试桩未注册 `el-segmented`。
+
 ## 当前待办
 
-1. 前端角色按 TDD 执行 Task 14，只在现有 `EnergyManagement` 页面增加“光储 EMS”工作区，不新增路由或第二套储能页面。
-2. 前端通过 Task 13 两条只读聚合 API 和既有设备调度生成 API 展示能流、目标/实际、来源、计划状态与三策略指标；不得伪造优化成功或回退状态。
-3. 保持 `data_source=simulated/real` 持续可见，缺失值显示 `--`，跨策略 `plan_execution_rate=null` 不得展示为 100% 执行成功。
+1. 验收/后端角色按 TDD 执行 Task 15，先锁定精确设备、精确来源的切换预览和拒绝条件。
+2. 实现模拟数据安全清理 CLI 与确定性端到端演示，严禁全表清空；保留真实记录、设备档案、权限和审计证据。
+3. 证明模拟器与未来厂商网关只替换设备侧适配器，储能业务 API、设备页面和光储 EMS 工作区不变。
 4. 正常 MQTT 与依赖计划表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
@@ -156,5 +167,6 @@
 - Task 11：通过并正式完成。
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
-- Task 14：已解除依赖，尚未开始。
-- 下一接手角色：前端角色。
+- Task 14：通过并正式完成。
+- Task 15：已解除依赖，尚未开始。
+- 下一接手角色：验收/后端角色。

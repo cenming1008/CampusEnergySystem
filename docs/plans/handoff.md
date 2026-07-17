@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交前端角色执行 Task 14，在原有能耗分析页增加“光储 EMS”工作区，不新增独立路由或第二套储能页面。
+- 当前目标：交验收/后端角色执行 Task 15，证明设备侧适配器可替换、模拟数据可按精确设备安全切换，并完成确定性端到端演示。
 
 ## 已完成与准入
 
@@ -33,14 +33,15 @@
 - Task 11 已完成确定性 96 时段日前 MILP 优化器，提交为 `48b91c90`；聚焦 `6 passed`，完整后端 `817 passed, 2 skipped, 7 warnings`。
 - Task 12 已完成计划原子替换、EMS 安全执行、每日任务与三条嵌套 API，提交为 `b10991d5`；完整后端 `829 passed, 2 skipped, 7 warnings`。
 - Task 13 已完成园区级光储总览、同输入三策略重放、权限过滤、来源/时效/计划状态与显式响应模型，提交为 `e0508eed`；完整后端 `842 passed, 2 skipped, 7 warnings`。
+- Task 14 已完成原有 `/energy` 页面光储 EMS 工作区、权限门禁和异步状态保护，提交为 `cdd0bbda`，审查修复为 `be8ae66b`、`bd645552`、`2f681a8d`；聚焦 `31 passed`，typecheck 与 build 通过。
 
-## 下一棒：前端 Task 14
+## 下一棒：验收/后端 Task 15
 
-1. 先写组件与原页面复用 RED，在 `EnergyManagement` 内增加 overview / storage_ems 工作区选择，不改 router。
-2. 新增精确 TypeScript 类型和单一 `useStorageEms` 状态所有者，消费 `/energy/storage/overview`、`/energy/storage/comparison` 与既有调度生成接口。
-3. 展示能流、目标/实际、来源、输入时效、计划/求解/回退状态和基线/规则/日前指标；缺失值必须显示 `--`。
-4. `plan_execution_rate=null` 表示没有真实执行证据，不能显示为成功；`feasible_slot_rate` 只表示策略重放可执行率。
-5. 继续复用原有 `/energy` 路由和统一储能设备页面，不建立模拟版页面。
+1. 先写精确设备切换 RED，覆盖预览计数、执行计数、来源过滤、自动控制仍开启、模拟器仍活跃、计数漂移、非储能设备和缺少操作人的拒绝条件。
+2. 清理只允许命中指定设备且 `data_source=simulated` 的遥测、计划和控制日志；真实记录、其他设备、资产档案、权限和审计必须保留。
+3. 提供 `storage_cutover.py` 预览/执行入口与确定性 `run_storage_demo.py`，默认安全、可复核，不允许全表清空。
+4. 用端到端测试证明模拟器与厂商网关遵循同一设备侧契约，替换适配器后业务 API、`StorageMonitorView` 和 `/energy` 光储 EMS 工作区无需改动。
+5. 补齐演示与脚本入口文档，并执行聚焦、储能回归和必要的完整后端验收。
 
 ## 固定业务契约
 
@@ -55,8 +56,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 13 后端聚合，不开始 Task 14 前端代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 13 范围内。
+- 本轮只完成 Task 14 前端工作区并收敛文档，不开始 Task 15 后端/验收代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 14 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -73,4 +74,5 @@
 - Task 11：通过并正式完成。
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
-- Task 14：已解除依赖，交前端角色执行。
+- Task 14：通过并正式完成。
+- Task 15：已解除依赖，交验收/后端角色执行。

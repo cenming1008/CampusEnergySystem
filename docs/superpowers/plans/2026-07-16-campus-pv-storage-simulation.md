@@ -1115,7 +1115,7 @@ Task 13 实现提交为 `e0508eed`。RED 由缺失 service、路由与响应契�
 - Test: `frontend/src/features/energy-management/storage-ems/__tests__/StorageEmsWorkspace.test.ts`
 - Test: `frontend/src/views/__tests__/EnergyManagement.test.ts`
 
-- [ ] **Step 1: Write failing workspace and reuse tests**
+- [x] **Step 1: Write failing workspace and reuse tests**
 
 Add a focused component test that mounts `StorageEmsWorkspace` with calculated API fixtures and asserts load/PV/grid/storage flow values, target-versus-actual power, `仿真数据`, fallback reason, and baseline/rule/day-ahead comparison rows. Extend `EnergyManagement.test.ts` with this route-reuse assertion:
 
@@ -1130,7 +1130,7 @@ it('opens 光储 EMS inside the existing energy management page', async () => {
 
 Do not add or modify a router test: `/energy` remains the only route for this workspace.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run:
 
@@ -1141,7 +1141,7 @@ npm run test:unit -- src/features/energy-management/storage-ems src/views/__test
 
 Expected: FAIL because `StorageEmsWorkspace`, the workspace selector, and the typed API do not exist.
 
-- [ ] **Step 3: Add typed API and composable**
+- [x] **Step 3: Add typed API and composable**
 
 Define exact overview/comparison/request types in `storageEnergy.ts`. Implement `useStorageEms` as the only owner of loading, error, scenario, seed, initial SOC, refresh, plan generation, and comparison state:
 
@@ -1188,15 +1188,15 @@ Define `getStorageEnergyOverview`, `generateStorageDispatchPlan`, and `getStorag
 
 Components stay presentational and emit scenario, refresh, and generate actions. They must not call APIs directly.
 
-- [ ] **Step 4: Add the existing-page workspace selector**
+- [x] **Step 4: Add the existing-page workspace selector**
 
 In `EnergyManagement.vue`, add `activeWorkspace = ref<'overview' | 'storage_ems'>('overview')` and two accessible selector buttons with `data-testid="workspace-overview"` and `data-testid="workspace-storage-ems"`. Keep the existing energy overview subtree unchanged under `v-if="activeWorkspace === 'overview'"`; mount `StorageEmsWorkspace` under the alternative branch. Do not modify `frontend/src/router/index.ts` or `frontend/src/layout/Layout.vue`.
 
-- [ ] **Step 5: Compose the storage EMS workspace**
+- [x] **Step 5: Compose the storage EMS workspace**
 
 Use the energy-flow strip above one dominant power/SOC trend. Place dispatch, scenario, and strategy comparison below it. Render missing values as `--`; render `data_source=simulated` as a persistent `仿真数据` badge and `data_source=real` as `真实设备`. Display optimizer status and fallback reason without fabricating plan success.
 
-- [ ] **Step 6: Run focused tests, typecheck, and build**
+- [x] **Step 6: Run focused tests, typecheck, and build**
 
 Run:
 
@@ -1209,12 +1209,14 @@ npm run build
 
 Expected: focused tests, typecheck, and build PASS; no new route or menu item exists.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/src/api/storageEnergy.ts frontend/src/features/energy-management/storage-ems frontend/src/views/EnergyManagement.vue frontend/src/views/__tests__/EnergyManagement.test.ts
 git commit -m "feat: add storage ems energy workspace"
 ```
+
+Task 14 实现提交为 `cdd0bbda`，审查修复提交为 `be8ae66b`、`bd645552` 与 `2f681a8d`。工作区复用现有 `/energy` 页面和权限体系，未新增路由、菜单、后端接口或 migration。聚焦回归 `31 passed`，typecheck 与 build 通过，变更文件 ESLint 为 `0 errors, 13 warnings`；warning 均位于原 `EnergyManagement.vue` 历史展示区域。前端全量为 `382 passed, 1 failed`，唯一失败仍是未修改的既有 `DeviceTrendPanel` 测试桩未注册 `el-segmented`。规格审查与质量审查均通过，异步请求使用序列令牌防止旧响应覆盖新状态，计划生成只对 maintainer/operator/admin 开放，HTTP 200 中的优化失败不会被展示为成功。
 
 ## Task 15: Prove adapter replacement, safe cutover, and deterministic end-to-end behavior
 
