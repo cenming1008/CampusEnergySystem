@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 5 可复用 MQTT 储能仿真器已通过验收；当前从 Task 6 开始构建储能控制命令生命周期与分类回执分发。
+- 当前总目标：Task 6 储能控制命令生命周期已通过验收；当前进入 Task 7，补齐资产来源、设备级自动控制门禁及原有储能 API。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -14,8 +14,9 @@
 - [x] Task 3：持久化模型、静态 migration 与真实三路径验收完成。
 - [x] Task 4：扩展仿真遥测入库、状态映射与监控聚合完成。
 - [x] Task 5：可复用 MQTT 储能仿真器、确定性场景与默认关闭门禁完成。
-- [ ] Task 6：储能控制命令生命周期与分类回执分发，已解除依赖，尚未开始。
-- [ ] Task 7 及后续：按实施计划依赖顺序等待。
+- [x] Task 6：储能控制命令生命周期、分类回执分发与超时收敛完成。
+- [ ] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API，已解除依赖。
+- [ ] Task 8 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -54,13 +55,21 @@
 - `STORAGE_EMS_ENABLED` 与 `STORAGE_SIMULATION_ENABLED` 在 Python 和所有环境模板中均默认为 `False`。
 - 完整环境全量后端：`754 passed, 7 warnings`；Task 5 变更文件 Ruff 与 `git diff --check` 通过。警告仍来自既有默认密钥与本地 LibreSSL 环境。
 
+## Task 6 完成证据
+
+- 新增独立储能控制命令规格与服务，只支持 `set_active_power`、`set_control_mode`、`stop`。
+- 功率有限值、资产充放电边界、manual/rule/day_ahead 来源、auto/manual 模式及单设备单个 pending 命令均有测试固定。
+- `DeviceControlLog.command_source=storage-control-api`；结构化 `reason` 保留目标、模式、来源、最新 `data_source` 和可选 `simulation_run_id`。
+- MQTT 控制回执按 `device_category` 分发；储能走新状态机，非储能继续走既有电容补偿服务，旧导出路径保留兼容。
+- 储能 pending 超时任务每分钟执行，且只更新 `storage-control-api` 日志；终态重复回执幂等，冲突迟到回执仅记录、不反转终态。
+- 聚焦与兼容回归：`40 passed, 2 warnings`；完整后端：`767 passed, 2 skipped, 7 warnings`。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 添加 Task 6 命令生命周期与分类回执测试并观察 RED。
-2. 固定储能命令、回执状态、功率/来源/模式校验以及每设备单个 pending 命令约束。
-3. 复用 `DeviceControlLog` 和现有 MQTT publisher，保留电容补偿回执兼容路径，并增加储能超时收敛任务。
-4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260716_0002`。
-5. Task 6 的结构化控制记录必须保留 `data_source` 和可选 `simulation_run_id`，为最终按设备安全清理提供依据。
+1. 后端储能角色按 TDD 执行 Task 7，先补资产来源、遥测 `simulation_run_id` 与设备级 `ems_auto_enabled` 的模型/migration 测试。
+2. 在原有储能设备嵌套 API 下扩展资产、最新状态和人工控制入口，不新建平行储能 API 主线。
+3. 人工控制继续复用 Task 6 服务；自动控制必须同时受全局与单设备门禁约束，且默认关闭。
+4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到当前最新 revision。
 
 ## 当前验收判断
 
@@ -69,5 +78,6 @@
 - Task 3：通过并正式完成。
 - Task 4：通过并正式完成。
 - Task 5：通过并正式完成。
-- Task 6：已解除依赖，尚未开始。
+- Task 6：通过并正式完成。
+- Task 7：已解除依赖，尚未开始。
 - 下一接手角色：后端储能角色。

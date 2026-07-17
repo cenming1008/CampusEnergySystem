@@ -540,10 +540,11 @@ git commit -m "feat: add campus storage mqtt simulator"
 - Create: `app/integrations/mqtt/control_receipts.py`
 - Modify: `app/integrations/mqtt/processor.py`
 - Modify: `app/services/scheduler_jobs.py`
+- Modify: `app/services/scheduler_registry.py`
 - Test: `tests/test_storage_control_command_service.py`
 - Test: `tests/test_storage_control_receipts.py`
 
-- [ ] **Step 1: Write failing command lifecycle tests**
+- [x] **Step 1: Write failing command lifecycle tests**
 
 ```python
 import json
@@ -572,13 +573,13 @@ def test_storage_receipt_dispatches_by_device_category(session, storage_device, 
     assert log.result == "success"
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py`
 
 Expected: FAIL because the storage command service and dispatcher do not exist.
 
-- [ ] **Step 3: Define fixed storage command specs**
+- [x] **Step 3: Define fixed storage command specs**
 
 Support only:
 
@@ -591,11 +592,11 @@ TERMINAL_RESULTS = {"success", "failed", "timeout", "rejected"}
 
 Validate finite power, rated-power bounds from `StorageAssetProfile`, source in `manual/rule/day_ahead`, mode in `auto/manual`, and one pending storage command per device.
 
-- [ ] **Step 4: Implement storage control service**
+- [x] **Step 4: Implement storage control service**
 
 Reuse `DeviceControlLog`, `publish_control_payload_async`, row locking, pending-command timeout, idempotent terminal receipts, and realtime control-log events. Use `command_source="storage-control-api"`; encode target power, manual/rule/day-ahead source, latest telemetry `data_source`, and optional `simulation_run_id` into structured JSON `reason`. These exact markers are required by Task 15 cutover preview; never infer simulated records from the device code.
 
-- [ ] **Step 5: Add category-aware receipt dispatch**
+- [x] **Step 5: Add category-aware receipt dispatch**
 
 ```python
 def process_device_control_receipt(session, data, device_id):
@@ -609,11 +610,11 @@ def process_device_control_receipt(session, data, device_id):
 
 Modify the processor to call this function while retaining existing compensation behavior.
 
-- [ ] **Step 6: Add timeout job**
+- [x] **Step 6: Add timeout job**
 
 Create `expire_storage_control_timeouts()` in `scheduler_jobs.py` and register it at the same cadence as compensation timeout convergence. It must only update `storage-control-api` pending logs.
 
-- [ ] **Step 7: Run focused tests**
+- [x] **Step 7: Run focused tests**
 
 Run:
 
@@ -623,10 +624,10 @@ python -m pytest -q tests/test_storage_control_command_service.py tests/test_sto
 
 Expected: all PASS; compensation receipt tests remain green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
-git add app/services/devices/storage/specs.py app/services/devices/storage/control_command_service.py app/integrations/mqtt/control_receipts.py app/integrations/mqtt/processor.py app/services/scheduler_jobs.py tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py
+git add app/services/devices/storage/specs.py app/services/devices/storage/control_command_service.py app/integrations/mqtt/control_receipts.py app/integrations/mqtt/processor.py app/services/scheduler_jobs.py app/services/scheduler_registry.py tests/test_storage_control_command_service.py tests/test_storage_control_receipts.py tests/test_scheduler_jobs.py
 git commit -m "feat: add storage control receipt lifecycle"
 ```
 

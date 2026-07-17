@@ -5,6 +5,7 @@ from unittest.mock import patch
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
 from app.services import scheduler_jobs, scheduler_registry
+from app.services.devices.storage.control_command_service import StorageControlCommandService
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -48,6 +49,27 @@ class TestSchedulerJobs(unittest.TestCase):
         )
         mock_logger.info.assert_any_call("✅ 补偿控制超时收口完成：共更新 2 条控制日志")
 
+    @patch("app.services.scheduler_jobs.StorageControlCommandService.expire_pending_control_logs")
+    @patch("app.services.scheduler_jobs.Session")
+    @patch("app.services.scheduler_jobs.logger")
+    def test_expire_storage_control_timeouts_logs_processed_count(
+        self,
+        mock_logger,
+        mock_session_cls,
+        mock_expire_pending,
+    ):
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+        mock_expire_pending.return_value = [object()]
+
+        scheduler_jobs.expire_storage_control_timeouts()
+
+        mock_logger.info.assert_any_call("开始扫描储能控制待定日志超时状态...")
+        mock_expire_pending.assert_called_once_with(
+            mock_session,
+            control_event_notifier=StorageControlCommandService.publish_control_log_update_event,
+        )
+        mock_logger.info.assert_any_call("✅ 储能控制超时收口完成：共更新 1 条控制日志")
+
     @patch("app.services.scheduler_jobs.IngestionHealthService.sync_platform_comm_alarms")
     @patch("app.services.scheduler_jobs.Session")
     @patch("app.services.scheduler_jobs.logger")
@@ -72,7 +94,12 @@ class TestSchedulerJobs(unittest.TestCase):
 
         self.assertEqual(
             [job.id for job in jobs],
-            ["auto_cleanup_data", "expire_compensation_control_timeouts", "sync_platform_comm_alarms"],
+            [
+                "auto_cleanup_data",
+                "expire_compensation_control_timeouts",
+                "expire_storage_control_timeouts",
+                "sync_platform_comm_alarms",
+            ],
         )
 
 if __name__ == "__main__":

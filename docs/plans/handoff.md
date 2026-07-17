@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 6，不提前展开 Task 7 或后续任务。
+- 当前目标：交后端储能角色执行 Task 7，不提前展开 Task 8 或后续任务。
 
 ## 已完成与准入
 
@@ -23,15 +23,16 @@
 - Task 5 已完成：五个确定性场景、固定 seed、加速时钟、双控制主题、模拟回执、优雅停止与 `--print-only` 均已落地。
 - Task 5 聚焦测试 `12 passed`，完整环境全量后端 `754 passed, 7 warnings`；变更文件 Ruff 与差异检查通过。
 - Python 设置与三份环境模板中的储能 EMS/仿真开关均默认关闭；模拟 payload 强制标记 `data_source=simulated`。
+- Task 6 已完成：独立储能控制状态机、类别感知 MQTT 回执、每分钟超时收敛及旧补偿路径兼容均已落地。
+- Task 6 聚焦与兼容回归 `40 passed, 2 warnings`；完整后端 `767 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 6
+## 下一棒：后端储能 Task 7
 
-1. 先添加储能命令生命周期与分类回执测试，确认缺失 service/dispatcher 形成有效 RED。
-2. 只支持 `set_active_power`、`set_control_mode`、`stop`，并固定 accepted/running/terminal 状态集合。
-3. 校验有限功率、资产额定功率边界、manual/rule/day_ahead 来源、auto/manual 模式及每设备单个 pending 命令。
-4. 复用 `DeviceControlLog`、现有 MQTT publisher、行锁和实时事件；分类 dispatcher 必须保留电容补偿旧行为。
-5. 增加只处理 `storage-control-api` pending 日志的超时任务；真实运行联调前仍需升级开发库到 `20260716_0002`。
-6. 结构化 `reason` 必须记录最新遥测 `data_source` 和可选 `simulation_run_id`；不能以设备编号推断模拟来源。
+1. 先为资产来源、遥测 `simulation_run_id`、设备级 `ems_auto_enabled` 及嵌套 API 写 RED 测试。
+2. 新 migration 只做增量字段扩展，保持 offline-safe，并固定接在当前储能 revision 后。
+3. 资产、最新状态与人工控制继续扩展原有 `/devices/{device_id}/storage/*` 边界，不创建第二套储能系统。
+4. 人工控制复用 Task 6 的 `StorageControlCommandService`；自动控制必须同时检查全局与单设备门禁，默认关闭。
+5. 运行级联调前显式升级并复核开发库；不得依赖启动时隐式补表。
 
 ## 固定业务契约
 
@@ -46,8 +47,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 5，不开始 Task 6 生产代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 6 范围内。
+- 本轮只完成 Task 6，不开始 Task 7 生产代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 7 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -56,4 +57,5 @@
 - Task 3：通过并正式完成。
 - Task 4：通过并正式完成。
 - Task 5：通过并正式完成。
-- Task 6：已解除依赖，交后端储能角色执行。
+- Task 6：通过并正式完成。
+- Task 7：已解除依赖，交后端储能角色执行。

@@ -8,8 +8,9 @@ from sqlmodel import Session
 
 from app.core.database import engine
 from app.core.logger import logger
-from app.services.devices.compensation.capacitor_bank.service import CapacitorBankService
 from app.services.data_cleanup_service import cleanup_old_data
+from app.services.devices.compensation.capacitor_bank.service import CapacitorBankService
+from app.services.devices.storage.control_command_service import StorageControlCommandService
 from app.services.ingestion_health_service import IngestionHealthService
 
 
@@ -51,6 +52,25 @@ def expire_compensation_control_timeouts() -> None:
             logger.debug("补偿控制超时收口完成：没有需要更新的待定日志")
     except Exception as exc:
         logger.error(f"补偿控制超时收口执行失败: {exc}")
+
+
+def expire_storage_control_timeouts() -> None:
+    """主动收口储能待定控制日志。"""
+    logger.info("开始扫描储能控制待定日志超时状态...")
+
+    try:
+        with Session(engine) as session:
+            expired_logs = StorageControlCommandService.expire_pending_control_logs(
+                session,
+                control_event_notifier=StorageControlCommandService.publish_control_log_update_event,
+            )
+
+        if expired_logs:
+            logger.info(f"✅ 储能控制超时收口完成：共更新 {len(expired_logs)} 条控制日志")
+        else:
+            logger.debug("储能控制超时收口完成：没有需要更新的待定日志")
+    except Exception as exc:
+        logger.error(f"储能控制超时收口执行失败: {exc}")
 
 
 def sync_platform_comm_alarms() -> None:

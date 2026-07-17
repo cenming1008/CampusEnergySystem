@@ -6,10 +6,10 @@ MQTT 消息处理
 
 from __future__ import annotations
 
-import json
 import hashlib
-from time import perf_counter
+import json
 from datetime import datetime
+from time import perf_counter
 from typing import Any, Optional
 
 from sqlmodel import Session, select
@@ -20,34 +20,38 @@ from app.core.logger import logger
 from app.core.metrics import observe_mqtt_message
 from app.core.runtime_state import runtime_state
 from app.integrations.mqtt.compensation import (
-    extract_capacitor_bank_control_profile,
-    extract_capacitor_bank_telemetry,
-    extract_svg_telemetry,
+    extract_capacitor_bank_control_profile,  # noqa: F401 - 兼容旧导出
+    extract_capacitor_bank_telemetry,  # noqa: F401 - 兼容旧导出
+    extract_svg_telemetry,  # noqa: F401 - 兼容旧导出
     is_control_receipt_payload,
     normalize_compensation_measurements,
-    process_control_receipt,
 )
+from app.integrations.mqtt.control_receipts import process_device_control_receipt
 from app.integrations.mqtt.device_extensions import persist_device_extensions
 from app.integrations.mqtt.payloads import (
-    FIELD_ALIASES,
-    MEANINGFUL_FIELDS,
+    FIELD_ALIASES,  # noqa: F401 - 兼容旧导出
+    MEANINGFUL_FIELDS,  # noqa: F401 - 兼容旧导出
     apply_field_aliases,
     build_data_dict,
     normalize_metrics,
-    parse_numeric,
+    parse_numeric,  # noqa: F401 - 兼容旧导出
     parse_timestamp,
     validate_payload_content,
     validate_timestamp,
 )
+from app.models.tables import Device, MqttIngestionRecord
 from app.services.ingestion_health_service import IngestionHealthService
 from app.services.mqtt_device_resolver import resolve_device_id
 from app.services.mqtt_models import TelemetryBroadcastData, TelemetryBroadcastMessage
 from app.services.mqtt_reliability_service import MqttReliabilityService
-from app.models.tables import Device, MqttIngestionRecord
+
 # CapacitorBankService imported lazily inside functions to avoid circular import
 # (services.__init__ → capacitor_bank_service → integrations.__init__ → mqtt/processor)
 
 PENDING_ARCHIVE_INGESTION_REASON = "设备档案待完善，已跳过业务入库"
+
+# 保留旧公共导出；实际实现已升级为按设备类别分发。
+process_control_receipt = process_device_control_receipt
 
 
 def parse_payload(payload_str: str) -> Optional[dict[str, Any]]:
@@ -165,7 +169,7 @@ def process_payload_dict(
 
         if is_control_receipt_payload(data):
             with Session(engine) as session:
-                process_control_receipt(session, data, device_id)
+                process_device_control_receipt(session, data, device_id)
                 record = session.exec(
                     select(MqttIngestionRecord).where(MqttIngestionRecord.fingerprint == fingerprint)
                 ).first()
