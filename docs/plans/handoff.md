@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交后端储能角色执行 Task 7，不提前展开 Task 8 或后续任务。
+- 当前目标：交后端储能角色执行 Task 8，不提前展开 Task 9 或后续任务。
 
 ## 已完成与准入
 
@@ -25,14 +25,16 @@
 - Python 设置与三份环境模板中的储能 EMS/仿真开关均默认关闭；模拟 payload 强制标记 `data_source=simulated`。
 - Task 6 已完成：独立储能控制状态机、类别感知 MQTT 回执、每分钟超时收敛及旧补偿路径兼容均已落地。
 - Task 6 聚焦与兼容回归 `40 passed, 2 warnings`；完整后端 `767 passed, 2 skipped, 7 warnings`。
+- Task 7 已完成 `20260717_0003` 四列/两索引增量、资产档案服务、双层自动门禁和原有储能嵌套 API 扩展。
+- Task 7 三条 PostgreSQL migration 路径均为 688 个对象；完整后端 `783 passed, 2 skipped, 7 warnings`。
 
-## 下一棒：后端储能 Task 7
+## 下一棒：后端储能 Task 8
 
-1. 先为资产来源、遥测 `simulation_run_id`、设备级 `ems_auto_enabled` 及嵌套 API 写 RED 测试。
-2. 新 migration 只做增量字段扩展，保持 offline-safe，并固定接在当前储能 revision 后。
-3. 资产、最新状态与人工控制继续扩展原有 `/devices/{device_id}/storage/*` 边界，不创建第二套储能系统。
-4. 人工控制复用 Task 6 的 `StorageControlCommandService`；自动控制必须同时检查全局与单设备门禁，默认关闭。
-5. 运行级联调前显式升级并复核开发库；不得依赖启动时隐式补表。
+1. 先写纯规则 RED，锁定 safety > PV surplus > demand limit > tariff > idle 的固定优先级。
+2. 增加 5 kW deadband、SOC/温度滞回、最小启停时间和换向待机，不把这些规则塞进 endpoint。
+3. EMS 编排只有在全局与设备级门禁都开启、auto 模式、无 pending 且目标差值越过 deadband 时才调用 Task 6 服务。
+4. 本轮不提前扩展模拟器回执执行逻辑或日前优化。
+5. 运行级联调前显式升级并复核开发库到 `20260717_0003`；不得依赖启动时隐式补表。
 
 ## 固定业务契约
 
@@ -47,8 +49,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 6，不开始 Task 7 生产代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 7 范围内。
+- 本轮只完成 Task 7，不开始 Task 8 生产代码。
+- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 8 范围内。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -58,4 +60,5 @@
 - Task 4：通过并正式完成。
 - Task 5：通过并正式完成。
 - Task 6：通过并正式完成。
-- Task 7：已解除依赖，交后端储能角色执行。
+- Task 7：通过并正式完成。
+- Task 8：已解除依赖，交后端储能角色执行。

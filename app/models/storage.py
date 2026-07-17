@@ -34,6 +34,7 @@ class StorageAssetProfile(SQLModel, table=True):
     installation_location: Optional[str] = Field(default=None, description="安装位置")
     commission_date: Optional[date] = Field(default=None, description="投运日期")
     data_source: str = Field(default="configured", description="档案数据来源")
+    ems_auto_enabled: bool = Field(default=False, description="设备级 EMS 自动控制授权")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
 
@@ -94,6 +95,7 @@ class StorageTelemetry(SQLModel, table=True):
     grid_status: Optional[str] = Field(default=None, description="并网状态")
     command_source: Optional[str] = Field(default=None, description="当前功率命令来源")
     data_source: str = Field(default="telemetry", description="遥测数据来源")
+    simulation_run_id: Optional[str] = Field(default=None, index=True, description="模拟运行标识")
 
 
 class StorageDispatchPlan(SQLModel, table=True):
@@ -125,3 +127,5 @@ class StorageDispatchPlan(SQLModel, table=True):
     is_valid: bool = Field(default=True, description="计划是否有效")
     failure_reason: Optional[str] = Field(default=None, description="失败或回退原因")
     generated_at: datetime = Field(default_factory=datetime.now, description="计划生成时间")
+    data_source: str = Field(default="calculated", description="计划来源：calculated/simulated/real")
+    simulation_run_id: Optional[str] = Field(default=None, index=True, description="模拟运行标识")

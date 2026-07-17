@@ -86,6 +86,32 @@ def test_queue_active_power_command_persists_structured_context_and_publishes(st
     assert payload["target_active_power"] == -120.0
 
 
+def test_queue_command_copies_simulation_run_id_from_latest_telemetry(storage_session):
+    session, device = storage_session
+    session.add(
+        StorageTelemetry(
+            device_id=device.id,
+            timestamp=datetime(2026, 7, 17, 10, 1, 0),
+            data_source="simulated",
+            simulation_run_id="sim-run-7",
+        )
+    )
+    session.commit()
+
+    result = StorageControlCommandService.queue_command(
+        session,
+        device,
+        command="stop",
+        operator="admin",
+        source="manual",
+        publish_control_payload=lambda *args, **kwargs: None,
+    )
+
+    reason = json.loads(result["log"].reason)
+    assert reason["data_source"] == "simulated"
+    assert reason["simulation_run_id"] == "sim-run-7"
+
+
 @pytest.mark.parametrize("target", [math.nan, math.inf, 201.0, -181.0])
 def test_queue_active_power_command_rejects_non_finite_or_profile_bound_values(storage_session, target):
     session, device = storage_session

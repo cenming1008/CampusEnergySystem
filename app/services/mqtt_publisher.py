@@ -141,6 +141,31 @@ def publish_control_payload_async(
     ).start()
 
 
+def publish_topic_payload_async(
+    topic: str,
+    payload: dict[str, Any],
+    *,
+    worker_name: str = "mqtt-topic-publish",
+) -> None:
+    """向明确给定的非生产控制主题异步发布结构化 payload。"""
+
+    def _worker() -> None:
+        try:
+            publisher = _get_publisher()
+            raw_payload = json.dumps(payload, ensure_ascii=False)
+            info = publisher.publish(topic, raw_payload, qos=1)
+            info.wait_for_publish(timeout=5.0)
+            logger.info(f"MQTT topic payload published: topic={topic} payload={raw_payload}")
+        except Exception as exc:
+            logger.warning(f"MQTT topic payload publish failed: topic={topic} payload={payload} err={exc}")
+
+    threading.Thread(
+        target=_worker,
+        daemon=True,
+        name=worker_name,
+    ).start()
+
+
 def publish_parameter_write_async(
     device_id: int,
     parameter_key: str,

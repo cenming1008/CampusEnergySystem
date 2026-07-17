@@ -81,12 +81,13 @@ def test_storage_resumes_only_after_phase2a_acceptance():
     assert re.search(r"(?m)^- \[x\] Task 4[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 5[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 6[:：].*完成", status)
-    assert re.search(r"(?m)^- \[ \] Task 7[:：].*已解除依赖", status)
+    assert re.search(r"(?m)^- \[x\] Task 7[:：].*完成", status)
+    assert re.search(r"(?m)^- \[ \] Task 8[:：].*已解除依赖", status)
     assert 'revision = "20260716_0002"' in storage_plan
     assert 'down_revision = "20260716_0001"' in storage_plan
 
 
-def test_storage_task6_is_complete_and_task7_handoff_is_ready():
+def test_storage_task7_is_complete_and_task8_handoff_is_ready():
     status = read("docs/plans/current-status.md")
     handoff = read("docs/plans/handoff.md")
     governance = "\n".join((status, handoff))
@@ -99,10 +100,12 @@ def test_storage_task6_is_complete_and_task7_handoff_is_ready():
     assert re.search(r"(?m)^- Task 5[:：]通过并正式完成", governance)
     assert re.search(r"(?m)^- \[x\] Task 6[:：].*完成", status)
     assert re.search(r"(?m)^- Task 6[:：]通过并正式完成", governance)
-    assert re.search(r"(?m)^- \[ \] Task 7[:：].*已解除依赖", status)
-    assert "下一棒：后端储能 Task 7" in handoff
-    assert "Task 7：已解除依赖，交后端储能角色执行" in handoff
-    assert not re.search(r"(?m)^- \[x\] Task 7[:：]", governance)
+    assert re.search(r"(?m)^- \[x\] Task 7[:：].*完成", status)
+    assert re.search(r"(?m)^- Task 7[:：]通过并正式完成", governance)
+    assert re.search(r"(?m)^- \[ \] Task 8[:：].*已解除依赖", status)
+    assert "下一棒：后端储能 Task 8" in handoff
+    assert "Task 8：已解除依赖，交后端储能角色执行" in handoff
+    assert not re.search(r"(?m)^- \[x\] Task 8[:：]", governance)
 
 
 def test_storage_plans_lock_the_accepted_migration_boundary():
@@ -115,9 +118,10 @@ def test_storage_plans_lock_the_accepted_migration_boundary():
     assert "./venv/bin/" not in plans
     assert "20260716_0012" not in plans
     assert "20260515_0011" not in plans
+    assert "20260716_0001 -> 20260716_0002 -> 20260717_0003" in formal
+    assert 'revision = "20260716_0002"' in detailed
+    assert 'down_revision = "20260716_0001"' in detailed
     for plan in (formal, detailed):
-        assert 'revision = "20260716_0002"' in plan
-        assert 'down_revision = "20260716_0001"' in plan
         assert "基础 `storage_telemetry`" in plan
         assert "不得重建" in plan
 

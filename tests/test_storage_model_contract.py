@@ -61,6 +61,7 @@ def test_storage_asset_profile_exposes_approved_asset_fields():
         "installation_location",
         "commission_date",
         "data_source",
+        "ems_auto_enabled",
         "created_at",
         "updated_at",
     }
@@ -77,6 +78,7 @@ def test_storage_telemetry_adds_exactly_the_approved_control_fields():
         "grid_status",
         "command_source",
         "data_source",
+        "simulation_run_id",
     }
 
     assert approved <= set(StorageTelemetry.__table__.columns.keys())
@@ -109,6 +111,7 @@ def test_storage_dispatch_plan_has_unique_device_date_slot_contract():
         "is_valid",
         "failure_reason",
         "generated_at",
+        "data_source",
+        "simulation_run_id",
     }
     assert ("device_id", "dispatch_date", "slot_index") in unique_column_sets
-

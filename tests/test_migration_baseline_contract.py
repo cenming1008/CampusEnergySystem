@@ -39,6 +39,7 @@ LEGACY_FILES = {
 ACTIVE_REVISIONS = {
     "20260716_0001_campus_baseline.py",
     "20260716_0002_add_storage_simulation_contracts.py",
+    "20260717_0003_add_storage_source_and_control_gates.py",
 }
 
 STORAGE_TELEMETRY_ADDITIONS = {
@@ -50,6 +51,7 @@ STORAGE_TELEMETRY_ADDITIONS = {
     "grid_status",
     "command_source",
     "data_source",
+    "simulation_run_id",
 }
 
 RUNTIME_INDEXES = {

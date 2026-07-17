@@ -158,6 +158,7 @@ class StorageControlCommandService:
         source: str,
         target_active_power: Optional[float] = None,
         control_mode: Optional[str] = None,
+        reason: Optional[str] = None,
         publish_control_payload=None,
     ) -> dict[str, Any]:
         if command not in SUPPORTED_STORAGE_COMMANDS:
@@ -191,6 +192,8 @@ class StorageControlCommandService:
             "data_source": getattr(telemetry, "data_source", None),
             "simulation_run_id": getattr(telemetry, "simulation_run_id", None),
         }
+        if reason and reason.strip():
+            reason_payload["operator_reason"] = reason.strip()
         control_log = DeviceControlLog(
             device_id=device.id,
             action=command,
@@ -219,6 +222,8 @@ class StorageControlCommandService:
             payload["target_active_power"] = normalized_power
         if normalized_mode is not None:
             payload["control_mode"] = normalized_mode
+        if reason and reason.strip():
+            payload["reason"] = reason.strip()
 
         publisher = publish_control_payload or publish_control_payload_async
         publisher(

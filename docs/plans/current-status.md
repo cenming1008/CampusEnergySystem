@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 6 储能控制命令生命周期已通过验收；当前进入 Task 7，补齐资产来源、设备级自动控制门禁及原有储能 API。
+- 当前总目标：Task 7 单一储能系统持久化来源、设备级自动门禁及原有嵌套 API 已通过验收；当前进入 Task 8 安全优先实时规则。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -15,8 +15,9 @@
 - [x] Task 4：扩展仿真遥测入库、状态映射与监控聚合完成。
 - [x] Task 5：可复用 MQTT 储能仿真器、确定性场景与默认关闭门禁完成。
 - [x] Task 6：储能控制命令生命周期、分类回执分发与超时收敛完成。
-- [ ] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API，已解除依赖。
-- [ ] Task 8 及后续：按实施计划依赖顺序等待。
+- [x] Task 7：储能资产来源、设备级自动控制门禁及原有储能 API 完成。
+- [ ] Task 8：安全优先实时规则与 EMS 编排，已解除依赖。
+- [ ] Task 9 及后续：按实施计划依赖顺序等待。
 
 ## Task 3 完成证据
 
@@ -30,7 +31,7 @@
 
 ## 固定契约
 
-- 储能 migration：`revision = "20260716_0002"`，`down_revision = "20260716_0001"`。
+- 储能 migration 链：`20260716_0001 -> 20260716_0002 -> 20260717_0003`；当前 head 为 `20260717_0003`。
 - 根基线已经拥有基础 `storage_telemetry`；Task 3 只新增 profile、dispatch 和批准的 telemetry 扩展，不得重建基础表。
 - `device_category=storage`，`device_subtype=battery_energy_storage_system`。
 - 正功率充电、负功率放电；所有模拟遥测必须标记 `data_source=simulated`。
@@ -64,12 +65,22 @@
 - 储能 pending 超时任务每分钟执行，且只更新 `storage-control-api` 日志；终态重复回执幂等，冲突迟到回执仅记录、不反转终态。
 - 聚焦与兼容回归：`40 passed, 2 warnings`；完整后端：`767 passed, 2 skipped, 7 warnings`。
 
+## Task 7 完成证据
+
+- `StorageAssetProfile.ems_auto_enabled` 默认关闭；`StorageTelemetry` 与 `StorageDispatchPlan` 增加可选 `simulation_run_id`，调度计划来源默认 `calculated`。
+- 静态、offline-safe 的 `20260717_0003` 只新增四列和两个运行标识索引，父 revision 固定为 `20260716_0002`。
+- fresh、offline、roundtrip 均为 688 个 schema objects，规范化指纹一致；成功后只清理三个固定临时数据库。
+- 原有 `/devices/{id}/storage/*` 增加资产档案、控制能力、人工控制及模拟能力/控制接口；未建立第二套储能 API。
+- viewer 可读；maintainer/operator/admin 可在位置范围内控制；设备级自动授权只有管理员可改变，并要求已有档案和新鲜健康遥测。
+- 模拟接口默认 404，启用后只发布到独立 simulation topic；配置与生产控制 topic 重叠时返回 503。
+- 完整后端：`783 passed, 2 skipped, 7 warnings`；OpenAPI 储能路径生成、Ruff 与差异检查通过。
+
 ## 当前待办
 
-1. 后端储能角色按 TDD 执行 Task 7，先补资产来源、遥测 `simulation_run_id` 与设备级 `ems_auto_enabled` 的模型/migration 测试。
-2. 在原有储能设备嵌套 API 下扩展资产、最新状态和人工控制入口，不新建平行储能 API 主线。
-3. 人工控制继续复用 Task 6 服务；自动控制必须同时受全局与单设备门禁约束，且默认关闭。
-4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到当前最新 revision。
+1. 后端储能角色按 TDD 执行 Task 8，先固定 safety、光伏消纳、需量、电价、idle 的规则优先级。
+2. EMS 编排必须同时检查全局 `STORAGE_EMS_ENABLED` 与设备级 `ems_auto_enabled`，两者继续默认关闭。
+3. 规则只生成决策，命令仍复用 Task 6 控制服务；不得绕过 pending、功率边界和回执状态机。
+4. 正常 MQTT 与依赖新表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
 
 ## 当前验收判断
 
@@ -79,5 +90,6 @@
 - Task 4：通过并正式完成。
 - Task 5：通过并正式完成。
 - Task 6：通过并正式完成。
-- Task 7：已解除依赖，尚未开始。
+- Task 7：通过并正式完成。
+- Task 8：已解除依赖，尚未开始。
 - 下一接手角色：后端储能角色。

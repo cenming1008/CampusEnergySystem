@@ -637,6 +637,7 @@ git commit -m "feat: add storage control receipt lifecycle"
 - Modify: `app/models/storage.py`
 - Modify: `app/integrations/mqtt/device_extensions.py`
 - Modify: `app/services/devices/storage/control_command_service.py`
+- Modify: `app/services/mqtt_publisher.py`
 - Create: `migrations/versions/20260717_0003_add_storage_source_and_control_gates.py`
 - Create: `app/api/endpoints/devices/storage_schemas.py`
 - Create: `app/services/devices/storage/asset_profile_service.py`
@@ -644,8 +645,9 @@ git commit -m "feat: add storage control receipt lifecycle"
 - Test: `tests/test_storage_device_nested_api.py`
 - Test: `tests/test_storage_single_system_migration.py`
 - Test: `tests/test_storage_ingestion.py`
+- Test: `tests/test_storage_asset_profile_service.py`
 
-- [ ] **Step 1: Write failing API boundary tests**
+- [x] **Step 1: Write failing API boundary tests**
 
 Test:
 
@@ -660,13 +662,13 @@ POST /devices/{id}/storage/simulation/control
 
 Assert viewers can read but cannot control; maintainer/operator/admin can control within location scope; invalid power returns 400; unknown device returns the existing access-control response; simulator endpoints return 404 while `STORAGE_SIMULATION_ENABLED=false`. Also assert `StorageAssetProfile.ems_auto_enabled` defaults to false, `StorageTelemetry.simulation_run_id` is nullable and populated from simulated MQTT payloads, `StorageDispatchPlan.data_source` defaults to `calculated`, and its `simulation_run_id` is nullable.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_single_system_migration.py tests/test_storage_device_nested_api.py`
 
 Expected: endpoint tests FAIL with 404 or missing schema imports; model tests FAIL because the source/control-gate fields and `20260717_0003` migration do not exist.
 
-- [ ] **Step 3: Add explicit Pydantic/SQLModel schemas**
+- [x] **Step 3: Add explicit Pydantic/SQLModel schemas**
 
 ```python
 class StorageControlRequest(SQLModel):
@@ -707,7 +709,7 @@ class StorageDispatchPlan(SQLModel, table=True):
 
 Create static, offline-safe revision `20260717_0003` with `down_revision = "20260716_0002"`. It may add only these four columns and their approved source/run indexes. Extend `persist_device_extensions` to persist the optional run id, then let the control service copy it from latest telemetry into structured `reason`.
 
-- [ ] **Step 4: Verify the additive migration paths**
+- [x] **Step 4: Verify the additive migration paths**
 
 Run:
 
@@ -720,20 +722,20 @@ python scripts/python/verify_postgres_migrations.py --cleanup
 
 Expected: offline SQL performs no online reads; fresh/offline/roundtrip fingerprints match at `20260717_0003`; the exact four columns and approved indexes exist; `energydata` remains a hypertable; focused tests PASS; cleanup removes only the three fixed temporary databases.
 
-- [ ] **Step 5: Implement thin endpoints**
+- [x] **Step 5: Implement thin endpoints**
 
 Endpoints perform dependency injection, permission checks, audit logging, service calls, and response conversion only. Keep validation and command lifecycle in services. Simulator endpoints publish only to `campus/simulation/{device_code}/control`, require the explicit simulation flag, and never share the production device-control topic. Add an administrator-only update for `ems_auto_enabled`; enabling it must fail unless a current asset profile exists and the latest telemetry proves BMS normal, PCS available, grid connected, and non-stale data.
 
-- [ ] **Step 6: Run API tests**
+- [x] **Step 6: Run API tests**
 
 Run: `python -m pytest -q tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py tests/test_storage_device_nested_api.py tests/test_access_control.py`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
-git add app/models/storage.py app/integrations/mqtt/device_extensions.py app/services/devices/storage/control_command_service.py migrations/versions/20260717_0003_add_storage_source_and_control_gates.py app/api/endpoints/devices/storage_schemas.py app/services/devices/storage/asset_profile_service.py app/api/endpoints/devices/storage.py tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py tests/test_storage_device_nested_api.py
+git add app/models/storage.py app/integrations/mqtt/device_extensions.py app/services/devices/storage/control_command_service.py app/services/mqtt_publisher.py migrations/versions/20260717_0003_add_storage_source_and_control_gates.py app/api/endpoints/devices/storage_schemas.py app/services/devices/storage/asset_profile_service.py app/api/endpoints/devices/storage.py tests/test_storage_single_system_migration.py tests/test_storage_ingestion.py tests/test_storage_device_nested_api.py tests/test_storage_asset_profile_service.py
 git commit -m "feat: expose storage profile and control api"
 ```
 

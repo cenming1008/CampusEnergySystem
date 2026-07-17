@@ -47,7 +47,13 @@ _STORAGE_NUMERIC_FIELDS = (
     "available_charge_power",
     "available_discharge_power",
 )
-_STORAGE_TEXT_FIELDS = ("run_state", "control_mode", "command_source", "data_source")
+_STORAGE_TEXT_FIELDS = (
+    "run_state",
+    "control_mode",
+    "command_source",
+    "data_source",
+    "simulation_run_id",
+)
 _STORAGE_STATE_FIELD_MAP = {
     "bms_state": "bms_status",
     "pcs_state": "pcs_status",

@@ -103,9 +103,10 @@ class TestStorageTelemetryPersistence(unittest.TestCase):
                 "available_discharge_power": 180.0,
                 "bms_state": "normal",
                 "pcs_state": "running",
-                "grid_connection_state": "connected",
-                "command_source": "rule",
-                "data_source": "simulated",
+                        "grid_connection_state": "connected",
+                        "command_source": "rule",
+                        "data_source": "simulated",
+                        "simulation_run_id": "sim-run-20260717-a",
             }
 
             with patch.object(AlarmService, "check_storage_faults"):
@@ -127,6 +128,7 @@ class TestStorageTelemetryPersistence(unittest.TestCase):
             self.assertEqual(telemetry.grid_status, "connected")
             self.assertEqual(telemetry.command_source, "rule")
             self.assertEqual(telemetry.data_source, "simulated")
+            self.assertEqual(telemetry.simulation_run_id, "sim-run-20260717-a")
 
 
 if __name__ == "__main__":
