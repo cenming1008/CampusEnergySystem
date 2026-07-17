@@ -94,6 +94,35 @@ export interface StorageDispatchGenerateRequest {
   terminal_soc_target?: number | null
 }
 
+export interface StorageDispatchPlanRow {
+  id?: number | null
+  device_id: number
+  dispatch_date: string
+  slot_index: number
+  interval_minutes: number
+  target_active_power: number
+  forecast_load_power: number | null
+  forecast_pv_power: number | null
+  tariff_price: number | null
+  expected_soc: number | null
+  strategy: string
+  strategy_version: string
+  solver_status: string
+  is_valid: boolean
+  failure_reason: string | null
+  generated_at: string
+  data_source: string
+  simulation_run_id: string | null
+}
+
+export interface StorageDispatchGenerationResult {
+  status: string
+  solver_status: string
+  dispatch_date: string
+  plans: StorageDispatchPlanRow[]
+  failure_reason: string | null
+}
+
 export function getStorageEnergyOverview(deviceId?: number) {
   return request.get<never, StorageEnergyOverview>('/energy/storage/overview', {
     params: deviceId === undefined ? undefined : { device_id: deviceId },
@@ -112,7 +141,7 @@ export function generateStorageDispatchPlan(
   deviceId: number,
   body: StorageDispatchGenerateRequest,
 ) {
-  return request.post<StorageDispatchGenerateRequest, unknown>(
+  return request.post<StorageDispatchGenerateRequest, StorageDispatchGenerationResult>(
     `/devices/${deviceId}/storage/dispatch/generate`,
     body,
   )

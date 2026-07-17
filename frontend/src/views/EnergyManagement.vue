@@ -588,194 +588,167 @@ watch([rankingTopN, trendGranularity], () => { loadOverview() })
       </button>
     </nav>
 
-    <div
+    <header
       v-if="activeWorkspace === 'overview'"
-      class="energy-overview-workspace"
+      class="em-header glass-card"
       data-testid="energy-overview-workspace"
     >
-      <header class="em-header glass-card">
-        <div class="em-brand-block">
-          <div class="em-brand-mark">
-            <span class="em-brand-mark__dot" />
+      <div class="em-brand-block">
+        <div class="em-brand-mark">
+          <span class="em-brand-mark__dot" />
+        </div>
+        <div class="em-header__brand">
+          <p class="eyebrow">Campus Energy Center</p>
+          <h1>能源管理中心</h1>
+          <p class="em-header__subtitle">按能源介质、设备和统计窗口查看能耗、碳排与运营信号。</p>
+          <div class="em-header__tags">
+            <span class="hdr-tag">{{ currentRangeLabel }}</span>
+            <span class="hdr-tag hdr-tag--cyan">{{ activeEnergyCount }} 类活跃</span>
+            <span v-if="hasScopedAccess" class="hdr-tag hdr-tag--amber">{{ locationScopeHint || '范围受限' }}</span>
           </div>
-          <div class="em-header__brand">
-            <p class="eyebrow">
-              Campus Energy Center
-            </p>
-            <h1>能源管理中心</h1>
-            <p class="em-header__subtitle">
-              按能源介质、设备和统计窗口查看能耗、碳排与运营信号。
-            </p>
-            <div class="em-header__tags">
-              <span class="hdr-tag">{{ currentRangeLabel }}</span>
-              <span class="hdr-tag hdr-tag--cyan">{{ activeEnergyCount }} 类活跃</span>
-              <span
-                v-if="hasScopedAccess"
-                class="hdr-tag hdr-tag--amber"
-              >{{ locationScopeHint || '范围受限' }}</span>
+        </div>
+      </div>
+      <EnergyHeaderControls
+        v-model:detail-device-id="detailDeviceId"
+        v-model:date-range="dateRange"
+        v-model:trend-granularity="trendGranularity"
+        :device-list="deviceList"
+        :loading="loading"
+        @refresh="refreshData"
+      />
+    </header>
+
+    <div
+      v-if="activeWorkspace === 'overview'"
+      class="energy-rail"
+    >
+      <button
+        v-for="type in visibleEnergyTypes"
+        :key="type.value"
+        class="energy-chip"
+        :class="{ active: selectedEnergyType === type.value }"
+        :style="{
+          '--chip-color': typeColor(type.value),
+          ...(selectedEnergyType === type.value ? {
+            borderColor: typeColor(type.value) + '55',
+            background: typeColor(type.value) + '18',
+            color: typeColor(type.value)
+          } : {})
+        }"
+        @click="selectedEnergyType = type.value"
+      >
+        <span
+          class="chip-dot"
+          :style="{
+            background: typeColor(type.value),
+            boxShadow: selectedEnergyType === type.value ? `0 0 8px ${typeColor(type.value)}88` : 'none'
+          }"
+        />
+        <span class="chip-label">{{ type.label }}</span>
+        <span class="chip-val">
+          {{ (statistics[type.value]?.total_consumption || 0).toFixed(1) }}<em> {{ type.unit }}</em>
+        </span>
+      </button>
+    </div>
+
+    <EnergyOverviewTab
+      v-if="activeWorkspace === 'overview'"
+      :overview-metrics="overviewMetrics"
+      :total-energy-consumption="totalEnergyConsumption"
+      :energy-mix-items="energyMixItems"
+      :visible-energy-types="visibleEnergyTypes"
+      :statistics="statistics"
+      :carbon-summary="carbonSummary"
+      :has-steam-runtime-presence="hasSteamRuntimePresence"
+      :current-energy-info="currentEnergyInfo"
+      :current-stats="currentStats"
+      :focus-highlights="focusHighlights"
+      :detail-device-id="detailDeviceId"
+      :detail-device-name="detailDeviceName"
+      @refresh-detail="loadDetailData"
+      @clear-device="detailDeviceId = undefined"
+    >
+      <template #center>
+        <EnergyTrendComparisonTab
+          :granularity="analysisTimeWindow?.granularity || trendGranularity"
+          :trend-items="trendItems"
+          :period-comparison="periodComparison"
+          :energy-category-comparison="energyCategoryComparison"
+          :sub-item-comparison="subItemComparison"
+          :stat-basis-text="statBasisText"
+        />
+      </template>
+    </EnergyOverviewTab>
+
+    <el-collapse
+      v-if="activeWorkspace === 'overview'"
+      v-model="secondaryPanelActive"
+      class="em-collapse em-secondary-accordion"
+    >
+      <el-collapse-item name="ranking" title="排行与异常">
+        <EnergyRankingAnomalyTab
+          v-model:ranking-top-n="rankingTopN"
+          :area-ranking="areaRanking"
+          :building-ranking="buildingRanking"
+          :device-ranking="deviceRanking"
+          :analysis-anomaly="analysisAnomaly"
+          :anomaly-items="anomalyItems"
+          :insight-items="insightItems"
+        />
+      </el-collapse-item>
+
+      <el-collapse-item name="entry" title="数据录入">
+        <EnergyDataEntryTab
+          :visible-energy-types="visibleEnergyTypes"
+          :carbon-factors="carbonFactors"
+          :carbon-calculator="carbonCalculator"
+          :detail-device-id="detailDeviceId"
+          :detail-loading="detailLoading"
+          :detail-device-name="detailDeviceName"
+          :energy-details="energyDetails"
+          :carbon-details="carbonDetails"
+          @open-entry="openEntryDialog"
+          @calculate-carbon="handleCalculateCarbon"
+        />
+      </el-collapse-item>
+
+      <el-collapse-item name="summary-rules" title="统计口径与边界">
+        <div class="glass-card collapse-panel">
+          <div class="info-list">
+            <div v-for="item in secondaryOverviewItems" :key="item.label" class="info-item">
+              <span class="info-label">{{ item.label }}</span>
+              <span class="info-value">{{ item.value }}</span>
             </div>
           </div>
         </div>
-        <EnergyHeaderControls
-          v-model:detail-device-id="detailDeviceId"
-          v-model:date-range="dateRange"
-          v-model:trend-granularity="trendGranularity"
-          :device-list="deviceList"
-          :loading="loading"
-          @refresh="refreshData"
-        />
-      </header>
+      </el-collapse-item>
 
-      <div class="energy-rail">
-        <button
-          v-for="type in visibleEnergyTypes"
-          :key="type.value"
-          class="energy-chip"
-          :class="{ active: selectedEnergyType === type.value }"
-          :style="{
-            '--chip-color': typeColor(type.value),
-            ...(selectedEnergyType === type.value ? {
-              borderColor: typeColor(type.value) + '55',
-              background: typeColor(type.value) + '18',
-              color: typeColor(type.value)
-            } : {})
-          }"
-          @click="selectedEnergyType = type.value"
-        >
-          <span
-            class="chip-dot"
-            :style="{
-              background: typeColor(type.value),
-              boxShadow: selectedEnergyType === type.value ? `0 0 8px ${typeColor(type.value)}88` : 'none'
-            }"
-          />
-          <span class="chip-label">{{ type.label }}</span>
-          <span class="chip-val">
-            {{ (statistics[type.value]?.total_consumption || 0).toFixed(1) }}<em> {{ type.unit }}</em>
-          </span>
-        </button>
-      </div>
-
-      <EnergyOverviewTab
-        :overview-metrics="overviewMetrics"
-        :total-energy-consumption="totalEnergyConsumption"
-        :energy-mix-items="energyMixItems"
-        :visible-energy-types="visibleEnergyTypes"
-        :statistics="statistics"
-        :carbon-summary="carbonSummary"
-        :has-steam-runtime-presence="hasSteamRuntimePresence"
-        :current-energy-info="currentEnergyInfo"
-        :current-stats="currentStats"
-        :focus-highlights="focusHighlights"
-        :detail-device-id="detailDeviceId"
-        :detail-device-name="detailDeviceName"
-        @refresh-detail="loadDetailData"
-        @clear-device="detailDeviceId = undefined"
-      >
-        <template #center>
-          <EnergyTrendComparisonTab
-            :granularity="analysisTimeWindow?.granularity || trendGranularity"
-            :trend-items="trendItems"
-            :period-comparison="periodComparison"
-            :energy-category-comparison="energyCategoryComparison"
-            :sub-item-comparison="subItemComparison"
-            :stat-basis-text="statBasisText"
-          />
-        </template>
-      </EnergyOverviewTab>
-
-      <el-collapse
-        v-model="secondaryPanelActive"
-        class="em-collapse em-secondary-accordion"
-      >
-        <el-collapse-item
-          name="ranking"
-          title="排行与异常"
-        >
-          <EnergyRankingAnomalyTab
-            v-model:ranking-top-n="rankingTopN"
-            :area-ranking="areaRanking"
-            :building-ranking="buildingRanking"
-            :device-ranking="deviceRanking"
-            :analysis-anomaly="analysisAnomaly"
-            :anomaly-items="anomalyItems"
-            :insight-items="insightItems"
-          />
-        </el-collapse-item>
-
-        <el-collapse-item
-          name="entry"
-          title="数据录入"
-        >
-          <EnergyDataEntryTab
-            :visible-energy-types="visibleEnergyTypes"
-            :carbon-factors="carbonFactors"
-            :carbon-calculator="carbonCalculator"
-            :detail-device-id="detailDeviceId"
-            :detail-loading="detailLoading"
-            :detail-device-name="detailDeviceName"
-            :energy-details="energyDetails"
-            :carbon-details="carbonDetails"
-            @open-entry="openEntryDialog"
-            @calculate-carbon="handleCalculateCarbon"
-          />
-        </el-collapse-item>
-
-        <el-collapse-item
-          name="summary-rules"
-          title="统计口径与边界"
-        >
-          <div class="glass-card collapse-panel">
-            <div class="info-list">
-              <div
-                v-for="item in secondaryOverviewItems"
-                :key="item.label"
-                class="info-item"
-              >
-                <span class="info-label">{{ item.label }}</span>
-                <span class="info-value">{{ item.value }}</span>
-              </div>
+      <el-collapse-item name="carbon-rules" title="碳排放说明">
+        <div class="glass-card collapse-panel">
+          <div class="info-list">
+            <div v-for="item in carbonMetaItems" :key="item.label" class="info-item">
+              <span class="info-label">{{ item.label }}</span>
+              <span class="info-value">{{ item.value }}</span>
             </div>
           </div>
-        </el-collapse-item>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
 
-        <el-collapse-item
-          name="carbon-rules"
-          title="碳排放说明"
-        >
-          <div class="glass-card collapse-panel">
-            <div class="info-list">
-              <div
-                v-for="item in carbonMetaItems"
-                :key="item.label"
-                class="info-item"
-              >
-                <span class="info-label">{{ item.label }}</span>
-                <span class="info-value">{{ item.value }}</span>
-              </div>
-            </div>
-          </div>
-        </el-collapse-item>
-      </el-collapse>
+    <EnergyEntryDialog
+      v-if="activeWorkspace === 'overview'"
+      v-model:visible="entryDialogVisible"
+      :form="entryForm"
+      :device-list="deviceList"
+      :visible-energy-types="visibleEnergyTypes"
+      @submit="handleSaveEntry"
+    />
 
-      <EnergyEntryDialog
-        v-model:visible="entryDialogVisible"
-        :form="entryForm"
-        :device-list="deviceList"
-        :visible-energy-types="visibleEnergyTypes"
-        @submit="handleSaveEntry"
-      />
-    </div>
-
-    <StorageEmsWorkspace v-else />
+    <StorageEmsWorkspace v-if="activeWorkspace === 'storage_ems'" />
   </div>
 </template>
 
 <style scoped>
-.energy-overview-workspace {
-  display: contents;
-}
-
 .workspace-switcher {
   position: relative;
   z-index: 2;

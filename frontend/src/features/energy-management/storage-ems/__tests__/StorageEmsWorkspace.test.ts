@@ -110,4 +110,17 @@ describe('StorageEmsWorkspace', () => {
     expect(wrapper.text()).toContain('日前策略')
     expect(wrapper.text()).not.toContain('执行率 100%')
   })
+
+  it('renders missing source as an explicit placeholder', async () => {
+    getStorageEnergyOverviewMock.mockResolvedValue({
+      ...overviewFixture,
+      data_source: 'unknown',
+    })
+
+    const wrapper = mount(StorageEmsWorkspace)
+    expect(wrapper.get('.storage-ems__source').text()).toBe('--')
+    await flushPromises()
+
+    expect(wrapper.get('.storage-ems__source').text()).toBe('--')
+  })
 })

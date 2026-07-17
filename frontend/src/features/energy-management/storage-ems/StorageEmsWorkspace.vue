@@ -30,7 +30,7 @@ onMounted(async () => {
 function sourceLabel(source?: string | null): string {
   if (source === 'simulated') return '仿真数据'
   if (source === 'real') return '真实设备'
-  return '数据来源未知'
+  return '--'
 }
 </script>
 
