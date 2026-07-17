@@ -11,6 +11,7 @@ from app.core.logger import logger
 from app.services.data_cleanup_service import cleanup_old_data
 from app.services.devices.compensation.capacitor_bank.service import CapacitorBankService
 from app.services.devices.storage.control_command_service import StorageControlCommandService
+from app.services.devices.storage.dispatch_service import StorageDispatchService
 from app.services.devices.storage.ems_service import StorageEmsService
 from app.services.ingestion_health_service import IngestionHealthService
 
@@ -85,6 +86,20 @@ def evaluate_storage_ems_rules() -> None:
         logger.info(f"✅ 储能实时 EMS 完成：评估 {len(results)} 台设备，下发 {queued} 条命令")
     except Exception as exc:
         logger.error(f"储能实时 EMS 执行失败: {exc}")
+
+
+def generate_storage_dispatch_plans() -> None:
+    """为设备级已授权储能生成次日计划。"""
+    logger.info("开始生成储能日前计划...")
+
+    try:
+        with Session(engine) as session:
+            results = StorageDispatchService.generate_daily_plans(session)
+        succeeded = sum(1 for item in results if item.get("status") == "optimal")
+        failed = len(results) - succeeded
+        logger.info(f"✅ 储能日前计划生成完成：成功 {succeeded} 台，失败 {failed} 台")
+    except Exception as exc:
+        logger.error(f"储能日前计划生成失败: {exc}")
 
 
 def sync_platform_comm_alarms() -> None:

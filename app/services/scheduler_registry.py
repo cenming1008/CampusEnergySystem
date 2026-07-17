@@ -16,6 +16,7 @@ from app.services.scheduler_jobs import (
     evaluate_storage_ems_rules,
     expire_compensation_control_timeouts,
     expire_storage_control_timeouts,
+    generate_storage_dispatch_plans,
     sync_platform_comm_alarms,
 )
 
@@ -55,6 +56,21 @@ def get_enabled_job_definitions() -> Iterable[JobDefinition]:
     )
 
     if settings.storage_ems_enabled:
+        dispatch_hour, dispatch_minute = (
+            int(value) for value in settings.storage_daily_dispatch_time.split(":", 1)
+        )
+        jobs.append(
+            JobDefinition(
+                id="generate_storage_dispatch_plans",
+                name="储能日前计划生成",
+                trigger=CronTrigger(hour=dispatch_hour, minute=dispatch_minute),
+                func=generate_storage_dispatch_plans,
+                log_message=(
+                    "已添加储能日前计划生成任务：每天 "
+                    f"{dispatch_hour:02d}:{dispatch_minute:02d} 执行"
+                ),
+            )
+        )
         jobs.append(
             JobDefinition(
                 id="evaluate_storage_ems_rules",

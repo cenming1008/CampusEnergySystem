@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 os.environ.setdefault("DATABASE_URL", "postgresql://tester:secret@localhost/test_db")
 
-from app.models.storage import StorageAssetProfile, StorageTelemetry
+from app.models.storage import StorageAssetProfile, StorageDispatchPlan, StorageTelemetry
 from app.models.tables import Device, DeviceControlLog
 from app.services.devices.storage import ems_service
 from app.services.devices.storage.ems_service import StorageCampusInputs, StorageEmsService
@@ -288,3 +288,107 @@ def test_evaluate_all_contains_single_device_failure(ems_session):
             "detail": "bad input",
         }
     ]
+
+
+def test_evaluate_device_prefers_current_day_ahead_plan(ems_session):
+    session, device = ems_session
+    now = datetime(2026, 7, 18, 10, 22)
+    telemetry = StorageEmsService.get_latest_telemetry(session, device.id)
+    telemetry.timestamp = now
+    telemetry.active_power = -20
+    session.add(telemetry)
+    session.add(
+        StorageDispatchPlan(
+            device_id=device.id,
+            dispatch_date=date(2026, 7, 18),
+            slot_index=41,
+            target_active_power=-80,
+            solver_status="Optimal",
+            is_valid=True,
+        )
+    )
+    session.commit()
+    queue = MagicMock(return_value={"command_id": "90", "status": "accepted"})
+
+    result = StorageEmsService.evaluate_device(
+        session,
+        device,
+        campus_input_provider=_pv_surplus_inputs,
+        ems_enabled=True,
+        queue_command=queue,
+        now=now,
+    )
+
+    assert result["status"] == "queued"
+    assert result["plan_slot"] == 41
+    assert queue.call_args.kwargs["source"] == "day_ahead"
+    assert queue.call_args.kwargs["target_active_power"] == -80
+    assert queue.call_args.kwargs["reason"] == "forecast_deviation"
+
+
+def test_day_ahead_plan_is_stopped_by_soc_protection(ems_session):
+    session, device = ems_session
+    now = datetime(2026, 7, 18, 10, 22)
+    telemetry = StorageEmsService.get_latest_telemetry(session, device.id)
+    telemetry.timestamp = now
+    telemetry.soc = 85
+    telemetry.target_active_power = -50
+    session.add(telemetry)
+    session.add(
+        StorageDispatchPlan(
+            device_id=device.id,
+            dispatch_date=date(2026, 7, 18),
+            slot_index=41,
+            target_active_power=100,
+            solver_status="Optimal",
+            is_valid=True,
+        )
+    )
+    session.commit()
+    queue = MagicMock(return_value={"command_id": "91", "status": "accepted"})
+
+    result = StorageEmsService.evaluate_device(
+        session,
+        device,
+        campus_input_provider=_pv_surplus_inputs,
+        ems_enabled=True,
+        queue_command=queue,
+        now=now,
+    )
+
+    assert result["reason"] == "soc_protection"
+    assert queue.call_args.kwargs["command"] == "stop"
+    assert queue.call_args.kwargs["source"] == "day_ahead"
+
+
+def test_expired_plan_falls_back_to_realtime_rules(ems_session):
+    session, device = ems_session
+    now = datetime(2026, 7, 18, 10, 22)
+    telemetry = StorageEmsService.get_latest_telemetry(session, device.id)
+    telemetry.timestamp = now
+    session.add(telemetry)
+    session.add(
+        StorageDispatchPlan(
+            device_id=device.id,
+            dispatch_date=date(2026, 7, 17),
+            slot_index=41,
+            target_active_power=-80,
+            solver_status="Optimal",
+            is_valid=True,
+        )
+    )
+    session.commit()
+    queue = MagicMock(return_value={"command_id": "92", "status": "accepted"})
+
+    result = StorageEmsService.evaluate_device(
+        session,
+        device,
+        campus_input_provider=_pv_surplus_inputs,
+        ems_enabled=True,
+        queue_command=queue,
+        now=now,
+    )
+
+    assert result["status"] == "queued"
+    assert result["fallback_reason"] == "expired_or_missing_plan"
+    assert queue.call_args.kwargs["source"] == "rule"

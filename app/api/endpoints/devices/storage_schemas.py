@@ -46,6 +46,20 @@ class StorageControlResponse(SQLModel):
     message: str
 
 
+class StorageDispatchGenerateRequest(SQLModel):
+    dispatch_date: date
+    scenario_key: Literal[
+        "sunny_workday",
+        "cloudy_workday",
+        "weekend_low_load",
+        "pv_surplus",
+        "evening_peak",
+    ] = "sunny_workday"
+    seed: int = 20260716
+    initial_soc: float = 50.0
+    terminal_soc_target: Optional[float] = None
+
+
 class StorageSimulationControlRequest(SQLModel):
     action: Literal["set_scenario", "set_speed", "inject_fault", "clear_fault"]
     scenario: Optional[

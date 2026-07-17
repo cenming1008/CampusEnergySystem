@@ -87,6 +87,23 @@ class TestSchedulerJobs(unittest.TestCase):
         mock_evaluate_all.assert_called_once_with(mock_session)
         mock_logger.info.assert_any_call("✅ 储能实时 EMS 完成：评估 2 台设备，下发 1 条命令")
 
+    @patch("app.services.scheduler_jobs.StorageDispatchService.generate_daily_plans")
+    @patch("app.services.scheduler_jobs.Session")
+    @patch("app.services.scheduler_jobs.logger")
+    def test_generate_storage_dispatch_plans_logs_result(
+        self,
+        mock_logger,
+        mock_session_cls,
+        mock_generate,
+    ):
+        mock_session = mock_session_cls.return_value.__enter__.return_value
+        mock_generate.return_value = [{"status": "optimal"}, {"status": "failed"}]
+
+        scheduler_jobs.generate_storage_dispatch_plans()
+
+        mock_generate.assert_called_once_with(mock_session)
+        mock_logger.info.assert_any_call("✅ 储能日前计划生成完成：成功 1 台，失败 1 台")
+
     @patch("app.services.scheduler_jobs.IngestionHealthService.sync_platform_comm_alarms")
     @patch("app.services.scheduler_jobs.Session")
     @patch("app.services.scheduler_jobs.logger")
@@ -130,6 +147,8 @@ class TestSchedulerJobs(unittest.TestCase):
 
         storage_job = next(job for job in jobs if job.id == "evaluate_storage_ems_rules")
         self.assertEqual(str(storage_job.trigger), "cron[minute='*']")
+        dispatch_job = next(job for job in jobs if job.id == "generate_storage_dispatch_plans")
+        self.assertEqual(str(dispatch_job.trigger), "cron[hour='0', minute='5']")
 
 if __name__ == "__main__":
     unittest.main()

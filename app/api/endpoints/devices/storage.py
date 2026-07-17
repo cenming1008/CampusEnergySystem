@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +13,7 @@ from app.api.endpoints.devices.storage_schemas import (
     StorageAssetProfileUpdate,
     StorageControlRequest,
     StorageControlResponse,
+    StorageDispatchGenerateRequest,
     StorageSimulationControlRequest,
 )
 from app.core.access_control import ensure_device_access
@@ -23,6 +24,7 @@ from app.models.storage import StorageAssetProfile, StorageTelemetry
 from app.models.tables import User, UserRole
 from app.services.devices.storage.asset_profile_service import StorageAssetProfileService
 from app.services.devices.storage.control_command_service import StorageControlCommandService
+from app.services.devices.storage.dispatch_service import StorageDispatchService
 from app.services.devices.storage.monitor_service import StorageMonitorService
 from app.services.devices.storage.specs import (
     SUPPORTED_COMMAND_SOURCES,
@@ -136,6 +138,63 @@ def send_storage_control(
         role=current_user.role,
     )
     return result
+
+
+@router.get("/{device_id}/storage/dispatch/current")
+def get_current_storage_dispatch(
+    device_id: int,
+    dispatch_date: date = Query(default_factory=date.today),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    device = ensure_device_access(session, current_user, device_id)
+    _ensure_storage_device(device)
+    return StorageDispatchService.get_current_plan(session, device_id, dispatch_date)
+
+
+@router.post("/{device_id}/storage/dispatch/generate")
+def generate_storage_dispatch(
+    device_id: int,
+    body: StorageDispatchGenerateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(MAINTAINER_OPERATOR_OR_ADMIN),
+):
+    device = ensure_device_access(session, current_user, device_id)
+    _ensure_storage_device(device)
+    try:
+        result = StorageDispatchService.generate_scenario_plan(
+            session,
+            device_id=device_id,
+            dispatch_date=body.dispatch_date,
+            scenario_key=body.scenario_key,
+            seed=body.seed,
+            initial_soc=body.initial_soc,
+            terminal_soc_target=body.terminal_soc_target,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    audit_log(
+        "device.storage.generate_dispatch",
+        current_user.username,
+        f"device:{device_id}",
+        dispatch_date=str(body.dispatch_date),
+        scenario_key=body.scenario_key,
+        solver_status=result.solver_status,
+        role=current_user.role,
+    )
+    return result
+
+
+@router.get("/{device_id}/storage/dispatch/status")
+def get_storage_dispatch_status(
+    device_id: int,
+    dispatch_date: date = Query(default_factory=date.today),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    device = ensure_device_access(session, current_user, device_id)
+    _ensure_storage_device(device)
+    return StorageDispatchService.get_solver_status(session, device_id, dispatch_date)
 
 
 @router.get("/{device_id}/storage/simulation/capabilities")
