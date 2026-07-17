@@ -87,12 +87,13 @@ def test_storage_resumes_only_after_phase2a_acceptance():
     assert re.search(r"(?m)^- \[x\] Task 10[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 11[:：].*完成", status)
     assert re.search(r"(?m)^- \[x\] Task 12[:：].*完成", status)
-    assert re.search(r"(?m)^- \[ \] Task 13.*等待", status)
+    assert re.search(r"(?m)^- \[x\] Task 13[:：].*完成", status)
+    assert re.search(r"(?m)^- \[ \] Task 14.*等待", status)
     assert 'revision = "20260716_0002"' in storage_plan
     assert 'down_revision = "20260716_0001"' in storage_plan
 
 
-def test_storage_task12_is_complete_and_task13_handoff_is_ready():
+def test_storage_task13_is_complete_and_task14_handoff_is_ready():
     status = read("docs/plans/current-status.md")
     handoff = read("docs/plans/handoff.md")
     governance = "\n".join((status, handoff))
@@ -117,9 +118,11 @@ def test_storage_task12_is_complete_and_task13_handoff_is_ready():
     assert re.search(r"(?m)^- Task 11[:：]通过并正式完成", governance)
     assert re.search(r"(?m)^- \[x\] Task 12[:：].*完成", status)
     assert re.search(r"(?m)^- Task 12[:：]通过并正式完成", governance)
-    assert "下一棒：后端储能 Task 13" in handoff
-    assert "Task 13：已解除依赖，交后端储能角色执行" in handoff
-    assert not re.search(r"(?m)^- \[x\] Task 13[:：]", governance)
+    assert re.search(r"(?m)^- \[x\] Task 13[:：].*完成", status)
+    assert re.search(r"(?m)^- Task 13[:：]通过并正式完成", governance)
+    assert "下一棒：前端 Task 14" in handoff
+    assert "Task 14：已解除依赖，交前端角色执行" in handoff
+    assert not re.search(r"(?m)^- \[x\] Task 14[:：]", governance)
 
 
 def test_storage_plans_lock_the_accepted_migration_boundary():
