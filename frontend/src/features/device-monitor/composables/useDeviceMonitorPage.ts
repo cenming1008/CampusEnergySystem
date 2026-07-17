@@ -1,4 +1,5 @@
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { getActivePinia, storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { resolveAlarm } from '@/api/alarm'
@@ -22,6 +23,7 @@ import {
 import { useCapacitorBankControlConsole } from '@/features/device-control/useCapacitorBankControlConsole'
 import { useECharts } from '@/shared/composables/useECharts'
 import { usePermissions } from '@/shared/composables/usePermissions'
+import { useSocketStore } from '@/stores/useSocketStore'
 import { useCompensationMonitor } from './useCompensationMonitor'
 import { useStorageMonitor } from './useStorageMonitor'
 import type {
@@ -75,6 +77,9 @@ export function useDeviceMonitorPage() {
     currentRole,
     isAdmin,
   } = usePermissions()
+  const socketMessage = getActivePinia()
+    ? storeToRefs(useSocketStore()).latestMessage
+    : ref(null)
 
   const deviceId = computed(() => Number(route.params.id))
   const loading = ref(false)
@@ -125,7 +130,18 @@ export function useDeviceMonitorPage() {
     enableLifecycle: false,
   })
 
-  const storage = useStorageMonitor({ deviceId, overview, timeRange, enableLifecycle: false })
+  const storage = useStorageMonitor({
+    deviceId,
+    overview,
+    timeRange,
+    canControl: canControlDevices,
+    isAdmin,
+    socketMessage,
+    refreshOverview: async () => {
+      overview.value = await getDeviceMonitorOverview(deviceId.value)
+    },
+    enableLifecycle: false,
+  })
 
   const timeShortcuts = [
     { text: '近 1 小时', value: () => buildRecentRange(1) },
@@ -385,7 +401,11 @@ export function useDeviceMonitorPage() {
         compensation.compensationCapacitorBankControlProfile.value = null
       }
       if (storage.isStorageDevice.value) {
-        extraTasks.push(storage.loadLatestTelemetry(), storage.loadTelemetryHistory())
+        extraTasks.push(
+          storage.loadLatestTelemetry(),
+          storage.loadTelemetryHistory(),
+          storage.loadWorkbench(),
+        )
       }
       await Promise.all(extraTasks)
     } catch {
@@ -409,6 +429,9 @@ export function useDeviceMonitorPage() {
     compensation.compensationCapacitorBankControlProfile.value = null
     storage.latestTelemetry.value = null
     storage.telemetryHistory.value = []
+    storage.assetProfile.value = null
+    storage.controlCapabilities.value = null
+    storage.controlLogs.value = []
   }
 
   async function loadStatusHistory() {
@@ -727,6 +750,24 @@ export function useDeviceMonitorPage() {
     storageIngestionTone: storage.ingestionTone,
     storageIngestionStatusLabel: storage.ingestionStatusLabel,
     storageLatestSampleText: storage.latestSampleText,
+    storageTargetPower: storage.targetPower,
+    storageTargetPowerDirectionLabel: storage.targetPowerDirectionLabel,
+    storagePowerDeviation: storage.powerDeviation,
+    storageDataSourceLabel: storage.dataSourceLabel,
+    storageCommandSourceLabel: storage.commandSourceLabel,
+    storageCurrentPlanLabel: storage.currentPlanLabel,
+    storageAssetProfile: storage.assetProfile,
+    storageControlCapabilities: storage.controlCapabilities,
+    storageCommandTimeline: storage.commandTimeline,
+    storageCommandPending: storage.commandPending,
+    storageControlSubmitting: storage.controlSubmitting,
+    storageCanControl: storage.canControl,
+    storageCanManageAuto: storage.canManageAuto,
+    storageAutoAuthorized: storage.autoAuthorized,
+    storageSendManualPower: storage.sendManualPower,
+    storageSetControlMode: storage.setControlMode,
+    storageStop: storage.stopStorage,
+    storageSetAutoAuthorization: storage.setAutoAuthorization,
     timeShortcuts,
     metricCards,
     trendFields,

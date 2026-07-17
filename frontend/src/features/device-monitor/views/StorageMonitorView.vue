@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import CompensationAlarmTable from '@/features/device-monitor/components/compensation/CompensationAlarmTable.vue'
-import CompensationDeviceProfile from '@/features/device-monitor/components/compensation/CompensationDeviceProfile.vue'
-import CompensationEventTimeline from '@/features/device-monitor/components/compensation/CompensationEventTimeline.vue'
 import DeviceTemplateDiagnosticsPanel from '@/features/device-monitor/components/common/DeviceTemplateDiagnosticsPanel.vue'
+import StorageCommandTimeline from '@/features/device-monitor/components/storage/StorageCommandTimeline.vue'
+import StorageControlPanel from '@/features/device-monitor/components/storage/StorageControlPanel.vue'
 import StorageHeader from '@/features/device-monitor/components/storage/StorageHeader.vue'
 import StorageRealtimeOverview from '@/features/device-monitor/components/storage/StorageRealtimeOverview.vue'
 import StorageStatusPanel from '@/features/device-monitor/components/storage/StorageStatusPanel.vue'
@@ -32,6 +32,29 @@ defineProps<{
     </template>
 
     <template #main>
+      <StorageControlPanel
+        :data-source-label="page.storageDataSourceLabel"
+        :control-mode="page.storageTelemetry?.control_mode || '--'"
+        :actual-power="page.storageTelemetry?.active_power ?? null"
+        :target-power="page.storageTargetPower"
+        :available-charge-power="page.storageTelemetry?.available_charge_power ?? null"
+        :available-discharge-power="page.storageTelemetry?.available_discharge_power ?? null"
+        :bms-status="page.storageTelemetry?.bms_status || '--'"
+        :pcs-status="page.storageTelemetry?.pcs_status || '--'"
+        :grid-status="page.storageTelemetry?.grid_status || '--'"
+        :command-source="page.storageCommandSourceLabel"
+        :current-plan-label="page.storageCurrentPlanLabel"
+        :auto-authorized="page.storageAutoAuthorized"
+        :can-control="page.storageCanControl"
+        :can-manage-auto="page.storageCanManageAuto"
+        :pending="page.storageCommandPending"
+        :submitting="page.storageControlSubmitting"
+        @set-power="page.storageSendManualPower"
+        @set-mode="page.storageSetControlMode"
+        @stop="page.storageStop"
+        @update-auto="page.storageSetAutoAuthorization"
+      />
+
       <StorageRealtimeOverview
         :soc-value="page.socValue"
         :soc-state="page.socState"
@@ -77,8 +100,7 @@ defineProps<{
         :unresolved-alarm-count="page.storageRuntimeStatus?.unresolved_alarm_count ?? 0"
         :latest-sample-text="page.storageLatestSampleText"
       />
-      <CompensationEventTimeline :events="page.compensationEvents" />
-      <CompensationDeviceProfile :items="page.compensationProfileItems" />
+      <StorageCommandTimeline :items="page.storageCommandTimeline" />
     </template>
   </MonitorViewShell>
 </template>

@@ -28,6 +28,88 @@ export interface StorageTelemetry {
   charge_energy_total?: number | null
   discharge_energy_total?: number | null
   cycle_count?: number | null
+  target_active_power?: number | null
+  available_charge_power?: number | null
+  available_discharge_power?: number | null
+  bms_status?: string | null
+  pcs_status?: string | null
+  grid_status?: string | null
+  command_source?: string | null
+  data_source?: 'simulated' | 'real' | string | null
+  simulation_run_id?: string | null
+}
+
+export interface StorageAssetProfileUpdate {
+  rated_energy_kwh: number
+  rated_power_kw: number
+  max_charge_power_kw?: number | null
+  max_discharge_power_kw?: number | null
+  charge_efficiency: number
+  discharge_efficiency: number
+  soc_min: number
+  soc_max: number
+  soc_soft_min: number
+  soc_soft_max: number
+  rated_ac_voltage?: number | null
+  rated_dc_voltage?: number | null
+  battery_type?: string | null
+  bms_model?: string | null
+  pcs_model?: string | null
+  protocol_version?: string | null
+  installation_location?: string | null
+  commission_date?: string | null
+  data_source: string
+  ems_auto_enabled: boolean
+}
+
+export interface StorageAssetProfile extends StorageAssetProfileUpdate {
+  device_id: number
+}
+
+export interface StorageControlCapabilities {
+  commands: Array<'set_active_power' | 'set_control_mode' | 'stop'>
+  sources: Array<'manual' | 'rule' | 'day_ahead'>
+  control_modes: Array<'auto' | 'manual'>
+  power_sign: { charge: 'positive'; discharge: 'negative' }
+  ems_auto_enabled: boolean
+  ems_global_enabled: boolean
+}
+
+export interface StorageControlRequest {
+  command: 'set_active_power' | 'set_control_mode' | 'stop'
+  source: 'manual' | 'rule' | 'day_ahead'
+  target_active_power?: number
+  control_mode?: 'auto' | 'manual'
+  reason?: string
+}
+
+export interface StorageControlResponse {
+  accepted: boolean
+  status: string
+  command_id: string
+  message: string
+}
+
+export type StorageSimulationScenario =
+  | 'sunny_workday'
+  | 'cloudy_workday'
+  | 'weekend_low_load'
+  | 'pv_surplus'
+  | 'evening_peak'
+
+export type StorageSimulationFault =
+  | 'low_soc'
+  | 'overtemperature'
+  | 'pcs_fault'
+  | 'communication_loss'
+  | 'pv_drop'
+
+export interface StorageSimulationCapabilities {
+  enabled: boolean
+  actions: Array<'set_scenario' | 'set_speed' | 'inject_fault' | 'clear_fault'>
+  scenarios: StorageSimulationScenario[]
+  speeds: number[]
+  faults: StorageSimulationFault[]
 }
 
 export interface StorageMonitorMetric {
@@ -58,6 +140,31 @@ export interface StorageMonitor {
 export function getStorageTelemetryLatest(deviceId: number) {
   return request.get<never, StorageTelemetry>(
     `/devices/${deviceId}/storage/telemetry/latest`,
+    { silent: true },
+  )
+}
+
+export function getStorageProfile(deviceId: number) {
+  return request.get<never, StorageAssetProfile>(`/devices/${deviceId}/storage/profile`)
+}
+
+export function updateStorageProfile(deviceId: number, body: StorageAssetProfileUpdate) {
+  return request.put<never, StorageAssetProfile>(`/devices/${deviceId}/storage/profile`, body)
+}
+
+export function getStorageControlCapabilities(deviceId: number) {
+  return request.get<never, StorageControlCapabilities>(
+    `/devices/${deviceId}/storage/control/capabilities`,
+  )
+}
+
+export function sendStorageControl(deviceId: number, body: StorageControlRequest) {
+  return request.post<never, StorageControlResponse>(`/devices/${deviceId}/storage/control`, body)
+}
+
+export function getStorageSimulationCapabilities(deviceId: number) {
+  return request.get<never, StorageSimulationCapabilities>(
+    `/devices/${deviceId}/storage/simulation/capabilities`,
     { silent: true },
   )
 }

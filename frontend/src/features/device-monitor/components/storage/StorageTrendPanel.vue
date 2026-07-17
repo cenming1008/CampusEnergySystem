@@ -60,7 +60,12 @@ const SERIES_CONFIGS: Record<TrendTab, {
   },
   power: {
     axes: [{ name: 'kW' }],
-    series: [{ name: '有功功率', color: '#4ade80', key: 'active_power', area: true }],
+    series: [
+      { name: '实际功率', color: '#4ade80', key: 'active_power', area: true },
+      { name: '目标功率', color: '#38bdf8', key: 'target_active_power' },
+      { name: '可充功率', color: '#fbbf24', key: 'available_charge_power' },
+      { name: '可放功率', color: '#fb7185', key: 'available_discharge_power' },
+    ],
   },
   temperature: {
     axes: [{ name: '°C' }],
@@ -218,12 +223,18 @@ watch(() => chart.chartRef.value, async () => {
     </div>
 
     <div class="trend-panel__summary">
-      <span v-for="item in summaryItems" :key="item.label">
+      <span
+        v-for="item in summaryItems"
+        :key="item.label"
+      >
         {{ item.label }} {{ item.value }}
       </span>
     </div>
 
-    <div v-if="hasLegend" class="trend-panel__legend">
+    <div
+      v-if="hasLegend"
+      class="trend-panel__legend"
+    >
       <span
         v-for="(s, i) in currentConfig.series"
         :key="s.name"

@@ -33,3 +33,12 @@ export interface StorageTrendModel {
   yAxisName?: string
   yAxisRight?: string
 }
+
+export interface StorageCommandTimelineItem {
+  commandId: string
+  actionLabel: string
+  result: string
+  resultLabel: string
+  detail: string
+  createdAt: string
+}
