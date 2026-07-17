@@ -42,8 +42,9 @@ function percentage(input: number | null | undefined): string {
         </h3>
       </div>
       <button
+        data-testid="refresh-storage-overview"
         type="button"
-        :disabled="refreshing"
+        :disabled="refreshing || generating"
         @click="$emit('refresh')"
       >
         刷新
@@ -93,7 +94,7 @@ function percentage(input: number | null | undefined): string {
       class="storage-panel__primary"
       data-testid="generate-storage-plan"
       type="button"
-      :disabled="generating || !canGeneratePlan || !overview?.storage_device_ids.length"
+      :disabled="generating || refreshing || !canGeneratePlan || !overview?.storage_device_ids.length"
       @click="overview?.storage_device_ids[0] != null && $emit('generate', overview.storage_device_ids[0])"
     >
       生成今日计划

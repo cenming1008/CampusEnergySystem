@@ -42,19 +42,26 @@ export function useStorageEms() {
   const error = computed(() => (
     generationError.value || overviewError.value || comparisonError.value
   ))
+  let refreshRequestToken = 0
   let comparisonRequestToken = 0
 
   async function refresh() {
+    const requestToken = ++refreshRequestToken
     overviewLoading.value = true
     overviewError.value = null
     try {
-      overview.value = await getStorageEnergyOverview()
+      const result = await getStorageEnergyOverview()
+      if (requestToken !== refreshRequestToken) return false
+      overview.value = result
       return true
     } catch (reason) {
+      if (requestToken !== refreshRequestToken) return false
       overviewError.value = toErrorMessage(reason)
       return false
     } finally {
-      overviewLoading.value = false
+      if (requestToken === refreshRequestToken) {
+        overviewLoading.value = false
+      }
     }
   }
 

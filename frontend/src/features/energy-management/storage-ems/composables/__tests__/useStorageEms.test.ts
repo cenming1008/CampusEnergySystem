@@ -103,4 +103,39 @@ describe('useStorageEms', () => {
     expect(state.comparison.value?.seed).toBe(20260718)
     expect(state.comparisonLoading.value).toBe(false)
   })
+
+  it('keeps generated refresh B when earlier refresh A completes last', async () => {
+    getStorageEnergyOverviewMock.mockClear()
+    generateStorageDispatchPlanMock.mockClear()
+    const refreshA = deferred<StorageEnergyOverview>()
+    const refreshB = deferred<StorageEnergyOverview>()
+    const overviewA = { storage_device_ids: [1] } as StorageEnergyOverview
+    const overviewB = { storage_device_ids: [7] } as StorageEnergyOverview
+    getStorageEnergyOverviewMock
+      .mockReturnValueOnce(refreshA.promise)
+      .mockReturnValueOnce(refreshB.promise)
+    generateStorageDispatchPlanMock.mockResolvedValueOnce({
+      status: 'optimal',
+      solver_status: 'Optimal',
+      dispatch_date: '2026-07-17',
+      plans: [],
+      failure_reason: null,
+    })
+    const state = useStorageEms()
+
+    const requestA = state.refresh()
+    const generation = state.generatePlan(7)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(getStorageEnergyOverviewMock).toHaveBeenCalledTimes(2)
+
+    refreshB.resolve(overviewB)
+    await generation
+    expect(state.overview.value?.storage_device_ids).toEqual([7])
+
+    refreshA.resolve(overviewA)
+    await requestA
+    expect(state.overview.value?.storage_device_ids).toEqual([7])
+    expect(state.overviewLoading.value).toBe(false)
+  })
 })
