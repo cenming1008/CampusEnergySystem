@@ -6,7 +6,7 @@
 - 正式 PLAN：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md`。
 - 详细实施计划：`docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`。
-- 当前目标：交验收/后端角色执行 Task 15，证明设备侧适配器可替换、模拟数据可按精确设备安全切换，并完成确定性端到端演示。
+- 当前目标：Task 15 代码与离线验收已经完成；交现场验收角色取得开发库升级授权、恢复 MQTT 健康并完成只读 preview、真实 MQTT 与人工页面验收。
 
 ## 已完成与准入
 
@@ -34,14 +34,16 @@
 - Task 12 已完成计划原子替换、EMS 安全执行、每日任务与三条嵌套 API，提交为 `b10991d5`；完整后端 `829 passed, 2 skipped, 7 warnings`。
 - Task 13 已完成园区级光储总览、同输入三策略重放、权限过滤、来源/时效/计划状态与显式响应模型，提交为 `e0508eed`；完整后端 `842 passed, 2 skipped, 7 warnings`。
 - Task 14 已完成原有 `/energy` 页面光储 EMS 工作区、权限门禁和异步状态保护，提交为 `cdd0bbda`，审查修复为 `be8ae66b`、`bd645552`、`2f681a8d`；聚焦 `31 passed`，typecheck 与 build 通过。
+- Task 15 代码与离线验收提交为 `4290f7e3`；精确设备 cutover、确定性演示、适配器替换测试和真实设备交接文档已落地。
+- 新增聚焦 `6 passed`、储能回归 `190 passed`、完整后端 `848 passed, 2 skipped, 7 warnings`，覆盖率 `76%`；前端聚焦 `31 passed`，typecheck、build 与 Compose 配置通过。
 
-## 下一棒：验收/后端 Task 15
+## 下一棒：现场验收 Task 15
 
-1. 先写精确设备切换 RED，覆盖预览计数、执行计数、来源过滤、自动控制仍开启、模拟器仍活跃、计数漂移、非储能设备和缺少操作人的拒绝条件。
-2. 清理只允许命中指定设备且 `data_source=simulated` 的遥测、计划和控制日志；真实记录、其他设备、资产档案、权限和审计必须保留。
-3. 提供 `storage_cutover.py` 预览/执行入口与确定性 `run_storage_demo.py`，默认安全、可复核，不允许全表清空。
-4. 用端到端测试证明模拟器与厂商网关遵循同一设备侧契约，替换适配器后业务 API、`StorageMonitorView` 和 `/energy` 光储 EMS 工作区无需改动。
-5. 补齐演示与脚本入口文档，并执行聚焦、储能回归和必要的完整后端验收。
+1. 开发库当前仍为 `20260716_0001`，public 26 表且缺少 `storage_asset_profile`/`storage_dispatch_plan`；必须先取得明确授权，再按 Alembic 升级到 `20260717_0003` 并复核。
+2. MQTT 容器当前 unhealthy；先恢复 broker 健康，再做真实遥测、控制回执和来源切换联调。
+3. 对目标设备只执行 `storage_cutover.py --preview` 并保存三个计数；本交接不授权 `--execute`。
+4. 人工检查原 `StorageMonitorView` 和现有 `/energy` 光储 EMS 工作区的来源、功率方向、回执生命周期、空值/错误态和笔记本布局。
+5. 全部现场证据通过后完成详细计划 Step 9-12、daily 快照与主题正式收口。
 
 ## 固定业务契约
 
@@ -56,8 +58,8 @@
 
 ## 本轮边界
 
-- 本轮只完成 Task 14 前端工作区并收敛文档，不开始 Task 15 后端/验收代码。
-- Redis、MQTT health、readiness、rate limit 和部署顺序仍不在当前 Task 14 范围内。
+- 本轮完成 Task 15 代码与离线验收，但不擅自升级开发库、不修复 MQTT 容器、不执行 cutover `--execute`，也不伪造人工页面验收。
+- Redis、readiness、rate limit 和部署顺序仍不在当前 Task 15 范围内；MQTT health 仅作为现场验收前置 blocker 记录。
 - 主工作树的用户改动 `app/api/README.md` 不得触碰。
 
 ## 交接结论
@@ -75,4 +77,4 @@
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
 - Task 14：通过并正式完成。
-- Task 15：已解除依赖，交验收/后端角色执行。
+- Task 15：代码与离线验收通过，现场验收待执行。

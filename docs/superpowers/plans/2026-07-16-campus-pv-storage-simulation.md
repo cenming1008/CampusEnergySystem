@@ -1233,7 +1233,7 @@ Task 14 实现提交为 `cdd0bbda`，审查修复提交为 `be8ae66b`、`bd64555
 - Modify: `docs/plans/current-status.md`
 - Modify: `docs/plans/handoff.md`
 
-- [ ] **Step 1: Write failing exact-device cutover tests**
+- [x] **Step 1: Write failing exact-device cutover tests**
 
 Create two storage devices with mixed `simulated` and `real` telemetry, plans, and control logs. Lock preview and execution behavior:
 
@@ -1256,17 +1256,17 @@ assert rows_for_device(session, other_device.id) == original_other_rows
 
 Also assert execution is rejected when `ems_auto_enabled=true`, recent simulated telemetry indicates the simulator is still active, expected counts differ from current counts, the device category is not `storage`, or no explicit operator is supplied.
 
-- [ ] **Step 2: Run cutover tests and verify failure**
+- [x] **Step 2: Run cutover tests and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulation_cutover.py`
 
 Expected: FAIL because the cutover service and script do not exist.
 
-- [ ] **Step 3: Implement preview-first transactional cutover**
+- [x] **Step 3: Implement preview-first transactional cutover**
 
 `StorageSimulationCutoverService.preview` must count only the exact device's `StorageTelemetry.data_source=simulated`, `StorageDispatchPlan.data_source=simulated`, and `DeviceControlLog` rows whose `command_source=storage-control-api` and structured reason contains `data_source=simulated`. `execute` must acquire device-scoped row locks, re-check all blockers and expected counts, delete the three allowlisted record groups in one transaction, and write one audit event containing device, operator, counts, and timestamp. It must never delete the device archive, asset profile, permissions, real telemetry, or another device's rows.
 
-- [ ] **Step 4: Add an explicit CLI with no implicit deletion**
+- [x] **Step 4: Add an explicit CLI with no implicit deletion**
 
 `storage_cutover.py` must require `--device-code` and exactly one mode. Preview is read-only:
 
@@ -1282,23 +1282,25 @@ python scripts/python/storage_cutover.py --device-code STO-001 --execute --opera
 
 Do not add this low-frequency tool to `bin/` and do not invoke `--execute` in automated demo or release verification.
 
-- [ ] **Step 5: Write failing deterministic adapter-replacement acceptance test**
+- [x] **Step 5: Write failing deterministic adapter-replacement acceptance test**
 
 Run a compressed sunny workday through baseline, rules, and day-ahead strategies. Assert midday charging, evening discharging, hard SOC bounds, safety rejection, terminal receipts, calculated comparisons, and persistent simulated labels. Then stop the simulator adapter, feed one contract-valid `data_source=real` payload through the same ingestion entry, and assert the same storage service/API response changes source without changing device id, route, or response shape.
 
-- [ ] **Step 6: Run the end-to-end test and verify failure**
+- [x] **Step 6: Run the end-to-end test and verify failure**
 
 Run: `python -m pytest -q tests/test_storage_simulator_e2e.py`
 
 Expected: FAIL until the demo orchestrator and adapter-replacement fixture exist.
 
-- [ ] **Step 7: Implement one stable demo entrypoint**
+- [x] **Step 7: Implement one stable demo entrypoint**
 
 `run_storage_demo.py` must accept scenario, speed, seed, and output directory; start or connect to the simulator; run the selected day; write raw JSON/CSV and summary JSON; exit nonzero when acceptance invariants fail. It must never perform simulated-data deletion and must not be added to `bin/`.
 
-- [ ] **Step 8: Document demo and real-device handoff**
+- [x] **Step 8: Document demo and real-device handoff**
 
 Document exact startup commands, the original storage device page, the existing energy-management `光储 EMS` workspace, five scenarios, metric definitions, sign convention, persistent source labels, cutover preview, troubleshooting, canonical MQTT fields, and the boundary between simulated BMS/PCS and the future vendor gateway. State that real automatic control remains disabled until field acceptance is complete.
+
+Task 15 代码与离线验收提交为 `4290f7e3`。精确设备 cutover 服务、显式 preview/execute CLI、确定性压缩日演示、适配器替换验收和交接文档均已落地；新增测试 `6 passed`，储能回归 `190 passed`，完整后端 `848 passed, 2 skipped, 7 warnings`，覆盖率 `76%`。前端聚焦 `31 passed`，typecheck、build 与生产 Compose 配置通过；前端全量仍为既有 `382 passed, 1 failed`。同一 sunny_workday/seed 生成逐字一致的 JSON/CSV/summary，输入校验和为 `98d080308ad2f06999cfabc846179ee1b1f7ad146c98aad273b3a8d954ed5d42`。开发库仍在 `20260716_0001` 且缺少两张储能表，MQTT 容器 unhealthy，因此未执行真实库 cutover preview、真实 MQTT 联调或人工页面验收；Step 9-12 保持未完成，不将离线证据冒充现场通过。
 
 - [ ] **Step 9: Run complete verification**
 

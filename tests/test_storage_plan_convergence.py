@@ -64,7 +64,7 @@ def test_detailed_plan_preserves_completed_work_and_adds_cutover_acceptance():
     assert "simulation_run_id" in plan
 
 
-def test_status_and_handoff_keep_task15_as_the_only_next_storage_task():
+def test_status_and_handoff_keep_task15_field_acceptance_as_the_only_next_storage_task():
     status = read(STATUS)
     handoff = read(HANDOFF)
 
@@ -78,8 +78,8 @@ def test_status_and_handoff_keep_task15_as_the_only_next_storage_task():
     assert "Task 12：通过并正式完成" in status
     assert "Task 13：通过并正式完成" in status
     assert "Task 14：通过并正式完成" in status
-    assert "Task 15：已解除依赖，尚未开始" in status
-    assert "下一棒：验收/后端 Task 15" in handoff
+    assert "Task 15：代码与离线验收完成；现场验收待执行" in status
+    assert "下一棒：现场验收 Task 15" in handoff
     assert "下一棒：前端 Task 14" not in handoff
     assert "下一棒：后端储能 Task 13" not in handoff
     assert "下一棒：后端储能 Task 12" not in handoff

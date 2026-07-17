@@ -3,7 +3,7 @@
 ## 当前总目标
 
 - 当前主主题：`园区光储协同仿真与 EMS 控制`。
-- 当前总目标：Task 14 原有能耗分析页“光储 EMS”工作区已通过验收；当前进入 Task 15 适配器替换、安全切换和确定性端到端验收。
+- 当前总目标：Task 15 代码与离线验收已完成；当前等待开发库升级授权与 MQTT 健康恢复，再执行只读 cutover preview、真实 MQTT 和人工页面现场验收。
 - 当前执行依据：`docs/plans/PLAN-20260716-campus-pv-storage-simulation.md` 与 `docs/superpowers/plans/2026-07-16-campus-pv-storage-simulation.md`。
 - 收敛设计依据：`docs/superpowers/specs/2026-07-17-single-storage-system-convergence-design.md`；只保留一个储能系统，模拟器未来由厂商网关替换。
 
@@ -23,7 +23,7 @@
 - [x] Task 12：调度计划原子替换、EMS 安全执行、失败回退、每日任务与嵌套 API 完成。
 - [x] Task 13：园区级光储总览、三策略同输入重放、权限与显式响应契约完成。
 - [x] Task 14：原页面光储 EMS 工作区、权限门禁、异步状态保护与展示契约完成。
-- [ ] Task 15：适配器替换、安全切换和确定性端到端验收等待执行。
+- [ ] Task 15：代码与离线验收完成；现场验收待执行。
 
 ## Task 3 完成证据
 
@@ -145,12 +145,23 @@
 - 聚焦回归 `31 passed`，typecheck 与 build 通过；变更文件 ESLint `0 errors, 13 warnings`，warning 位于原页面历史展示区域。
 - 前端全量 `382 passed, 1 failed`；唯一失败为本任务未修改的既有 `DeviceTrendPanel` 测试桩未注册 `el-segmented`。
 
+## Task 15 代码与离线验收证据
+
+- 实现提交：`4290f7e3`；新增精确设备 cutover 服务、显式 preview/execute CLI、确定性压缩日演示和真实适配器替换验收。
+- cutover 只统计并删除指定设备的 simulated 遥测、simulated 计划和结构化 simulated 控制日志；设备/profile 行锁、自动控制/活跃模拟器/计数漂移门禁与同事务审计均有测试。
+- 同设备 real 数据、其他设备数据、设备档案、资产档案、用户权限均保留；任何自动演示、测试或发布验证都不调用 `--execute`。
+- sunny_workday 同一 seed 的 JSON、CSV、summary 逐字一致；输入校验和为 `98d080308ad2f06999cfabc846179ee1b1f7ad146c98aad273b3a8d954ed5d42`。
+- 计算结果：baseline/day-ahead 成本分别为 `8503.286203/7006.628849`，峰值为 `451.864497/349.368124 kW`，光伏自用率为 `79.170644%/96.619544%`；这些数值来自原始序列计算，不作为硬编码收益承诺。
+- 新增聚焦 `6 passed`，储能回归 `190 passed`，完整后端 `848 passed, 2 skipped, 7 warnings`；覆盖率 `76%`，Ruff 与差异检查通过。
+- 前端聚焦 `31 passed`，typecheck、build 与生产 Compose 配置通过；全量仍为既有 `382 passed, 1 failed`。
+- 开发库只读核对仍为 `20260716_0001`、public 26 表，`storage_asset_profile`/`storage_dispatch_plan` 缺失；MQTT 容器 unhealthy。真实库 preview、真实 MQTT 和人工页面验收未执行。
+
 ## 当前待办
 
-1. 验收/后端角色按 TDD 执行 Task 15，先锁定精确设备、精确来源的切换预览和拒绝条件。
-2. 实现模拟数据安全清理 CLI 与确定性端到端演示，严禁全表清空；保留真实记录、设备档案、权限和审计证据。
-3. 证明模拟器与未来厂商网关只替换设备侧适配器，储能业务 API、设备页面和光储 EMS 工作区不变。
-4. 正常 MQTT 与依赖计划表的运行联调前，显式升级并复核 `campus_energy` 到 `20260717_0003`。
+1. 获得明确授权后，将开发库从 `20260716_0001` 升级到既有 head `20260717_0003`，复核新增表、列与 `energydata` hypertable；不得由演示脚本隐式升级。
+2. 先恢复 MQTT 容器健康，再执行真实 MQTT 遥测/回执联调和原设备页、`/energy` 光储 EMS 工作区人工验收。
+3. 对真实 `STO-001` 只运行 cutover `--preview` 并留存计数证据；禁止自动或未经再次确认执行 `--execute`。
+4. 完成详细计划 Step 9-12 后再正式收口主题；当前不得把离线验收等同于真实设备现场通过。
 
 ## 当前验收判断
 
@@ -168,5 +179,5 @@
 - Task 12：通过并正式完成。
 - Task 13：通过并正式完成。
 - Task 14：通过并正式完成。
-- Task 15：已解除依赖，尚未开始。
-- 下一接手角色：验收/后端角色。
+- Task 15：代码与离线验收完成；现场验收待执行。
+- 下一接手角色：现场验收角色，需先取得开发库升级授权并恢复 MQTT 健康。
